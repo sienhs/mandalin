@@ -43,7 +43,7 @@ public class JwtFilter extends OncePerRequestFilter {
 	) throws ServletException, IOException {
 		String token = extractToken(request);
 
-		if (token != null && jwtUtil.isTokenValid(token)) {
+		if (token != null && jwtUtil.isAccessToken(token)) {
 			String email = jwtUtil.extractEmail(token);
 
 			if (SecurityContextHolder.getContext().getAuthentication() == null) {

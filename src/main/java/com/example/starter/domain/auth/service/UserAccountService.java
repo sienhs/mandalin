@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.starter.domain.auth.entity.User;
+import com.example.starter.domain.auth.repository.OAuthIdentityRepository;
 import com.example.starter.domain.auth.repository.RefreshTokenRepository;
 import com.example.starter.domain.auth.repository.UserRepository;
 import com.example.starter.global.exception.BusinessException;
@@ -20,6 +21,7 @@ public class UserAccountService {
 
 	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final OAuthIdentityRepository oAuthIdentityRepository;
 
 	public String updateName(String email, String name) {
 		User user = findActiveUser(email);
@@ -30,9 +32,15 @@ public class UserAccountService {
 
 	public void deleteAccount(String email) {
 		User user = findActiveUser(email);
-		user.withdraw();
+		Long userId = user.getId();
+
+		// Both must go before the email is released: a lingering identity would make every
+		// future social login resolve to this withdrawn row and fail permanently.
+		oAuthIdentityRepository.deleteByUser(user);
 		refreshTokenRepository.deleteByEmail(email);
-		log.info("Account withdrawn: userId={}", user.getId());
+
+		user.withdraw();
+		log.info("Account withdrawn: userId={}", userId);
 	}
 
 	private User findActiveUser(String email) {

@@ -43,7 +43,12 @@ public class User extends BaseEntity {
 		this.name = name;
 	}
 
+	/**
+	 * Releases the email so the person can sign up again later, since {@code users.email} is
+	 * unique and the row is kept for soft-delete auditing.
+	 */
 	public void withdraw() {
+		this.email = "withdrawn-" + this.id + "@deleted.local";
 		this.name = "withdrawn user";
 		this.deletedAt = LocalDateTime.now();
 	}

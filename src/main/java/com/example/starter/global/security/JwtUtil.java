@@ -14,6 +14,10 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
+	private static final String TOKEN_TYPE_CLAIM = "tokenType";
+	private static final String ACCESS_TOKEN_TYPE = "access";
+	private static final String REFRESH_TOKEN_TYPE = "refresh";
+
 	private final SecretKey secretKey;
 	private final long accessTokenExpiration;
 	private final long refreshTokenExpiration;
@@ -29,32 +33,45 @@ public class JwtUtil {
 	}
 
 	public String generateAccessToken(String email) {
-		return buildToken(email, accessTokenExpiration);
+		return buildToken(email, accessTokenExpiration, ACCESS_TOKEN_TYPE);
 	}
 
 	public String generateRefreshToken(String email) {
-		return buildToken(email, refreshTokenExpiration);
+		return buildToken(email, refreshTokenExpiration, REFRESH_TOKEN_TYPE);
 	}
 
 	public String extractEmail(String token) {
 		return getClaims(token).getSubject();
 	}
 
-	public boolean isTokenValid(String token) {
+	/**
+	 * Access and refresh tokens are signed with the same key, so the token type must be
+	 * checked explicitly. Without this a stolen refresh token would authenticate API calls
+	 * for its full lifetime.
+	 */
+	public boolean isAccessToken(String token) {
+		return isTokenOfType(token, ACCESS_TOKEN_TYPE);
+	}
+
+	public boolean isRefreshToken(String token) {
+		return isTokenOfType(token, REFRESH_TOKEN_TYPE);
+	}
+
+	private boolean isTokenOfType(String token, String expectedType) {
 		try {
-			getClaims(token);
-			return true;
+			return expectedType.equals(getClaims(token).get(TOKEN_TYPE_CLAIM, String.class));
 		} catch (JwtException | IllegalArgumentException e) {
 			return false;
 		}
 	}
 
-	private String buildToken(String email, long expiration) {
+	private String buildToken(String email, long expiration, String tokenType) {
 		Date now = new Date();
 		Date expiryDate = new Date(now.getTime() + expiration);
 
 		return Jwts.builder()
 				.subject(email)
+				.claim(TOKEN_TYPE_CLAIM, tokenType)
 				.issuedAt(now)
 				.expiration(expiryDate)
 				.signWith(secretKey)

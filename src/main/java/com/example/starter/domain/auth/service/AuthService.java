@@ -63,7 +63,7 @@ public class AuthService {
 
 	@Transactional
 	public String reissue(String refreshToken) {
-		if (!jwtUtil.isTokenValid(refreshToken)) {
+		if (!jwtUtil.isRefreshToken(refreshToken)) {
 			throw new BusinessException(ErrorCode.INVALID_TOKEN);
 		}
 
