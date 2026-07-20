@@ -1,0 +1,22 @@
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: true
+
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        secure: true
+
+auth:
+  refresh-cookie-secure: true
+  refresh-cookie-same-site: ${REFRESH_COOKIE_SAME_SITE:None}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
