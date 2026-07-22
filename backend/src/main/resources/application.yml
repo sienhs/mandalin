@@ -1,13 +1,13 @@
 spring:
   application:
-    name: starter
+    name: mandarin
 
   config:
     import: optional:file:.env[.properties]
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/starter}
-    username: ${DB_USER:starter_user}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mandarin}
+    username: ${DB_USER:mandarin_user}
     password: ${DB_PASS}
     driver-class-name: org.postgresql.Driver
 

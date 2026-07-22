@@ -1,7 +1,7 @@
-# Backend Starter
+# Mandarin Backend
 
-Spring Boot 4 + Spring Security + JPA + JWT + OAuth2(Kakao) 기반 백엔드 스타터입니다.
-인증 도메인이 구현되어 있으므로, 이식 후 비즈니스 도메인부터 개발을 시작할 수 있습니다.
+Spring Boot 4 + Spring Security + JPA + JWT + OAuth2(Kakao) 기반 백엔드입니다.
+[backend-starter](https://github.com/sienhs/backend-starter)에서 이식되었으며, 인증 도메인은 구현되어 있고 비즈니스 도메인(만다라트/마을/방 등)부터 개발을 시작하면 됩니다.
 
 ---
 
@@ -32,8 +32,8 @@ cp .env.example .env
 
 ```bash
 # PostgreSQL
-docker run -d --name starter-db -p 5432:5432 \
-  -e POSTGRES_DB=starter -e POSTGRES_USER=starter_user -e POSTGRES_PASSWORD=change-me \
+docker run -d --name mandarin-db -p 5432:5432 \
+  -e POSTGRES_DB=mandarin -e POSTGRES_USER=mandarin_user -e POSTGRES_PASSWORD=change-me \
   postgres:16
 
 # 실행. Flyway 가 마이그레이션을 자동 적용합니다
@@ -46,8 +46,8 @@ docker run -d --name starter-db -p 5432:5432 \
 ## 3. 패키지 구조
 
 ```
-com.example.starter
-├── StarterApplication.java        @EnableJpaAuditing, @EnableScheduling
+com.ssafy.mandarin
+├── MandarinApplication.java       @EnableJpaAuditing, @EnableScheduling
 ├── domain/
 │   └── auth/
 │       ├── controller/   AuthController, UserAccountController
@@ -205,9 +205,9 @@ com.example.starter
 
 ## 7. 이식 체크리스트
 
-- [ ] `settings.gradle` 의 `rootProject.name`, `build.gradle` 의 `group`, 패키지명 `com.example.starter` 일괄 변경
-- [ ] `JWT_SECRET` 신규 생성 — 32자 이상, 프로젝트 간 재사용 금지
-- [ ] `CORS_ALLOWED_ORIGINS` 및 `FRONTEND_BASE_URL` 을 실제 프론트엔드 주소로 설정
+- [x] `settings.gradle` 의 `rootProject.name`, `build.gradle` 의 `group`, 패키지명 `com.example.starter` 일괄 변경 — `mandarin` / `com.ssafy` / `com.ssafy.mandarin` 으로 변경 완료
+- [ ] `JWT_SECRET` 신규 생성 — 32자 이상, 프로젝트 간 재사용 금지 (`infra/.env` 발급 시 진행)
+- [ ] `CORS_ALLOWED_ORIGINS` 및 `FRONTEND_BASE_URL` 을 실제 프론트엔드 주소로 설정 (Vercel 배포 주소 확정 후 `infra/.env` 반영)
 - [ ] 카카오 개발자 콘솔에 Redirect URI 등록 — `{BASE_URL}/login/oauth2/code/kakao`
-- [ ] 프론트엔드와 백엔드의 도메인이 다른 경우 HTTPS 및 `SameSite=None` 설정, 클라이언트 fetch 에 `credentials: 'include'` 적용
-- [ ] `.env` 의 `.gitignore` 포함 여부 확인 — 기본 포함되어 있습니다
+- [x] 프론트엔드와 백엔드의 도메인이 다른 경우 HTTPS 및 `SameSite=None` 설정, 클라이언트 fetch 에 `credentials: 'include'` 적용 — `infra/nginx`, `auth.refresh-cookie-same-site`, `frontend/src/api.ts` 참고
+- [x] `.env` 의 `.gitignore` 포함 여부 확인 — 기본 포함되어 있습니다
