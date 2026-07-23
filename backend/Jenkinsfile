@@ -1,0 +1,24 @@
+pipeline {
+    agent any
+
+    environment {
+        EC2_HOST = 'ubuntu@172.26.3.237'
+    }
+
+    stages {
+        stage('Deploy') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY')]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no -i \$SSH_KEY ${EC2_HOST} '
+                            cd ~/S15P11D106 &&
+                            git pull &&
+                            cd infra &&
+                            docker compose up -d --build backend
+                        '
+                    """
+                }
+            }
+        }
+    }
+}
