@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Vercel CLI local state — keep project.json (org/project id, not secret)
+# so Jenkins can `vercel pull` without extra credentials
+.vercel/*
+!.vercel/project.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +27,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*

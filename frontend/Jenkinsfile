@@ -1,0 +1,41 @@
+pipeline {
+    agent any
+
+    environment {
+        VERCEL_TOKEN = credentials('vercel-token')
+    }
+
+    stages {
+        stage('Install') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        stage('Pull Vercel Config') {
+            steps {
+                dir('frontend') {
+                    sh 'npx vercel pull --yes --environment=production --token=$VERCEL_TOKEN'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('frontend') {
+                    sh 'npx vercel build --prod --token=$VERCEL_TOKEN'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                dir('frontend') {
+                    sh 'npx vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN'
+                }
+            }
+        }
+    }
+}
