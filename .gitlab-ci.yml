@@ -9,7 +9,7 @@ default:
 deploy_preview:
   stage: deploy
   rules:
-    - if: '$CI_COMMIT_BRANCH != "main"'
+    - if: '$CI_COMMIT_BRANCH != "master"'
       changes:
         - frontend/**/*
   script:
@@ -21,7 +21,7 @@ deploy_preview:
 deploy_production:
   stage: deploy
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
       changes:
         - frontend/**/*
   script:
