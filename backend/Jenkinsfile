@@ -12,7 +12,8 @@ pipeline {
                     sh """
                         ssh -o StrictHostKeyChecking=no -i \$SSH_KEY ${EC2_HOST} '
                             cd ~/S15P11D106 &&
-                            git pull &&
+                            git fetch --all --prune &&
+                            git reset --hard @{u} &&
                             cd infra &&
                             docker compose up -d --build backend
                         '
