@@ -3,7 +3,8 @@ import { Color } from 'three'
 import { Text } from '@react-three/drei'
 import { PALETTE, DOMAIN_ACCENTS } from './palette'
 import { GrowableObject, AUTO_CELL, type CellOverride } from './GrowableObject'
-import { Bush, FlowerBed, type ThemeKey } from './buildings'
+import { Bush, FlowerBed } from './buildings'
+import { type ThemeKey } from './catalog'
 import { urbanLevelOf, type Domain } from './types'
 
 const CELL = 2.6

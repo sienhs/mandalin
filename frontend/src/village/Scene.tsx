@@ -2,7 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Sky } from '@react-three/drei'
 import { Village } from './Village'
 import type { CellOverride } from './GrowableObject'
-import type { ThemeKey } from './buildings'
+import type { ThemeKey } from './catalog'
 import type { Mandalart } from './types'
 
 interface Props {

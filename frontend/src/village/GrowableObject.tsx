@@ -1,14 +1,14 @@
 import { useState, type ReactNode } from 'react'
 import { PALETTE } from './palette'
 import { progressStage, type Task } from './types'
+import { StageBuilding } from './buildings'
 import {
-  StageBuilding,
   CITY_SLOT_KEYS,
   VILLAGE_SLOT_KEYS,
   type BuildingKey,
   type Stage,
   type ThemeKey,
-} from './buildings'
+} from './catalog'
 
 /** ref 단위(footprint≈0.3~0.46) → 셀 월드 크기로 키우는 배율. */
 const BUILD_SCALE = 2.4
