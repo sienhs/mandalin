@@ -50,7 +50,21 @@ export const PALETTE = {
   flowerRed: lin(0.8148, 0.0782, 0.2016),
   flowerOrange: lin(0.8879, 0.5333, 0.0762),
   flowerPurple: lin(0.5841, 0.1119, 0.8148),
+
+  // --- 파생색 (config에서 참조) ---
+  hospitalWhite: lin(0.853, 0.878, 0.896),
+  stoneLight: lin(0.919, 0.888, 0.808),
+  officeBody: lin(0.3831, 0.489, 0.592), // wallBlue↔concrete 0.4
+  skyBody: lin(0.4779, 0.5369, 0.5989), // concrete↔wallBlue 0.25
 } as const
+
+export type PaletteKey = keyof typeof PALETTE
+
+/** config의 color 문자열(팔레트 key 또는 '#hex') → THREE.Color. */
+export function resolveColor(c: string): Color {
+  if (c.startsWith('#')) return new Color(c)
+  return (PALETTE as Record<string, Color>)[c] ?? PALETTE.wallCream
+}
 
 /** 9개 도메인을 시각적으로 구분하기 위한 지붕/포인트 색 (팔레트 안에서 고름). */
 export const DOMAIN_ACCENTS: Color[] = [

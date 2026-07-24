@@ -3,12 +3,12 @@ import { Scene } from '../village/Scene'
 import { MOCK_MANDALART } from '../village/mockData'
 import { urbanLevelOf } from '../village/types'
 import {
-  BUILDING_LIBRARY,
+  BUILDING_LIST,
   THEMES,
   type BuildingKey,
   type Stage,
   type ThemeKey,
-} from '../village/buildings'
+} from '../village/catalog'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 
 const STAGE_OPTS: { value: Stage | 'auto'; label: string }[] = [
@@ -26,10 +26,8 @@ export default function VillagePage() {
   const domain = selected != null ? mandalart.domains[selected] : null
 
   const groups = useMemo(() => {
-    const g: Record<string, [BuildingKey, string][]> = { 마을: [], 도시: [] }
-    ;(Object.keys(BUILDING_LIBRARY) as BuildingKey[]).forEach((k) => {
-      g[BUILDING_LIBRARY[k].group].push([k, BUILDING_LIBRARY[k].label])
-    })
+    const g: Record<string, [BuildingKey, string][]> = { village: [], city: [] }
+    BUILDING_LIST.forEach((b) => g[b.group].push([b.key, b.label]))
     return g
   }, [])
 
@@ -187,7 +185,7 @@ export default function VillagePage() {
                   >
                     <option value="auto">자동 (기본 배치)</option>
                     {Object.entries(groups).map(([groupName, items]) => (
-                      <optgroup key={groupName} label={groupName === '마을' ? '🏡 마을풍' : '🏙 도시풍'}>
+                      <optgroup key={groupName} label={groupName === 'village' ? '🏡 마을풍' : '🏙 도시풍'}>
                         {items.map(([key, label]) => (
                           <option key={key} value={key}>
                             {label}

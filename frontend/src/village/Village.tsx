@@ -1,7 +1,7 @@
 import { Block, BLOCK_SIZE } from './Block'
 import { PALETTE } from './palette'
 import type { CellOverride } from './GrowableObject'
-import type { ThemeKey } from './buildings'
+import type { ThemeKey } from './catalog'
 import type { Mandalart } from './types'
 
 const GAP = 2.2
