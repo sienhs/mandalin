@@ -6,6 +6,7 @@ import OAuthCallbackPage from './pages/OAuthCallbackPage'
 // three.js를 쓰는 무거운 페이지는 지연 로딩 → 로그인/콜백 초기 번들에서 제외
 const VillagePage = lazy(() => import('./pages/VillagePage'))
 const ThumbnailStudioPage = lazy(() => import('./pages/ThumbnailStudioPage'))
+const GalleryPage = lazy(() => import('./pages/GalleryPage'))
 
 function Loading() {
   return (
@@ -34,6 +35,14 @@ function App() {
           element={
             <Suspense fallback={<Loading />}>
               <ThumbnailStudioPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/gallery"
+          element={
+            <Suspense fallback={<Loading />}>
+              <GalleryPage />
             </Suspense>
           }
         />
