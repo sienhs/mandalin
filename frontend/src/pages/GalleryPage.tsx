@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { TopBar } from '../components/TopBar'
 import { BuildingImage } from '../village/BuildingImage'
+import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { BUILDING_LIST, type Stage } from '../village/catalog'
 
 const STAGES: { v: Stage; label: string }[] = [
@@ -43,7 +45,9 @@ export default function GalleryPage() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eef2f5', fontFamily: 'system-ui, sans-serif', padding: 24 }}>
+    <div style={{ minHeight: '100vh', background: '#eef2f5', fontFamily: 'system-ui, sans-serif', padding: '64px 24px 24px' }}>
+      <TopBar />
+      <ThumbnailBakery />
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0, fontSize: 22 }}>🏘 건물 모아보기</h1>
         <div style={{ display: 'flex', gap: 6 }}>

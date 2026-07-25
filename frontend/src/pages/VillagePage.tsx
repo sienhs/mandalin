@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react'
+import { TopBar } from '../components/TopBar'
 import { Scene } from '../village/Scene'
 import { MOCK_MANDALART } from '../village/mockData'
 import { urbanLevelOf } from '../village/types'
 import {
   BUILDING_LIST,
   THEMES,
-  type BuildingKey,
   type Stage,
   type ThemeKey,
 } from '../village/catalog'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
+import { BuildingPicker } from '../village/BuildingPicker'
+import { ThumbnailBakery } from '../village/thumbnailBaker'
 
 const STAGE_OPTS: { value: Stage | 'auto'; label: string }[] = [
   { value: 'auto', label: '자동' },
@@ -22,14 +24,14 @@ export default function VillagePage() {
   const [selected, setSelected] = useState<number | null>(null)
   const [overrides, setOverrides] = useState<Record<string, CellOverride>>({})
   const [themes, setThemes] = useState<Record<string, ThemeKey>>({})
+  const [pickerTask, setPickerTask] = useState<string | null>(null)
   const mandalart = MOCK_MANDALART
   const domain = selected != null ? mandalart.domains[selected] : null
 
-  const groups = useMemo(() => {
-    const g: Record<string, [BuildingKey, string][]> = { village: [], city: [] }
-    BUILDING_LIST.forEach((b) => g[b.group].push([b.key, b.label]))
-    return g
-  }, [])
+  const labelOf = useMemo(
+    () => Object.fromEntries(BUILDING_LIST.map((b) => [b.key, b.label])) as Record<string, string>,
+    [],
+  )
 
   const patchCell = (taskId: string, patch: Partial<CellOverride>) =>
     setOverrides((prev) => ({ ...prev, [taskId]: { ...(prev[taskId] ?? AUTO_CELL), ...patch } }))
@@ -59,6 +61,8 @@ export default function VillagePage() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, fontFamily: 'system-ui, sans-serif' }}>
+      <TopBar />
+      <ThumbnailBakery />
       <Scene
         mandalart={mandalart}
         selected={selected}
@@ -169,31 +173,29 @@ export default function VillagePage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {/* 건물 선택 */}
-                  <select
-                    value={cur.building}
-                    onChange={(e) => patchCell(t.id, { building: e.target.value as CellOverride['building'] })}
+                  {/* 건물 선택 — 썸네일 그리드 모달 열기 */}
+                  <button
+                    onClick={() => setPickerTask(t.id)}
                     style={{
                       flex: 2,
-                      padding: '6px 8px',
+                      padding: '6px 10px',
                       borderRadius: 8,
                       border: '1px solid #d0d7dc',
                       fontSize: 13,
                       background: cur.building === 'auto' ? '#f6f8f9' : '#eef7ff',
                       cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 6,
                     }}
                   >
-                    <option value="auto">자동 (기본 배치)</option>
-                    {Object.entries(groups).map(([groupName, items]) => (
-                      <optgroup key={groupName} label={groupName === 'village' ? '🏡 마을풍' : '🏙 도시풍'}>
-                        {items.map(([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {cur.building === 'auto' ? '자동 (기본 배치)' : labelOf[cur.building]}
+                    </span>
+                    <span style={{ color: '#8a97a0' }}>▾</span>
+                  </button>
 
                   {/* 단계 선택 */}
                   <select
@@ -240,6 +242,15 @@ export default function VillagePage() {
             이 도메인 전부 자동으로 되돌리기
           </button>
         </div>
+      )}
+
+      {/* 건물 썸네일 그리드 선택 모달 */}
+      {pickerTask && (
+        <BuildingPicker
+          value={(overrides[pickerTask] ?? AUTO_CELL).building}
+          onPick={(v) => patchCell(pickerTask, { building: v })}
+          onClose={() => setPickerTask(null)}
+        />
       )}
     </div>
   )

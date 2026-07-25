@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { BuildingThumbnail } from './BuildingThumbnail'
 import { thumbnailSrc } from './thumbnails'
+import { useThumbnail } from './thumbnailBaker'
 import type { BuildingKey, Stage } from './catalog'
 
 interface Props {
@@ -11,24 +11,38 @@ interface Props {
 }
 
 /**
- * 상점/목록용 건물 프리뷰.
- * static PNG(`/thumbnails/*.png`)를 우선 사용하고, 파일이 없으면 라이브 3D(BuildingThumbnail)로 폴백.
- * → 썸네일 커밋 전에도 동작하고, 커밋 후엔 수백 개도 가볍게(<img>) 표시.
+ * 상점/목록/피커용 건물 프리뷰 — 항상 <img>(WebGL 컨텍스트 안 씀).
+ * 1) static PNG(`/thumbnails/*.png`) 우선
+ * 2) 없으면 ThumbnailBakery가 구운 dataURL 사용 (페이지에 <ThumbnailBakery/> 마운트 필요)
+ * 3) 굽는 중이면 플레이스홀더
  */
 export function BuildingImage({ k, stage = 3, size = 140, alt }: Props) {
-  const [failed, setFailed] = useState(false)
+  const [staticFailed, setStaticFailed] = useState(false)
+  const baked = useThumbnail(staticFailed ? k : null, stage)
 
-  if (failed) return <BuildingThumbnail k={k} stage={stage} size={size} />
+  const imgStyle: React.CSSProperties = { objectFit: 'contain', display: 'block' }
+
+  if (!staticFailed) {
+    return (
+      <img
+        src={thumbnailSrc(k, stage)}
+        width={size}
+        height={size}
+        alt={alt ?? k}
+        loading="lazy"
+        style={imgStyle}
+        onError={() => setStaticFailed(true)}
+      />
+    )
+  }
+
+  if (baked) {
+    return <img src={baked} width={size} height={size} alt={alt ?? k} style={imgStyle} />
+  }
 
   return (
-    <img
-      src={thumbnailSrc(k, stage)}
-      width={size}
-      height={size}
-      alt={alt ?? k}
-      loading="lazy"
-      style={{ objectFit: 'contain', display: 'block' }}
-      onError={() => setFailed(true)}
-    />
+    <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9aa7b0', fontSize: 11 }}>
+      렌더 중…
+    </div>
   )
 }

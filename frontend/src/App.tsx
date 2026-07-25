@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
+import TestHubPage from './pages/TestHubPage'
 
 // three.js를 쓰는 무거운 페이지는 지연 로딩 → 로그인/콜백 초기 번들에서 제외
 const VillagePage = lazy(() => import('./pages/VillagePage'))
@@ -22,6 +23,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+        <Route path="/test" element={<TestHubPage />} />
         <Route
           path="/village"
           element={
