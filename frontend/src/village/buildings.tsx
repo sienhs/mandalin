@@ -7,12 +7,17 @@ import {
   BUILDING_CONFIGS,
   DETAIL_KINDS,
   PL,
-  type BuildingKey,
   type Part,
   type Stage,
   type ThemeKey,
   THEMES,
 } from './catalog'
+import { PREMIUM_CONFIGS } from './premium'
+
+/** 기존 15종 + 프리미엄 테마 건물 병합 카탈로그. */
+export const ALL_CONFIGS = { ...BUILDING_CONFIGS, ...PREMIUM_CONFIGS }
+/** 렌더 가능한 모든 건물 key (기존 + 프리미엄). */
+export type AnyBuildingKey = keyof typeof ALL_CONFIGS
 
 /**
  * 데이터 드리븐 건물 렌더러.
@@ -123,7 +128,7 @@ function Storefront({ w, d = w, faceH, awning, sign }: { w: number; d?: number; 
     <group>
       <mesh position={[0, faceH * 0.42, z + 0.006]}><planeGeometry args={[w * 0.82, faceH * 0.62]} /><meshStandardMaterial color={resolveColor('glass')} emissive={resolveColor('glass')} emissiveIntensity={0.28} roughness={0.15} metalness={0.4} /></mesh>
       <mesh position={[w * 0.26, faceH * 0.28, z + 0.012]}><planeGeometry args={[w * 0.2, faceH * 0.5]} /><meshStandardMaterial color={resolveColor('roofDark')} roughness={0.4} metalness={0.3} /></mesh>
-      <mesh position={[0, faceH * 0.74, z + w * 0.16]} rotation={[-Math.PI / 5, 0, 0]} castShadow><boxGeometry args={[w * 1.04, 0.02, w * 0.36]} /><meshStandardMaterial color={resolveColor(awning)} roughness={0.8} /></mesh>
+      <mesh position={[0, faceH * 0.72, z + w * 0.05]} rotation={[-Math.PI / 8, 0, 0]} castShadow><boxGeometry args={[w * 0.98, 0.02, w * 0.24]} /><meshStandardMaterial color={resolveColor(awning)} roughness={0.8} /></mesh>
       <mesh position={[0, faceH * 0.92, z + 0.02]}><planeGeometry args={[w * 0.9, faceH * 0.16]} /><meshStandardMaterial color={resolveColor(sign)} emissive={resolveColor(sign)} emissiveIntensity={0.3} /></mesh>
     </group>
   )
@@ -307,9 +312,9 @@ function Stage1({ theme }: { theme: ThemeKey }) {
 }
 
 /** 단계별 디스패치: 1=일관화 shell, 2=형태(디테일 생략), 3=완성. */
-export function StageBuilding({ k, stage, theme }: { k: BuildingKey; stage: Stage; theme: ThemeKey }) {
+export function StageBuilding({ k, stage, theme }: { k: AnyBuildingKey; stage: Stage; theme: ThemeKey }) {
   if (stage === 1) return <Stage1 theme={theme} />
-  return <group>{BUILDING_CONFIGS[k].parts.map((p, i) => renderPart(p, stage, i))}</group>
+  return <group>{ALL_CONFIGS[k].parts.map((p, i) => renderPart(p, stage, i))}</group>
 }
 
 // ─────────── 블록 장식 ───────────

@@ -12,6 +12,8 @@ import {
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 import { BuildingPicker } from '../village/BuildingPicker'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
+import { PREMIUM_THEMES, PREMIUM_LIST } from '../village/premium'
+import type { AnyBuildingKey } from '../village/buildings'
 
 const STAGE_OPTS: { value: Stage | 'auto'; label: string }[] = [
   { value: 'auto', label: '자동' },
@@ -21,7 +23,12 @@ const STAGE_OPTS: { value: Stage | 'auto'; label: string }[] = [
 ]
 
 export default function VillagePage() {
-  const [selected, setSelected] = useState<number | null>(null)
+  const initialDomain = (() => {
+    const q = new URLSearchParams(window.location.search).get('domain')
+    const n = q == null ? NaN : Number(q)
+    return Number.isInteger(n) && n >= 0 ? n : null
+  })()
+  const [selected, setSelected] = useState<number | null>(initialDomain)
   const [overrides, setOverrides] = useState<Record<string, CellOverride>>({})
   const [themes, setThemes] = useState<Record<string, ThemeKey>>({})
   const [pickerTask, setPickerTask] = useState<string | null>(null)
@@ -29,12 +36,29 @@ export default function VillagePage() {
   const domain = selected != null ? mandalart.domains[selected] : null
 
   const labelOf = useMemo(
-    () => Object.fromEntries(BUILDING_LIST.map((b) => [b.key, b.label])) as Record<string, string>,
+    () => Object.fromEntries([
+      ...BUILDING_LIST.map((b) => [b.key, b.label]),
+      ...PREMIUM_LIST.map((b) => [b.key, b.label]),
+    ]) as Record<string, string>,
     [],
   )
 
   const patchCell = (taskId: string, patch: Partial<CellOverride>) =>
     setOverrides((prev) => ({ ...prev, [taskId]: { ...(prev[taskId] ?? AUTO_CELL), ...patch } }))
+
+  /** 도메인 8칸을 특정 프리미엄 테마 건물들로 채운다(단계 3). */
+  const fillWithPremiumTheme = (themeId: string) => {
+    if (!domain) return
+    const theme = PREMIUM_THEMES.find((t) => t.id === themeId)
+    if (!theme || theme.keys.length === 0) return
+    setOverrides((prev) => {
+      const next = { ...prev }
+      domain.tasks.slice(0, 8).forEach((t, i) => {
+        next[t.id] = { building: theme.keys[i % theme.keys.length] as AnyBuildingKey, stage: 3 }
+      })
+      return next
+    })
+  }
 
   /** 도메인 8칸 전체에 같은 단계 적용 (일관화). */
   const setAllStages = (stage: Stage | 'auto') => {
@@ -130,7 +154,7 @@ export default function VillagePage() {
             </select>
 
             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>📐 8칸 전체 단계 통일</div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
               {STAGE_OPTS.map((o) => (
                 <button
                   key={String(o.value)}
@@ -149,6 +173,21 @@ export default function VillagePage() {
                 </button>
               ))}
             </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>💎 프리미엄 테마로 8칸 채우기</div>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) fillWithPremiumTheme(e.target.value)
+                e.target.value = ''
+              }}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #d0d7dc', fontSize: 13 }}
+            >
+              <option value="" disabled>테마 선택…</option>
+              {PREMIUM_THEMES.map((t) => (
+                <option key={t.id} value={t.id}>{t.label} ({t.keys.length})</option>
+              ))}
+            </select>
           </div>
 
           {/* 칸별 건물 + 단계 */}

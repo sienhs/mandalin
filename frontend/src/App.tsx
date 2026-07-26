@@ -8,6 +8,8 @@ import TestHubPage from './pages/TestHubPage'
 const VillagePage = lazy(() => import('./pages/VillagePage'))
 const ThumbnailStudioPage = lazy(() => import('./pages/ThumbnailStudioPage'))
 const GalleryPage = lazy(() => import('./pages/GalleryPage'))
+const PremiumGalleryPage = lazy(() => import('./pages/PremiumGalleryPage'))
+const InspectPage = lazy(() => import('./pages/InspectPage'))
 
 function Loading() {
   return (
@@ -45,6 +47,22 @@ function App() {
           element={
             <Suspense fallback={<Loading />}>
               <GalleryPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/premium"
+          element={
+            <Suspense fallback={<Loading />}>
+              <PremiumGalleryPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inspect"
+          element={
+            <Suspense fallback={<Loading />}>
+              <InspectPage />
             </Suspense>
           }
         />

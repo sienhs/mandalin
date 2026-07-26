@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { thumbnailSrc } from './thumbnails'
 import { useThumbnail } from './thumbnailBaker'
-import type { BuildingKey, Stage } from './catalog'
+import type { AnyBuildingKey } from './buildings'
+import type { Stage } from './catalog'
 
 interface Props {
-  k: BuildingKey
+  k: AnyBuildingKey
   stage?: Stage
   size?: number
   alt?: string
