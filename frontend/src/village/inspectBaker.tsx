@@ -5,55 +5,38 @@ import { StageBuilding, type AnyBuildingKey } from './buildings'
 import type { Stage } from './catalog'
 
 /**
- * 썸네일 베이커 — WebGL 컨텍스트 폭발 방지.
- *
- * 건물마다 <Canvas>를 띄우면 브라우저 컨텍스트 한도(~16)를 금방 넘겨 마을 캔버스가 손실됨.
- * 대신 숨겨진 **단일 캔버스 하나**가 큐의 건물을 하나씩 렌더→toDataURL로 구워 캐시하고,
- * 화면에는 <img>(BuildingImage)로만 표시한다. → 컨텍스트는 마을(1) + 베이커(1) = 2개 고정.
+ * 검수용 4방면 베이커 — 썸네일 베이커와 동일 원리(숨은 단일 캔버스 + toDataURL)지만
+ * 건물을 Y축으로 az(0/90/180/270°) 회전시켜 각 면을 구운다. 카메라는 고정 코너뷰.
+ * 헤드리스 브라우저에서도 <img>(dataURL)로 캡처된다.
  */
 
-type Job = { k: AnyBuildingKey; stage: Stage }
+type Job = { key: AnyBuildingKey; stage: Stage; az: number }
 
 const cache = new Map<string, string>()
 const queued = new Set<string>()
 let queue: Job[] = []
 const listeners = new Set<() => void>()
 
-const ck = (k: string, s: number) => `${k}_s${s}`
+const ck = (k: string, s: number, a: number) => `${k}_s${s}_a${a}`
 const emit = () => listeners.forEach((l) => l())
 const subscribe = (l: () => void) => {
   listeners.add(l)
-  return () => {
-    listeners.delete(l)
-  }
+  return () => { listeners.delete(l) }
 }
 
-export function requestThumbnail(k: AnyBuildingKey, stage: Stage) {
-  const key = ck(k, stage)
-  if (cache.has(key) || queued.has(key)) return
-  queued.add(key)
-  queue.push({ k, stage })
-  emit()
-}
-
-export function getCachedThumbnail(k: AnyBuildingKey, stage: Stage): string | null {
-  return cache.get(ck(k, stage)) ?? null
-}
-
-/** 캐시된 dataURL 반환. 없으면 베이킹 큐에 등록하고 완료 시 리렌더. */
-export function useThumbnail(k: AnyBuildingKey | null, stage: Stage): string | null {
-  const key = k ? ck(k, stage) : ''
-  const value = useSyncExternalStore(
-    subscribe,
-    () => (k ? cache.get(key) ?? null : null),
-  )
+export function useInspectShot(key: AnyBuildingKey | null, stage: Stage, az: number): string | null {
+  const id = key ? ck(key, stage, az) : ''
+  const value = useSyncExternalStore(subscribe, () => (key ? cache.get(id) ?? null : null))
   useEffect(() => {
-    if (k) requestThumbnail(k, stage)
-  }, [k, stage, key])
+    if (!key) return
+    if (cache.has(id) || queued.has(id)) return
+    queued.add(id)
+    queue.push({ key, stage, az })
+    emit()
+  }, [key, stage, az, id])
   return value
 }
 
-/** 캔버스 내부: 현재 job을 몇 프레임 렌더 후 캡처. */
 function BakeOne({ job, onDone }: { job: Job; onDone: (url: string) => void }) {
   const gl = useThree((s) => s.gl)
   const frame = useRef(0)
@@ -61,7 +44,7 @@ function BakeOne({ job, onDone }: { job: Job; onDone: (url: string) => void }) {
   useFrame(() => {
     if (done.current) return
     frame.current += 1
-    if (frame.current >= 4) {
+    if (frame.current >= 5) {
       done.current = true
       onDone(gl.domElement.toDataURL('image/png'))
     }
@@ -73,8 +56,10 @@ function BakeOne({ job, onDone }: { job: Job; onDone: (url: string) => void }) {
       <directionalLight position={[-3, 2, -2]} intensity={0.4} />
       <Bounds fit clip margin={1.15}>
         <Center>
-          <group scale={2.4}>
-            <StageBuilding k={job.k} stage={job.stage} theme="warm" />
+          <group rotation={[0, (job.az * Math.PI) / 180, 0]}>
+            <group scale={2.4}>
+              <StageBuilding k={job.key} stage={job.stage} theme="warm" />
+            </group>
           </group>
         </Center>
       </Bounds>
@@ -82,26 +67,20 @@ function BakeOne({ job, onDone }: { job: Job; onDone: (url: string) => void }) {
   )
 }
 
-/**
- * 앱에 1개만 마운트하면 됨(썸네일 쓰는 페이지에 배치).
- * 숨겨진 단일 캔버스가 큐를 순차 처리.
- */
-export function ThumbnailBakery({ size = 160 }: { size?: number }) {
+export function InspectBakery({ size = 340 }: { size?: number }) {
   const [tick, force] = useState(0)
   const [current, setCurrent] = useState<Job | null>(null)
 
   useEffect(() => subscribe(() => force((n) => n + 1)), [])
-
-  // 유휴 상태거나 큐가 바뀌면 다음 job을 꺼냄
   useEffect(() => {
     if (!current && queue.length > 0) setCurrent(queue[0])
   }, [current, tick])
 
   const handleDone = (url: string) => {
     if (!current) return
-    const key = ck(current.k, current.stage)
+    const key = ck(current.key, current.stage, current.az)
     cache.set(key, url)
-    queue = queue.filter((j) => ck(j.k, j.stage) !== key)
+    queue = queue.filter((j) => ck(j.key, j.stage, j.az) !== key)
     setCurrent(null)
     emit()
   }
@@ -114,7 +93,7 @@ export function ThumbnailBakery({ size = 160 }: { size?: number }) {
         camera={{ position: [3, 2.2, 3], fov: 32 }}
         frameloop="always"
       >
-        {current && <BakeOne key={ck(current.k, current.stage)} job={current} onDone={handleDone} />}
+        {current && <BakeOne key={ck(current.key, current.stage, current.az)} job={current} onDone={handleDone} />}
       </Canvas>
     </div>
   )

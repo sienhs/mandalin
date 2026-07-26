@@ -18,6 +18,7 @@ export function Scene({ mandalart, selected, overrides, themes, onSelect }: Prop
   return (
     <Canvas
       shadows
+      gl={{ preserveDrawingBuffer: true }}
       camera={{ position: [31, 28, 31], fov: 40 }}
       onPointerMissed={() => onSelect(-1)}
     >

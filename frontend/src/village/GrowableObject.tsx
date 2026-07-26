@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { PALETTE } from './palette'
 import { progressStage, type Task } from './types'
-import { StageBuilding } from './buildings'
+import { StageBuilding, type AnyBuildingKey } from './buildings'
 import {
   CITY_SLOT_KEYS,
   VILLAGE_SLOT_KEYS,
-  type BuildingKey,
   type Stage,
   type ThemeKey,
 } from './catalog'
@@ -15,7 +14,7 @@ const BUILD_SCALE = 2.4
 
 /** 칸별 수동 설정: 어떤 건물을, 어떤 단계로. 'auto'면 진행률·slot 기반. */
 export interface CellOverride {
-  building: BuildingKey | 'auto'
+  building: AnyBuildingKey | 'auto'
   stage: Stage | 'auto'
 }
 
@@ -58,7 +57,7 @@ export function GrowableObject({ task, slot, urbanLevel, theme, override, positi
   const [hovered, setHovered] = useState(false)
   const isCity = urbanLevel >= 0.5
 
-  const key: BuildingKey =
+  const key: AnyBuildingKey =
     override.building !== 'auto'
       ? override.building
       : (isCity ? CITY_SLOT_KEYS : VILLAGE_SLOT_KEYS)[slot % 8]

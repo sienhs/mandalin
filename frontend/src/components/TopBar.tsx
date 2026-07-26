@@ -8,6 +8,7 @@ const LINKS = [
   { to: '/test', label: '🏠 홈' },
   { to: '/village', label: '🏡 마을' },
   { to: '/gallery', label: '🏘 모아보기' },
+  { to: '/premium', label: '💎 프리미엄' },
   { to: '/thumbnails', label: '🖼 스튜디오' },
 ]
 
