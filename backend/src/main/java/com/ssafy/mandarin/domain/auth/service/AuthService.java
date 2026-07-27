@@ -6,12 +6,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
+import com.ssafy.mandarin.domain.user.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.mandarin.domain.auth.dto.LoginResponse;
 import com.ssafy.mandarin.domain.auth.entity.RefreshToken;
-import com.ssafy.mandarin.domain.auth.entity.User;
 import com.ssafy.mandarin.domain.auth.repository.RefreshTokenRepository;
 import com.ssafy.mandarin.domain.auth.repository.UserRepository;
 import com.ssafy.mandarin.global.exception.BusinessException;
@@ -38,15 +38,15 @@ public class AuthService {
 	}
 
 	private LoginResponse issueTokens(User user) {
-		String accessToken = jwtUtil.generateAccessToken(user.getEmail());
-		String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
+		String accessToken = jwtUtil.generateAccessToken(user.getUuid());
+		String refreshToken = jwtUtil.generateRefreshToken(user.getUuid());
 		String refreshTokenHash = hashToken(refreshToken);
 
-		refreshTokenRepository.findByEmail(user.getEmail())
+		refreshTokenRepository.findByUuid(user.getUuid())
 				.ifPresentOrElse(
 						token -> token.updateToken(refreshTokenHash, LocalDateTime.now().plusDays(7)),
 						() -> refreshTokenRepository.save(RefreshToken.builder()
-								.email(user.getEmail())
+								.uuid(user.getUuid())
 								.token(refreshTokenHash)
 								.expiresAt(LocalDateTime.now().plusDays(7))
 								.build()));
@@ -56,7 +56,7 @@ public class AuthService {
 				.userId(user.getId())
 				.accessToken(accessToken)
 				.name(user.getName())
-				.email(user.getEmail())
+				.uuid(user.getUuid())
 				.refreshToken(refreshToken)
 				.build();
 	}
@@ -74,7 +74,7 @@ public class AuthService {
 			throw new BusinessException(ErrorCode.EXPIRED_TOKEN);
 		}
 
-		return jwtUtil.generateAccessToken(saved.getEmail());
+		return jwtUtil.generateAccessToken(saved.getUuid());
 	}
 
 	private String hashToken(String token) {
@@ -88,7 +88,7 @@ public class AuthService {
 
 	@Transactional
 	public void logout(String email) {
-		refreshTokenRepository.deleteByEmail(email);
+		refreshTokenRepository.deleteByUuid(email);
 		log.info("Logout: {}", email);
 	}
 }

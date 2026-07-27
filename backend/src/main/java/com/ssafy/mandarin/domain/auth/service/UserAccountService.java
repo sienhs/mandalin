@@ -1,9 +1,9 @@
 package com.ssafy.mandarin.domain.auth.service;
 
+import com.ssafy.mandarin.domain.user.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.ssafy.mandarin.domain.auth.entity.User;
 import com.ssafy.mandarin.domain.auth.repository.OAuthIdentityRepository;
 import com.ssafy.mandarin.domain.auth.repository.RefreshTokenRepository;
 import com.ssafy.mandarin.domain.auth.repository.UserRepository;
@@ -30,21 +30,20 @@ public class UserAccountService {
 		return user.getName();
 	}
 
-	public void deleteAccount(String email) {
-		User user = findActiveUser(email);
+	public void deleteAccount(String uuid) {
+		User user = findActiveUser(uuid);
 		Long userId = user.getId();
 
-		// Both must go before the email is released: a lingering identity would make every
-		// future social login resolve to this withdrawn row and fail permanently.
 		oAuthIdentityRepository.deleteByUser(user);
-		refreshTokenRepository.deleteByEmail(email);
+		refreshTokenRepository.deleteByUuid(uuid);
 
 		user.withdraw();
 		log.info("Account withdrawn: userId={}", userId);
 	}
 
-	private User findActiveUser(String email) {
-		return userRepository.findByEmail(email)
+	// UUID 기준으로 활성화된 유저 찾기
+	private User findActiveUser(String uuid) {
+		return userRepository.findByUuid(uuid)
 				.filter(user -> !user.isWithdrawn())
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 	}

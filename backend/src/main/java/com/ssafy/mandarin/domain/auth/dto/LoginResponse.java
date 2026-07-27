@@ -21,6 +21,6 @@ public class LoginResponse {
 	@Schema(description = "Authenticated user's display name", example = "Jane Doe")
 	private String name;
 
-	@Schema(description = "Authenticated user's email", example = "test@test.com")
-	private String email;
+	@Schema(description = "Authenticated user's email", example = "user uuid")
+	private String uuid;
 }

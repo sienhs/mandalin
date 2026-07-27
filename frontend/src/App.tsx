@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import TestHubPage from './pages/TestHubPage'
 
-// three.js를 쓰는 무거운 페이지는 지연 로딩 → 로그인/콜백 초기 번들에서 제외
+// 추후 로딩하게 변경, 페이지 글씨 충돌 생겨서 나중에 수정해야함
 const VillagePage = lazy(() => import('./pages/VillagePage'))
 const ThumbnailStudioPage = lazy(() => import('./pages/ThumbnailStudioPage'))
 const GalleryPage = lazy(() => import('./pages/GalleryPage'))
@@ -14,7 +15,7 @@ const InspectPage = lazy(() => import('./pages/InspectPage'))
 function Loading() {
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', color: '#5a6b76' }}>
-      마을 불러오는 중…
+      뭔가 로딩중이라는걸 보여주기 위해 임시로 추가한 것
     </div>
   )
 }
@@ -23,7 +24,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LoginPage />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/test" element={<TestHubPage />} />
         <Route
