@@ -53,7 +53,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#F4F7F9] text-slate-950">
-      <Header hasNotification />
+      <Header />
 
       <main className="mx-auto grid w-full max-w-[1440px] gap-3 px-5 py-7 sm:px-8 lg:grid-cols-[330px_minmax(0,1fr)] lg:gap-4">
         <aside className="flex min-h-[620px] flex-col rounded-2xl bg-white p-6 sm:p-7">

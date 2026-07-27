@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../api'
 import PublicHeader from '../components/common/PublicHeader'
+import { useAuth } from '../contexts/auth'
 
 const CITY_BARS = [
   { height: 58, color: '#59E1CB' },
@@ -15,7 +16,10 @@ const CITY_BARS = [
 ] as const
 
 export default function LoginPage() {
+  const { clearSession } = useAuth()
+
   const handleKakaoLogin = () => {
+    clearSession()
     window.location.href = `${API_BASE_URL}/oauth2/authorization/kakao`
   }
 

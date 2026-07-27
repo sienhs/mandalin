@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
@@ -24,53 +25,55 @@ function Loading() {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-        <Route path="/test" element={<TestHubPage />} />
-        <Route
-          path="/village"
-          element={
-            <Suspense fallback={<Loading />}>
-              <VillagePage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/thumbnails"
-          element={
-            <Suspense fallback={<Loading />}>
-              <ThumbnailStudioPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/gallery"
-          element={
-            <Suspense fallback={<Loading />}>
-              <GalleryPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/premium"
-          element={
-            <Suspense fallback={<Loading />}>
-              <PremiumGalleryPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/inspect"
-          element={
-            <Suspense fallback={<Loading />}>
-              <InspectPage />
-            </Suspense>
-          }
-        />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+          <Route path="/test" element={<TestHubPage />} />
+          <Route
+            path="/village"
+            element={
+              <Suspense fallback={<Loading />}>
+                <VillagePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/thumbnails"
+            element={
+              <Suspense fallback={<Loading />}>
+                <ThumbnailStudioPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/gallery"
+            element={
+              <Suspense fallback={<Loading />}>
+                <GalleryPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/premium"
+            element={
+              <Suspense fallback={<Loading />}>
+                <PremiumGalleryPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/inspect"
+            element={
+              <Suspense fallback={<Loading />}>
+                <InspectPage />
+              </Suspense>
+            }
+          />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

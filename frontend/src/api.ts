@@ -8,6 +8,8 @@ export type OAuthExchangeResponse = {
     accessToken: string
     name: string
     email: string
+    profileImageUrl?: string
+    points?: number
   }
 }
 
@@ -24,4 +26,18 @@ export async function exchangeOAuthCode(code: string): Promise<OAuthExchangeResp
   }
 
   return response.json()
+}
+
+export async function reissueAccessToken(): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/reissue`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Access token reissue failed with status ${response.status}`)
+  }
+
+  const result: { data: string } = await response.json()
+  return result.data
 }

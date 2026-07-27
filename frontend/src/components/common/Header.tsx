@@ -1,9 +1,8 @@
-import type { MouseEventHandler } from 'react'
+import { useEffect, useState, type MouseEventHandler } from 'react'
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../../contexts/auth'
 
 type HeaderProps = {
-  points?: number
-  profileInitial?: string
   hasNotification?: boolean
   onNotificationClick?: MouseEventHandler<HTMLButtonElement>
   onProfileClick?: MouseEventHandler<HTMLButtonElement>
@@ -48,12 +47,20 @@ function BellIcon({ hasNotification }: { hasNotification: boolean }) {
 }
 
 export default function Header({
-  points = 12400,
-  profileInitial = '지',
   hasNotification = false,
   onNotificationClick,
   onProfileClick,
 }: HeaderProps) {
+  const { user, isRestoringSession } = useAuth()
+  const [profileImageFailed, setProfileImageFailed] = useState(false)
+  const profileImageUrl = user?.profileImageUrl
+  const profileInitial = user?.name.trim().slice(0, 1)
+  const points = user?.points
+
+  useEffect(() => {
+    setProfileImageFailed(false)
+  }, [profileImageUrl])
+
   return (
     <header className="h-20 w-full border-b border-slate-100 bg-white">
       <div className="mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 sm:px-8">
@@ -96,11 +103,11 @@ export default function Header({
 
         <div className="ml-5 flex shrink-0 items-center gap-4">
           <div
-            aria-label={`${points.toLocaleString('ko-KR')} 포인트`}
+            aria-label={points == null ? '포인트 정보 없음' : `${points.toLocaleString('ko-KR')} 포인트`}
             className="flex h-10 items-center gap-1.5 rounded-full bg-[#FFF6DE] px-4 text-[15px] font-extrabold text-[#A96028]"
           >
             <CoinIcon />
-            <span>{points.toLocaleString('ko-KR')} P</span>
+            <span>{points == null ? '— P' : `${points.toLocaleString('ko-KR')} P`}</span>
           </div>
 
           <button
@@ -114,11 +121,22 @@ export default function Header({
 
           <button
             type="button"
-            aria-label="내 프로필"
+            aria-label={user ? `${user.name} 프로필` : '내 프로필'}
             onClick={onProfileClick}
-            className="grid size-10 cursor-pointer place-items-center rounded-full border-0 bg-[#D95569] text-base font-bold text-white transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D95569]"
+            className="grid size-10 cursor-pointer place-items-center overflow-hidden rounded-full border-0 bg-[#D95569] text-base font-bold text-white transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D95569]"
           >
-            {profileInitial.slice(0, 1)}
+            {profileImageUrl && !profileImageFailed ? (
+              <img
+                src={profileImageUrl}
+                alt=""
+                onError={() => setProfileImageFailed(true)}
+                className="size-full object-cover"
+              />
+            ) : profileInitial ? (
+              profileInitial
+            ) : (
+              <span aria-hidden="true">{isRestoringSession ? '…' : '👤'}</span>
+            )}
           </button>
         </div>
       </div>
