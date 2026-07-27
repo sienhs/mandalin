@@ -1,5 +1,6 @@
 package com.ssafy.mandarin.domain.auth.entity;
 
+import com.ssafy.mandarin.domain.user.entity.User;
 import com.ssafy.mandarin.global.entity.BaseEntity;
 
 import jakarta.persistence.Column;

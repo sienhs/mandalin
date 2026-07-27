@@ -46,7 +46,7 @@ public class AuthController {
 				.userId(loginResponse.getUserId())
 				.accessToken(loginResponse.getAccessToken())
 				.name(loginResponse.getName())
-				.email(loginResponse.getEmail())
+				.uuid(loginResponse.getUuid())
 				.build();
 		return ResponseEntity.ok(ApiResponse.success("Social login succeeded", safeResponse));
 	}

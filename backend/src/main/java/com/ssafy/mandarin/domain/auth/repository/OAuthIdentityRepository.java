@@ -2,12 +2,12 @@ package com.ssafy.mandarin.domain.auth.repository;
 
 import java.util.Optional;
 
+import com.ssafy.mandarin.domain.user.entity.User;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.ssafy.mandarin.domain.auth.entity.OAuthIdentity;
 import com.ssafy.mandarin.domain.auth.entity.OAuthProvider;
-import com.ssafy.mandarin.domain.auth.entity.User;
 
 public interface OAuthIdentityRepository extends JpaRepository<OAuthIdentity, Long> {
 
