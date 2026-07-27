@@ -10,7 +10,7 @@ type HeaderProps = {
 }
 
 const NAV_ITEMS = [
-  { label: '홈', to: '/' },
+  { label: '홈', to: '/home' },
   { label: '내 만다라트', to: '/village' },
   { label: '상점', to: '/shop' },
   { label: '리포트', to: '/report' },
@@ -59,7 +59,7 @@ export default function Header({
       <div className="mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 sm:px-8">
         <div className="flex h-full min-w-0 items-center gap-8 lg:gap-12">
           <NavLink
-            to="/"
+            to="/home"
             aria-label="만다린 홈"
             className="flex shrink-0 items-center gap-3 text-slate-950 no-underline"
           >
@@ -77,7 +77,7 @@ export default function Header({
               <NavLink
                 key={to}
                 to={to}
-                end={to === '/'}
+                end={to === '/home'}
                 className={({ isActive }) =>
                   [
                     'relative flex h-full items-center whitespace-nowrap pt-0.5 text-[15px] font-bold tracking-[-0.02em] no-underline transition-colors',

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import HomePage from './pages/HomePage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import TestHubPage from './pages/TestHubPage'
 
@@ -26,6 +27,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/home" element={<HomePage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/test" element={<TestHubPage />} />
         <Route
