@@ -2,6 +2,7 @@ package com.ssafy.mandarin.global.security;
 
 import java.io.IOException;
 
+import com.ssafy.mandarin.domain.user.entity.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -9,7 +10,6 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.ssafy.mandarin.domain.auth.entity.User;
 import com.ssafy.mandarin.domain.auth.service.OAuthAuthorizationCodeStore;
 import com.ssafy.mandarin.domain.auth.service.OAuthLoginService;
 
@@ -44,7 +44,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			}
 			User user = oAuthLoginService.resolveUser(oAuthToken);
 			String code = authorizationCodeStore.issue(user.getId());
+
 			invalidateSession(request);
+
 			response.sendRedirect(UriComponentsBuilder.fromUriString(frontendBaseUrl)
 					.path("/oauth/callback")
 					.queryParam("code", code)

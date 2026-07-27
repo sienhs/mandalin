@@ -22,6 +22,7 @@ public class OAuthAuthorizationCodeStore {
 	private final SecureRandom secureRandom = new SecureRandom();
 	private final Map<String, PendingLogin> pendingLogins = new ConcurrentHashMap<>();
 
+	// 코드 발행
 	public String issue(Long userId) {
 		cleanupExpired();
 		if (pendingLogins.size() >= MAX_PENDING_CODES) {
@@ -35,6 +36,7 @@ public class OAuthAuthorizationCodeStore {
 		return code;
 	}
 
+	// 코드 소비
 	public Long consume(String code) {
 		PendingLogin pendingLogin = pendingLogins.remove(code);
 		if (pendingLogin == null || pendingLogin.expiresAt().isBefore(Instant.now())) {
@@ -43,6 +45,7 @@ public class OAuthAuthorizationCodeStore {
 		return pendingLogin.userId();
 	}
 
+	// 코드 만료
 	@Scheduled(fixedDelay = 60_000)
 	void cleanupExpired() {
 		Instant now = Instant.now();

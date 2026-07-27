@@ -8,8 +8,8 @@ import com.ssafy.mandarin.domain.auth.entity.RefreshToken;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
-	Optional<RefreshToken> findByEmail(String email);
+	Optional<RefreshToken> findByUuid(String uuid);
 	Optional<RefreshToken> findByToken(String token);
 
-	void deleteByEmail(String email);
+	void deleteByUuid(String uuid);
 }

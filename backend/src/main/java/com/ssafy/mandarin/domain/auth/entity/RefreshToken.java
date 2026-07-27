@@ -29,7 +29,7 @@ public class RefreshToken extends BaseEntity {
 	private Long id;
 
 	@Column(nullable = false, unique = true)
-	private String email;
+	private String uuid;
 
 	@Column(nullable = false)
 	private String token;
