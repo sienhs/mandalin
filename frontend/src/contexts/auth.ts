@@ -1,12 +1,19 @@
 import { createContext, useContext } from 'react'
 import type { OAuthExchangeResponse } from '../api'
 
+/**
+ * ERD `user` 테이블의 프론트 모델.
+ * DB의 snake_case 컬럼명은 프론트 관례에 맞춰 camelCase로 표현한다.
+ */
 export type UserProfile = {
-  userId: number
+  id: number
+  kakaoId: string
   name: string
-  email: string
-  profileImageUrl?: string
-  points?: number
+  uuid: string
+  point: number
+  profileImageUrl: string | null
+  createdAt: string
+  deletedAt: string | null
 }
 
 export type LoginData = OAuthExchangeResponse['data']

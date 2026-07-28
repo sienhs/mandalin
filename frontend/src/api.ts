@@ -1,15 +1,19 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
+/** 카카오 OAuth 교환 응답. 사용자 정보는 ERD `user` 컬럼을 camelCase로 변환한 형태 */
 export type OAuthExchangeResponse = {
   success: boolean
   message: string
   data: {
-    userId: number
     accessToken: string
+    id: number
+    kakaoId: string
     name: string
-    email: string
-    profileImageUrl?: string
-    points?: number
+    uuid: string
+    point: number
+    profileImageUrl: string | null
+    createdAt: string
+    deletedAt: string | null
   }
 }
 

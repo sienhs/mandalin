@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { reissueAccessToken } from '../api'
 import {
   AuthContext,
@@ -14,61 +7,52 @@ import {
   type UserProfile,
 } from './auth'
 
-const USER_SESSION_KEY = 'mandarin:user'
-
-function readStoredUser(): UserProfile | null {
-  try {
-    const storedUser = sessionStorage.getItem(USER_SESSION_KEY)
-    return storedUser ? (JSON.parse(storedUser) as UserProfile) : null
-  } catch {
-    sessionStorage.removeItem(USER_SESSION_KEY)
-    return null
-  }
-}
-
+/**
+ * 세션리스 인증: 클라이언트는 아무것도 저장하지 않는다(sessionStorage/localStorage 미사용).
+ * 로그인 상태의 유일한 근거는 서버가 내려준 httpOnly 리프레시 쿠키뿐이라, 앱이 처음 뜰 때마다
+ * `/api/auth/reissue`를 호출해 "아직 유효한 쿠키가 있는지" 서버에 물어 accessToken만 복원한다.
+ * user(이름/프로필사진 등)는 액세스 토큰과 달리 쿠키에서 바로 복원할 방법이 없어서(서버에
+ * "내 정보 조회" 엔드포인트가 아직 없음) 새로고침 시엔 로그인 전까지 비어 있을 수 있다.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(readStoredUser)
+  const [user, setUser] = useState<UserProfile | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
-  const [isRestoringSession, setIsRestoringSession] = useState(Boolean(user))
-  const shouldRestoreSession = useRef(Boolean(user))
+  const [isRestoringSession, setIsRestoringSession] = useState(true)
 
   const clearSession = useCallback(() => {
     setUser(null)
     setAccessToken(null)
-    sessionStorage.removeItem(USER_SESSION_KEY)
   }, [])
 
   const setSession = useCallback((data: LoginData) => {
     const profile: UserProfile = {
-      userId: data.userId,
+      id: data.id,
+      kakaoId: data.kakaoId,
       name: data.name,
-      email: data.email,
+      uuid: data.uuid,
+      point: data.point,
       profileImageUrl: data.profileImageUrl,
-      points: data.points,
+      createdAt: data.createdAt,
+      deletedAt: data.deletedAt,
     }
 
     setUser(profile)
     setAccessToken(data.accessToken)
-    sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(profile))
   }, [])
 
   useEffect(() => {
-    if (!shouldRestoreSession.current) {
-      setIsRestoringSession(false)
-      return
-    }
-
     reissueAccessToken()
       .then(setAccessToken)
-      .catch(clearSession)
+      .catch(() => setAccessToken(null))
       .finally(() => setIsRestoringSession(false))
-  }, [clearSession])
+  }, [])
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       accessToken,
-      isAuthenticated: Boolean(user && accessToken),
+      // user는 새로고침 직후엔 비어 있을 수 있으므로 인증 여부는 accessToken만으로 판단.
+      isAuthenticated: Boolean(accessToken),
       isRestoringSession,
       setSession,
       clearSession,
