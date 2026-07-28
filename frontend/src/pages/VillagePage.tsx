@@ -6,9 +6,10 @@ import { urbanLevelOf } from '../village/types'
 import { THEMES, type Stage, type ThemeKey } from '../village/partTypes'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 import { BuildingPicker } from '../village/BuildingPicker'
+import { TerrainSwitcher } from '../village/TerrainSwitcher'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { buildOwnedCatalog } from '../village/ownedCatalog'
-import { fetchMyVillage, type VillageData } from '../village/villageApi'
+import { changeTerrain, fetchMyVillage, type Terrain, type VillageData } from '../village/villageApi'
 
 const STAGE_OPTS: { value: Stage | 'auto'; label: string }[] = [
   { value: 'auto', label: '자동' },
@@ -40,6 +41,9 @@ export default function VillagePage() {
 
   const [village, setVillage] = useState<VillageData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [terrainPreview, setTerrainPreview] = useState<Terrain | null>(null)
+  const [terrainPending, setTerrainPending] = useState<Terrain | null>(null)
+  const [terrainError, setTerrainError] = useState<string | null>(null)
 
   const mandalart = MOCK_MANDALART
   const domain = selected != null ? mandalart.domains[selected] : null
@@ -98,6 +102,29 @@ export default function VillagePage() {
     })
   }
 
+  /**
+   * 지형 변경은 낙관적으로 먼저 반영한다. 3D 전체가 갈아끼워지는 조작이라
+   * 왕복을 기다리면 버튼이 먹힌 것처럼 보인다. 실패하면 이전 지형으로 되돌린다.
+   */
+  const handleTerrainPick = async (terrain: Terrain) => {
+    if (!village || village.terrain === terrain) return
+    const previous = village.terrain
+
+    setTerrainError(null)
+    setTerrainPending(terrain)
+    setTerrainPreview(null)
+    setVillage({ ...village, terrain })
+
+    try {
+      await changeTerrain(terrain)
+    } catch (e) {
+      setVillage((prev) => (prev ? { ...prev, terrain: previous } : prev))
+      setTerrainError(e instanceof Error ? e.message : '지형을 저장하지 못했습니다.')
+    } finally {
+      setTerrainPending(null)
+    }
+  }
+
   const domainTheme: ThemeKey = domain ? themes[domain.id] ?? 'warm' : 'warm'
 
   if (loadError) {
@@ -122,6 +149,7 @@ export default function VillagePage() {
         selected={selected}
         overrides={overrides}
         themes={themes}
+        terrain={terrainPreview ?? village.terrain}
         catalog={catalog}
         onSelect={(i) => setSelected(i < 0 ? null : i)}
       />
@@ -282,6 +310,14 @@ export default function VillagePage() {
           </button>
         </div>
       )}
+
+      <TerrainSwitcher
+        current={village.terrain}
+        onPreview={setTerrainPreview}
+        onPick={handleTerrainPick}
+        pending={terrainPending}
+        error={terrainError}
+      />
 
       {/* 건물 썸네일 그리드 선택 모달 */}
       {pickerTask && (
