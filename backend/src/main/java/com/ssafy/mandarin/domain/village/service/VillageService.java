@@ -10,6 +10,9 @@ import com.ssafy.mandarin.domain.building.entity.BuildingItem;
 import com.ssafy.mandarin.domain.building.service.BuildingInventoryService;
 import com.ssafy.mandarin.domain.village.dto.OwnedBuildingResponse;
 import com.ssafy.mandarin.domain.village.dto.VillageResponse;
+import com.ssafy.mandarin.domain.village.entity.Terrain;
+import com.ssafy.mandarin.domain.village.entity.UserVillage;
+import com.ssafy.mandarin.domain.village.repository.UserVillageRepository;
 import com.ssafy.mandarin.global.exception.BusinessException;
 import com.ssafy.mandarin.global.exception.ErrorCode;
 
@@ -23,16 +26,39 @@ import tools.jackson.databind.ObjectMapper;
 public class VillageService {
 
 	private final BuildingInventoryService buildingInventoryService;
+	private final UserVillageRepository userVillageRepository;
 	private final ObjectMapper objectMapper;
 
-	/** 마을 화면 한 방 조회 — 배치 가능한(=보유한) 건물 전체. */
+	/** 마을 화면 한 방 조회 — 지형 + 배치 가능한(=보유한) 건물 전체. */
 	@Transactional
 	public VillageResponse getMyVillage(Long userId) {
 		List<OwnedBuildingResponse> buildings = buildingInventoryService.findOwnedBuildings(userId).stream()
 				.map(this::toResponse)
 				.toList();
 
-		return new VillageResponse(buildings);
+		return new VillageResponse(findTerrain(userId), buildings);
+	}
+
+	/**
+	 * 지형을 바꾼다. 몇 번을 불러도 같은 결과가 되는 upsert 다.
+	 *
+	 * @return 적용된 지형
+	 */
+	@Transactional
+	public Terrain changeTerrain(Long userId, Terrain terrain) {
+		userVillageRepository.findByUserId(userId)
+				.ifPresentOrElse(
+						village -> village.changeTerrain(terrain),
+						() -> userVillageRepository.save(UserVillage.of(userId, terrain))
+				);
+		return terrain;
+	}
+
+	/** 고른 적 없으면 기본 지형. 마을이 빈 바닥으로 그려지는 상황을 만들지 않는다. */
+	private Terrain findTerrain(Long userId) {
+		return userVillageRepository.findByUserId(userId)
+				.map(UserVillage::getTerrain)
+				.orElse(Terrain.DEFAULT);
 	}
 
 	private OwnedBuildingResponse toResponse(BuildingItem item) {
