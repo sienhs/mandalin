@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom'
 import PublicHeader from '../components/common/PublicHeader'
 import IsometricCity from '../components/landing/IsometricCity'
+import { cn } from '../utils/cn'
 
+/** "3단계면 충분해요" 섹션에 표시되는 온보딩 3단계 카드. */
 const STEPS = [
   {
     icon: '🧩',
     iconBg: '#ECFBF1',
-    title: '1. 81?칸 만다라트 생성',
+    title: '1. 81칸 만다라트 생성',
     description: '핵심 목표를 8개 세부 목표로, 다시 8개 실천 과제로 잘게 나눠요.',
   },
   {
@@ -23,21 +25,28 @@ const STEPS = [
   },
 ] as const
 
+/** 비로그인 사용자를 위한 서비스 소개 랜딩 페이지 (`/`). */
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#F4F7F9] text-slate-950">
+    <div className="page-shell">
       <PublicHeader />
 
       <main className="mx-auto w-full max-w-[1240px] px-5 py-12 sm:px-8 lg:py-16">
-        <section className="grid overflow-hidden rounded-[22px] bg-[#FFF1EC] px-7 py-10 sm:px-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-12 lg:px-16 lg:py-14">
+        <section
+          className={cn(
+            'grid overflow-hidden rounded-[22px] bg-accent-peach px-7 py-10',
+            'sm:px-12',
+            'lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-12 lg:px-16 lg:py-14',
+          )}
+        >
           <div className="z-10">
             <span className="inline-flex rounded-full bg-[#FFF0B8] px-4 py-1.5 text-xs font-bold text-[#D48B33]">
-              목표를 도시로 짓다(약간 어색한거같음)
+              목표를 도시로 짓다
             </span>
             <h1 className="mt-5 text-[34px] font-black leading-[1.18] tracking-[-0.055em] sm:text-[42px] lg:text-[46px]">
               매일 작은 실천이
               <br />
-              한 채(하나)의 건물이 됩니다.
+              한 채의 건물이 됩니다.
             </h1>
             <p className="mt-5 max-w-[480px] text-[15px] font-semibold leading-7 tracking-[-0.02em] text-slate-400 sm:text-base">
               만다라트로 큰 목표를 잘게 나누고, 과제를 완료할 때마다
@@ -45,7 +54,12 @@ export default function LandingPage() {
             </p>
             <Link
               to="/login"
-              className="mt-6 inline-flex rounded-xl bg-[#70CFA5] px-8 py-3.5 text-lg font-extrabold text-white no-underline shadow-sm transition hover:-translate-y-0.5 hover:bg-[#5FC397] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#50AA88]"
+              className={cn(
+                'focus-ring mt-6 inline-flex rounded-xl px-8 py-3.5',
+                'bg-[#70CFA5] text-lg font-extrabold text-white no-underline shadow-sm',
+                'transition hover:-translate-y-0.5 hover:bg-[#5FC397]',
+                'focus-visible:outline-[#50AA88]',
+              )}
             >
               시작하기
             </Link>

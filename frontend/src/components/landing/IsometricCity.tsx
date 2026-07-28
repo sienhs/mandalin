@@ -1,7 +1,4 @@
+/** 랜딩 히어로의 도시 시각 영역. */
 export default function IsometricCity() {
-  return (
-    <div className="grid h-[210px] w-[300px] max-w-full place-items-center">
-      <span className="text-2xl font-bold text-slate-400">그림</span>
-    </div>
-  )
+  return <div className="h-[210px] w-[300px] max-w-full" aria-hidden="true" />
 }

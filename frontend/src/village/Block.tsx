@@ -1,14 +1,15 @@
 import { useMemo } from 'react'
 import { Color } from 'three'
 import { Text } from '@react-three/drei'
-import { PALETTE, DOMAIN_ACCENTS } from './palette'
+import { DOMAIN_ACCENTS } from './palette'
 import { GrowableObject, AUTO_CELL, type CellOverride } from './GrowableObject'
 import { Bush, FlowerBed } from './buildings'
-import { type ThemeKey } from './catalog'
+import { CELL, BLOCK_SIZE } from './layout'
+import { blockGroundColor, showsBlockGreenery } from './terrain'
+import { type ThemeKey } from './partTypes'
+import type { OwnedCatalog } from './ownedCatalog'
+import type { Terrain } from './villageApi'
 import { urbanLevelOf, type Domain } from './types'
-
-const CELL = 2.6
-export const BLOCK_SIZE = CELL * 3 + 0.8
 
 interface Props {
   domain: Domain
@@ -17,6 +18,8 @@ interface Props {
   selected: boolean
   overrides: Record<string, CellOverride>
   theme: ThemeKey
+  terrain: Terrain
+  catalog: OwnedCatalog
   onSelect: () => void
 }
 
@@ -34,18 +37,17 @@ const TASK_CELLS: [number, number][] = (() => {
 
 /**
  * 도메인 1개 = 블록 1개.
- * 바닥: 잔디(마을)↔광장(도시) 보간. 중앙: 랜드마크(나무/마천루) + 도메인 색 원반 + 라벨.
+ * 바닥: 지형 기본색에서 도시화만큼 광장색으로. 중앙: 도메인 색 원반 + 라벨.
  * 주변 8칸: 과제 오브젝트(slot 고정).
  */
-export function Block({ domain, domainIndex, position, selected, overrides, theme, onSelect }: Props) {
+export function Block({
+  domain, domainIndex, position, selected, overrides, theme, terrain, catalog, onSelect,
+}: Props) {
   const urban = urbanLevelOf(domain)
-  const isCity = urban >= 0.5
   const accent = DOMAIN_ACCENTS[domainIndex % DOMAIN_ACCENTS.length]
 
-  const groundColor = useMemo(
-    () => PALETTE.grass.clone().lerp(PALETTE.plaza, urban),
-    [urban],
-  )
+  const groundColor = useMemo(() => blockGroundColor(terrain, urban), [terrain, urban])
+  const greenery = showsBlockGreenery(terrain) && urban < 0.5
   const labelY = 5.6
 
   return (
@@ -98,8 +100,8 @@ export function Block({ domain, domainIndex, position, selected, overrides, them
         {domain.title}
       </Text>
 
-      {/* 마을 장식: 관목 + 꽃밭 (마을풍일 때만) */}
-      {!isCity && (
+      {/* 마을 장식: 관목 + 꽃밭 (초원·비포장이면서 아직 마을풍일 때만) */}
+      {greenery && (
         <>
           <group position={[CELL * 1.35, 0, 0]}>
             <Bush scale={1.6} />
@@ -123,6 +125,7 @@ export function Block({ domain, domainIndex, position, selected, overrides, them
             slot={i}
             urbanLevel={urban}
             theme={theme}
+            catalog={catalog}
             override={overrides[task.id] ?? AUTO_CELL}
             position={[x, 0, z]}
             onClick={onSelect}
