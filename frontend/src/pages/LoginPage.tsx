@@ -59,13 +59,13 @@ export default function LoginPage() {
               <span className="text-[#F05A17]">도시가 자랍니다.</span>
             </h1>
             <p className="mt-5 text-[15px] font-bold leading-6 tracking-[-0.02em] text-slate-400">
-              81(64)칸 만다라트에 매일의 과제를 채우면(약간 어색)
+              81칸 만다라트에 매일의 과제를 채우면
               <br />
-              3D 도시의 건물이 한 층씩 완공(?)돼요.
+              3D 도시의 건물이 한 층씩 완성돼요.
             </p>
 
             <div
-              aria-label="로그인쪽 막대 일러스트"
+              aria-label="도시 성장 막대 일러스트"
               role="img"
               className="mt-auto flex h-28 items-end justify-between gap-2 px-1"
             >

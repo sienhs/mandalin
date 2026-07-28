@@ -8,7 +8,7 @@ const STEPS = [
   {
     icon: '🧩',
     iconBg: '#ECFBF1',
-    title: '1. 81?칸 만다라트 생성',
+    title: '1. 81칸 만다라트 생성',
     description: '핵심 목표를 8개 세부 목표로, 다시 8개 실천 과제로 잘게 나눠요.',
   },
   {
@@ -41,12 +41,12 @@ export default function LandingPage() {
         >
           <div className="z-10">
             <span className="inline-flex rounded-full bg-[#FFF0B8] px-4 py-1.5 text-xs font-bold text-[#D48B33]">
-              목표를 도시로 짓다(약간 어색한거같음)
+              목표를 도시로 짓다
             </span>
             <h1 className="mt-5 text-[34px] font-black leading-[1.18] tracking-[-0.055em] sm:text-[42px] lg:text-[46px]">
               매일 작은 실천이
               <br />
-              한 채(하나)의 건물이 됩니다.
+              한 채의 건물이 됩니다.
             </h1>
             <p className="mt-5 max-w-[480px] text-[15px] font-semibold leading-7 tracking-[-0.02em] text-slate-400 sm:text-base">
               만다라트로 큰 목표를 잘게 나누고, 과제를 완료할 때마다
