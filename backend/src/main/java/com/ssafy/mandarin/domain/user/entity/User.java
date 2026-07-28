@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 
 import com.ssafy.mandarin.global.entity.BaseEntity;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -28,33 +27,18 @@ public class User extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String name;
+    String name;
 
-    @Column(length = 50)
-    private String nickname;
+    String uuid;
 
-    @Column(nullable = false, unique = true)
-    private String uuid;
+    int point;
 
-    @Column(nullable = false)
-    private int point;
-
-    @Column(columnDefinition = "TEXT")
-    private String profileImage;
+    String profileImage;
 
     private LocalDateTime deletedAt;
 
     public void updateName(String name) {
         this.name = name;
-    }
-
-    public void updateNickname(String nickname) {
-        this.nickname = nickname;
-    }
-
-    public void updateProfileImage(String profileImage) {
-        this.profileImage = profileImage;
     }
 
     /**

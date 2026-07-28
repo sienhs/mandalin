@@ -23,8 +23,8 @@ public class FriendResponse {
     @Schema(description = "친구 UUID", example = "a1b2c3d4-...")
     private String uuid;
 
-    @Schema(description = "친구 닉네임", example = "만다린유저")
-    private String nickname;
+    @Schema(description = "친구 이름", example = "홍길동")
+    private String name;
 
     @Schema(description = "친구 프로필 이미지 URL")
     private String profileImage;
@@ -38,7 +38,7 @@ public class FriendResponse {
             .friendRelationId(friends.getId())
             .friendUserId(counterpart.getId())
             .uuid(counterpart.getUuid())
-            .nickname(counterpart.getNickname())
+            .name(counterpart.getName())
             .profileImage(counterpart.getProfileImage())
             .createdAt(friends.getCreatedAt())
             .build();

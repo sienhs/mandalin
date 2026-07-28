@@ -36,9 +36,9 @@ public class FriendService {
     // ─── 유저 UUID 검색 ────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public UserSearchResponse searchUserByUuid(String targetUuid, String myUuid) {
+    public UserSearchResponse searchUserByUuid(String targetUuid, Long myUserId) {
         User target = findActiveUserByUuid(targetUuid);
-        User me = findActiveUserByUuid(myUuid);
+        User me = findActiveUserById(myUserId);
         boolean isFriend = friendsRepository.existsFriendship(me, target);
         return UserSearchResponse.of(target, isFriend);
     }
@@ -46,8 +46,8 @@ public class FriendService {
     // ─── 내 친구 목록 조회 ─────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public List<FriendResponse> getMyFriends(String myUuid) {
-        User me = findActiveUserByUuid(myUuid);
+    public List<FriendResponse> getMyFriends(Long myUserId) {
+        User me = findActiveUserById(myUserId);
         return friendsRepository.findAllByUser(me)
             .stream()
             .map(friends -> FriendResponse.of(friends, me))
@@ -56,13 +56,13 @@ public class FriendService {
 
     // ─── 친구 요청 전송 ────────────────────────────────────────────────────
 
-    public void sendFriendRequest(String targetUuid, String myUuid) {
-        if (targetUuid.equals(myUuid)) {
+    public void sendFriendRequest(String targetUuid, Long myUserId) {
+        User me = findActiveUserById(myUserId);
+        User target = findActiveUserByUuid(targetUuid);
+
+        if (target.getId().equals(me.getId())) {
             throw new BusinessException(ErrorCode.CANNOT_REQUEST_YOURSELF);
         }
-
-        User me = findActiveUserByUuid(myUuid);
-        User target = findActiveUserByUuid(targetUuid);
 
         // 이미 친구인지 확인
         if (friendsRepository.existsFriendship(me, target)) {
@@ -74,7 +74,7 @@ public class FriendService {
         if (reverseRequestOpt.isPresent()) {
             FriendRequest reverseRequest = reverseRequestOpt.get();
             if (reverseRequest.getProgress() == RequestProgress.NOT_READ || reverseRequest.getProgress() == RequestProgress.READ) {
-                acceptRequest(reverseRequest.getId(), myUuid);
+                acceptRequest(reverseRequest.getId(), myUserId);
                 log.info("Cross friend request auto-accepted: me={}, target={}", me.getId(), target.getId());
                 return;
             }
@@ -87,7 +87,7 @@ public class FriendService {
             if (existingRequest.getProgress() == RequestProgress.NOT_READ || existingRequest.getProgress() == RequestProgress.READ) {
                 throw new BusinessException(ErrorCode.FRIEND_REQUEST_ALREADY_SENT);
             }
-            // 이전 요청이 거절(REJECTED)되었거나, 삭제되어(ACCEPTED 상태였으나 친구목록에서 삭제됨) 다시 요청하는 경우 -> NOT_READ 상태로 재설정하여 재전송
+            // 이전 요청이 거절(REJECTED)되었거나 삭제된 경우 -> NOT_READ 상태로 재설정하여 재전송
             existingRequest.resetToPending();
             log.info("Friend request re-sent: senderId={}, receiverId={}", me.getId(), target.getId());
             return;
@@ -105,8 +105,8 @@ public class FriendService {
     // ─── 받은 친구 요청 목록 조회 ──────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public List<FriendRequestResponse> getReceivedRequests(String myUuid) {
-        User me = findActiveUserByUuid(myUuid);
+    public List<FriendRequestResponse> getReceivedRequests(Long myUserId) {
+        User me = findActiveUserById(myUserId);
         List<RequestProgress> pendingStatuses = List.of(RequestProgress.NOT_READ, RequestProgress.READ);
         return friendRequestRepository.findByReceiverAndProgressInOrderByCreatedAtDesc(me, pendingStatuses)
             .stream()
@@ -116,8 +116,8 @@ public class FriendService {
 
     // ─── 친구 요청 수락 ────────────────────────────────────────────────────
 
-    public void acceptRequest(Long requestId, String myUuid) {
-        User me = findActiveUserByUuid(myUuid);
+    public void acceptRequest(Long requestId, Long myUserId) {
+        User me = findActiveUserById(myUserId);
         FriendRequest request = friendRequestRepository.findByIdAndReceiver(requestId, me)
             .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
 
@@ -143,8 +143,8 @@ public class FriendService {
 
     // ─── 친구 요청 거절 ────────────────────────────────────────────────────
 
-    public void rejectRequest(Long requestId, String myUuid) {
-        User me = findActiveUserByUuid(myUuid);
+    public void rejectRequest(Long requestId, Long myUserId) {
+        User me = findActiveUserById(myUserId);
         FriendRequest request = friendRequestRepository.findByIdAndReceiver(requestId, me)
             .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
 
@@ -154,8 +154,8 @@ public class FriendService {
 
     // ─── 친구 삭제 ─────────────────────────────────────────────────────────
 
-    public void deleteFriend(Long friendRelationId, String myUuid) {
-        User me = findActiveUserByUuid(myUuid);
+    public void deleteFriend(Long friendRelationId, Long myUserId) {
+        User me = findActiveUserById(myUserId);
         Friends friends = friendsRepository.findByIdAndUser(friendRelationId, me)
             .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_NOT_FOUND));
 
@@ -164,6 +164,12 @@ public class FriendService {
     }
 
     // ─── 내부 헬퍼 ─────────────────────────────────────────────────────────
+
+    private User findActiveUserById(Long userId) {
+        return userRepository.findById(userId)
+            .filter(user -> !user.isWithdrawn())
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
 
     private User findActiveUserByUuid(String uuid) {
         return userRepository.findByUuid(uuid)

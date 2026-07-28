@@ -1,7 +1,5 @@
 package com.ssafy.mandarin.domain.auth.service;
 
-import com.ssafy.mandarin.domain.user.dto.MyProfileResponse;
-import com.ssafy.mandarin.domain.user.dto.PointResponse;
 import com.ssafy.mandarin.domain.user.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,33 +23,11 @@ public class UserAccountService {
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final OAuthIdentityRepository oAuthIdentityRepository;
 
-	@Transactional(readOnly = true)
-	public MyProfileResponse getMyProfile(String uuid) {
-		User user = findActiveUser(uuid);
-		return MyProfileResponse.from(user);
-	}
-
-	@Transactional(readOnly = true)
-	public PointResponse getPoints(String uuid) {
-		User user = findActiveUser(uuid);
-		return PointResponse.of(user.getPoint());
-	}
-
-	public String updateName(String uuid, String name) {
-		User user = findActiveUser(uuid);
+	public String updateName(String email, String name) {
+		User user = findActiveUser(email);
 		user.updateName(name.trim());
 		log.info("Name updated: userId={}", user.getId());
 		return user.getName();
-	}
-
-	public String updateNickname(String uuid, String nickname) {
-		if (userRepository.existsByNickname(nickname)) {
-			throw new BusinessException(ErrorCode.DUPLICATE_EMAIL); // 닉네임 중복
-		}
-		User user = findActiveUser(uuid);
-		user.updateNickname(nickname.trim());
-		log.info("Nickname updated: userId={}", user.getId());
-		return user.getNickname();
 	}
 
 	public void deleteAccount(String uuid) {

@@ -17,9 +17,6 @@ public class MyProfileResponse {
     @Schema(description = "유저 이름", example = "홍길동")
     private String name;
 
-    @Schema(description = "유저 닉네임", example = "만다린유저")
-    private String nickname;
-
     @Schema(description = "유저 UUID", example = "a1b2c3d4-...")
     private String uuid;
 
@@ -33,7 +30,6 @@ public class MyProfileResponse {
         return MyProfileResponse.builder()
             .userId(user.getId())
             .name(user.getName())
-            .nickname(user.getNickname())
             .uuid(user.getUuid())
             .point(user.getPoint())
             .profileImage(user.getProfileImage())

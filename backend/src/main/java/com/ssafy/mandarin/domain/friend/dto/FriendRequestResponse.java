@@ -20,8 +20,8 @@ public class FriendRequestResponse {
     @Schema(description = "보낸 사람 UUID", example = "a1b2c3d4-...")
     private String senderUuid;
 
-    @Schema(description = "보낸 사람 닉네임", example = "만다린유저")
-    private String senderNickname;
+    @Schema(description = "보낸 사람 이름", example = "홍길동")
+    private String senderName;
 
     @Schema(description = "보낸 사람 프로필 이미지 URL")
     private String senderProfileImage;
@@ -36,7 +36,7 @@ public class FriendRequestResponse {
         return FriendRequestResponse.builder()
             .requestId(request.getId())
             .senderUuid(request.getSender().getUuid())
-            .senderNickname(request.getSender().getNickname())
+            .senderName(request.getSender().getName())
             .senderProfileImage(request.getSender().getProfileImage())
             .progress(request.getProgress())
             .createdAt(request.getCreatedAt())

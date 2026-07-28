@@ -13,7 +13,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
 	boolean existsByUuid(String uuid);
 
-	boolean existsByNickname(String nickname);
-
 	List<User> findByDeletedAtIsNullOrderByIdAsc();
 }
