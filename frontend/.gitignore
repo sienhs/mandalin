@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# 팀 컨벤션상 lockfile은 커밋하지 않음 (개발자별 npm 버전 차이로 불필요한 diff 방지)
+package-lock.json
+
 # Vercel CLI local state — keep project.json (org/project id, not secret)
 # so Jenkins can `vercel pull` without extra credentials
 .vercel/*

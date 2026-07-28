@@ -1,29 +1,24 @@
 import { useState } from 'react'
 import { BuildingImage } from './BuildingImage'
-import { BUILDING_LIST } from './catalog'
-import type { AnyBuildingKey } from './buildings'
-import { PREMIUM_THEMES, PREMIUM_CONFIGS, type PremiumKey } from './premium'
+import type { OwnedCatalog } from './ownedCatalog'
 
 interface Props {
+  /** 서버가 내려준 보유 건물. 여기 없는 건물은 애초에 고를 수 없다. */
+  catalog: OwnedCatalog
   /** 현재 선택값 ('auto' 또는 건물 key) */
-  value: AnyBuildingKey | 'auto'
-  onPick: (v: AnyBuildingKey | 'auto') => void
+  value: string | 'auto'
+  onPick: (v: string | 'auto') => void
   onClose: () => void
   title?: string
 }
 
-type Item = { key: AnyBuildingKey; label: string }
-
-/** 탭: 기본(마을/도시) + 12개 프리미엄 테마. */
-const BASE_TAB = { id: 'base', label: '🏙 기본' }
-const TABS = [BASE_TAB, ...PREMIUM_THEMES.map((t) => ({ id: t.id, label: t.label }))]
-
 /**
- * 건물 썸네일 그리드 선택 모달 — 기본 15종 + 프리미엄 241종.
+ * 보유 건물 썸네일 그리드 선택 모달.
  * 테마 탭으로 한 번에 한 그룹만 렌더 → 썸네일 베이킹 부하를 ~20개로 제한.
  */
-export function BuildingPicker({ value, onPick, onClose, title = '건물 선택' }: Props) {
-  const [tab, setTab] = useState<string>('base')
+export function BuildingPicker({ catalog, value, onPick, onClose, title = '건물 선택' }: Props) {
+  const [tab, setTab] = useState<string>(catalog.themes[0]?.id ?? '')
+  const active = catalog.themes.find((t) => t.id === tab) ?? catalog.themes[0]
 
   const cardStyle = (selected: boolean): React.CSSProperties => ({
     border: selected ? '2px solid #2b6cb0' : '1px solid #dde3e8',
@@ -31,36 +26,9 @@ export function BuildingPicker({ value, onPick, onClose, title = '건물 선택'
     borderRadius: 12, padding: 8, cursor: 'pointer', textAlign: 'center',
   })
 
-  const pick = (v: AnyBuildingKey | 'auto') => {
+  const pick = (v: string | 'auto') => {
     onPick(v)
     onClose()
-  }
-
-  const Grid = ({ items }: { items: Item[] }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 8, marginBottom: 14 }}>
-      {items.map((b) => (
-        <button key={b.key} onClick={() => pick(b.key)} style={cardStyle(value === b.key)}>
-          <div style={{ height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#eaf4f8,#f6f9fb)', borderRadius: 8, marginBottom: 6, overflow: 'hidden' }}>
-            <BuildingImage k={b.key} stage={3} size={84} alt={b.label} />
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>{b.label}</div>
-        </button>
-      ))}
-    </div>
-  )
-
-  // 현재 탭의 건물 목록
-  let sections: { title: string; items: Item[] }[]
-  if (tab === 'base') {
-    sections = [
-      { title: '🏡 마을풍', items: BUILDING_LIST.filter((b) => b.group === 'village').map((b) => ({ key: b.key as AnyBuildingKey, label: b.label })) },
-      { title: '🏙 도시풍', items: BUILDING_LIST.filter((b) => b.group === 'city').map((b) => ({ key: b.key as AnyBuildingKey, label: b.label })) },
-    ]
-  } else {
-    const theme = PREMIUM_THEMES.find((t) => t.id === tab)!
-    sections = [
-      { title: theme.label, items: theme.keys.map((k) => ({ key: k as AnyBuildingKey, label: PREMIUM_CONFIGS[k as PremiumKey].label })) },
-    ]
   }
 
   return (
@@ -81,9 +49,9 @@ export function BuildingPicker({ value, onPick, onClose, title = '건물 선택'
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
 
-        {/* 테마 탭 */}
+        {/* 테마 탭 — 보유한 테마만 나온다 */}
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 10, borderBottom: '1px solid #eef1f4' }}>
-          {TABS.map((t) => (
+          {catalog.themes.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -95,32 +63,44 @@ export function BuildingPicker({ value, onPick, onClose, title = '건물 선택'
                 fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
               }}
             >
-              {t.label}
+              {t.label} ({t.items.length})
             </button>
           ))}
         </div>
 
         <div style={{ overflowY: 'auto', paddingRight: 4 }}>
-          {/* 자동 (기본 탭에서만) */}
-          {tab === 'base' && (
-            <button
-              onClick={() => pick('auto')}
-              style={{ ...cardStyle(value === 'auto'), width: '100%', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '12px 14px', textAlign: 'left' }}
-            >
-              <span style={{ fontSize: 22 }}>✨</span>
-              <span>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>자동 (기본 배치)</div>
-                <div style={{ fontSize: 11, color: '#5a6b76' }}>진행률·마을/도시풍에 따라 자동 결정</div>
-              </span>
-            </button>
+          <button
+            onClick={() => pick('auto')}
+            style={{ ...cardStyle(value === 'auto'), width: '100%', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '12px 14px', textAlign: 'left' }}
+          >
+            <span style={{ fontSize: 22 }}>✨</span>
+            <span>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>자동 (기본 배치)</div>
+              <div style={{ fontSize: 11, color: '#5a6b76' }}>진행률·마을/도시풍에 따라 자동 결정</div>
+            </span>
+          </button>
+
+          {active && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#33424d', margin: '0 0 8px' }}>{active.label}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 8, marginBottom: 14 }}>
+                {active.items.map((b) => (
+                  <button key={b.itemKey} onClick={() => pick(b.itemKey)} style={cardStyle(value === b.itemKey)}>
+                    <div style={{ height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#eaf4f8,#f6f9fb)', borderRadius: 8, marginBottom: 6, overflow: 'hidden' }}>
+                      <BuildingImage k={b.itemKey} remoteUrl={b.thumbnailUrl} parts={b.parts} stage={3} size={84} alt={b.name} />
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>{b.name}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
-          {sections.map((s) => (
-            <div key={s.title}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#33424d', margin: '0 0 8px' }}>{s.title}</div>
-              <Grid items={s.items} />
+          {catalog.themes.length === 0 && (
+            <div style={{ padding: '32px 12px', textAlign: 'center', color: '#8a97a0', fontSize: 13 }}>
+              보유한 건물이 없습니다.
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>

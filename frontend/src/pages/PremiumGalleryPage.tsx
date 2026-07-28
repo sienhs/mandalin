@@ -4,7 +4,8 @@ import { TopBar } from '../components/TopBar'
 import { BuildingImage } from '../village/BuildingImage'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { PREMIUM_THEMES, PREMIUM_CONFIGS, type PremiumKey } from '../village/premium'
-import type { Stage } from '../village/catalog'
+import { localParts } from '../village/localCatalog'
+import type { Stage } from '../village/partTypes'
 
 const STAGES: { v: Stage; label: string }[] = [
   { v: 1, label: '1·일관화' },
@@ -69,7 +70,7 @@ export default function PremiumGalleryPage() {
                       background: 'linear-gradient(180deg, #eaf4f8, #f6f9fb)',
                     }}
                   >
-                    <BuildingImage k={key as PremiumKey} stage={stage} size={150} alt={PREMIUM_CONFIGS[key as PremiumKey].label} />
+                    <BuildingImage k={key} parts={localParts(key)} stage={stage} size={150} alt={PREMIUM_CONFIGS[key as PremiumKey].label} />
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{PREMIUM_CONFIGS[key as PremiumKey].label}</div>
                   <div style={{ fontSize: 11, color: '#9aa7b0' }}>{key}</div>

@@ -4,25 +4,21 @@ import { Instances, Instance } from '@react-three/drei'
 import { type Group } from 'three'
 import { PALETTE, resolveColor } from './palette'
 import {
-  BUILDING_CONFIGS,
   DETAIL_KINDS,
   PL,
   type Part,
   type Stage,
   type ThemeKey,
   THEMES,
-} from './catalog'
-import { PREMIUM_CONFIGS } from './premium'
-
-/** 기존 15종 + 프리미엄 테마 건물 병합 카탈로그. */
-export const ALL_CONFIGS = { ...BUILDING_CONFIGS, ...PREMIUM_CONFIGS }
-/** 렌더 가능한 모든 건물 key (기존 + 프리미엄). */
-export type AnyBuildingKey = keyof typeof ALL_CONFIGS
+} from './partTypes'
 
 /**
  * 데이터 드리븐 건물 렌더러.
- * catalog.ts의 config(부품 배열)를 해석해 로우폴리 건물을 그린다.
- * 새 건물은 catalog에 config만 추가하면 됨 — 이 파일은 부품 종류가 늘 때만 수정.
+ * 부품(Part) 배열을 해석해 로우폴리 건물을 그린다. 부품 종류가 늘 때만 이 파일을 고친다.
+ *
+ * ⚠️ 카탈로그(어떤 건물이 존재하는가)는 여기서 import 하지 않는다. parts 를 인자로 받을 뿐이라
+ * /village 는 서버가 내려준 보유 건물의 parts 를, 개발용 페이지는 로컬 카탈로그의 parts 를
+ * 같은 렌더러에 흘려보낼 수 있다.
  */
 
 // ─────────── 공통 부품 컴포넌트 ───────────
@@ -311,10 +307,14 @@ function Stage1({ theme }: { theme: ThemeKey }) {
   )
 }
 
-/** 단계별 디스패치: 1=일관화 shell, 2=형태(디테일 생략), 3=완성. */
-export function StageBuilding({ k, stage, theme }: { k: AnyBuildingKey; stage: Stage; theme: ThemeKey }) {
+/**
+ * 단계별 디스패치: 1=일관화 shell, 2=형태(디테일 생략), 3=완성.
+ * 1단계는 모든 건물이 같은 shell 이라 parts 없이도 그릴 수 있다.
+ */
+export function StageParts({ parts, stage, theme }: { parts: Part[] | null; stage: Stage; theme: ThemeKey }) {
   if (stage === 1) return <Stage1 theme={theme} />
-  return <group>{ALL_CONFIGS[k].parts.map((p, i) => renderPart(p, stage, i))}</group>
+  if (!parts) return null
+  return <group>{parts.map((p, i) => renderPart(p, stage, i))}</group>
 }
 
 // ─────────── 블록 장식 ───────────
