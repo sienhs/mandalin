@@ -31,7 +31,8 @@ export type OAuthExchangeResponse = {
   data: {
     accessToken: string
     id: number
-    kakaoId: string
+    /** oauth_identities 에서 오므로 연결 정보가 없으면 null. */
+    kakaoId: string | null
     name: string
     uuid: string
     point: number
@@ -148,4 +149,23 @@ export function exchangeOAuthCode(code: string): Promise<LoginData> {
     method: 'POST',
     body: JSON.stringify({ code }),
   })
+}
+
+/** 로그인한 사용자 프로필. 재발급만으로는 "누구인지"를 알 수 없어 새로고침 후 이걸로 되찾는다. */
+export type UserProfileData = Omit<LoginData, 'accessToken'>
+
+export function fetchMyProfile(): Promise<UserProfileData> {
+  return apiFetch<UserProfileData>('/api/users/me')
+}
+
+/**
+ * 로그아웃. 서버가 이 기기의 리프레시 토큰을 폐기하고 쿠키를 지운다.
+ * 인증이 필요 없어 액세스 토큰이 만료된 뒤에도 호출된다.
+ */
+export async function logout(): Promise<void> {
+  try {
+    await apiFetch<void>('/api/auth/logout', { method: 'POST' })
+  } finally {
+    clearAccessToken()
+  }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEventHandler } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/auth'
 import { cn } from '../../utils/cn'
 
@@ -62,7 +62,9 @@ export default function Header({
   onNotificationClick,
   onProfileClick,
 }: HeaderProps) {
-  const { user, isRestoringSession } = useAuth()
+  const { user, isRestoringSession, logout } = useAuth()
+  const navigate = useNavigate()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [profileImageFailed, setProfileImageFailed] = useState(false)
   const profileImageUrl = user?.profileImageUrl
   const profileInitial = user?.name.trim().slice(0, 1)
@@ -72,6 +74,13 @@ export default function Header({
   useEffect(() => {
     setProfileImageFailed(false)
   }, [profileImageUrl])
+
+  // logout()은 서버 요청이 실패해도 로컬 세션을 비우므로 성공/실패를 가르지 않는다.
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    await logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="h-20 w-full border-b border-slate-100 bg-white">
@@ -168,6 +177,20 @@ export default function Header({
             ) : (
               <span aria-hidden="true">{isRestoringSession ? '…' : '👤'}</span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={cn(
+              'focus-ring h-10 whitespace-nowrap rounded-full px-4',
+              'border border-slate-200 bg-white text-[14px] font-bold text-text-muted',
+              'transition-colors hover:bg-surface-muted hover:text-slate-700',
+              'disabled:cursor-progress disabled:opacity-60',
+            )}
+          >
+            {isLoggingOut ? '로그아웃 중…' : '로그아웃'}
           </button>
         </div>
       </div>
