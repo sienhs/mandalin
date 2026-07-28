@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bounds, Center } from '@react-three/drei'
-import { StageBuilding, type AnyBuildingKey } from './buildings'
-import type { Stage } from './catalog'
+import { StageBuilding, type AnyBuildingKey } from './localCatalog'
+import type { Stage } from './partTypes'
 
 /**
  * 검수용 4방면 베이커 — 썸네일 베이커와 동일 원리(숨은 단일 캔버스 + toDataURL)지만
