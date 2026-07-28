@@ -184,6 +184,8 @@ export default function MandalartCreate() {
 
     //추가 가능한 과제의 기본 페이지 설정.
     const [page2d, setPage2d] = useState("1");
+    //과제 검색어
+    const [taskSearch, setTaskSearch] = useState("");
 
     //저장 팝업이 열려있는지 여부
     const [saveOpen, setSaveOpen] = useState(false);
@@ -573,13 +575,15 @@ export default function MandalartCreate() {
                                     <input
                                         id="task-search"
                                         type="text"
+                                        value={taskSearch}
+                                        onChange={(e) => setTaskSearch(e.target.value)}
                                         placeholder="추가할 과제 검색"
                                         className="w-full rounded-lg border border-ink-300 bg-[#f8fafc] px-3 py-[10px] text-xs text-ink-700 outline-none focus:border-mint-400"
                                     />
                                 </div>
 
                                 <ul className="m-0 mb-5 flex list-none flex-col gap-2 p-0">
-                                    {TaskRecommend.map((t) => (
+                                    {TaskRecommend.filter(t => (t.title?.includes(taskSearch) || t.domain_name?.includes(taskSearch))).map((t) => (
                                         <li
                                             key={t.title}
                                             className="card card-hover flex items-center gap-2.5 rounded-xl border border-[#e2e8f0] p-3 shadow-none"
