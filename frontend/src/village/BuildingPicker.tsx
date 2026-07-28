@@ -73,7 +73,6 @@ export function BuildingPicker({ catalog, value, onPick, onClose, title = '건�
             onClick={() => pick('auto')}
             style={{ ...cardStyle(value === 'auto'), width: '100%', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '12px 14px', textAlign: 'left' }}
           >
-            <span style={{ fontSize: 22 }}>✨</span>
             <span>
               <div style={{ fontSize: 14, fontWeight: 700 }}>자동 (기본 배치)</div>
               <div style={{ fontSize: 11, color: '#5a6b76' }}>진행률·마을/도시풍에 따라 자동 결정</div>

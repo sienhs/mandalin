@@ -3,6 +3,7 @@ import { PALETTE } from '../palette'
 import type { Terrain } from '../villageApi'
 import { CityRoad } from './CityRoad'
 import { DirtRoad } from './DirtRoad'
+import { FloatingBase } from './FloatingBase'
 import { GrassPath } from './GrassPath'
 import { WaterWay } from './WaterWay'
 
@@ -13,7 +14,20 @@ import { WaterWay } from './WaterWay'
  * 블록(도메인) 바닥색과 하늘도 지형을 따라가야 길과 이질감이 없어서 여기서 같이 정의한다.
  */
 
-export function TerrainGround({ terrain }: { terrain: Terrain }) {
+/**
+ * 섬 아랫부분 파라미터.
+ * 물길은 수면 아래에서 시작해야 하고(수면보다 위에서 시작하면 암반이 물 위로 솟는다),
+ * 암반 색도 지형에 맞춰 다르게 준다.
+ */
+const BASE: Record<Terrain, { topY: number; rock: Color; lip: Color; depth: number }> = {
+  CITY_ROAD: { topY: -0.05, rock: PALETTE.concrete.clone().multiplyScalar(0.62), lip: PALETTE.plaza, depth: 13 },
+  DIRT_ROAD: { topY: -0.05, rock: PALETTE.bark, lip: PALETTE.soil, depth: 13 },
+  GRASS_PATH: { topY: -0.05, rock: PALETTE.bark, lip: PALETTE.soil, depth: 14 },
+  // 수면(-0.34)과 그 아래 수심 면(-0.79)보다 더 아래에서 시작한다.
+  WATER_WAY: { topY: -0.85, rock: PALETTE.bark.clone().lerp(PALETTE.concrete, 0.25), lip: PALETTE.soil, depth: 12 },
+}
+
+function TerrainSurface({ terrain }: { terrain: Terrain }) {
   switch (terrain) {
     case 'CITY_ROAD':
       return <CityRoad />
@@ -24,6 +38,15 @@ export function TerrainGround({ terrain }: { terrain: Terrain }) {
     case 'WATER_WAY':
       return <WaterWay />
   }
+}
+
+export function TerrainGround({ terrain }: { terrain: Terrain }) {
+  return (
+    <group>
+      <FloatingBase {...BASE[terrain]} />
+      <TerrainSurface terrain={terrain} />
+    </group>
+  )
 }
 
 /**
