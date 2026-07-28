@@ -1,5 +1,78 @@
 @import "tailwindcss";
 
+/**
+ * 디자인 토큰.
+ * 여러 컴포넌트에서 반복되던 하드코딩 hex 값(bg-[#61B5A7] 등)을 여기로 모아
+ * Tailwind 유틸(bg-brand, text-alert 등)로 쓸 수 있게 함. 색을 바꿀 땐 여기만 수정.
+ */
+@theme {
+  --color-brand: #61b5a7; /* 로고 배지 / 포커스 링 */
+  --color-brand-active: #65aa9f; /* 내비게이션 active/hover */
+  --color-page: #f4f7f9; /* 페이지 배경 */
+  --color-alert: #d95569; /* 알림 점 / 프로필 배지 */
+  --color-surface-muted: #f6f7f8; /* 아이콘 버튼 배경 */
+  --color-accent-peach: #fff1ec; /* 히어로/로그인 패널 배경 */
+  --color-success: #72cea1; /* 주요 버튼 배경 */
+  --color-success-hover: #5ec492; /* 주요 버튼 hover */
+  --color-warning: #de8433; /* 체크 완료 상태 */
+  --color-gold: #e8b744; /* 알림 종 아이콘 */
+  --color-coin-bg: #f7c85c; /* 코인 아이콘 배경 */
+  --color-coin-text: #d69327; /* 코인 아이콘 글자 */
+  --color-points-bg: #fff6de; /* 포인트 배지 배경 */
+  --color-points-text: #a96028; /* 포인트 배지 글자 */
+  --color-text-muted: #667085; /* 비활성 내비게이션 텍스트 */
+}
+
+/**
+ * 공통 컴포넌트 클래스.
+ * 여러 파일에서 그대로 반복되던 긴 Tailwind 유틸 조합을 시맨틱 이름으로 묶음.
+ * @layer components에 두는 이유: Tailwind 유틸 클래스(@layer utilities)가 항상 이보다
+ * 우선하도록 하기 위함 — 그래야 `<div className="brand-mark size-8">`처럼 이 클래스와
+ * 유틸을 같이 써서 크기/색 등 개별 값만 자유롭게 덮어쓸 수 있음.
+ */
+@layer components {
+  /* 페이지 최상위 배경(로그인 필요/불필요 화면 공통) */
+  .page-shell {
+    @apply min-h-screen bg-page text-slate-950;
+  }
+
+  /* Header/PublicHeader 내부 가로 정렬 컨테이너. 좌우 padding은 인스턴스별 px-*로 덮어쓰기 */
+  .header-row {
+    @apply mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 sm:px-8;
+  }
+
+  /* "만" 로고 사각 배지. 크기/둥근 정도/글자 크기는 인스턴스별로 함께 지정 */
+  .brand-mark {
+    @apply grid place-items-center bg-brand font-extrabold text-white;
+  }
+
+  /* "만다린" 워드마크. 글자 크기는 인스턴스별로 함께 지정 */
+  .brand-wordmark {
+    @apply font-extrabold tracking-[-0.04em];
+  }
+
+  /* 키보드 포커스 링(폭/오프셋만). 색은 인스턴스별 focus-visible:outline-*로 함께 지정 */
+  .focus-ring {
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2;
+  }
+
+  /* 원형 아이콘/캐러셀 버튼 뼈대. 크기·배경·색은 인스턴스별로 함께 지정 */
+  .icon-btn {
+    @apply grid cursor-pointer place-items-center rounded-full border-0 transition;
+  }
+
+  /* HomePage 주요 초록 CTA(적용하기 / 새 만다라트 만들기) */
+  .btn-primary {
+    @apply h-12 cursor-pointer rounded-xl border-0 bg-success text-sm font-extrabold text-white transition hover:bg-success-hover;
+  }
+
+  /* 카드 제목 아래 보조 설명 텍스트 */
+  .subtitle {
+    @apply mt-2 text-sm font-semibold text-slate-400;
+  }
+
+}
+
 :root {
   color-scheme: light;
   font: 18px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
