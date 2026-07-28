@@ -1,20 +1,12 @@
 import { createContext, useContext } from 'react'
-import type { OAuthExchangeResponse } from '../api'
+import type { OAuthExchangeResponse, UserProfileData } from '../api'
 
 /**
- * ERD `user` 테이블의 프론트 모델.
- * DB의 snake_case 컬럼명은 프론트 관례에 맞춰 camelCase로 표현한다.
+ * 로그인한 사용자.
+ * 서버 응답(UserProfileData)과 같은 모양이라 별도로 다시 정의하지 않는다 —
+ * 두 벌로 두면 서버가 필드를 바꿔도 프론트 타입은 조용히 맞는 척한다.
  */
-export type UserProfile = {
-  id: number
-  kakaoId: string
-  name: string
-  uuid: string
-  point: number
-  profileImageUrl: string | null
-  createdAt: string
-  deletedAt: string | null
-}
+export type UserProfile = UserProfileData
 
 export type LoginData = OAuthExchangeResponse['data']
 
@@ -24,7 +16,10 @@ export type AuthContextValue = {
   isAuthenticated: boolean
   isRestoringSession: boolean
   setSession: (data: LoginData) => void
+  /** 로컬 세션만 해제. 서버 폐기까지 하려면 logout 을 쓴다. */
   clearSession: () => void
+  /** 서버에 이 기기 세션 폐기를 요청하고 로컬 세션도 비운다. */
+  logout: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)
