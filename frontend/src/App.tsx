@@ -4,6 +4,7 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import TestHubPage from './pages/TestHubPage'
+import SheetCreate from './pages/SheetCreate'
 
 // 추후 로딩하게 변경, 페이지 글씨 충돌 생겨서 나중에 수정해야함
 const VillagePage = lazy(() => import('./pages/VillagePage'))
@@ -28,6 +29,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/test" element={<TestHubPage />} />
+        <Route path="/sheet/create" element={<SheetCreate />} />
         <Route
           path="/village"
           element={

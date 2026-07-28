@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+
+@theme {
+  --color-bg-app: #f8fafc;
+
+  --color-ink-100: #f1f5f9;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-700: #334155;
+  --color-ink-900: #0f172a;
+
+  --color-mint-100: #ccfbf1;
+  --color-mint-400: #2dd4bf;
+  --color-mint-500: #14b8a6;
+  --color-mint-600: #0d9488;
+  --color-mint-700: #0f766e;
+
+  --spacing-shell: 1280px;
+}
+
+
 :root {
   color-scheme: light;
   font: 18px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
