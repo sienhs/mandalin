@@ -1,7 +1,8 @@
 import { Block, BLOCK_SIZE } from './Block'
 import { PALETTE } from './palette'
 import type { CellOverride } from './GrowableObject'
-import type { ThemeKey } from './catalog'
+import type { ThemeKey } from './partTypes'
+import type { OwnedCatalog } from './ownedCatalog'
 import type { Mandalart } from './types'
 
 const GAP = 2.2
@@ -12,6 +13,7 @@ interface Props {
   selected: number | null
   overrides: Record<string, CellOverride>
   themes: Record<string, ThemeKey>
+  catalog: OwnedCatalog
   onSelect: (domainIndex: number) => void
 }
 
@@ -19,7 +21,7 @@ interface Props {
  * 3×3 블록 그리드 = 9도메인.
  * 블록 사이 통로는 흙길(path) 바닥으로 깔아 만다라트 격자를 지형으로 재현.
  */
-export function Village({ mandalart, selected, overrides, themes, onSelect }: Props) {
+export function Village({ mandalart, selected, overrides, themes, catalog, onSelect }: Props) {
   const span = PITCH * 3 + 2
 
   return (
@@ -42,6 +44,7 @@ export function Village({ mandalart, selected, overrides, themes, onSelect }: Pr
             selected={selected === i}
             overrides={overrides}
             theme={themes[domain.id] ?? 'warm'}
+            catalog={catalog}
             onSelect={() => onSelect(i)}
           />
         )

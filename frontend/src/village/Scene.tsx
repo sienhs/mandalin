@@ -2,7 +2,8 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Sky } from '@react-three/drei'
 import { Village } from './Village'
 import type { CellOverride } from './GrowableObject'
-import type { ThemeKey } from './catalog'
+import type { ThemeKey } from './partTypes'
+import type { OwnedCatalog } from './ownedCatalog'
 import type { Mandalart } from './types'
 
 interface Props {
@@ -10,11 +11,12 @@ interface Props {
   selected: number | null
   overrides: Record<string, CellOverride>
   themes: Record<string, ThemeKey>
+  catalog: OwnedCatalog
   onSelect: (domainIndex: number) => void
 }
 
 /** R3F Canvas + 조명 + OrbitControls. isometric 느낌의 초기 시점. */
-export function Scene({ mandalart, selected, overrides, themes, onSelect }: Props) {
+export function Scene({ mandalart, selected, overrides, themes, catalog, onSelect }: Props) {
   return (
     <Canvas
       shadows
@@ -37,7 +39,14 @@ export function Scene({ mandalart, selected, overrides, themes, onSelect }: Prop
         shadow-camera-bottom={-40}
       />
 
-      <Village mandalart={mandalart} selected={selected} overrides={overrides} themes={themes} onSelect={onSelect} />
+      <Village
+        mandalart={mandalart}
+        selected={selected}
+        overrides={overrides}
+        themes={themes}
+        catalog={catalog}
+        onSelect={onSelect}
+      />
 
       <OrbitControls
         makeDefault

@@ -4,7 +4,8 @@ import { Text } from '@react-three/drei'
 import { PALETTE, DOMAIN_ACCENTS } from './palette'
 import { GrowableObject, AUTO_CELL, type CellOverride } from './GrowableObject'
 import { Bush, FlowerBed } from './buildings'
-import { type ThemeKey } from './catalog'
+import { type ThemeKey } from './partTypes'
+import type { OwnedCatalog } from './ownedCatalog'
 import { urbanLevelOf, type Domain } from './types'
 
 const CELL = 2.6
@@ -17,6 +18,7 @@ interface Props {
   selected: boolean
   overrides: Record<string, CellOverride>
   theme: ThemeKey
+  catalog: OwnedCatalog
   onSelect: () => void
 }
 
@@ -37,7 +39,7 @@ const TASK_CELLS: [number, number][] = (() => {
  * 바닥: 잔디(마을)↔광장(도시) 보간. 중앙: 랜드마크(나무/마천루) + 도메인 색 원반 + 라벨.
  * 주변 8칸: 과제 오브젝트(slot 고정).
  */
-export function Block({ domain, domainIndex, position, selected, overrides, theme, onSelect }: Props) {
+export function Block({ domain, domainIndex, position, selected, overrides, theme, catalog, onSelect }: Props) {
   const urban = urbanLevelOf(domain)
   const isCity = urban >= 0.5
   const accent = DOMAIN_ACCENTS[domainIndex % DOMAIN_ACCENTS.length]
@@ -123,6 +125,7 @@ export function Block({ domain, domainIndex, position, selected, overrides, them
             slot={i}
             urbanLevel={urban}
             theme={theme}
+            catalog={catalog}
             override={overrides[task.id] ?? AUTO_CELL}
             position={[x, 0, z]}
             onClick={onSelect}
