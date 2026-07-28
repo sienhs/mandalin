@@ -3,6 +3,7 @@ import { TopBar } from '../components/TopBar'
 import { BuildingImage } from '../village/BuildingImage'
 import { ThumbnailBakery, getCachedThumbnail } from '../village/thumbnailBaker'
 import { BUILDING_LIST, type BuildingKey, type Stage } from '../village/catalog'
+import { localParts } from '../village/localCatalog'
 
 const STAGES: Stage[] = [1, 2, 3]
 
@@ -68,7 +69,7 @@ export default function ThumbnailStudioPage() {
         {BUILDING_LIST.map((b) => (
           <div key={b.key} style={{ background: '#fff', borderRadius: 12, padding: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.08)', textAlign: 'center' }}>
             <div style={{ borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#eaf4f8,#f6f9fb)' }}>
-              <BuildingImage k={b.key} stage={stage} size={150} alt={b.label} />
+              <BuildingImage k={b.key} parts={localParts(b.key)} stage={stage} size={150} alt={b.label} />
             </div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{b.label}</div>
             <div style={{ fontSize: 11, color: '#8a97a0', marginBottom: 8 }}>{b.key} · {b.group === 'village' ? '마을풍' : '도시풍'}</div>

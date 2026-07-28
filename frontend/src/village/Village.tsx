@@ -1,34 +1,34 @@
-import { Block, BLOCK_SIZE } from './Block'
-import { PALETTE } from './palette'
+import { Block } from './Block'
+import { PITCH } from './layout'
+import { TerrainGround } from './terrain'
 import type { CellOverride } from './GrowableObject'
-import type { ThemeKey } from './catalog'
+import type { ThemeKey } from './partTypes'
+import type { OwnedCatalog } from './ownedCatalog'
+import type { Terrain } from './villageApi'
 import type { Mandalart } from './types'
-
-const GAP = 2.2
-const PITCH = BLOCK_SIZE + GAP // 블록 중심 간 거리
 
 interface Props {
   mandalart: Mandalart
   selected: number | null
   overrides: Record<string, CellOverride>
   themes: Record<string, ThemeKey>
+  terrain: Terrain
+  catalog: OwnedCatalog
+  selectedTaskId: string | null
   onSelect: (domainIndex: number) => void
+  onSelectTask: (taskId: string) => void
 }
 
 /**
  * 3×3 블록 그리드 = 9도메인.
- * 블록 사이 통로는 흙길(path) 바닥으로 깔아 만다라트 격자를 지형으로 재현.
+ * 블록 사이 통로는 선택한 지형(도시 도로/비포장/초원길/물길)이 채운다.
  */
-export function Village({ mandalart, selected, overrides, themes, onSelect }: Props) {
-  const span = PITCH * 3 + 2
-
+export function Village({
+  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, onSelect, onSelectTask,
+}: Props) {
   return (
     <group>
-      {/* 전체 대지 (블록 사이 통로 = 흙길) */}
-      <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[span, span]} />
-        <meshStandardMaterial color={PALETTE.path} roughness={1} />
-      </mesh>
+      <TerrainGround terrain={terrain} />
 
       {mandalart.domains.slice(0, 9).map((domain, i) => {
         const gx = (i % 3) - 1
@@ -42,7 +42,11 @@ export function Village({ mandalart, selected, overrides, themes, onSelect }: Pr
             selected={selected === i}
             overrides={overrides}
             theme={themes[domain.id] ?? 'warm'}
+            terrain={terrain}
+            catalog={catalog}
+            selectedTaskId={selectedTaskId}
             onSelect={() => onSelect(i)}
+            onSelectTask={onSelectTask}
           />
         )
       })}

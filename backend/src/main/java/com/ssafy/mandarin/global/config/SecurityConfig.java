@@ -66,8 +66,10 @@ public class SecurityConfig {
 				.httpBasic(AbstractHttpConfigurer::disable)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 				.authorizeHttpRequests(auth -> auth
+						// 로그아웃은 인증을 요구하지 않는다. 액세스 토큰이 만료되면 로그아웃조차
+						// 401 이 되어 서버에 리프레시 토큰이 남는다. 리프레시 쿠키로 처리한다.
 						.requestMatchers(
-								"/api/auth/reissue", "/api/auth/oauth/exchange",
+								"/api/auth/reissue", "/api/auth/oauth/exchange", "/api/auth/logout",
 								"/oauth2/**", "/login/oauth2/**")
 						.permitAll()
 						.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()

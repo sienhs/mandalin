@@ -1,8 +1,8 @@
 import { InspectBakery, useInspectShot } from '../village/inspectBaker'
 import { PREMIUM_THEMES, PREMIUM_CONFIGS, type PremiumKey } from '../village/premium'
 import { BUILDING_CONFIGS } from '../village/catalog'
-import type { AnyBuildingKey } from '../village/buildings'
-import type { Stage } from '../village/catalog'
+import type { AnyBuildingKey } from '../village/localCatalog'
+import type { Stage } from '../village/partTypes'
 
 /**
  * 검수 페이지 (/inspect) — 건물을 4방면(0/90/180/270°)으로 구워 정렬/적층 이상을 확인.

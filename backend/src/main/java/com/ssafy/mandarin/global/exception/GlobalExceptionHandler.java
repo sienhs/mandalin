@@ -2,8 +2,10 @@ package com.ssafy.mandarin.global.exception;
 
 import com.ssafy.mandarin.global.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -31,6 +33,16 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiResponse<Void>> handleMalformedRequest(Exception e) {
 		log.warn("Malformed request: {}", e.getMessage());
 		return ResponseEntity.badRequest().body(ApiResponse.fail(ErrorCode.INVALID_INPUT.getMessage()));
+	}
+
+	/**
+	 * 인가 실패는 403 이다. 이 핸들러가 없으면 아래 Exception 핸들러가 먼저 잡아 500 으로 나간다.
+	 */
+	@ExceptionHandler(AccessDeniedException.class)
+	public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException e) {
+		log.warn("AccessDenied: {}", e.getMessage());
+		return ResponseEntity.status(HttpStatus.FORBIDDEN)
+				.body(ApiResponse.fail("Access is denied."));
 	}
 
 	@ExceptionHandler(NoResourceFoundException.class)
