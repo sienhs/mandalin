@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './auth/AuthProvider'
+import { RequireAuth } from './auth/RequireAuth'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
@@ -22,54 +24,61 @@ function Loading() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-        <Route path="/test" element={<TestHubPage />} />
-        <Route
-          path="/village"
-          element={
-            <Suspense fallback={<Loading />}>
-              <VillagePage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/thumbnails"
-          element={
-            <Suspense fallback={<Loading />}>
-              <ThumbnailStudioPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/gallery"
-          element={
-            <Suspense fallback={<Loading />}>
-              <GalleryPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/premium"
-          element={
-            <Suspense fallback={<Loading />}>
-              <PremiumGalleryPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/inspect"
-          element={
-            <Suspense fallback={<Loading />}>
-              <InspectPage />
-            </Suspense>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* 공개 — 세션 복원을 기다리지 않는다 */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+
+          {/* 로그인 필수 */}
+          <Route element={<RequireAuth />}>
+            <Route path="/test" element={<TestHubPage />} />
+            <Route
+              path="/village"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <VillagePage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/thumbnails"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <ThumbnailStudioPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/gallery"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <GalleryPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/premium"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <PremiumGalleryPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/inspect"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <InspectPage />
+                </Suspense>
+              }
+            />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
 
