@@ -14,14 +14,18 @@ interface Props {
   themes: Record<string, ThemeKey>
   terrain: Terrain
   catalog: OwnedCatalog
+  selectedTaskId: string | null
   onSelect: (domainIndex: number) => void
+  onSelectTask: (taskId: string) => void
 }
 
 /**
  * 3×3 블록 그리드 = 9도메인.
  * 블록 사이 통로는 선택한 지형(도시 도로/비포장/초원길/물길)이 채운다.
  */
-export function Village({ mandalart, selected, overrides, themes, terrain, catalog, onSelect }: Props) {
+export function Village({
+  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, onSelect, onSelectTask,
+}: Props) {
   return (
     <group>
       <TerrainGround terrain={terrain} />
@@ -40,7 +44,9 @@ export function Village({ mandalart, selected, overrides, themes, terrain, catal
             theme={themes[domain.id] ?? 'warm'}
             terrain={terrain}
             catalog={catalog}
+            selectedTaskId={selectedTaskId}
             onSelect={() => onSelect(i)}
+            onSelectTask={onSelectTask}
           />
         )
       })}

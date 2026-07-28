@@ -84,7 +84,7 @@ export function TerrainSwitcher({ current, onPreview, onPick, pending, error }: 
                     ))}
                   </span>
                   <span style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700 }}>{m.emoji} {m.label}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700 }}>{m.label}</div>
                     <div style={{ fontSize: 10.5, color: '#5a6b76', lineHeight: 1.35 }}>
                       {busy ? '적용 중…' : m.desc}
                     </div>
@@ -106,7 +106,11 @@ export function TerrainSwitcher({ current, onPreview, onPick, pending, error }: 
           boxShadow: '0 4px 16px rgba(0,0,0,0.16)', fontSize: 13, fontWeight: 600, color: '#33424d',
         }}
       >
-        <span style={{ fontSize: 15 }}>{meta.emoji}</span>
+        <span style={{ display: 'flex', width: 22, height: 22, borderRadius: 6, overflow: 'hidden', flex: '0 0 auto' }}>
+          {SWATCH[current].map((c, i) => (
+            <span key={c} style={{ background: c, flex: i === 0 ? 3 : i === 1 ? 2 : 1 }} />
+          ))}
+        </span>
         {meta.label}
         <span style={{ color: '#8a97a0', fontSize: 11 }}>{open ? '▾' : '▴'}</span>
       </button>
