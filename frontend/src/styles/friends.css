@@ -39,6 +39,11 @@
     @apply mt-10 list-none p-0 sm:mt-12;
   }
 
+  /* 정상 조회 결과가 빈 배열일 때 표시하는 친구 없음 안내 */
+  .friends-empty {
+    @apply mt-10 grid min-h-72 place-items-center rounded-2xl bg-slate-50 px-6 text-center text-sm font-semibold text-slate-400;
+  }
+
   .friend-row {
     @apply flex min-h-20 items-center gap-4 border-b border-slate-200 px-1 py-3 last:border-b-0 sm:gap-5 sm:px-5;
   }

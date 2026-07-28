@@ -22,8 +22,9 @@ type FriendsPageProps = {
 export default function FriendsPage({ initialFriends }: FriendsPageProps) {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<FriendTab>('friends')
+  // undefined는 API 미연결 상태, 빈 배열은 정상 조회된 "친구 없음" 상태로 구분한다.
   const [friends, setFriends] = useState(() =>
-    initialFriends?.length ? initialFriends : MOCK_FRIENDS,
+    initialFriends === undefined ? MOCK_FRIENDS : initialFriends,
   )
   const [requests, setRequests] = useState(MOCK_REQUESTS)
 

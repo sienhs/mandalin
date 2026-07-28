@@ -2,7 +2,7 @@ import { cn } from '../../utils/cn'
 
 type FriendsPaginationProps = {
   page: number
-  pageCount?: number
+  pageCount: number
   onChange: (page: number) => void
   label: string
 }
@@ -10,7 +10,7 @@ type FriendsPaginationProps = {
 /** 친구 목록과 요청 목록에서 함께 사용하는 페이지 이동 컨트롤. */
 export default function FriendsPagination({
   page,
-  pageCount = 3,
+  pageCount,
   onChange,
   label,
 }: FriendsPaginationProps) {

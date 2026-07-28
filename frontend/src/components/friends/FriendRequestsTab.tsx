@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import FriendAvatar from './FriendAvatar'
 import FriendsPagination from './FriendsPagination'
 import type { Friend } from './friends.types'
@@ -18,10 +18,17 @@ export default function FriendRequestsTab({
   onDecline,
 }: FriendRequestsTabProps) {
   const [page, setPage] = useState(1)
+  const pageCount = Math.max(1, Math.ceil(requests.length / ITEMS_PER_PAGE))
+  const safePage = Math.min(page, pageCount)
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage)
+  }, [page, safePage])
+
   const visibleRequests = useMemo(() => {
-    const start = (page - 1) * ITEMS_PER_PAGE
+    const start = (safePage - 1) * ITEMS_PER_PAGE
     return requests.slice(start, start + ITEMS_PER_PAGE)
-  }, [page, requests])
+  }, [requests, safePage])
 
   return (
     <>
@@ -53,7 +60,14 @@ export default function FriendRequestsTab({
         ))}
       </ul>
 
-      <FriendsPagination page={page} onChange={setPage} label="친구 요청 페이지" />
+      {requests.length > 0 && (
+        <FriendsPagination
+          page={safePage}
+          pageCount={pageCount}
+          onChange={setPage}
+          label="친구 요청 페이지"
+        />
+      )}
     </>
   )
 }
