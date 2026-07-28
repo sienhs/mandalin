@@ -1,10 +1,12 @@
 import { useEffect, useState, type MouseEventHandler } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/auth'
 import { cn } from '../../utils/cn'
 
 type HeaderProps = {
   hasNotification?: boolean
+  fallbackPoint?: number
+  fallbackProfileName?: string
   onNotificationClick?: MouseEventHandler<HTMLButtonElement>
   onProfileClick?: MouseEventHandler<HTMLButtonElement>
 }
@@ -59,14 +61,18 @@ function BellIcon({ hasNotification }: { hasNotification: boolean }) {
  */
 export default function Header({
   hasNotification = false,
+  fallbackPoint,
+  fallbackProfileName,
   onNotificationClick,
   onProfileClick,
 }: HeaderProps) {
   const { user, isRestoringSession } = useAuth()
+  const navigate = useNavigate()
   const [profileImageFailed, setProfileImageFailed] = useState(false)
   const profileImageUrl = user?.profileImageUrl
-  const profileInitial = user?.name.trim().slice(0, 1)
-  const point = user?.point
+  const profileName = user?.name ?? fallbackProfileName
+  const profileInitial = profileName?.trim().slice(0, 1)
+  const point = user?.point ?? fallbackPoint
 
   // 프로필 이미지 URL이 바뀌면(유저 전환 등) 이전 로드 실패 상태를 초기화해 다시 시도.
   useEffect(() => {
@@ -140,8 +146,8 @@ export default function Header({
 
           <button
             type="button"
-            aria-label={user ? `${user.name} 프로필` : '내 프로필'}
-            onClick={onProfileClick}
+            aria-label={profileName ? `${profileName} 프로필` : '내 프로필'}
+            onClick={onProfileClick ?? (() => navigate('/mypage'))}
             className={cn(
               'icon-btn focus-ring size-10 overflow-hidden',
               'bg-alert text-base font-bold text-white',

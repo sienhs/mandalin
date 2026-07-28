@@ -5,6 +5,7 @@ import FriendsPage from '../pages/FriendsPage'
 import HomePage from '../pages/HomePage'
 import LandingPage from '../pages/LandingPage'
 import LoginPage from '../pages/LoginPage'
+import MyPage from '../pages/MyPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
 import TestHubPage from '../pages/TestHubPage'
 import ProtectedRoute from './ProtectedRoute'
@@ -34,6 +35,7 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/home" element={<HomePage />} />
         <Route path="/friends" element={<FriendsPage />} />
+        <Route path="/mypage" element={<MyPage />} />
         <Route path="/village" element={<Lazy><VillagePage /></Lazy>} />
       </Route>
       <Route path="/thumbnails" element={<Lazy><ThumbnailStudioPage /></Lazy>} />
