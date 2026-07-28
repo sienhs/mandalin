@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import { Color } from 'three'
 import { Text } from '@react-three/drei'
 import { DOMAIN_ACCENTS } from './palette'
 import { GrowableObject, AUTO_CELL, type CellOverride } from './GrowableObject'
 import { Bush, FlowerBed } from './buildings'
 import { CELL, BLOCK_SIZE } from './layout'
+import { BlockSelection } from './selection'
 import { blockGroundColor, showsBlockGreenery } from './terrain'
 import { type ThemeKey } from './partTypes'
 import type { OwnedCatalog } from './ownedCatalog'
@@ -20,7 +20,11 @@ interface Props {
   theme: ThemeKey
   terrain: Terrain
   catalog: OwnedCatalog
+  /** 지금 선택된 자리의 task id. 이 블록 밖의 자리일 수도 있다. */
+  selectedTaskId: string | null
   onSelect: () => void
+  /** 자리를 클릭했을 때. 도메인 선택과 별개로 어느 칸인지 위로 알린다. */
+  onSelectTask: (taskId: string) => void
 }
 
 /** 3×3 격자에서 중앙 제외 8칸 좌표 (row-major). */
@@ -41,7 +45,8 @@ const TASK_CELLS: [number, number][] = (() => {
  * 주변 8칸: 과제 오브젝트(slot 고정).
  */
 export function Block({
-  domain, domainIndex, position, selected, overrides, theme, terrain, catalog, onSelect,
+  domain, domainIndex, position, selected, overrides, theme, terrain, catalog,
+  selectedTaskId, onSelect, onSelectTask,
 }: Props) {
   const urban = urbanLevelOf(domain)
   const accent = DOMAIN_ACCENTS[domainIndex % DOMAIN_ACCENTS.length]
@@ -66,13 +71,8 @@ export function Block({
         <meshStandardMaterial color={groundColor} roughness={1} />
       </mesh>
 
-      {/* 선택 하이라이트 테두리 */}
-      {selected && (
-        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[BLOCK_SIZE * 0.52, BLOCK_SIZE * 0.58, 4]} />
-          <meshBasicMaterial color={new Color(0xffe08a)} />
-        </mesh>
-      )}
+      {/* 선택 표시 — 사방을 두르지 않고 모서리만 잡아 블록 안 건물을 가리지 않는다 */}
+      {selected && <BlockSelection size={BLOCK_SIZE} />}
 
       {/* 중앙 도메인 색 원반 (식별용, 랜드마크는 제거) */}
       <mesh
@@ -126,9 +126,14 @@ export function Block({
             urbanLevel={urban}
             theme={theme}
             catalog={catalog}
+            selected={selectedTaskId === task.id}
             override={overrides[task.id] ?? AUTO_CELL}
             position={[x, 0, z]}
-            onClick={onSelect}
+            onClick={() => {
+              // 도메인 패널을 열고, 그 안에서 어느 칸인지까지 알린다.
+              onSelect()
+              onSelectTask(task.id)
+            }}
           />
         )
       })}

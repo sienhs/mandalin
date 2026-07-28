@@ -23,8 +23,8 @@ public class UserAccountService {
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final OAuthIdentityRepository oAuthIdentityRepository;
 
-	public String updateName(String email, String name) {
-		User user = findActiveUser(email);
+	public String updateName(String uuid, String name) {
+		User user = findActiveUser(uuid);
 		user.updateName(name.trim());
 		log.info("Name updated: userId={}", user.getId());
 		return user.getName();

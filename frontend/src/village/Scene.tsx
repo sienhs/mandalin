@@ -15,18 +15,24 @@ interface Props {
   themes: Record<string, ThemeKey>
   terrain: Terrain
   catalog: OwnedCatalog
+  selectedTaskId: string | null
   onSelect: (domainIndex: number) => void
+  onSelectTask: (taskId: string) => void
 }
 
 /** R3F Canvas + 조명 + OrbitControls. isometric 느낌의 초기 시점. */
-export function Scene({ mandalart, selected, overrides, themes, terrain, catalog, onSelect }: Props) {
+export function Scene({
+  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, onSelect, onSelectTask,
+}: Props) {
   const sky = SKY[terrain]
 
   return (
     <Canvas
       shadows
       gl={{ preserveDrawingBuffer: true }}
-      camera={{ position: [31, 28, 31], fov: 40 }}
+      // 섬이 "떠 있다"는 게 보이려면 눈높이가 낮아야 한다. 예전 [31,28,31] 은
+      // 거의 위에서 내려보는 각도라 측면 암반이 한 줄로만 보였다.
+      camera={{ position: [46, 21, 46], fov: 38 }}
       onPointerMissed={() => onSelect(-1)}
     >
       <color attach="background" args={[sky.bg]} />
@@ -42,6 +48,9 @@ export function Scene({ mandalart, selected, overrides, themes, terrain, catalog
         shadow-camera-right={40}
         shadow-camera-top={40}
         shadow-camera-bottom={-40}
+        // 섬 아래 암반까지 그림자 범위에 넣는다.
+        shadow-camera-near={0.5}
+        shadow-camera-far={120}
       />
 
       <Village
@@ -51,16 +60,21 @@ export function Scene({ mandalart, selected, overrides, themes, terrain, catalog
         themes={themes}
         terrain={terrain}
         catalog={catalog}
+        selectedTaskId={selectedTaskId}
         onSelect={onSelect}
+        onSelectTask={onSelectTask}
       />
 
       <OrbitControls
         makeDefault
         enablePan
         minDistance={10}
-        maxDistance={100}
-        maxPolarAngle={Math.PI / 2.1}
-        target={[0, 0, 0]}
+        maxDistance={120}
+        // 수평보다 살짝 아래까지 허용해 섬 측면(암반)이 보이게 한다.
+        // 완전히 아래로는 못 가게 막아 바닥 면이 드러나지 않도록 한다.
+        maxPolarAngle={Math.PI / 1.92}
+        // 섬 아래쪽에 여유를 둬 회전할 때 암반 전체가 화면에 들어오게 한다.
+        target={[0, -5, 0]}
       />
     </Canvas>
   )
