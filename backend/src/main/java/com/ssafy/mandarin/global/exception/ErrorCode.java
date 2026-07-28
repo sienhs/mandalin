@@ -22,7 +22,9 @@ public enum ErrorCode {
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "Invalid input."),
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "An internal server error occurred."),
 
-	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found.");
+	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found."),
+
+	CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read building modeling data.");
 
 	private final HttpStatus status;
 	private final String message;
