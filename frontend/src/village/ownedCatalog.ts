@@ -10,19 +10,19 @@ import type { OwnedBuilding } from './villageApi'
 
 /** 테마 표시용 라벨. 순수 UI 메타라 서버가 아니라 여기서 관리한다. */
 const THEME_LABELS: Record<string, string> = {
-  BASIC: '🏙 기본',
-  SAKURA: '🌸 벚꽃',
-  CYBER: '🌃 사이버펑크',
-  SEOUL: '🏙 서울',
-  WEST: '🤠 서부',
-  MEDIEVAL: '🏰 중세',
-  SANTORINI: '🇬🇷 산토리니',
-  SCIFI: '🚀 SF 콜로니',
-  TROPICAL: '🏝 열대 리조트',
-  NORDIC: '❄️ 노르딕',
-  STEAMPUNK: '⚙️ 스팀펑크',
-  EGYPT: '🏜 이집트',
-  ARTDECO: '🎭 아르데코',
+  BASIC: '기본',
+  SAKURA: '벚꽃',
+  CYBER: '사이버펑크',
+  SEOUL: '서울',
+  WEST: '서부',
+  MEDIEVAL: '중세',
+  SANTORINI: '산토리니',
+  SCIFI: 'SF 콜로니',
+  TROPICAL: '열대 리조트',
+  NORDIC: '노르딕',
+  STEAMPUNK: '스팀펑크',
+  EGYPT: '이집트',
+  ARTDECO: '아르데코',
 }
 
 export function themeLabel(theme: string): string {
@@ -56,16 +56,26 @@ const EMPTY: OwnedCatalog = {
 /**
  * 자동 배치 슬롯은 보유 건물의 높이로 정한다.
  *
- * 예전에는 마을풍/도시풍 key 를 코드에 박아뒀지만, 이제 인벤토리가 유저마다 달라서
- * 고정 key 는 "안 가진 건물"을 가리킬 수 있다. 낮은 8종=마을풍, 높은 8종=도시풍으로
- * 뽑으면 어떤 인벤토리에서도 성장 대비가 유지된다.
+ * 예전에는 마을풍/도시풍 key 를 코드에 박아뒀지만, 인벤토리가 유저마다 달라서 고정 key 는
+ * "안 가진 건물"을 가리킬 수 있다. 그래서 높이로 뽑는다.
+ *
+ * 단순히 "가장 낮은 8종 / 가장 높은 8종"으로 하면 전부 보유한 유저의 블록이 똑같이 생긴
+ * 초고층 8개로 채워져 마천루 숲이 된다. 아래·위 절반 안에서 **고르게 표본을 뽑아**
+ * 성장 대비는 유지하면서 실루엣이 다양해지게 한다.
  */
 export function buildOwnedCatalog(buildings: OwnedBuilding[]): OwnedCatalog {
   if (buildings.length === 0) return EMPTY
 
   const byHeight = [...buildings].sort((a, b) => a.size.height - b.size.height)
-  const pick = (source: OwnedBuilding[]) =>
-    Array.from({ length: 8 }, (_, i) => source[i % source.length].itemKey)
+
+  /** 구간에서 8개를 균등 간격으로 표본 추출. 개수가 8보다 적으면 순환한다. */
+  const pick = (source: OwnedBuilding[]) => {
+    if (source.length <= 8) {
+      return Array.from({ length: 8 }, (_, i) => source[i % source.length].itemKey)
+    }
+    const step = source.length / 8
+    return Array.from({ length: 8 }, (_, i) => source[Math.floor(i * step)].itemKey)
+  }
 
   const themeOrder: string[] = []
   const grouped = new Map<string, OwnedBuilding[]>()
@@ -80,8 +90,9 @@ export function buildOwnedCatalog(buildings: OwnedBuilding[]): OwnedCatalog {
   return {
     list: buildings,
     byKey: new Map(buildings.map((b) => [b.itemKey, b])),
-    villageSlots: pick(byHeight.slice(0, 8)),
-    citySlots: pick(byHeight.slice(-8).reverse()),
+    // 낮은 절반 = 마을풍, 높은 절반 = 도시풍. 각 구간에서 고르게 뽑는다.
+    villageSlots: pick(byHeight.slice(0, Math.max(1, Math.floor(byHeight.length / 2)))),
+    citySlots: pick(byHeight.slice(Math.floor(byHeight.length / 2))),
     themes: themeOrder.map((id) => ({ id, label: themeLabel(id), items: grouped.get(id)! })),
   }
 }

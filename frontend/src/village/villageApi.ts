@@ -12,11 +12,11 @@ export const TERRAINS = ['CITY_ROAD', 'DIRT_ROAD', 'GRASS_PATH', 'WATER_WAY'] as
 export type Terrain = (typeof TERRAINS)[number]
 
 /** 지형 선택 UI 문구. 순수 표시용이라 서버가 아니라 여기서 관리한다. */
-export const TERRAIN_META: Record<Terrain, { label: string; desc: string; emoji: string }> = {
-  CITY_ROAD: { label: '포장 도시', desc: '아스팔트 도로와 인도, 횡단보도가 깔린 도심', emoji: '🏙' },
-  DIRT_ROAD: { label: '거친 비포장', desc: '마른 흙과 바퀴자국, 자갈이 굴러다니는 변두리', emoji: '🛞' },
-  GRASS_PATH: { label: '푸른 초원', desc: '잔디밭 사이로 다져진 흙길과 야생화', emoji: '🌿' },
-  WATER_WAY: { label: '물 길', desc: '수로 위 섬들을 목재 다리로 잇는 마을', emoji: '💧' },
+export const TERRAIN_META: Record<Terrain, { label: string; desc: string }> = {
+  CITY_ROAD: { label: '포장 도시', desc: '아스팔트 도로와 인도, 횡단보도가 깔린 도심' },
+  DIRT_ROAD: { label: '거친 비포장', desc: '마른 흙과 바퀴자국, 자갈이 굴러다니는 변두리' },
+  GRASS_PATH: { label: '푸른 초원', desc: '잔디밭 사이로 다져진 흙길과 야생화' },
+  WATER_WAY: { label: '물 길', desc: '수로 위 섬들을 목재 다리로 잇는 마을' },
 }
 
 export type BuildingType = 'NORMAL' | 'LANDMARK'
