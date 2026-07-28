@@ -19,6 +19,30 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 카카오 OAuth 교환 응답. 사용자 정보는 ERD `user` 컬럼을 camelCase로 변환한 형태.
+ *
+ * ⚠️ 현재 서버 LoginResponse 는 accessToken/userId/name/uuid 만 내려준다.
+ * 나머지 필드(point·profileImageUrl 등)는 서버가 따라올 때까지 undefined 다.
+ */
+export type OAuthExchangeResponse = {
+  success: boolean
+  message: string
+  data: {
+    accessToken: string
+    id: number
+    kakaoId: string
+    name: string
+    uuid: string
+    point: number
+    profileImageUrl: string | null
+    createdAt: string
+    deletedAt: string | null
+  }
+}
+
+export type LoginData = OAuthExchangeResponse['data']
+
 /** 인증 엔드포인트 자신은 401 재발급 재시도 대상에서 뺀다 — 무한 루프가 된다. */
 const AUTH_PREFIX = '/api/auth/'
 
@@ -48,7 +72,7 @@ const sessionExpiredListeners = new Set<() => void>()
  * 로그인이 끊겼을 때(재발급까지 실패) 호출된다. 구독 해제 함수를 돌려준다.
  *
  * 세션 만료는 아무 API 호출에서나 튀어나오는데, 그때마다 화면이 스스로 알아채게 하려면
- * 이런 통로가 필요하다. AuthProvider 가 구독해 상태를 anonymous 로 내린다.
+ * 이런 통로가 필요하다. AuthProvider 가 구독해 세션을 비운다.
  */
 export function onSessionExpired(listener: () => void): () => void {
   sessionExpiredListeners.add(listener)
@@ -118,16 +142,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return unwrap<T>(response)
 }
 
-/** 소셜 로그인 교환 응답. 서버 LoginResponse 와 필드가 1:1로 대응한다. */
-export interface LoginResult {
-  userId: number
-  accessToken: string
-  name: string
-  uuid: string
-}
-
-export function exchangeOAuthCode(code: string): Promise<LoginResult> {
-  return apiFetch<LoginResult>('/api/auth/oauth/exchange', {
+/** 1회용 인가 코드를 토큰·프로필로 교환한다. 래퍼를 벗긴 data 를 돌려준다. */
+export function exchangeOAuthCode(code: string): Promise<LoginData> {
+  return apiFetch<LoginData>('/api/auth/oauth/exchange', {
     method: 'POST',
     body: JSON.stringify({ code }),
   })
