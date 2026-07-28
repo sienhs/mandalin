@@ -24,6 +24,7 @@ import com.ssafy.mandarin.domain.building.repository.BuildingItemRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -72,7 +73,7 @@ public class BuildingCatalogSeeder implements ApplicationRunner {
 			BuildingItem current = existing.get(item.getItemKey());
 			if (current == null) {
 				inserts.add(item);
-			} else if (current.syncFrom(item)) {
+			} else if (current.syncFrom(item, samePartsJson(current.getParts(), item.getParts()))) {
 				updated++;
 			}
 		}
@@ -80,6 +81,23 @@ public class BuildingCatalogSeeder implements ApplicationRunner {
 
 		log.info("Building catalog synced: {} total ({} inserted, {} updated)",
 				parsed.size(), inserts.size(), updated);
+	}
+
+	/**
+	 * parts 가 내용상 같은지.
+	 *
+	 * <p>DB 에서 읽어온 값은 Postgres 가 jsonb 로 저장하며 키 순서를 재정렬한 것이라, 시드
+	 * 원본과 내용이 같아도 문자열은 다르다. 문자열로 비교하면 매 기동마다 256행을 통째로
+	 * 다시 쓰게 되므로 파싱해서 트리끼리 비교한다(JsonNode 동등성은 키 순서를 따지지 않는다).
+	 */
+	private boolean samePartsJson(String stored, String incoming) {
+		try {
+			return objectMapper.readTree(stored).equals(objectMapper.readTree(incoming));
+		} catch (JacksonException e) {
+			// 저장된 값이 깨졌다면 다시 쓰는 게 맞다.
+			log.warn("Stored parts JSON is unreadable, will overwrite: {}", e.getMessage());
+			return false;
+		}
 	}
 
 	private List<BuildingItem> readCatalog() throws IOException {

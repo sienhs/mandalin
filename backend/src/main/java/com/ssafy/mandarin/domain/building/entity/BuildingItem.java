@@ -86,10 +86,15 @@ public class BuildingItem extends BaseEntity {
 	/**
 	 * 시드 재적재 시 변경분만 반영한다.
 	 *
+	 * <p>{@code parts} 는 문자열로 비교할 수 없다. Postgres 가 jsonb 로 저장하면서 키 순서를
+	 * 재정렬하기 때문에 읽어온 값과 시드 원본은 내용이 같아도 문자열이 다르다. 그래서 파싱한
+	 * 결과가 같은지는 호출자(시더)가 판단해 넘긴다.
+	 *
+	 * @param partsEqual parts 내용이 동일한지
 	 * @return 실제로 바뀐 값이 있으면 true
 	 */
-	public boolean syncFrom(BuildingItem source) {
-		if (!isChangedFrom(source)) {
+	public boolean syncFrom(BuildingItem source, boolean partsEqual) {
+		if (!isChangedFrom(source, partsEqual)) {
 			return false;
 		}
 		this.name = source.name;
@@ -106,7 +111,7 @@ public class BuildingItem extends BaseEntity {
 	}
 
 	/** 썸네일은 시드가 아니라 업로드로 채워지므로 비교 대상에서 뺀다. */
-	private boolean isChangedFrom(BuildingItem source) {
+	private boolean isChangedFrom(BuildingItem source, boolean partsEqual) {
 		return !Objects.equals(name, source.name)
 				|| !Objects.equals(theme, source.theme)
 				|| type != source.type
@@ -115,7 +120,7 @@ public class BuildingItem extends BaseEntity {
 				|| sizeWidth.compareTo(source.sizeWidth) != 0
 				|| sizeDepth.compareTo(source.sizeDepth) != 0
 				|| sizeHeight.compareTo(source.sizeHeight) != 0
-				|| !Objects.equals(parts, source.parts)
+				|| !partsEqual
 				|| sortOrder != source.sortOrder;
 	}
 }
