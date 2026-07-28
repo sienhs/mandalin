@@ -67,8 +67,9 @@ public class SecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(
-								"/api/auth/reissue", "/api/auth/oauth/exchange",
-								"/oauth2/**", "/login/oauth2/**")
+								"/api/v1/auth/reissue", "/api/v1/auth/oauth/exchange",
+								"/oauth2/**", "/login/oauth2/**",
+								"/api/v1/test/**")
 						.permitAll()
 						.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
 						.anyRequest().authenticated())

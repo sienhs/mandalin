@@ -22,7 +22,14 @@ public enum ErrorCode {
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "Invalid input."),
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "An internal server error occurred."),
 
-	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found.");
+	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found."),
+
+	// Friend
+	FRIEND_REQUEST_ALREADY_SENT(HttpStatus.CONFLICT, "Friend request already sent."),
+	FRIEND_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "Friend request not found."),
+	ALREADY_FRIEND(HttpStatus.CONFLICT, "Already friends."),
+	CANNOT_REQUEST_YOURSELF(HttpStatus.BAD_REQUEST, "Cannot send friend request to yourself."),
+	FRIEND_NOT_FOUND(HttpStatus.NOT_FOUND, "Friend relationship not found.");
 
 	private final HttpStatus status;
 	private final String message;

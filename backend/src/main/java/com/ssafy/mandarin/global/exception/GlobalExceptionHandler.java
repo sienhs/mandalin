@@ -53,6 +53,13 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.badRequest().body(ApiResponse.fail(message));
 	}
 
+	@ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+	public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException e) {
+		log.warn("DataIntegrityViolationException: {}", e.getMessage());
+		return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT)
+				.body(ApiResponse.fail("Data integrity error (duplicate or constraint violation)."));
+	}
+
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
 		log.error("Unexpected Exception: ", e);
