@@ -1,6 +1,6 @@
 import { apiFetch } from '../../api'
-import { DEFAULT_THEME_STYLE, LANDMARK_STYLE, THEME_STYLES } from './shop.data'
-import type { ShopCategory, ShopItem } from './shop.types'
+import { themeStyleOf } from './shop.data'
+import type { ShopItem, ShopThemeGroup } from './shop.types'
 
 /**
  * 상점 API 연동.
@@ -36,23 +36,18 @@ export type ShopPurchaseResult = {
   remainingPoint: number
 }
 
-function categoryOf(building: ShopBuildingResponse): Exclude<ShopCategory, '전체'> {
-  if (building.type === 'LANDMARK') return '랜드마크'
-  return building.theme === 'BASIC' ? '기본' : '테마'
-}
-
 function toShopItem(building: ShopBuildingResponse): ShopItem {
-  const style = building.type === 'LANDMARK'
-    ? LANDMARK_STYLE
-    : THEME_STYLES[building.theme] ?? DEFAULT_THEME_STYLE
+  const style = themeStyleOf(building.theme)
 
   return {
     id: building.itemId,
     name: building.name,
-    category: categoryOf(building),
+    theme: building.theme,
+    themeLabel: style.label,
+    landmark: building.type === 'LANDMARK',
     price: building.price,
-    // thumbnailUrl 은 아직 전부 null 이라 이모지로 대체한다. ShopItemCard 가 이 값을
-    // 텍스트로 렌더하므로, 나중에 실제 URL 을 쓰려면 카드도 <img> 로 함께 바꿔야 한다.
+    // thumbnailUrl 은 아직 전부 null 이라 이모지로 대체한다. 나중에 실제 URL 을 쓰려면
+    // ShopItemCard 도 <img> 로 함께 바꿔야 한다.
     thumbnail: style.emoji,
     background: style.background,
   }
@@ -62,6 +57,27 @@ function toShopItem(building: ShopBuildingResponse): ShopItem {
 export async function fetchShopItems(): Promise<ShopItem[]> {
   const buildings = await apiFetch<ShopBuildingResponse[]>('/api/v1/shop/buildings')
   return buildings.filter((building) => !building.owned).map(toShopItem)
+}
+
+/**
+ * 목록을 테마별로 묶는다.
+ *
+ * 테마 순서는 서버가 준 진열 순서에서 그 테마가 처음 나온 위치를 따른다 — 프론트에 별도
+ * 순서 표를 두면 새 테마가 추가될 때 여기도 같이 고쳐야 하고, 빠뜨리면 조용히 뒤로 밀린다.
+ */
+export function groupByTheme(items: ShopItem[]): ShopThemeGroup[] {
+  const groups = new Map<string, ShopThemeGroup>()
+
+  for (const item of items) {
+    const group = groups.get(item.theme)
+    if (group) {
+      group.items.push(item)
+    } else {
+      groups.set(item.theme, { theme: item.theme, label: item.themeLabel, items: [item] })
+    }
+  }
+
+  return [...groups.values()]
 }
 
 /**
