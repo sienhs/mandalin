@@ -56,11 +56,17 @@ public class SheetController {
     }
 
     @GetMapping("/{sheetId}")
-    @Operation(summary = "만다라트 상세 정보 조회", description = "특정 만다라트의 81개 과제 상태 및 도메인 구조를 조회합니다.")
+    @Operation(
+            summary = "만다라트 상세 정보 조회",
+            description = "특정 만다라트의 64개 과제 상태 및 도메인 구조를 조회합니다. "
+                    + "비공개(isOpen=false) 시트는 소유자만 조회할 수 있습니다(403)."
+    )
     public ResponseEntity<ApiResponse<SheetDetailResponse>> getSheetDetail(
+            @AuthenticationPrincipal CustomUserDetails customUserDetails,
             @PathVariable Long sheetId
     ) {
-        SheetDetailResponse response = sheetService.getSheetDetail(sheetId);
+        Long userId = customUserDetails != null ? customUserDetails.getUserId() : null;
+        SheetDetailResponse response = sheetService.getSheetDetail(userId, sheetId);
         return ResponseEntity.ok(ApiResponse.success("만다라트 상세 정보 조회 성공", response));
     }
 
