@@ -1,6 +1,7 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import LoadingFallback from '../components/common/LoadingFallback'
+import AiCoachPage from '../pages/AiCoachPage'
 import FriendsPage from '../pages/FriendsPage'
 import HomePage from '../pages/HomePage'
 import LandingPage from '../pages/LandingPage'
@@ -35,6 +36,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/ai-coach" element={<AiCoachPage />} />
       <Route path="/sheet/create" element={<SheetCreate />} />
       <Route path="/sheets" element={<SheetList />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
