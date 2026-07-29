@@ -45,7 +45,7 @@ public class Subject extends BaseEntity {
     private String title;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name="period_type",nullable = false)
     private SubjectPeriod period;
 
     @Column(nullable = false)

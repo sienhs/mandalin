@@ -18,4 +18,7 @@ public interface UserBuildingRepository extends JpaRepository<UserBuilding, Long
 
 	@Query("select ub.buildingItem.id from UserBuilding ub where ub.userId = :userId")
 	Set<Long> findOwnedItemIdsByUserId(@Param("userId") Long userId);
+
+	/** 단건 보유 판정. 상세 조회와 구매 중복 검사에 쓴다. */
+	boolean existsByUserIdAndBuildingItemId(Long userId, Long buildingItemId);
 }
