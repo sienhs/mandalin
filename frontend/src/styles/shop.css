@@ -41,6 +41,10 @@
     @apply border-success bg-success text-white hover:text-white;
   }
 
+  .shop-empty {
+    @apply mt-7 grid min-h-80 place-items-center rounded-[22px] bg-white text-sm font-bold text-slate-400;
+  }
+
   .shop-modal-backdrop {
     @apply fixed inset-0 z-50 grid place-items-center bg-slate-950/50 px-5;
   }
