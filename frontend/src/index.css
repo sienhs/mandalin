@@ -73,7 +73,7 @@
 
   /* Header/PublicHeader 내부 가로 정렬 컨테이너. 좌우 padding은 인스턴스별 px-*로 덮어쓰기 */
   .header-row {
-    @apply mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 sm:px-8;
+    @apply mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8;
   }
 
   /* "만" 로고 사각 배지. 크기/둥근 정도/글자 크기는 인스턴스별로 함께 지정 */

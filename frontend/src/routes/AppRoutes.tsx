@@ -4,6 +4,7 @@ import LoadingFallback from '../components/common/LoadingFallback'
 import FriendsPage from '../pages/FriendsPage'
 import HomePage from '../pages/HomePage'
 import LandingPage from '../pages/LandingPage'
+import LeaderboardPage from '../pages/LeaderboardPage'
 import LoginPage from '../pages/LoginPage'
 import MyPage from '../pages/MyPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
@@ -39,6 +40,7 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/home" element={<HomePage />} />
         <Route path="/friends" element={<FriendsPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/shop" element={<ShopPage />} />
         <Route path="/village" element={<Lazy><VillagePage /></Lazy>} />
