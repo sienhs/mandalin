@@ -24,6 +24,8 @@ export default function ShopPage({ initialItems }: ShopPageProps) {
   const [point, setPoint] = useState(user?.point ?? 0)
   const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null)
   const [purchaseStep, setPurchaseStep] = useState<'confirm' | 'complete'>('confirm')
+  const [error, setError] = useState<string | null>(null)
+  const [purchasing, setPurchasing] = useState(false)
 
   const filteredItems = useMemo(
     () => category === '전체'
@@ -45,8 +47,11 @@ export default function ShopPage({ initialItems }: ShopPageProps) {
       return
     }
 
-    // 상품 조회 API 호출부: 실제 요청 구현은 components/shop/shop.api.ts에서 교체한다.
-    void fetchShopItems().then(setItems)
+    void fetchShopItems()
+      .then(setItems)
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : '건물 목록을 불러오지 못했습니다.')
+      })
   }, [initialItems])
 
   useEffect(() => {
@@ -55,23 +60,30 @@ export default function ShopPage({ initialItems }: ShopPageProps) {
 
   const purchase = (item: ShopItem) => {
     if (point < item.price) return
+    setError(null)
     setSelectedItem(item)
     setPurchaseStep('confirm')
   }
 
   const confirmPurchase = async () => {
-    if (!selectedItem || point < selectedItem.price) return
-    /**
-     * 구매 API 호출부.
-     *
-     * 현재 purchaseShopItem은 API 연결 위치만 표시한 임시 함수라 반환값이 없다.
-     * 백엔드 구매 API 연결 후에는 서버가 반환한 remainingPoint를 사용해
-     * `setPoint(result.remainingPoint)`로 변경해야 한다.
-     * 요청이 실패하면 아래 완료 화면으로 넘어가지 않도록 예외 처리도 이 위치에 추가한다.
-     */
-    await purchaseShopItem(selectedItem.id)
-    setPoint((current) => current - selectedItem.price)
-    setPurchaseStep('complete')
+    if (!selectedItem || point < selectedItem.price || purchasing) return
+
+    setPurchasing(true)
+    try {
+      const result = await purchaseShopItem(selectedItem.id)
+      // 화면에서 `잔액 - 가격`으로 계산하지 않는다. 다른 탭에서 동시에 구매했거나 서버
+      // 가격이 바뀌었을 수 있어, 서버가 확정한 잔액만 신뢰한다.
+      setPoint(result.remainingPoint)
+      // 산 건물은 더 이상 판매 대상이 아니다.
+      setItems((current) => current.filter((item) => item.id !== result.itemId))
+      setPurchaseStep('complete')
+    } catch (cause: unknown) {
+      // 실패했으면 완료 화면으로 넘기지 않는다 — 안 산 건물을 샀다고 보여주게 된다.
+      setError(cause instanceof Error ? cause.message : '구매에 실패했습니다.')
+      setSelectedItem(null)
+    } finally {
+      setPurchasing(false)
+    }
   }
 
   const closePurchaseModal = () => {
@@ -101,6 +113,10 @@ export default function ShopPage({ initialItems }: ShopPageProps) {
             </button>
           ))}
         </div>
+
+        {error && (
+          <p className="shop-empty mt-5" role="alert">{error}</p>
+        )}
 
         {visibleItems.length > 0 ? (
           <section className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
