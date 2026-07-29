@@ -68,6 +68,13 @@ app:
   catalog:
     # 기동 시 classpath:catalog/buildings.json 을 building_item 에 동기화
     seed-on-startup: ${CATALOG_SEED_ON_STARTUP:true}
+  demo:
+    # 시연용 진행률 조작 API(/api/v1/demo/**). 과제 수행 체크 API 가 없어 마을이 자라지 않으니
+    # 발표용으로 켜 둔다. 배포 환경에서도 동작해야 해서 기본값이 true 다.
+    #
+    # 포인트 적립이 구현되면 반드시 false 로 바꿔야 한다 — 진행률을 임의로 100 으로 올릴 수
+    # 있으므로 포인트를 무한히 찍을 수 있게 된다.
+    progress-enabled: ${DEMO_PROGRESS_ENABLED:true}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

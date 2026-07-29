@@ -1,6 +1,6 @@
 package com.ssafy.mandarin.domain.demo.controller;
 
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -23,11 +23,12 @@ import lombok.RequiredArgsConstructor;
  * 시연용 진행률 조작 API.
  *
  * <p>과제 수행 체크 API 가 나오기 전까지 마을이 자라는 모습을 보여주기 위한 임시 통로다.
- * {@code @Profile("!prod")} 라 프로덕션에서는 엔드포인트 자체가 등록되지 않는다.
+ * 발표 때 배포 환경에서도 써야 해서 프로필로 막지 않고 {@code app.demo.progress-enabled}
+ * 스위치로 켜고 끈다(기본 true). 포인트 적립이 구현되면 반드시 끈다.
  */
 @RestController
 @RequestMapping("/api/v1/demo")
-@Profile("!prod")
+@ConditionalOnProperty(name = "app.demo.progress-enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Tag(name = "Demo", description = "시연용 진행률 조작 (프로덕션 미포함)")
 public class DemoProgressController {
