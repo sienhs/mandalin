@@ -3,7 +3,7 @@ package com.ssafy.mandarin.domain.demo.service;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,16 +24,19 @@ import lombok.extern.slf4j.Slf4j;
  * <p>과제 수행/체크 API(SubjectController)가 아직 없어서 마을이 영원히 빈 땅으로 남는다.
  * 발표·시연에서 마을이 자라는 모습을 보여줄 수 있도록 진행률을 임의로 넣는 통로만 둔다.
  *
- * <p><b>프로덕션에는 존재하지 않는다</b> — {@code @Profile("!prod")} 라서 prod 프로필로 뜨면
- * 빈이 아예 만들어지지 않는다. 진행률을 아무 값으로 덮는 기능이 실서비스에 열려 있으면
- * 포인트 적립·달성률이 전부 무의미해진다.
+ * <p>{@code app.demo.progress-enabled} 로 켜고 끈다(기본 true). 발표 때는 배포 환경에서도
+ * 동작해야 해서 프로필로 막지 않고 스위치를 뒀다.
+ *
+ * <p><b>포인트 적립이 구현되면 반드시 끈다</b>({@code DEMO_PROGRESS_ENABLED=false}).
+ * 진행률을 임의로 100 으로 올릴 수 있어 포인트를 무한히 찍을 수 있게 된다. 지금은 포인트를
+ * 주는 코드가 없어서 자기 달성률만 조작되는 수준에 머문다.
  *
  * <p>실제 기능(수행 체크, 주기별 To-do)은 SubjectController 담당자가 구현한다. 그때 이 클래스는
  * 지워도 된다.
  */
 @Slf4j
 @Service
-@Profile("!prod")
+@ConditionalOnProperty(name = "app.demo.progress-enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DemoProgressService {
 
