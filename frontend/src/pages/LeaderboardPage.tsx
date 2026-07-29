@@ -10,7 +10,7 @@ type LeaderboardPageProps = {
   initialEntries?: LeaderboardEntry[]
 }
 
-const ITEMS_PER_PAGE = 4
+const ITEMS_PER_PAGE = 10
 
 /** 공개 만다라트를 좋아요 수가 높은 순서대로 보여주는 페이지. */
 export default function LeaderboardPage({
