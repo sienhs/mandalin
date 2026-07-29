@@ -52,6 +52,21 @@ public class User extends BaseEntity {
      *
      * @throws BusinessException 잔액이 부족하거나 금액이 음수일 때 (아무것도 바꾸지 않는다)
      */
+    /**
+     * 포인트를 지급한다.
+     *
+     * <p>현재는 시연용 지급(DemoPointService)에서만 쓴다. 실제 적립(과제 완료 보상)이
+     * 구현되면 그쪽에서도 이 메서드를 쓰게 된다.
+     *
+     * @throws BusinessException 금액이 0 이하일 때
+     */
+    public void addPoint(int amount) {
+        if (amount <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        this.point += amount;
+    }
+
     public void usePoint(int amount) {
         if (amount < 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);

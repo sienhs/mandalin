@@ -58,7 +58,7 @@ export type SheetDetail = {
 }
 
 /** POST /api/v1/sheets 요청 본문 (백엔드 SheetCreateRequest). */
-type SheetCreatePayload = {
+export type SheetCreatePayload = {
   title: string
   isOpen: boolean
   expiredAt: string

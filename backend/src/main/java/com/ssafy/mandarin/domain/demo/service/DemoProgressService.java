@@ -24,19 +24,18 @@ import lombok.extern.slf4j.Slf4j;
  * <p>과제 수행/체크 API(SubjectController)가 아직 없어서 마을이 영원히 빈 땅으로 남는다.
  * 발표·시연에서 마을이 자라는 모습을 보여줄 수 있도록 진행률을 임의로 넣는 통로만 둔다.
  *
- * <p>{@code app.demo.progress-enabled} 로 켜고 끈다(기본 true). 발표 때는 배포 환경에서도
- * 동작해야 해서 프로필로 막지 않고 스위치를 뒀다.
+ * <p>{@code app.demo.enabled} 로 시연용 API 전체(포인트 지급 포함)와 함께 켜고 끈다(기본 true).
+ * 발표 때는 배포 환경에서도 동작해야 해서 프로필로 막지 않고 스위치를 뒀다.
  *
- * <p><b>포인트 적립이 구현되면 반드시 끈다</b>({@code DEMO_PROGRESS_ENABLED=false}).
- * 진행률을 임의로 100 으로 올릴 수 있어 포인트를 무한히 찍을 수 있게 된다. 지금은 포인트를
- * 주는 코드가 없어서 자기 달성률만 조작되는 수준에 머문다.
+ * <p><b>정식 서비스 전에 반드시 끈다</b>({@code DEMO_ENABLED=false}).
+ * 진행률을 임의로 100 으로 만들 수 있어 달성률이 무의미해진다.
  *
  * <p>실제 기능(수행 체크, 주기별 To-do)은 SubjectController 담당자가 구현한다. 그때 이 클래스는
  * 지워도 된다.
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(name = "app.demo.progress-enabled", havingValue = "true")
+@ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DemoProgressService {
 
