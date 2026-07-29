@@ -137,37 +137,46 @@ public class SheetService {
             }
         }
 
-        // 5. 3D 건물 배치 정보 처리 (드래그 앤 드롭 배치 및 미배치 구역 기본 건물 자동 배치)
-        Map<Integer, SheetCreateRequest.ItemSpotCreateRequest> userSpotMap = new HashMap<>();
+        // 5. 3D 건물 배치 정보 처리 
+        Map<String, SheetCreateRequest.ItemSpotCreateRequest> userSpotMap = new HashMap<>();
+
         if (request.getItemSpots() != null) {
             for (SheetCreateRequest.ItemSpotCreateRequest spotReq : request.getItemSpots()) {
-                if (spotReq.getDomainPosition() != null) {
-                    userSpotMap.put(spotReq.getDomainPosition(), spotReq);
-                }
+                int domPos = spotReq.getDomainPosition();
+                int itemPos = spotReq.getItemPosition() != null ? spotReq.getItemPosition() : 5;
+                userSpotMap.put(domPos + "_" + itemPos, spotReq);
             }
         }
 
-        for (int pos = 1; pos <= 8; pos++) {
-            if (userSpotMap.containsKey(pos)) {
-                SheetCreateRequest.ItemSpotCreateRequest spotReq = userSpotMap.get(pos);
-                ItemSpot itemSpot = ItemSpot.builder()
+        // 9개 구역 (domainPosition = 1 ~ 9)
+        for (int dPos = 1; dPos <= 9; dPos++) {
+            if (dPos == 5) {
+                // [중앙 랜드마크 구역]: 3x3 1개 (itemPosition = 5)
+                String key = "5_5";
+                SheetCreateRequest.ItemSpotCreateRequest spotReq = userSpotMap.get(key);
+                ItemSpot landmarkSpot = ItemSpot.builder()
                         .sheet(savedSheet)
-                        .domainPosition(pos)
-                        .invenId(spotReq.getInvenId())
-                        .itemPosition(spotReq.getItemPosition() != null ? spotReq.getItemPosition() : pos)
-                        .dir(spotReq.getDir() != null ? spotReq.getDir() : ItemDir.DEG_0)
+                        .domainPosition(5)
+                        .itemPosition(5)
+                        .invenId(spotReq != null ? spotReq.getInvenId() : null) // 유저 지정 스킨 or 기본 랜드마크 스킨(null)
+                        .dir(spotReq != null && spotReq.getDir() != null ? spotReq.getDir() : ItemDir.DEG_0)
                         .build();
-                itemSpotRepository.save(itemSpot);
+                itemSpotRepository.save(landmarkSpot);
             } else {
-                // 유저가 건물을 배치하지 않은 빈 구역인 경우: 기본 건물로 자동 생성
-                ItemSpot defaultSpot = ItemSpot.builder()
-                        .sheet(savedSheet)
-                        .domainPosition(pos)
-                        .invenId(null) // 기본 건물 = null
-                        .itemPosition(pos)
-                        .dir(ItemDir.DEG_0)
-                        .build();
-                itemSpotRepository.save(defaultSpot);
+                // [주변 8개 도메인 구역]: 각 9개 타일 전체 (대표 건물 1개 + 세부 과제 건물 8개)
+                for (int iPos = 1; iPos <= 9; iPos++) {
+                    String key = dPos + "_" + iPos;
+                    SheetCreateRequest.ItemSpotCreateRequest spotReq = userSpotMap.get(key);
+
+                    ItemSpot itemSpot = ItemSpot.builder()
+                            .sheet(savedSheet)
+                            .domainPosition(dPos)
+                            .itemPosition(iPos)
+                            .invenId(spotReq != null ? spotReq.getInvenId() : null) // 유저 지정 스킨 or 기본 스킨(null)
+                            .dir(spotReq != null && spotReq.getDir() != null ? spotReq.getDir() : ItemDir.DEG_0)
+                            .build();
+                    itemSpotRepository.save(itemSpot);
+                }
             }
         }
 
@@ -202,7 +211,7 @@ public class SheetService {
 
     /**
      * 만다라트 상세 정보 조회
-     * 특정 만다라트 시트의 81개 과제 상태 및 도메인 구조를 조회
+     * 특정 만다라트 시트의 64개 과제 상태 및 도메인 구조를 조회
      */
     public SheetDetailResponse getSheetDetail(Long sheetId) {
         Sheet sheet = sheetRepository.findById(sheetId)
