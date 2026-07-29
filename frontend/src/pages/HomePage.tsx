@@ -140,7 +140,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={resetTasks}
-                className="h-12 cursor-pointer rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-400 transition hover:bg-slate-50"
+                className="btn-secondary"
               >
                 취소
               </button>

@@ -32,7 +32,7 @@ export default function NotFoundPage() {
           </Link>
           <Link
             to="/"
-            className="grid h-12 place-items-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-bold text-slate-400 no-underline transition hover:bg-slate-50"
+            className="btn-secondary grid place-items-center px-6 no-underline"
           >
             처음 화면
           </Link>

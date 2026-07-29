@@ -9,11 +9,10 @@ import LoginPage from '../pages/LoginPage'
 import MyPage from '../pages/MyPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
+import SheetCreate from '../pages/SheetCreate'
 import ShopPage from '../pages/ShopPage'
 import TestHubPage from '../pages/TestHubPage'
-import SheetCreate from '../pages/SheetCreate'
 import ProtectedRoute from './ProtectedRoute'
-
 
 /**
  * 3D(three.js)를 쓰는 화면은 lazy 로 끊는다.
@@ -45,12 +44,47 @@ export default function AppRoutes() {
         <Route path="/shop" element={<ShopPage />} />
         {/* 시트는 로그인한 유저에게 귀속되므로 비로그인 진입을 막는다. */}
         <Route path="/sheet/create" element={<SheetCreate />} />
-        <Route path="/village" element={<Lazy><VillagePage /></Lazy>} />
+        <Route
+          path="/village"
+          element={
+            <Lazy>
+              <VillagePage />
+            </Lazy>
+          }
+        />
       </Route>
-      <Route path="/thumbnails" element={<Lazy><ThumbnailStudioPage /></Lazy>} />
-      <Route path="/gallery" element={<Lazy><GalleryPage /></Lazy>} />
-      <Route path="/premium" element={<Lazy><PremiumGalleryPage /></Lazy>} />
-      <Route path="/inspect" element={<Lazy><InspectPage /></Lazy>} />
+      <Route
+        path="/thumbnails"
+        element={
+          <Lazy>
+            <ThumbnailStudioPage />
+          </Lazy>
+        }
+      />
+      <Route
+        path="/gallery"
+        element={
+          <Lazy>
+            <GalleryPage />
+          </Lazy>
+        }
+      />
+      <Route
+        path="/premium"
+        element={
+          <Lazy>
+            <PremiumGalleryPage />
+          </Lazy>
+        }
+      />
+      <Route
+        path="/inspect"
+        element={
+          <Lazy>
+            <InspectPage />
+          </Lazy>
+        }
+      />
       {/* 위 어디에도 안 걸리면 백지 대신 404. 반드시 마지막에 둔다. */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

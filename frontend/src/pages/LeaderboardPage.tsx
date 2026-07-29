@@ -24,6 +24,13 @@ export default function LeaderboardPage({
   const [loadError, setLoadError] = useState(false)
   const pageCount = Math.max(1, Math.ceil(entries.length / ITEMS_PER_PAGE))
   const safePage = Math.min(page, pageCount)
+  const stateMessage = isLoading
+    ? '리더보드를 불러오는 중이에요.'
+    : loadError
+      ? '리더보드를 불러오지 못했어요.'
+      : entries.length === 0
+        ? '아직 공개된 만다라트가 없어요.'
+        : null
 
   const visibleEntries = useMemo(() => {
     const start = (safePage - 1) * ITEMS_PER_PAGE
@@ -70,17 +77,12 @@ export default function LeaderboardPage({
             좋아요 랭킹
           </h2>
 
-          {isLoading ? (
-            <p className="leaderboard-state" role="status">
-              리더보드를 불러오는 중이에요.
-            </p>
-          ) : loadError ? (
-            <p className="leaderboard-state">
-              리더보드를 불러오지 못했어요.
-            </p>
-          ) : entries.length === 0 ? (
-            <p className="leaderboard-state">
-              아직 공개된 만다라트가 없어요.
+          {stateMessage ? (
+            <p
+              className="leaderboard-state"
+              role={isLoading ? 'status' : undefined}
+            >
+              {stateMessage}
             </p>
           ) : (
             <>

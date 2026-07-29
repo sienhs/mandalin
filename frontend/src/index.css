@@ -29,6 +29,8 @@
   /* 로고 배지 / 포커스 링 */
   --color-brand-active: #65aa9f;
   /* 내비게이션 active/hover */
+  --color-brand-soft: #e8f5f1;
+  /* 모바일 내비게이션 active 배경 */
   --color-page: #f4f7f9;
   /* 페이지 배경 */
   --color-alert: #d95569;
@@ -99,6 +101,11 @@
   /* HomePage 주요 초록 CTA(적용하기 / 새 만다라트 만들기) */
   .btn-primary {
     @apply h-12 cursor-pointer rounded-xl border-0 bg-success text-sm font-extrabold text-white transition hover:bg-success-hover;
+  }
+
+  /* 흰 배경의 보조/취소 동작 버튼. */
+  .btn-secondary {
+    @apply h-12 cursor-pointer rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-400 transition hover:bg-slate-50;
   }
 
   /* 카드 제목 아래 보조 설명 텍스트 */

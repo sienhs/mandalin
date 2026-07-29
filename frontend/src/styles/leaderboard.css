@@ -60,7 +60,9 @@
   }
 
   .leaderboard-view-button {
-    @apply hidden shrink-0 rounded-xl border-2 border-slate-400 bg-white px-5 py-2.5 text-sm font-extrabold text-slate-400 no-underline transition hover:border-brand hover:text-brand sm:inline-flex;
+    @apply hidden shrink-0 rounded-xl border-2 border-slate-400 bg-white px-5 py-2.5;
+    @apply text-sm font-extrabold text-slate-400 no-underline transition;
+    @apply hover:border-brand hover:text-brand sm:inline-flex;
   }
 
   .leaderboard-pagination {
@@ -68,7 +70,9 @@
   }
 
   .leaderboard-pagination button {
-    @apply grid size-9 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-sm font-extrabold text-slate-700 transition hover:border-success disabled:cursor-not-allowed disabled:opacity-40;
+    @apply grid size-9 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white;
+    @apply text-sm font-extrabold text-slate-700 transition hover:border-success;
+    @apply disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .leaderboard-pagination .leaderboard-page-active {

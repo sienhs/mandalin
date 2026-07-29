@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEventHandler } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/auth'
 import { cn } from '../../utils/cn'
+import '../../styles/header.css'
 
 type HeaderProps = {
   hasNotification?: boolean
@@ -95,13 +96,13 @@ export default function Header({
   }
 
   return (
-    <header className="relative z-40 h-[80px] w-full border-b border-slate-100 bg-white">
+    <header className="app-header">
       <div className="header-row">
-        <div className="flex h-full min-w-0 items-center gap-[32px] xl:gap-[48px]">
+        <div className="app-header-leading">
           <NavLink
             to="/home"
             aria-label="만다린 홈"
-            className="flex shrink-0 items-center gap-3 text-slate-950 no-underline"
+            className="app-header-brand"
           >
             <span className="brand-mark size-9 rounded-[11px] text-base shadow-sm">
               만
@@ -111,7 +112,7 @@ export default function Header({
 
           <nav
             aria-label="주 메뉴"
-            className="hidden h-full items-center gap-[28px] xl:flex"
+            className="app-header-desktop-nav"
           >
             {NAV_ITEMS.map(({ label, to }) => (
               <NavLink
@@ -120,11 +121,10 @@ export default function Header({
                 end={to === '/home'}
                 className={({ isActive }) =>
                   cn(
-                    'relative flex h-full items-center whitespace-nowrap pt-0.5 text-[15px] font-bold tracking-[-0.02em] no-underline transition-colors',
-                    'after:absolute after:inset-x-0 after:bottom-[11px] after:h-[2px] after:rounded-full after:transition-transform',
+                    'app-header-nav-link',
                     isActive
-                      ? 'text-brand-active after:scale-x-100 after:bg-brand-active'
-                      : 'text-text-muted after:scale-x-0 after:bg-transparent hover:text-brand-active',
+                      ? 'app-header-nav-link-active'
+                      : 'app-header-nav-link-idle',
                   )
                 }
               >
@@ -134,13 +134,14 @@ export default function Header({
           </nav>
         </div>
 
-        <div className="ml-3 flex shrink-0 items-center gap-2 sm:gap-3 xl:ml-5 xl:gap-4">
+        <div className="app-header-actions">
           <div
-            aria-label={point == null ? '포인트 정보 없음' : `${point.toLocaleString('ko-KR')} 포인트`}
-            className={cn(
-              'flex h-[40px] items-center gap-1.5 rounded-full px-2.5 sm:px-4',
-              'bg-points-bg text-[15px] font-extrabold text-points-text',
-            )}
+            aria-label={
+              point == null
+                ? '포인트 정보 없음'
+                : `${point.toLocaleString('ko-KR')} 포인트`
+            }
+            className="app-header-points"
           >
             <CoinIcon />
             <span className="hidden sm:inline">
@@ -198,10 +199,8 @@ export default function Header({
             onClick={handleLogout}
             disabled={isLoggingOut}
             className={cn(
-              'focus-ring hidden h-[40px] whitespace-nowrap rounded-full px-4 xl:block',
-              'border border-slate-200 bg-white text-[14px] font-bold text-text-muted',
-              'transition-colors hover:bg-surface-muted hover:text-slate-700',
-              'disabled:cursor-progress disabled:opacity-60',
+              'app-header-logout',
+              'focus-ring',
             )}
           >
             {isLoggingOut ? '로그아웃 중…' : '로그아웃'}
@@ -214,27 +213,26 @@ export default function Header({
             aria-controls="mobile-navigation"
             onClick={() => setIsMenuOpen((current) => !current)}
             className={cn(
+              'app-header-menu-button',
               'icon-btn focus-ring size-[40px] xl:hidden',
-              'bg-surface-muted text-slate-600 hover:bg-slate-200',
-              'focus-visible:outline-brand',
             )}
           >
-            <span className="grid gap-[4px]" aria-hidden="true">
+            <span className="app-header-menu-lines" aria-hidden="true">
               <span
                 className={cn(
-                  'block h-[2px] w-[18px] rounded-full bg-current transition-transform',
+                  'app-header-menu-line transition-transform',
                   isMenuOpen && 'translate-y-[6px] rotate-45',
                 )}
               />
               <span
                 className={cn(
-                  'block h-[2px] w-[18px] rounded-full bg-current transition-opacity',
+                  'app-header-menu-line transition-opacity',
                   isMenuOpen && 'opacity-0',
                 )}
               />
               <span
                 className={cn(
-                  'block h-[2px] w-[18px] rounded-full bg-current transition-transform',
+                  'app-header-menu-line transition-transform',
                   isMenuOpen && '-translate-y-[6px] -rotate-45',
                 )}
               />
@@ -247,9 +245,9 @@ export default function Header({
         <nav
           id="mobile-navigation"
           aria-label="작은 화면 주 메뉴"
-          className="absolute inset-x-0 top-full border-t border-slate-100 bg-white px-4 py-4 shadow-lg xl:hidden"
+          className="app-header-mobile-nav"
         >
-          <div className="mx-auto grid max-w-[1440px] gap-1">
+          <div className="app-header-mobile-nav-inner">
             {NAV_ITEMS.map(({ label, to }) => (
               <NavLink
                 key={to}
@@ -257,10 +255,10 @@ export default function Header({
                 end={to === '/home'}
                 className={({ isActive }) =>
                   cn(
-                    'rounded-xl px-4 py-3 text-[15px] font-bold no-underline transition-colors',
+                    'app-header-mobile-link',
                     isActive
-                      ? 'bg-[#E8F5F1] text-brand-active'
-                      : 'text-text-muted hover:bg-surface-muted hover:text-brand-active',
+                      ? 'app-header-mobile-link-active'
+                      : 'app-header-mobile-link-idle',
                   )
                 }
               >
@@ -271,11 +269,7 @@ export default function Header({
               type="button"
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className={cn(
-                'mt-2 cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-[15px] font-bold text-text-muted',
-                'transition-colors hover:bg-surface-muted hover:text-slate-700',
-                'disabled:cursor-progress disabled:opacity-60',
-              )}
+              className="app-header-mobile-logout"
             >
               {isLoggingOut ? '로그아웃 중…' : '로그아웃'}
             </button>
