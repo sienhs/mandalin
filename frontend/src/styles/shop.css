@@ -5,40 +5,62 @@
     @apply mx-auto min-h-[calc(100vh-5rem)] w-full max-w-[1440px] px-5 py-9 sm:px-8 lg:py-10;
   }
 
+  /* 테마가 13종이라 좁은 화면에서는 두 줄 이상으로 흐른다. 스크롤 대신 줄바꿈을 쓴다. */
+  .shop-filter-bar {
+    @apply sticky top-0 z-10 -mx-1 mt-5 flex flex-wrap gap-2 bg-page/95 px-1 py-3 backdrop-blur;
+  }
+
   .shop-filter-button {
-    @apply cursor-pointer rounded-full border-0 bg-slate-200 px-4 py-2 text-xs font-bold text-text-muted transition hover:bg-slate-300;
+    @apply cursor-pointer rounded-full border-0 bg-slate-200 px-3.5 py-1.5 text-xs font-bold text-text-muted transition hover:bg-slate-300;
   }
 
   .shop-filter-button-active {
     @apply bg-[#C9F1E3] text-brand-active hover:bg-[#B9E9D8];
   }
 
+  .shop-filter-count {
+    @apply ml-1 text-[10px] font-extrabold opacity-60;
+  }
+
+  .shop-theme-section {
+    @apply mt-7;
+  }
+
+  .shop-theme-heading {
+    @apply mb-3 flex items-center gap-2 text-base font-extrabold;
+  }
+
+  .shop-theme-count {
+    @apply rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-text-muted;
+  }
+
+  /* 한 줄에 6개. 좁은 화면에서는 2~4개로 줄인다. */
+  .shop-item-grid {
+    @apply grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6;
+  }
+
   .shop-item-card {
-    @apply overflow-hidden rounded-[22px] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md;
+    @apply overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md;
   }
 
   .shop-item-preview {
-    @apply relative grid min-h-32 place-items-center;
+    @apply relative grid min-h-20 place-items-center;
+  }
+
+  .shop-item-emoji {
+    @apply text-3xl;
+  }
+
+  .shop-item-body {
+    @apply px-3 pb-3 pt-2.5;
   }
 
   .shop-category-badge {
-    @apply absolute left-4 top-4 rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-slate-700;
+    @apply absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[9px] font-extrabold text-slate-700;
   }
 
   .shop-purchase-button {
-    @apply shrink-0 cursor-pointer rounded-lg border-0 bg-slate-200 px-4 py-2 text-xs font-extrabold text-alert transition hover:bg-alert hover:text-white disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .shop-pagination {
-    @apply mt-8 flex items-center justify-center gap-2;
-  }
-
-  .shop-pagination button {
-    @apply grid size-9 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-sm font-extrabold transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .shop-pagination .shop-page-active {
-    @apply border-success bg-success text-white hover:text-white;
+    @apply shrink-0 cursor-pointer rounded-lg border-0 bg-slate-200 px-2.5 py-1 text-[11px] font-extrabold text-alert transition hover:bg-alert hover:text-white disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .shop-empty {
