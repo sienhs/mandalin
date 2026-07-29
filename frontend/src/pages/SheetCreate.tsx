@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import SheetBasicSettings from '../components/sheet/SheetBasicSettings'
 import SheetCancelDialog from '../components/sheet/SheetCancelDialog'
@@ -7,7 +8,6 @@ import SheetGrid from '../components/sheet/SheetGrid'
 import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
 import SheetSaveDialog from '../components/sheet/SheetSaveDialog'
 import SheetTaskDialog from '../components/sheet/SheetTaskDialog'
-import SheetTaskLibrary from '../components/sheet/SheetTaskLibrary'
 import { buildCreatePayload, createSheet } from '../components/sheet/sheet.api'
 import { TOTAL_CELLS } from '../components/sheet/sheet.data'
 import { useSheetEditor } from '../components/sheet/useSheetEditor'
@@ -54,20 +54,12 @@ export default function SheetCreate() {
           <h1 className="section-title m-0 text-[20px]">새 만다라트 만들기</h1>
 
           <div className="flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => setCancelOpen(true)}
-              className="btn rounded-[10px] border border-[#e7eaee] bg-white text-ink-400"
-            >
+            <Button variant="ghost" onClick={() => setCancelOpen(true)}>
               취소
-            </button>
-            <button
-              type="button"
-              onClick={() => setSaveOpen(true)}
-              className="btn rounded-[10px] bg-[#97cca1] text-white shadow-[0_8px_16px_-10px_rgba(151,204,161,0.95)] hover:brightness-[1.04]"
-            >
+            </Button>
+            <Button variant="primary" onClick={() => setSaveOpen(true)}>
               저장 ({editor.filledCount}/{TOTAL_CELLS}칸 완료)
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -82,6 +74,7 @@ export default function SheetCreate() {
             onEndDateChange={editor.changeEndDate}
             isPublic={editor.isPublic}
             onPublicChange={editor.changePublic}
+            onManualTaskCreate={editor.openSelectedTaskDialog}
           />
 
           {/* 우측: 하나의 카드 안에 9x9 그리드 · 저장 경고 · 사이드 패널 */}
@@ -105,17 +98,9 @@ export default function SheetCreate() {
               onOpen={editor.openTaskDialog}
             />
 
-            {/* 사이드 패널: 미니 그리드 + 추가할 수 있는 과제 */}
-            <div className="col-start-2 row-start-2 flex flex-col gap-3">
+            {/* 사이드 패널: 선택한 블록의 3x3 확대 그리드 */}
+            <div className="col-start-2 row-start-2">
               <SheetMiniGrid blockIndex={editor.selectedBlockIndex} cells={editor.miniGrid} />
-              <SheetTaskLibrary
-                search={editor.taskSearch}
-                onSearchChange={editor.setTaskSearch}
-                tasks={editor.recommendedTasks}
-                onAdd={editor.addRecommendedTask}
-                page={editor.page}
-                onPageChange={editor.setPage}
-              />
             </div>
           </div>
         </div>
@@ -125,7 +110,9 @@ export default function SheetCreate() {
         <SheetSaveDialog
           filledCount={editor.filledCount}
           onClose={() => setSaveOpen(false)}
-          onConfirm={() => { void submit() }}
+          onConfirm={() => {
+            void submit()
+          }}
         />
       )}
 

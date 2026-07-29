@@ -1,9 +1,5 @@
 import type { ReactNode } from 'react'
 
-/** 확인 팝업의 보조 버튼(계속 편집하기 · 나가기)에 공통으로 쓰는 클래스 */
-export const DIALOG_GHOST_BUTTON =
-  'btn flex-1 rounded-xl border border-[#cbd5e1] bg-white text-[15px] font-bold text-ink-500 hover:bg-[#f4f5f9]'
-
 type SheetDialogProps = {
   labelledBy?: string
   children: ReactNode
@@ -56,7 +52,8 @@ export function SheetConfirmDialog({
           <h2 id={titleId} className="m-0 text-lg font-extrabold text-ink-900">
             {title}
           </h2>
-          <p className="m-0 text-[14px] leading-relaxed text-ink-500">{description}</p>
+          {/* break-keep: 한글이 단어 중간에서 끊기지 않게 한다 */}
+          <p className="m-0 break-keep text-[14px] leading-relaxed text-ink-500">{description}</p>
         </div>
         {children}
       </div>
