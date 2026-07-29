@@ -12,7 +12,7 @@ type HeaderProps = {
 /** 로그인 후 서비스 공통 상단 내비게이션 메뉴. */
 const NAV_ITEMS = [
   { label: '홈', to: '/home' },
-  { label: '내 만다라트', to: '/village' },
+  { label: '내 만다라트', to: '/sheets' },
   { label: '상점', to: '/shop' },
   { label: '리포트', to: '/report' },
   { label: '친구', to: '/friends' },
