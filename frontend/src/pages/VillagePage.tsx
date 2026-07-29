@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { TopBar } from '../components/TopBar'
 import { Scene } from '../village/Scene'
-import { MOCK_MANDALART } from '../village/mockData'
+import { fetchMySheets, fetchSheetDetail, type SheetDetail } from '../components/sheet/sheet.api'
+import { toMandalart } from '../village/mandalart'
 import { urbanLevelOf } from '../village/types'
 import { THEMES, type Stage, type ThemeKey } from '../village/partTypes'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
@@ -48,14 +50,43 @@ export default function VillagePage() {
   const [terrainPending, setTerrainPending] = useState<Terrain | null>(null)
   const [terrainError, setTerrainError] = useState<string | null>(null)
 
-  const mandalart = MOCK_MANDALART
-  const domain = selected != null ? mandalart.domains[selected] : null
+  /** null = 아직 조회 중, 'none' = 만다라트가 하나도 없음. */
+  const [sheet, setSheet] = useState<SheetDetail | 'none' | null>(null)
+
+  const mandalart = useMemo(
+    () => (sheet && sheet !== 'none' ? toMandalart(sheet) : null),
+    [sheet],
+  )
+  const domain = selected != null && mandalart ? mandalart.domains[selected] : null
 
   useEffect(() => {
     let alive = true
     fetchMyVillage()
       .then((data) => alive && setVillage(data))
       .catch((e: unknown) => alive && setLoadError(e instanceof Error ? e.message : '마을을 불러오지 못했습니다.'))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 마을에 세울 건물은 만다라트에서 나온다. 목록에서 가장 최근 시트를 골라 상세를 받는다 —
+  // 목록 응답에는 도메인·과제가 없어서 상세 조회가 한 번 더 필요하다.
+  useEffect(() => {
+    let alive = true
+    fetchMySheets()
+      .then((sheets) => {
+        if (!alive) return
+        if (sheets.length === 0) {
+          setSheet('none')
+          return
+        }
+        return fetchSheetDetail(sheets[0].sheetId).then((detail) => {
+          if (alive) setSheet(detail)
+        })
+      })
+      .catch((e: unknown) => {
+        if (alive) setLoadError(e instanceof Error ? e.message : '만다라트를 불러오지 못했습니다.')
+      })
     return () => {
       alive = false
     }
@@ -144,8 +175,30 @@ export default function VillagePage() {
     )
   }
 
-  if (!village) {
+  if (!village || sheet === null) {
     return <Centered>마을을 불러오는 중…</Centered>
+  }
+
+  // 만다라트가 없으면 세울 건물도 없다. 예전에는 이 자리에 mock 만다라트를 그렸는데,
+  // 사용자가 자기 목표라고 착각하고 그 위에서 건물을 배치하려 했다.
+  if (sheet === 'none' || !mandalart) {
+    return (
+      <Centered>
+        <div style={{ fontSize: 16, marginBottom: 8 }}>아직 만다라트가 없습니다.</div>
+        <div style={{ fontSize: 13, marginBottom: 16 }}>
+          핵심 목표와 과제를 정하면 그대로 마을이 만들어집니다.
+        </div>
+        <Link
+          to="/sheet/create"
+          style={{
+            display: 'inline-block', padding: '10px 18px', borderRadius: 10,
+            background: '#97cca1', color: '#fff', fontWeight: 700, textDecoration: 'none',
+          }}
+        >
+          만다라트 만들기
+        </Link>
+      </Centered>
+    )
   }
 
   return (

@@ -35,7 +35,15 @@ public enum ErrorCode {
 	// Shop
 	BUILDING_NOT_FOUND(HttpStatus.NOT_FOUND, "Building not found."),
 	BUILDING_ALREADY_OWNED(HttpStatus.CONFLICT, "Building is already owned."),
-	INSUFFICIENT_POINT(HttpStatus.BAD_REQUEST, "Not enough points.");
+	INSUFFICIENT_POINT(HttpStatus.BAD_REQUEST, "Not enough points."),
+
+	// Sheet
+	SHEET_NOT_FOUND(HttpStatus.NOT_FOUND, "Mandalart sheet not found."),
+	SHEET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "This mandalart sheet is private."),
+
+	// Subject
+	SUBJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "Subject not found."),
+	SUBJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Not your subject.");
 
 	private final HttpStatus status;
 	private final String message;
