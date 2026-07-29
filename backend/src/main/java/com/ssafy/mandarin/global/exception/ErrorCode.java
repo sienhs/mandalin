@@ -30,7 +30,12 @@ public enum ErrorCode {
 	ALREADY_FRIEND(HttpStatus.CONFLICT, "Already friends."),
 	CANNOT_REQUEST_YOURSELF(HttpStatus.BAD_REQUEST, "Cannot send friend request to yourself."),
 	FRIEND_NOT_FOUND(HttpStatus.NOT_FOUND, "Friend relationship not found."),
-	CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read building modeling data.");
+	CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read building modeling data."),
+
+	// Shop
+	BUILDING_NOT_FOUND(HttpStatus.NOT_FOUND, "Building not found."),
+	BUILDING_ALREADY_OWNED(HttpStatus.CONFLICT, "Building is already owned."),
+	INSUFFICIENT_POINT(HttpStatus.BAD_REQUEST, "Not enough points.");
 
 	private final HttpStatus status;
 	private final String message;
