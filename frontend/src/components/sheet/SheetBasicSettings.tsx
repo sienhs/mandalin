@@ -1,3 +1,4 @@
+import Button from '../common/Button'
 import { cn } from '../../utils/cn'
 
 const TEXT_INPUT =
@@ -14,9 +15,11 @@ type SheetBasicSettingsProps = {
   onEndDateChange: (value: string) => void
   isPublic: boolean
   onPublicChange: (value: boolean) => void
+  /** 선택한 칸의 과제 설정 팝업 열기 */
+  onManualTaskCreate: () => void
 }
 
-/** 좌측 sticky 패널: 핵심 목표 · 기간 · 공개 여부 · 태스크 생성 버튼 */
+/** 좌측 패널: 핵심 목표 · 기간 · 공개 여부 · 과제 생성 버튼 */
 export default function SheetBasicSettings({
   mainGoal,
   onMainGoalChange,
@@ -26,6 +29,7 @@ export default function SheetBasicSettings({
   onEndDateChange,
   isPublic,
   onPublicChange,
+  onManualTaskCreate,
 }: SheetBasicSettingsProps) {
   return (
     <section
@@ -109,18 +113,12 @@ export default function SheetBasicSettings({
       </div>
 
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          className="btn w-full rounded-[10px] bg-[#be5f6b] text-[13px] text-white shadow-[0_8px_16px_-10px_rgba(190,95,107,0.95)] hover:brightness-[1.04]"
-        >
-          AI로 태스크 생성
-        </button>
-        <button
-          type="button"
-          className="btn w-full rounded-[10px] bg-[#97cca1] text-[13px] text-white shadow-[0_8px_16px_-10px_rgba(151,204,161,0.95)] hover:brightness-[1.04]"
-        >
-          수동 태스크 생성
-        </button>
+        <Button variant="danger" size="sm" className="w-full">
+          AI로 과제 생성
+        </Button>
+        <Button variant="primary" size="sm" className="w-full" onClick={onManualTaskCreate}>
+          수동 과제 생성
+        </Button>
       </div>
     </section>
   )

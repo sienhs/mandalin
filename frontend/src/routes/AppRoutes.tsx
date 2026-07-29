@@ -10,6 +10,7 @@ import MyPage from '../pages/MyPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
 import SheetCreate from '../pages/SheetCreate'
+import SheetList from '../pages/SheetList'
 import ShopPage from '../pages/ShopPage'
 import TestHubPage from '../pages/TestHubPage'
 import ProtectedRoute from './ProtectedRoute'
@@ -34,6 +35,8 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/sheet/create" element={<SheetCreate />} />
+      <Route path="/sheets" element={<SheetList />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/test" element={<TestHubPage />} />
       <Route element={<ProtectedRoute />}>
@@ -42,8 +45,6 @@ export default function AppRoutes() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/shop" element={<ShopPage />} />
-        {/* 시트는 로그인한 유저에게 귀속되므로 비로그인 진입을 막는다. */}
-        <Route path="/sheet/create" element={<SheetCreate />} />
         <Route
           path="/village"
           element={

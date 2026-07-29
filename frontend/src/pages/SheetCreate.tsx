@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import SheetBasicSettings from '../components/sheet/SheetBasicSettings'
 import SheetCancelDialog from '../components/sheet/SheetCancelDialog'
@@ -6,16 +8,42 @@ import SheetGrid from '../components/sheet/SheetGrid'
 import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
 import SheetSaveDialog from '../components/sheet/SheetSaveDialog'
 import SheetTaskDialog from '../components/sheet/SheetTaskDialog'
-import SheetTaskLibrary from '../components/sheet/SheetTaskLibrary'
+import { buildCreatePayload, createSheet } from '../components/sheet/sheet.api'
 import { TOTAL_CELLS } from '../components/sheet/sheet.data'
 import { useSheetEditor } from '../components/sheet/useSheetEditor'
 import './SheetCreate.css'
 
 /** 새 만다라트를 만드는 화면. 좌측 기본 설정 · 우측 2D 뷰와 사이드 패널로 구성된다. */
 export default function SheetCreate() {
+  const navigate = useNavigate()
   const editor = useSheetEditor()
   const [saveOpen, setSaveOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  /**
+   * 만다라트를 서버에 저장하고 마을로 넘어간다.
+   *
+   * 실패하면 다이얼로그를 닫지 않는다 — 닫아버리면 저장된 줄 알고 화면을 떠나 편집 내용을
+   * 전부 잃는다(이 화면은 로컬 상태만 들고 있다).
+   */
+  const submit = async () => {
+    if (saving) return
+
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const payload = buildCreatePayload(editor.sheetData, editor.domains, editor.subjects)
+      await createSheet(payload)
+      setSaveOpen(false)
+      navigate('/village')
+    } catch (cause: unknown) {
+      setSaveError(cause instanceof Error ? cause.message : '만다라트를 저장하지 못했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#F6F7F8]">
@@ -26,20 +54,12 @@ export default function SheetCreate() {
           <h1 className="section-title m-0 text-[20px]">새 만다라트 만들기</h1>
 
           <div className="flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => setCancelOpen(true)}
-              className="btn rounded-[10px] border border-[#e7eaee] bg-white text-ink-400"
-            >
+            <Button variant="ghost" onClick={() => setCancelOpen(true)}>
               취소
-            </button>
-            <button
-              type="button"
-              onClick={() => setSaveOpen(true)}
-              className="btn rounded-[10px] bg-[#97cca1] text-white shadow-[0_8px_16px_-10px_rgba(151,204,161,0.95)] hover:brightness-[1.04]"
-            >
+            </Button>
+            <Button variant="primary" onClick={() => setSaveOpen(true)}>
               저장 ({editor.filledCount}/{TOTAL_CELLS}칸 완료)
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -54,6 +74,7 @@ export default function SheetCreate() {
             onEndDateChange={editor.changeEndDate}
             isPublic={editor.isPublic}
             onPublicChange={editor.changePublic}
+            onManualTaskCreate={editor.openSelectedTaskDialog}
           />
 
           {/* 우측: 하나의 카드 안에 9x9 그리드 · 저장 경고 · 사이드 패널 */}
@@ -63,6 +84,11 @@ export default function SheetCreate() {
               <p className="m-0 whitespace-nowrap text-[11.5px] font-bold text-[#dc3424]">
                 한 번 저장하면 목표를 수정할 수 없어요!
               </p>
+              {saveError && (
+                <p className="m-0 text-[11.5px] font-bold text-[#dc3424]" role="alert">
+                  {saveError}
+                </p>
+              )}
             </div>
 
             <SheetGrid
@@ -72,17 +98,9 @@ export default function SheetCreate() {
               onOpen={editor.openTaskDialog}
             />
 
-            {/* 사이드 패널: 미니 그리드 + 추가할 수 있는 과제 */}
-            <div className="col-start-2 row-start-2 flex flex-col gap-3">
+            {/* 사이드 패널: 선택한 블록의 3x3 확대 그리드 */}
+            <div className="col-start-2 row-start-2">
               <SheetMiniGrid blockIndex={editor.selectedBlockIndex} cells={editor.miniGrid} />
-              <SheetTaskLibrary
-                search={editor.taskSearch}
-                onSearchChange={editor.setTaskSearch}
-                tasks={editor.recommendedTasks}
-                onAdd={editor.addRecommendedTask}
-                page={editor.page}
-                onPageChange={editor.setPage}
-              />
             </div>
           </div>
         </div>
@@ -93,8 +111,7 @@ export default function SheetCreate() {
           filledCount={editor.filledCount}
           onClose={() => setSaveOpen(false)}
           onConfirm={() => {
-            /* 생성 로직 연결 */
-            setSaveOpen(false)
+            void submit()
           }}
         />
       )}
