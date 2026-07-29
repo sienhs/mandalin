@@ -7,6 +7,7 @@ import LandingPage from '../pages/LandingPage'
 import LoginPage from '../pages/LoginPage'
 import MyPage from '../pages/MyPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
+import ShopPage from '../pages/ShopPage'
 import TestHubPage from '../pages/TestHubPage'
 import SheetCreate from '../pages/SheetCreate'
 import ProtectedRoute from './ProtectedRoute'
@@ -39,6 +40,7 @@ export default function AppRoutes() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/friends" element={<FriendsPage />} />
         <Route path="/mypage" element={<MyPage />} />
+        <Route path="/shop" element={<ShopPage />} />
         <Route path="/village" element={<Lazy><VillagePage /></Lazy>} />
       </Route>
       <Route path="/thumbnails" element={<Lazy><ThumbnailStudioPage /></Lazy>} />
