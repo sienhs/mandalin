@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Header from '../components/common/Header'
 import ShopItemCard from '../components/shop/ShopItemCard'
+import ShopPurchaseModal from '../components/shop/ShopPurchaseModal'
 import {
   FALLBACK_SHOP_ITEMS,
   SHOP_CATEGORIES,
@@ -21,6 +22,8 @@ export default function ShopPage({ initialItems }: ShopPageProps) {
   const [category, setCategory] = useState<ShopCategory>('전체')
   const [page, setPage] = useState(1)
   const [point, setPoint] = useState(12400)
+  const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null)
+  const [purchaseStep, setPurchaseStep] = useState<'confirm' | 'complete'>('confirm')
 
   const filteredItems = useMemo(
     () => category === '전체'
@@ -38,7 +41,19 @@ export default function ShopPage({ initialItems }: ShopPageProps) {
 
   const purchase = (item: ShopItem) => {
     if (point < item.price) return
-    setPoint((current) => current - item.price)
+    setSelectedItem(item)
+    setPurchaseStep('confirm')
+  }
+
+  const confirmPurchase = () => {
+    if (!selectedItem || point < selectedItem.price) return
+    setPoint((current) => current - selectedItem.price)
+    setPurchaseStep('complete')
+  }
+
+  const closePurchaseModal = () => {
+    setSelectedItem(null)
+    setPurchaseStep('confirm')
   }
 
   return (
@@ -90,6 +105,16 @@ export default function ShopPage({ initialItems }: ShopPageProps) {
           <button type="button" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
         </nav>
       </main>
+
+      {selectedItem && (
+        <ShopPurchaseModal
+          item={selectedItem}
+          point={point}
+          step={purchaseStep}
+          onConfirm={confirmPurchase}
+          onClose={closePurchaseModal}
+        />
+      )}
     </div>
   )
 }

@@ -40,4 +40,32 @@
   .shop-pagination .shop-page-active {
     @apply border-success bg-success text-white hover:text-white;
   }
+
+  .shop-modal-backdrop {
+    @apply fixed inset-0 z-50 grid place-items-center bg-slate-950/50 px-5;
+  }
+
+  .shop-modal {
+    @apply w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-2xl;
+  }
+
+  .shop-modal-preview {
+    @apply relative grid min-h-48 place-items-center;
+  }
+
+  .shop-modal-close {
+    @apply absolute right-5 top-4 cursor-pointer border-0 bg-transparent text-4xl font-bold leading-none text-slate-400 transition hover:text-slate-600;
+  }
+
+  .shop-purchase-summary {
+    @apply my-5 rounded-[22px] bg-page px-6 py-6;
+  }
+
+  .shop-confirm-button {
+    @apply h-12 cursor-pointer rounded-xl border-0 bg-success text-sm font-extrabold text-white transition hover:bg-success-hover;
+  }
+
+  .shop-cancel-button {
+    @apply h-12 cursor-pointer rounded-xl border-0 bg-alert text-sm font-extrabold text-white transition hover:brightness-95;
+  }
 }
