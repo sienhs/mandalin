@@ -2,6 +2,7 @@ import { Block } from './Block'
 import { PITCH } from './layout'
 import { TerrainGround } from './terrain'
 import type { CellOverride } from './GrowableObject'
+import type { LandmarkOverride } from './Landmark'
 import type { ThemeKey } from './partTypes'
 import type { OwnedCatalog } from './ownedCatalog'
 import type { Terrain } from './villageApi'
@@ -15,6 +16,7 @@ interface Props {
   terrain: Terrain
   catalog: OwnedCatalog
   selectedTaskId: string | null
+  landmark: LandmarkOverride
   onSelect: (domainIndex: number) => void
   onSelectTask: (taskId: string) => void
 }
@@ -24,7 +26,8 @@ interface Props {
  * 블록 사이 통로는 선택한 지형(도시 도로/비포장/초원길/물길)이 채운다.
  */
 export function Village({
-  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, onSelect, onSelectTask,
+  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, landmark,
+  onSelect, onSelectTask,
 }: Props) {
   return (
     <group>
@@ -45,6 +48,7 @@ export function Village({
             terrain={terrain}
             catalog={catalog}
             selectedTaskId={selectedTaskId}
+            landmark={landmark}
             onSelect={() => onSelect(i)}
             onSelectTask={onSelectTask}
           />

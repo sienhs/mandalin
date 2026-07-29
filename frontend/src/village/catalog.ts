@@ -172,6 +172,6 @@ export const VILLAGE_SLOT_KEYS: BuildingKey[] = [
 ]
 
 /** UI 드롭다운용: [key, label, group] 목록. */
-export const BUILDING_LIST: { key: BuildingKey; label: string; group: 'village' | 'city' }[] = (
+export const BUILDING_LIST: { key: BuildingKey; label: string; group: BuildingConfig['group'] }[] = (
   Object.keys(BUILDING_CONFIGS) as BuildingKey[]
 ).map((key) => ({ key, label: BUILDING_CONFIGS[key].label, group: BUILDING_CONFIGS[key].group }))

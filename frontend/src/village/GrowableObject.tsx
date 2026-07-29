@@ -2,12 +2,10 @@ import { useState, type ReactNode } from 'react'
 import { PALETTE } from './palette'
 import { progressStage, type Task } from './types'
 import { StageParts } from './buildings'
+import { BUILD_SCALE } from './layout'
 import { CellSelection } from './selection'
 import type { Stage, ThemeKey } from './partTypes'
 import { partsOf, type OwnedCatalog } from './ownedCatalog'
-
-/** ref 단위(footprint≈0.3~0.46) → 셀 월드 크기로 키우는 배율. */
-const BUILD_SCALE = 2.4
 
 /** 칸별 수동 설정: 어떤 건물을, 어떤 단계로. 'auto'면 진행률·slot 기반. */
 export interface CellOverride {

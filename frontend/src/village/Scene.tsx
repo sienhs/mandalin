@@ -3,6 +3,7 @@ import { OrbitControls, Sky } from '@react-three/drei'
 import { Village } from './Village'
 import { SKY } from './terrain'
 import type { CellOverride } from './GrowableObject'
+import type { LandmarkOverride } from './Landmark'
 import type { ThemeKey } from './partTypes'
 import type { OwnedCatalog } from './ownedCatalog'
 import type { Terrain } from './villageApi'
@@ -16,13 +17,15 @@ interface Props {
   terrain: Terrain
   catalog: OwnedCatalog
   selectedTaskId: string | null
+  landmark: LandmarkOverride
   onSelect: (domainIndex: number) => void
   onSelectTask: (taskId: string) => void
 }
 
 /** R3F Canvas + 조명 + OrbitControls. isometric 느낌의 초기 시점. */
 export function Scene({
-  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, onSelect, onSelectTask,
+  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, landmark,
+  onSelect, onSelectTask,
 }: Props) {
   const sky = SKY[terrain]
 
@@ -61,6 +64,7 @@ export function Scene({
         terrain={terrain}
         catalog={catalog}
         selectedTaskId={selectedTaskId}
+        landmark={landmark}
         onSelect={onSelect}
         onSelectTask={onSelectTask}
       />

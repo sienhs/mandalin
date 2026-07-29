@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "export:catalog": "node --import ./scripts/ts-resolve-hook.mjs scripts/export-catalog.mjs"
+    "export:catalog": "node --import ./scripts/ts-resolve-hook.mjs scripts/export-catalog.mjs",
+    "check:landmarks": "node --import ./scripts/ts-resolve-hook.mjs scripts/check-landmarks.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

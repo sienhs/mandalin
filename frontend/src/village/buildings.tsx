@@ -1,15 +1,18 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Instances, Instance } from '@react-three/drei'
-import { type Group } from 'three'
+import { Vector2, type Group } from 'three'
 import { PALETTE, resolveColor } from './palette'
 import {
   DETAIL_KINDS,
+  LANDMARK_REF,
   PL,
+  type LandmarkStage,
   type Part,
   type Stage,
   type ThemeKey,
   THEMES,
+  type Vec3,
 } from './partTypes'
 
 /**
@@ -225,6 +228,247 @@ function TreePart({ stage }: { stage: Stage }) {
   )
 }
 
+// ─────────── 랜드마크(3×3) 전용 부품 ───────────
+
+/**
+ * 회전체 프로파일로 만드는 링/보울.
+ *
+ * 가운데가 뚫린 기둥은 three 기본 지오메트리에 없다. 단면(사각형)을 닫힌 폴리라인으로 주고
+ * lathe 로 돌리면 안·바깥 벽 + 위·아래 면이 한 번에 나온다 — 세그먼트 수를 줄이면 그대로
+ * 오각형·팔각형 링이 되므로 폴리곤 링도 같은 코드로 처리한다.
+ */
+function LatheBand({
+  profile, seg, color, sx = 1, sz = 1, y = 0, rot = 0, flat = true,
+}: {
+  profile: [number, number][]
+  seg: number
+  color: string
+  sx?: number
+  sz?: number
+  y?: number
+  rot?: number
+  flat?: boolean
+}) {
+  const points = useMemo(() => profile.map(([r, h]) => new Vector2(r, h)), [profile])
+  return (
+    <mesh position={[0, y, 0]} rotation={[0, rot, 0]} scale={[sx, 1, sz]} castShadow receiveShadow>
+      <latheGeometry args={[points, seg]} />
+      <meshStandardMaterial color={resolveColor(color)} roughness={0.8} flatShading={flat} side={2} />
+    </mesh>
+  )
+}
+
+/** 정n각 기둥. hollow 를 주면 중정이 뚫린 n각 링. */
+function PolyPrismPart({
+  sides, r, h, y = 0, x = 0, z = 0, rot = 0, hollow, color, rough = 0.8, metal = 0.05,
+}: {
+  sides: number; r: number; h: number; y?: number; x?: number; z?: number; rot?: number
+  hollow?: number; color: string; rough?: number; metal?: number
+}) {
+  // 정n각형의 "평평한 면"이 정면(+z)을 보게 반 세그먼트만큼 돌려준다.
+  const align = rot + Math.PI / sides
+  if (hollow != null && hollow > 0 && hollow < 1) {
+    const ri = r * hollow
+    return (
+      <group position={[x, 0, z]}>
+        <LatheBand
+          profile={[[ri, 0], [r, 0], [r, h], [ri, h], [ri, 0]]}
+          seg={sides}
+          color={color}
+          y={y}
+          rot={align}
+        />
+      </group>
+    )
+  }
+  return (
+    <mesh position={[x, y + h / 2, z]} rotation={[0, align, 0]} castShadow receiveShadow>
+      <cylinderGeometry args={[r, r, h, sides]} />
+      <meshStandardMaterial color={resolveColor(color)} roughness={rough} metalness={metal} flatShading />
+    </mesh>
+  )
+}
+
+/** 원·타원 링 (경기장 외벽). */
+function RingPart({
+  ro, ri, h, y = 0, sx = 1, sz = 1, seg = 28, color,
+}: {
+  ro: number; ri: number; h: number; y?: number; sx?: number; sz?: number; seg?: number; color: string
+}) {
+  return (
+    <LatheBand
+      profile={[[ri, 0], [ro, 0], [ro, h], [ri, h], [ri, 0]]}
+      seg={seg}
+      color={color}
+      sx={sx}
+      sz={sz}
+      y={y}
+      flat={seg <= 12}
+    />
+  )
+}
+
+/** 안쪽으로 기울어진 관중석. 바깥이 높고 안쪽(경기장 중앙)이 낮다. */
+function BowlPart({
+  ro, ri, h, y = 0, sx = 1, sz = 1, seg = 28, color,
+}: {
+  ro: number; ri: number; h: number; y?: number; sx?: number; sz?: number; seg?: number; color: string
+}) {
+  const t = 0.05
+  return (
+    <LatheBand
+      profile={[[ri, 0], [ro, h], [ro, h - t], [ri, -t], [ri, 0]]}
+      seg={seg}
+      color={color}
+      sx={sx}
+      sz={sz}
+      y={y}
+      flat={false}
+    />
+  )
+}
+
+/** 아치 개구부 — 기둥 2개 + 반원 상부를 짧은 박스로 근사. */
+function ArchPart({
+  w, h, d, thick, x = 0, z = 0, y = 0, rotY = 0, seg = 7, color,
+}: {
+  w: number; h: number; d: number; thick: number; x?: number; z?: number; y?: number
+  rotY?: number; seg?: number; color: string
+}) {
+  const c = resolveColor(color)
+  const r = w / 2
+  const spring = Math.max(0.02, h - r)
+  const mid = r + thick / 2
+  const step = Math.PI / seg
+  // 반원을 seg 개 조각으로 나눠 각 조각을 회전한 박스로 놓는다. 세그먼트가 서로 조금
+  // 겹치도록 길이를 여유 있게 잡아야 조각 사이가 벌어지지 않는다.
+  const chord = 2 * mid * Math.tan(step / 2) + thick * 0.35
+  return (
+    <group position={[x, y, z]} rotation={[0, rotY, 0]}>
+      {[-1, 1].map((sign) => (
+        <mesh key={sign} position={[sign * (r + thick / 2), spring / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[thick, spring, d]} />
+          <meshStandardMaterial color={c} roughness={0.85} flatShading />
+        </mesh>
+      ))}
+      {Array.from({ length: seg }).map((_, i) => {
+        const a = step * (i + 0.5)
+        return (
+          <mesh
+            key={i}
+            position={[-Math.cos(a) * mid, spring + Math.sin(a) * mid, 0]}
+            rotation={[0, 0, a - Math.PI / 2]}
+            castShadow
+          >
+            <boxGeometry args={[thick, chord, d]} />
+            <meshStandardMaterial color={c} roughness={0.85} flatShading />
+          </mesh>
+        )
+      })}
+    </group>
+  )
+}
+
+/** 격자 철탑 — 네 모서리 기둥이 좁아지며 층마다 수평재. */
+function LatticePart({
+  w, h, y = 0, taper = 0.35, rungs = 6, color,
+}: {
+  w: number; h: number; y?: number; taper?: number; rungs?: number; color: string
+}) {
+  const c = resolveColor(color)
+  const t = Math.max(0.02, w * 0.075)
+  const levels = Math.max(2, rungs)
+  const halfAt = (f: number) => (w / 2) * (1 - (1 - taper) * f)
+  const segH = h / levels
+  return (
+    <group position={[0, y, 0]}>
+      {Array.from({ length: levels }).map((_, i) => {
+        const f0 = i / levels
+        const f1 = (i + 1) / levels
+        const half = (halfAt(f0) + halfAt(f1)) / 2
+        const yc = segH * i
+        const corners: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+        return (
+          <group key={i}>
+            {corners.map(([sx, sz]) => (
+              <mesh key={`${sx}${sz}`} position={[sx * half, yc + segH / 2, sz * half]} castShadow>
+                <boxGeometry args={[t, segH, t]} />
+                <meshStandardMaterial color={c} roughness={0.6} metalness={0.35} flatShading />
+              </mesh>
+            ))}
+            {/* 수평재 — 층 경계마다 한 겹 */}
+            <mesh position={[0, yc + segH, 0]} castShadow>
+              <boxGeometry args={[halfAt(f1) * 2 + t, t * 0.7, t]} />
+              <meshStandardMaterial color={c} roughness={0.6} metalness={0.35} flatShading />
+            </mesh>
+            <mesh position={[0, yc + segH, 0]} castShadow>
+              <boxGeometry args={[t, t * 0.7, halfAt(f1) * 2 + t]} />
+              <meshStandardMaterial color={c} roughness={0.6} metalness={0.35} flatShading />
+            </mesh>
+          </group>
+        )
+      })}
+    </group>
+  )
+}
+
+/** 조가비 쉘 지붕 — 반구 sector 를 눌러 세운다. */
+function ShellPart({
+  w, h, d, pos, rotY = 0, color,
+}: {
+  w: number; h: number; d: number; pos: Vec3; rotY?: number; color: string
+}) {
+  return (
+    <mesh position={pos} rotation={[0, rotY, 0]} scale={[w / 2, h, d / 2]} castShadow receiveShadow>
+      <sphereGeometry args={[1, 18, 12, 0, Math.PI, 0, Math.PI / 2]} />
+      <meshStandardMaterial color={resolveColor(color)} roughness={0.35} metalness={0.15} side={2} />
+    </mesh>
+  )
+}
+
+/** 경기장 조명탑. */
+function FloodlightPart({ pos, h, color = 'concrete' }: { pos: Vec3; h: number; color?: string }) {
+  const glow = resolveColor('glassWarm')
+  return (
+    <group position={pos}>
+      <mesh position={[0, h / 2, 0]} castShadow>
+        <cylinderGeometry args={[0.018, 0.03, h, 6]} />
+        <meshStandardMaterial color={resolveColor(color)} roughness={0.5} metalness={0.4} />
+      </mesh>
+      <mesh position={[0, h + 0.05, 0]} castShadow>
+        <boxGeometry args={[0.2, 0.1, 0.05]} />
+        <meshStandardMaterial color={resolveColor('roofDark')} roughness={0.6} />
+      </mesh>
+      <mesh position={[0, h + 0.05, 0.032]}>
+        <planeGeometry args={[0.19, 0.09]} />
+        <meshStandardMaterial color={glow} emissive={glow} emissiveIntensity={0.9} />
+      </mesh>
+    </group>
+  )
+}
+
+/** 수반·반사 못. 광장 바닥보다 살짝 낮게 깔린다. */
+function PoolPart({
+  w, d = w, x = 0, z = 0, y = 0, color = 'water',
+}: {
+  w: number; d?: number; x?: number; z?: number; y?: number; color?: string
+}) {
+  const c = resolveColor(color)
+  return (
+    <group position={[x, y, z]}>
+      {/* 테두리를 먼저 깔고 그 위에 수면을 얹는다. 순서가 뒤바뀌면 테두리가 물을 덮는다. */}
+      <mesh position={[0, 0.011, 0]} receiveShadow>
+        <boxGeometry args={[w + 0.07, 0.022, d + 0.07]} />
+        <meshStandardMaterial color={resolveColor('stoneLight')} roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.028, 0]} receiveShadow>
+        <boxGeometry args={[w, 0.014, d]} />
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.55} />
+      </mesh>
+    </group>
+  )
+}
+
 // ─────────── 부품 → JSX 디스패치 ───────────
 
 function renderPart(p: Part, stage: Stage, i: number) {
@@ -287,6 +531,22 @@ function renderPart(p: Part, stage: Stage, i: number) {
       return <ClockPart key={i} w={p.w} y={p.y} color={p.color} />
     case 'tree':
       return <TreePart key={i} stage={stage} />
+    case 'polyPrism':
+      return <PolyPrismPart key={i} sides={p.sides} r={p.r} h={p.h} y={p.y} x={p.x} z={p.z} rot={p.rot} hollow={p.hollow} color={p.color} rough={p.rough} metal={p.metal} />
+    case 'ring':
+      return <RingPart key={i} ro={p.ro} ri={p.ri} h={p.h} y={p.y} sx={p.sx} sz={p.sz} seg={p.seg} color={p.color} />
+    case 'bowl':
+      return <BowlPart key={i} ro={p.ro} ri={p.ri} h={p.h} y={p.y} sx={p.sx} sz={p.sz} seg={p.seg} color={p.color} />
+    case 'arch':
+      return <ArchPart key={i} w={p.w} h={p.h} d={p.d} thick={p.thick} x={p.x} z={p.z} y={p.y} rotY={p.rotY} seg={p.seg} color={p.color} />
+    case 'lattice':
+      return <LatticePart key={i} w={p.w} h={p.h} y={p.y} taper={p.taper} rungs={p.rungs} color={p.color} />
+    case 'shell':
+      return <ShellPart key={i} w={p.w} h={p.h} d={p.d} pos={p.pos} rotY={p.rotY} color={p.color} />
+    case 'floodlight':
+      return <FloodlightPart key={i} pos={p.pos} h={p.h} color={p.color} />
+    case 'pool':
+      return <PoolPart key={i} w={p.w} d={p.d} x={p.x} z={p.z} y={p.y} color={p.color} />
     default:
       return null
   }
@@ -315,6 +575,95 @@ export function StageParts({ parts, stage, theme }: { parts: Part[] | null; stag
   if (stage === 1) return <Stage1 theme={theme} />
   if (!parts) return null
   return <group>{parts.map((p, i) => renderPart(p, stage, i))}</group>
+}
+
+// ─────────── 랜드마크 8단계 렌더 ───────────
+
+/**
+ * 0단계 공사 부지 — 흙 패드 + 가설 울타리 + 타워크레인 + 자재 더미.
+ *
+ * 랜드마크를 아직 세울 수 없을 때(진행률 0 또는 미보유) 중앙을 빈 바닥으로 두면 마을이
+ * 고장난 것처럼 보인다. "여기에 뭔가 올라온다"를 부지 자체가 말해야 한다.
+ */
+export function ConstructionSite({ span = LANDMARK_REF }: { span?: number }) {
+  const half = span / 2
+  const posts = 7
+  const fence: Vec3[] = []
+  for (let i = 0; i < posts; i++) {
+    const t = (i / (posts - 1) - 0.5) * span * 0.94
+    fence.push([t, 0, half * 0.94], [t, 0, -half * 0.94], [half * 0.94, 0, t], [-half * 0.94, 0, t])
+  }
+  return (
+    <group>
+      <mesh position={[0, 0.02, 0]} receiveShadow>
+        <boxGeometry args={[span * 0.96, 0.04, span * 0.96]} />
+        <meshStandardMaterial color={resolveColor('soil')} roughness={1} />
+      </mesh>
+
+      {/* 가설 울타리 */}
+      {fence.map((p, i) => (
+        <mesh key={i} position={[p[0], 0.14, p[2]]} castShadow>
+          <boxGeometry args={[0.06, 0.28, 0.06]} />
+          <meshStandardMaterial color={resolveColor('wood')} roughness={0.9} />
+        </mesh>
+      ))}
+
+      {/* 기초 파일 */}
+      {[[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0, 0]].map(([x, z], i) => (
+        <mesh key={i} position={[x, 0.06, z]} receiveShadow>
+          <boxGeometry args={[0.5, 0.12, 0.5]} />
+          <meshStandardMaterial color={resolveColor('concrete')} roughness={0.95} />
+        </mesh>
+      ))}
+
+      {/* 타워크레인 */}
+      <group position={[half * 0.6, 0, -half * 0.6]}>
+        <mesh position={[0, 0.06, 0]} receiveShadow>
+          <boxGeometry args={[0.34, 0.12, 0.34]} />
+          <meshStandardMaterial color={resolveColor('concrete')} roughness={0.95} />
+        </mesh>
+        <LatticePart w={0.2} h={1.5} y={0.12} taper={0.9} rungs={5} color="accent" />
+        <mesh position={[-0.5, 1.68, 0]} castShadow>
+          <boxGeometry args={[1.5, 0.08, 0.08]} />
+          <meshStandardMaterial color={resolveColor('accent')} roughness={0.6} metalness={0.3} />
+        </mesh>
+        <mesh position={[-1.0, 1.45, 0]}>
+          <boxGeometry args={[0.02, 0.4, 0.02]} />
+          <meshStandardMaterial color={resolveColor('roofDark')} />
+        </mesh>
+        <mesh position={[-1.0, 1.2, 0]} castShadow>
+          <boxGeometry args={[0.14, 0.14, 0.14]} />
+          <meshStandardMaterial color={resolveColor('roofDark')} roughness={0.7} />
+        </mesh>
+      </group>
+
+      {/* 자재 더미 */}
+      <mesh position={[-half * 0.6, 0.09, half * 0.55]} castShadow>
+        <boxGeometry args={[0.5, 0.18, 0.3]} />
+        <meshStandardMaterial color={resolveColor('path')} roughness={0.95} />
+      </mesh>
+      <mesh position={[-half * 0.6, 0.24, half * 0.55]} castShadow>
+        <boxGeometry args={[0.42, 0.12, 0.26]} />
+        <meshStandardMaterial color={resolveColor('wood')} roughness={0.95} />
+      </mesh>
+    </group>
+  )
+}
+
+/**
+ * 랜드마크 8단계 렌더.
+ *
+ * 일반 건물처럼 단계마다 표현 규칙을 바꾸지 않고, **부품의 `st`(등장 단계) 로만** 자란다.
+ * 그래서 보이는 부품은 항상 "완성 규칙"(stage 3)으로 그린다 — 창문·디테일이 붙은 채로
+ * 매스가 하나씩 올라가는 게 공사 진행처럼 읽힌다.
+ */
+export function LandmarkParts({ parts, stage }: { parts: Part[] | null; stage: LandmarkStage }) {
+  if (stage === 0 || !parts) return <ConstructionSite />
+  return (
+    <group>
+      {parts.map((p, i) => ((p.st ?? 1) <= stage ? renderPart(p, 3, i) : null))}
+    </group>
+  )
 }
 
 // ─────────── 블록 장식 ───────────

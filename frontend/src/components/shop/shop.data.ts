@@ -27,6 +27,8 @@ export const THEME_STYLES: Record<string, ThemeStyle> = {
   WEST: { label: '서부', emoji: '🤠', background: '#F0E2CE' },
   SEOUL: { label: '서울', emoji: '🏢', background: '#E5E9EE' },
   ARTDECO: { label: '아르데코', emoji: '🎭', background: '#F2E6D8' },
+  // 마을 정중앙 3×3 자리 전용. 8단계로 자라는 거대 건물이라 테마와 격이 다르다.
+  LANDMARK: { label: '랜드마크', emoji: '🗺️', background: '#E9E3D3' },
 }
 
 /** 알 수 없는 테마가 내려와도 카드가 비지 않게 한다. */
