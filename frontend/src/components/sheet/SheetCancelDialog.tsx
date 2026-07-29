@@ -22,8 +22,8 @@ export default function SheetCancelDialog({ onClose }: SheetCancelDialogProps) {
       }
     >
       <div className="flex w-full gap-3">
-        {/* TODO: 나갈 경로 연결 */}
-        <Link to="#" className={DIALOG_GHOST_BUTTON}>
+        {/* 작성 중이던 시트를 버리고 나가는 유일한 출구라, 홈으로 되돌린다. */}
+        <Link to="/home" className={DIALOG_GHOST_BUTTON}>
           나가기
         </Link>
         <button

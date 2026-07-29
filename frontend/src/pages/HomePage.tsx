@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Header from '../components/common/Header'
 import { cn } from '../utils/cn'
 
@@ -34,6 +35,7 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
 
 /** 로그인 후 홈 화면 (`/home`) — 오늘의 할 일 체크리스트 + 내 마을 도시 미리보기. */
 export default function HomePage() {
+  const navigate = useNavigate()
   const [tasks, setTasks] = useState(INITIAL_TASKS)
   // TODO: 마을 3D 씬을 구운 썸네일 URL로 채울 자리. 아직 연동 전이라 항상 null →
   // 아래에서 폴백 이미지(image-load-error.png)를 보여준다.
@@ -127,7 +129,7 @@ export default function HomePage() {
           </ul>
 
           <div className="mt-auto pt-8">
-            {/* TODO: 체크 상태 저장 API 연동 후 적용하기/새 만다라트 만들기에 onClick 연결 */}
+            {/* TODO: 체크 상태 저장 API 연동 후 적용하기에 onClick 연결 */}
             <div className="grid grid-cols-[1fr_88px] gap-2.5">
               <button
                 type="button"
@@ -145,6 +147,7 @@ export default function HomePage() {
             </div>
             <button
               type="button"
+              onClick={() => navigate('/sheet/create')}
               className="btn-primary mt-6 w-full"
             >
               새 만다라트 만들기
