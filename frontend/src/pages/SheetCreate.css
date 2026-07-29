@@ -3,7 +3,7 @@
 /*
  * 만다린(Mandarin) shared design system.
  * Ported from the prototype's assets/css/style.css into Tailwind @layer component
- * classes so page markup stays declarative (class="card"/"btn btn-primary"/...).
+ * classes so page markup stays declarative (class="card"/"pill"/...).
  * Color tokens live in tailwind.config.ts (mint / coral / amber / ink).
  */
 
@@ -31,41 +31,7 @@
     box-shadow: 0 20px 30px -18px rgba(15, 23, 42, 0.22);
   }
 
-  /* ---------- Buttons ---------- */
-  .btn {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border-0 px-5 py-[3px] text-[14.5px] font-bold no-underline transition-all duration-150 ease-out;
-  }
-
-  /* 공통 HomePage의 .btn-primary와 충돌하지 않는 시트 전용 버튼 변형. */
-  .sheet-btn-primary {
-    @apply text-white;
-    background: linear-gradient(135deg, #14b8a6, #0d9488);
-    box-shadow: 0 8px 18px -8px rgba(13, 148, 136, 0.55);
-  }
-
-  .sheet-btn-primary:hover {
-    filter: brightness(1.06);
-    transform: translateY(-1px);
-  }
-
-  .btn-secondary {
-    @apply border border-ink-300 bg-white text-ink-700;
-  }
-
-  .btn-secondary:hover {
-    @apply bg-ink-100;
-  }
-
-  .btn-coral {
-    @apply text-white;
-    background: linear-gradient(135deg, #fb7185, #f43f5e);
-    box-shadow: 0 8px 18px -8px rgba(244, 63, 94, 0.5);
-  }
-
-  .btn-coral:hover {
-    filter: brightness(1.05);
-    transform: translateY(-1px);
-  }
+  /* 버튼은 components/common/Button 으로 옮겼다. */
 
   /* ---------- Pills / tags ---------- */
   .pill {
@@ -95,14 +61,7 @@
     color: #6d28d9;
   }
 
-  /* ---------- Progress ---------- */
-  .progress-track {
-    @apply h-2 overflow-hidden rounded-full bg-ink-100;
-  }
-
-  .progress-fill {
-    @apply h-full rounded-full;
-  }
+  /* 진행 바는 components/common/ProgressBar 로 옮겼다. */
 
   .section-title {
     @apply flex items-center gap-2 text-[15px] font-extrabold tracking-[-0.01em] text-ink-900;

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import SheetBasicSettings from '../components/sheet/SheetBasicSettings'
 import SheetCancelDialog from '../components/sheet/SheetCancelDialog'
@@ -26,20 +27,12 @@ export default function SheetCreate() {
           <h1 className="section-title m-0 text-[20px]">새 만다라트 만들기</h1>
 
           <div className="flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => setCancelOpen(true)}
-              className="btn rounded-[10px] border border-[#e7eaee] bg-white text-ink-400"
-            >
+            <Button variant="ghost" onClick={() => setCancelOpen(true)}>
               취소
-            </button>
-            <button
-              type="button"
-              onClick={() => setSaveOpen(true)}
-              className="btn rounded-[10px] bg-[#97cca1] text-white shadow-[0_8px_16px_-10px_rgba(151,204,161,0.95)] hover:brightness-[1.04]"
-            >
+            </Button>
+            <Button variant="primary" onClick={() => setSaveOpen(true)}>
               저장 ({editor.filledCount}/{TOTAL_CELLS}칸 완료)
-            </button>
+            </Button>
           </div>
         </header>
 

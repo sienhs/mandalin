@@ -1,3 +1,4 @@
+import Button from '../common/Button'
 import { cn } from '../../utils/cn'
 
 const TEXT_INPUT =
@@ -109,18 +110,12 @@ export default function SheetBasicSettings({
       </div>
 
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          className="btn w-full rounded-[10px] bg-[#be5f6b] text-[13px] text-white shadow-[0_8px_16px_-10px_rgba(190,95,107,0.95)] hover:brightness-[1.04]"
-        >
+        <Button variant="danger" size="sm" className="w-full">
           AI로 태스크 생성
-        </button>
-        <button
-          type="button"
-          className="btn w-full rounded-[10px] bg-[#97cca1] text-[13px] text-white shadow-[0_8px_16px_-10px_rgba(151,204,161,0.95)] hover:brightness-[1.04]"
-        >
+        </Button>
+        <Button variant="primary" size="sm" className="w-full">
           수동 태스크 생성
-        </button>
+        </Button>
       </div>
     </section>
   )

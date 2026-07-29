@@ -1,4 +1,4 @@
-import type { GroupSheetSummary, SheetSummary } from './sheetList.types'
+import type { GroupInvite, GroupSheetSummary, SheetSummary } from './sheetList.types'
 
 /**
  * 목록 화면 목업 데이터.
@@ -46,4 +46,10 @@ export const GROUP_SHEETS: GroupSheetSummary[] = [
     memberCount: 4,
     achievementRate: 31,
   },
+]
+
+/** 받은 그룹 초대 목업. TODO: 초대 조회 API 연동 시 교체 */
+export const GROUP_INVITES: GroupInvite[] = [
+  { id: 1, groupTitle: '꾸준한 독서 모임', inviterName: '도현', emoji: '📚', iconTheme: 'blue' },
+  { id: 2, groupTitle: '운동 크루', inviterName: '민지', emoji: '💪', iconTheme: 'pink' },
 ]

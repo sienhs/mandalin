@@ -1,9 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import Button from '../components/common/Button'
 import Header from '../components/common/Header'
+import SheetCreateConfirmDialog from '../components/sheetList/SheetCreateConfirmDialog'
+import SheetDeleteDialog from '../components/sheetList/SheetDeleteDialog'
 import SheetGroupCard from '../components/sheetList/SheetGroupCard'
+import SheetInviteDialog from '../components/sheetList/SheetInviteDialog'
 import SheetListCard from '../components/sheetList/SheetListCard'
-import { GROUP_SHEETS, MY_SHEETS } from '../components/sheetList/sheetList.data'
+import { GROUP_INVITES, GROUP_SHEETS, MY_SHEETS } from '../components/sheetList/sheetList.data'
+import type { SheetSummary } from '../components/sheetList/sheetList.types'
 import './SheetList.css'
 
 /** 내 만다라트 목록 화면. 개인 만다라트 카드 목록과 그룹 만다라트 목록으로 구성된다. */
@@ -11,11 +16,24 @@ export default function SheetList() {
   const navigate = useNavigate()
   // TODO: GET /api/sheets 연동 시 목업 상태를 서버 데이터로 교체
   const [sheets, setSheets] = useState(MY_SHEETS)
+  const [invites, setInvites] = useState(GROUP_INVITES)
   const groups = GROUP_SHEETS
 
-  const removeSheet = (id: number) => {
-    // TODO: 삭제 확인 팝업 · DELETE /api/sheets/{id} 연결
-    setSheets((prev) => prev.filter((sheet) => sheet.id !== id))
+  const [createOpen, setCreateOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  /** 삭제 확인 중인 만다라트. null 이면 팝업이 닫힌 상태. */
+  const [deleteTarget, setDeleteTarget] = useState<SheetSummary | null>(null)
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return
+    // TODO: DELETE /api/sheets/{id} 연결
+    setSheets((prev) => prev.filter((sheet) => sheet.id !== deleteTarget.id))
+    setDeleteTarget(null)
+  }
+
+  // TODO: 초대 수락 · 거절 API 연결. 지금은 목록에서만 없앤다.
+  const removeInvite = (id: number) => {
+    setInvites((prev) => prev.filter((invite) => invite.id !== id))
   }
 
   return (
@@ -34,22 +52,19 @@ export default function SheetList() {
             <div className="relative">
               <button
                 type="button"
-                onClick={() => navigate('/friends')}
-                className="sheet-list-btn sheet-list-btn-ghost"
+                onClick={() => setInviteOpen(true)}
+                className="sheet-list-btn-lavender"
               >
                 초대 요청
               </button>
-              {/* TODO: 안 읽은 초대가 있을 때만 노출 */}
-              <span className="sheet-list-dot" aria-label="새 초대 요청 있음" />
+              {invites.length > 0 && (
+                <span className="sheet-list-dot" aria-label={`새 초대 ${invites.length}건`} />
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => navigate('/sheet/create')}
-              className="sheet-list-btn sheet-list-btn-primary"
-            >
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
               만다라트 생성
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -62,7 +77,7 @@ export default function SheetList() {
                   <SheetListCard
                     sheet={sheet}
                     onOpen={(id) => navigate(`/sheet/${id}`)}
-                    onRemove={removeSheet}
+                    onRemove={() => setDeleteTarget(sheet)}
                   />
                 </li>
               ))}
@@ -80,13 +95,9 @@ export default function SheetList() {
             <h2 id="group-sheets" className="sheet-list-subheading">
               그룹 만다라트
             </h2>
-            <button
-              type="button"
-              onClick={() => navigate('/sheet/create?type=group')}
-              className="sheet-list-btn sheet-list-btn-primary"
-            >
+            <Button variant="primary" onClick={() => navigate('/sheet/create?type=group')}>
               그룹 생성
-            </button>
+            </Button>
           </div>
 
           {groups.length > 0 ? (
@@ -104,6 +115,30 @@ export default function SheetList() {
           )}
         </section>
       </main>
+
+      {createOpen && (
+        <SheetCreateConfirmDialog
+          onConfirm={() => navigate('/sheet/create')}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
+
+      {deleteTarget && (
+        <SheetDeleteDialog
+          title={deleteTarget.title}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {inviteOpen && (
+        <SheetInviteDialog
+          invites={invites}
+          onAccept={removeInvite}
+          onReject={removeInvite}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
     </div>
   )
 }

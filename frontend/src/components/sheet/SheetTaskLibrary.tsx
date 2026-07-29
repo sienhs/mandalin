@@ -1,3 +1,4 @@
+import Button from '../common/Button'
 import { cn } from '../../utils/cn'
 import { PAGES } from './sheet.data'
 import type { SubjectTemplate } from './sheet.types'
@@ -57,13 +58,9 @@ export default function SheetTaskLibrary({
               <span className="truncate text-xs font-bold text-ink-900">{task.title}</span>
               <span className="mt-[2px] text-[10.5px] text-ink-400">{task.domainName}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => onAdd(task)}
-              className="btn ml-auto shrink-0 rounded-md bg-mint-500 px-3 py-[3px] text-[11px] font-bold text-white"
-            >
+            <Button variant="primary" size="xs" onClick={() => onAdd(task)} className="ml-auto">
               + 추가
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

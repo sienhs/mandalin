@@ -21,6 +21,18 @@ export type SheetSummary = {
   theme: SheetCardTheme
 }
 
+/** 초대 항목 아이콘의 색 테마. invite-icon--* 클래스와 이름이 맞아야 한다. */
+export type InviteIconTheme = 'blue' | 'pink'
+
+/** 받은 그룹 만다라트 초대 하나. */
+export type GroupInvite = {
+  id: number
+  groupTitle: string
+  inviterName: string //초대한 사람 이름
+  emoji: string //그룹 대표 이모지
+  iconTheme: InviteIconTheme
+}
+
 /** 목록 화면의 그룹 만다라트 카드 하나. */
 export type GroupSheetSummary = {
   id: number

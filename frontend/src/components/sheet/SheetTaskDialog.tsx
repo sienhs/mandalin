@@ -1,3 +1,4 @@
+import Button from '../common/Button'
 import { cn } from '../../utils/cn'
 import SheetDialog from './SheetDialog'
 import type { Period, TaskDraft } from './sheet.types'
@@ -83,21 +84,13 @@ export default function SheetTaskDialog({
           />
         </div>
 
-        <div className="mt-2 flex w-full gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn flex-1 rounded-xl border border-[#e7eaee] bg-white text-[15px] font-bold text-ink-400 hover:bg-[#f4f5f9]"
-          >
+        <div className="mt-2 flex w-full justify-center gap-3">
+          <Button variant="ghost" size="lg" onClick={onClose} className="ui-btn--modal">
             취소
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            className="btn flex-1 rounded-xl bg-[#97cca1] text-[15px] font-bold text-white shadow-[0_8px_16px_-8px_rgba(151,204,161,0.6)] hover:brightness-[1.05]"
-          >
+          </Button>
+          <Button variant="primary" size="lg" onClick={onSave} className="ui-btn--modal">
             저장
-          </button>
+          </Button>
         </div>
       </div>
     </SheetDialog>

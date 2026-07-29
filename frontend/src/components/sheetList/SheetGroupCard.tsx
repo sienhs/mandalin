@@ -1,3 +1,4 @@
+import ProgressBar from '../common/ProgressBar'
 import type { GroupSheetSummary } from './sheetList.types'
 
 type SheetGroupCardProps = {
@@ -20,16 +21,11 @@ export default function SheetGroupCard({ group, onMove }: SheetGroupCardProps) {
         <p className="sheet-group-sub">
           {totalGoals}개 목표 중 {doneGoals}개-멤버 {memberCount}명
         </p>
-        <div
-          className="sheet-progress-track max-w-[520px]"
-          role="progressbar"
-          aria-valuenow={achievementRate}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`${title} 달성률`}
-        >
-          <div className="sheet-progress-fill" style={{ width: `${achievementRate}%` }} />
-        </div>
+        <ProgressBar
+          value={achievementRate}
+          label={`${title} 달성률`}
+          className="mt-1.5 max-w-[520px]"
+        />
       </div>
 
       <span className="sheet-group-percent">{achievementRate}%</span>
@@ -37,7 +33,7 @@ export default function SheetGroupCard({ group, onMove }: SheetGroupCardProps) {
       <button
         type="button"
         onClick={() => onMove(id)}
-        className="sheet-list-btn sheet-list-btn-ghost shrink-0"
+        className="sheet-list-btn-lavender shrink-0"
       >
         이동
       </button>

@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
-import { DIALOG_GHOST_BUTTON, SheetConfirmDialog } from './SheetDialog'
+import Button from '../common/Button'
+import { buttonClass } from '../common/buttonClass'
+import { SheetConfirmDialog } from './SheetDialog'
 
 type SheetCancelDialogProps = {
   onClose: () => void
@@ -21,18 +23,17 @@ export default function SheetCancelDialog({ onClose }: SheetCancelDialogProps) {
         </>
       }
     >
-      <div className="flex w-full gap-3">
+      <div className="flex w-full justify-center gap-3">
         {/* TODO: 나갈 경로 연결 */}
-        <Link to="#" className={DIALOG_GHOST_BUTTON}>
+        <Link
+          to="#"
+          className={buttonClass({ variant: 'ghost', size: 'lg', className: 'ui-btn--modal' })}
+        >
           나가기
         </Link>
-        <button
-          type="button"
-          onClick={onClose}
-          className="btn flex-1 rounded-xl bg-[#b85b56] text-[15px] text-white hover:brightness-[1.15]"
-        >
+        <Button variant="danger" size="lg" onClick={onClose} className="ui-btn--modal">
           계속 편집하기
-        </button>
+        </Button>
       </div>
     </SheetConfirmDialog>
   )

@@ -16,29 +16,18 @@
 
 @layer components {
 
-  /* ---------- 공통 버튼 ---------- */
-  .sheet-list-btn {
+  /*
+   * 초대 요청 · 이동 버튼.
+   * 초록/빨강/흰 버튼은 components/common/Button 으로 옮겼고,
+   * 이 연보라 변형만 목록 화면에서만 쓰므로 여기 남긴다.
+   */
+  .sheet-list-btn-lavender {
     @apply inline-flex cursor-pointer items-center justify-center rounded-xl border-0 px-5 py-[9px] text-[14px] font-bold no-underline transition-all duration-150 ease-out;
-  }
-
-  /* 만다라트 생성 · 그룹 생성 */
-  .sheet-list-btn-primary {
-    background: #97cca1;
-    color: #ffffff;
-    box-shadow: 0 8px 16px -10px rgba(151, 204, 161, 0.95);
-  }
-
-  .sheet-list-btn-primary:hover {
-    filter: brightness(1.04);
-  }
-
-  /* 초대 요청 · 이동 */
-  .sheet-list-btn-ghost {
     background: #ece9fb;
     color: #6f66cf;
   }
 
-  .sheet-list-btn-ghost:hover {
+  .sheet-list-btn-lavender:hover {
     background: #e2ddf8;
   }
 
@@ -51,6 +40,8 @@
 
   /* ---------- 개인 만다라트 카드 ---------- */
   .sheet-card {
+    /* 카드 색을 공통 진행 바(components/common/ProgressBar)의 변수로 넘긴다. */
+    --progress-accent: var(--sheet-accent);
     @apply flex flex-col overflow-hidden rounded-[18px] bg-white;
     border: 1px solid #e7eaee;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -18px rgba(15, 23, 42, 0.15);
@@ -134,21 +125,10 @@
     color: var(--sheet-accent);
   }
 
-  /* ---------- 진행 바 (개인 · 그룹 공용) ---------- */
-  .sheet-progress-track {
-    @apply mt-1.5 h-[7px] w-full overflow-hidden rounded-full;
-    background: #eef1f4;
-  }
-
-  .sheet-progress-fill {
-    @apply h-full rounded-full;
-    background: var(--sheet-accent);
-    transition: width 0.3s ease-out;
-  }
-
   /* ---------- 그룹 만다라트 카드 ---------- */
   .sheet-group-card {
     --sheet-accent: #8b7fe3;
+    --progress-accent: var(--sheet-accent);
     @apply flex items-center gap-5 rounded-[18px] bg-white px-6 py-5;
     border: 1px solid #e7eaee;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -18px rgba(15, 23, 42, 0.15);
@@ -176,6 +156,105 @@
   .sheet-group-percent {
     @apply shrink-0 text-[26px] font-extrabold tracking-[-0.02em];
     color: var(--sheet-accent);
+  }
+
+  /* ---------- 팝업 ---------- */
+  .sheet-list-overlay {
+    @apply fixed inset-0 z-[999] flex items-center justify-center p-4;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(2px);
+  }
+
+  .sheet-list-dialog {
+    @apply relative flex w-full flex-col rounded-[24px] bg-white;
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.2);
+  }
+
+  /* 생성 · 삭제 확인 팝업 */
+  .sheet-list-dialog--confirm {
+    @apply max-w-[440px] items-center gap-3 px-8 py-9 text-center;
+  }
+
+  /* 초대 팝업 */
+  .sheet-list-dialog--invite {
+    @apply max-w-[400px] gap-4 px-6 pb-6 pt-[26px];
+  }
+
+  .sheet-list-dialog-icon {
+    @apply mb-1 flex h-[62px] w-[62px] items-center justify-center rounded-full text-[27px] leading-none;
+  }
+
+  .sheet-list-dialog-icon--mint {
+    background: #e3f8f1;
+  }
+
+  .sheet-list-dialog-icon--danger {
+    background: #b85b56;
+  }
+
+  .sheet-list-dialog-title {
+    @apply m-0 text-[18px] font-extrabold tracking-[-0.01em];
+    color: #0f172a;
+  }
+
+  .sheet-list-dialog-desc {
+    @apply m-0 text-[13px] font-semibold leading-[1.6];
+    color: #8b95a5;
+  }
+
+  .sheet-list-dialog-close {
+    @apply absolute right-[18px] top-[18px] flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[18px] font-bold leading-none transition-colors duration-150;
+    color: #94a3b8;
+  }
+
+  .sheet-list-dialog-close:hover {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  .sheet-list-dialog-actions {
+    @apply mt-2 flex justify-center gap-3;
+  }
+
+  /* ---------- 초대 항목 ---------- */
+  .invite-item {
+    @apply flex flex-col gap-3 rounded-[16px] bg-white p-3.5;
+    border: 1px solid #e2e8f0;
+  }
+
+  .invite-head {
+    @apply flex items-center gap-3;
+  }
+
+  .invite-icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[19px] leading-none;
+  }
+
+  .invite-icon--blue {
+    background: #cfe0f8;
+  }
+
+  .invite-icon--pink {
+    background: #f8d7dc;
+  }
+
+  .invite-title {
+    @apply m-0 truncate text-[14.5px] font-extrabold tracking-[-0.01em];
+    color: #0f172a;
+  }
+
+  .invite-from {
+    @apply m-0 mt-[3px] text-[12px] font-semibold;
+    color: #94a3b8;
+  }
+
+  .invite-from b {
+    @apply font-extrabold;
+    color: #475569;
+  }
+
+  .invite-actions {
+    @apply flex gap-2.5;
   }
 
   /* ---------- 섹션 제목 ---------- */

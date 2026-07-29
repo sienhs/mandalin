@@ -1,3 +1,4 @@
+import ProgressBar from '../common/ProgressBar'
 import { cn } from '../../utils/cn'
 import type { SheetSummary } from './sheetList.types'
 
@@ -47,16 +48,7 @@ export default function SheetListCard({ sheet, onOpen, onRemove }: SheetListCard
           <span className="sheet-card-percent">{achievementRate}%</span>
         </div>
 
-        <div
-          className="sheet-progress-track"
-          role="progressbar"
-          aria-valuenow={achievementRate}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`${title} 달성률`}
-        >
-          <div className="sheet-progress-fill" style={{ width: `${achievementRate}%` }} />
-        </div>
+        <ProgressBar value={achievementRate} label={`${title} 달성률`} className="mt-1.5" />
       </button>
     </article>
   )

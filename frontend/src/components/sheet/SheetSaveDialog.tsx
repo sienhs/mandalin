@@ -1,5 +1,6 @@
+import Button from '../common/Button'
 import { TOTAL_CELLS } from './sheet.data'
-import { DIALOG_GHOST_BUTTON, SheetConfirmDialog } from './SheetDialog'
+import { SheetConfirmDialog } from './SheetDialog'
 
 type SheetSaveDialogProps = {
   /** 채워진 칸 수. 81칸을 채우지 못하면 경고만 보여준다. */
@@ -31,13 +32,9 @@ export default function SheetSaveDialog({
           </>
         }
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="btn w-full rounded-xl bg-[#b85b56] text-[15px] text-white hover:brightness-[1.15]"
-        >
+        <Button variant="danger" size="lg" onClick={onClose} className="w-full">
           돌아가서 마저 채우기
-        </button>
+        </Button>
       </SheetConfirmDialog>
     )
   }
@@ -50,21 +47,26 @@ export default function SheetSaveDialog({
       title="정말 생성하시겠습니까?"
       description={
         <>
-          한번 수정된 만다라트의 내용은 추후에{' '}
-          <b className="text-ink-900">수정할 수 없습니다.</b>
+          한번 생성된 만다라트의 내용은
+          <br />
+          추후에 <b className="text-ink-900">수정할 수 없습니다.</b>
           <br />
           이대로 생성하시겠습니까?
         </>
       }
     >
-      <div className="flex w-full gap-3">
-        <button type="button" onClick={onClose} className={DIALOG_GHOST_BUTTON}>
+      <div className="flex w-full justify-center gap-3">
+        <Button variant="ghost" size="lg" onClick={onClose} className="ui-btn--modal">
           계속 편집하기
-        </button>
+        </Button>
+        {/*
+          생성 확정만 전용 색(#858ae3)을 쓴다. 색만 다르고 크기는 다른 팝업 버튼과
+          같아야 하므로 공통 버튼의 모양 클래스는 그대로 얹는다.
+        */}
         <button
           type="button"
           onClick={onConfirm}
-          className="btn flex-1 rounded-xl border-0 bg-[#858ae3] text-[15px] text-white hover:brightness-[1.15]"
+          className="ui-btn ui-btn--lg ui-btn--modal bg-[#858ae3] text-white hover:brightness-[1.15]"
         >
           생성하기
         </button>

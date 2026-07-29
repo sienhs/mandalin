@@ -32,11 +32,11 @@ export default function ProtectedRoute() {
     )
   }
 
-  // if (!isAuthenticated) {
-  //   // 렌더 중 호출이지만 같은 값을 여러 번 써도 무해하다.
-  //   rememberIntendedPath(location.pathname + location.search)
-  //   return <Navigate to="/login" replace />
-  // }
+  if (!isAuthenticated) {
+    // 렌더 중 호출이지만 같은 값을 여러 번 써도 무해하다.
+    rememberIntendedPath(location.pathname + location.search)
+    return <Navigate to="/login" replace />
+  }
 
   return <Outlet />
 }
