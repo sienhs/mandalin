@@ -24,6 +24,12 @@ public enum ErrorCode {
 
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found."),
 
+	// Friend
+	FRIEND_REQUEST_ALREADY_SENT(HttpStatus.CONFLICT, "Friend request already sent."),
+	FRIEND_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "Friend request not found."),
+	ALREADY_FRIEND(HttpStatus.CONFLICT, "Already friends."),
+	CANNOT_REQUEST_YOURSELF(HttpStatus.BAD_REQUEST, "Cannot send friend request to yourself."),
+	FRIEND_NOT_FOUND(HttpStatus.NOT_FOUND, "Friend relationship not found."),
 	CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read building modeling data.");
 
 	private final HttpStatus status;

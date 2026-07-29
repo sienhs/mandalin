@@ -49,8 +49,7 @@ public class VillageService {
 		userVillageRepository.findByUserId(userId)
 				.ifPresentOrElse(
 						village -> village.changeTerrain(terrain),
-						() -> userVillageRepository.save(UserVillage.of(userId, terrain))
-				);
+						() -> userVillageRepository.save(UserVillage.of(userId, terrain)));
 		return terrain;
 	}
 
@@ -70,8 +69,7 @@ public class VillageService {
 				item.getType(),
 				item.getThumbnailUrl(),
 				BuildingSizeResponse.from(item),
-				readParts(item)
-		);
+				readParts(item));
 	}
 
 	/**

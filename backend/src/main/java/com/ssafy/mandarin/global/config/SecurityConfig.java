@@ -46,8 +46,7 @@ public class SecurityConfig {
 			RestAccessDeniedHandler accessDeniedHandler,
 			OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
 			OAuth2LoginFailureHandler oAuth2LoginFailureHandler,
-			ClientRegistrationRepository clientRegistrationRepository
-	) {
+			ClientRegistrationRepository clientRegistrationRepository) {
 		this.jwtFilter = jwtFilter;
 		this.corsConfigurationSource = corsConfigurationSource;
 		this.authenticationEntryPoint = authenticationEntryPoint;
@@ -72,7 +71,8 @@ public class SecurityConfig {
 								"/api/auth/reissue", "/api/auth/oauth/exchange", "/api/auth/logout",
 								"/oauth2/**", "/login/oauth2/**")
 						.permitAll()
-						.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
+						.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml")
+						.permitAll()
 						.anyRequest().authenticated())
 				.exceptionHandling(exceptions -> exceptions
 						.authenticationEntryPoint(authenticationEntryPoint)
@@ -90,8 +90,7 @@ public class SecurityConfig {
 	private OAuth2AuthorizationRequestResolver oAuth2AuthorizationRequestResolver() {
 		DefaultOAuth2AuthorizationRequestResolver resolver = new DefaultOAuth2AuthorizationRequestResolver(
 				clientRegistrationRepository,
-				"/oauth2/authorization"
-		);
+				"/oauth2/authorization");
 		resolver.setAuthorizationRequestCustomizer(builder -> {
 			builder.attributes(attributes -> attributes.remove(PkceParameterNames.CODE_VERIFIER));
 			builder.additionalParameters(parameters -> {
