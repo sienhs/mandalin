@@ -1,0 +1,240 @@
+@reference "../index.css";
+
+/*
+ * 만다린(Mandarin) shared design system.
+ * Ported from the prototype's assets/css/style.css into Tailwind @layer component
+ * classes so page markup stays declarative (class="card"/"btn btn-primary"/...).
+ * Color tokens live in tailwind.config.ts (mint / coral / amber / ink).
+ */
+
+@layer base {
+
+  html,
+  body {
+    @apply m-0 p-0;
+  }
+
+  body {
+    @apply bg-[#F6F7F8] text-ink-900 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto w-full max-w-shell px-6;
+  }
+
+  /* ---------- Cards & surfaces ---------- */
+  .card {
+    @apply rounded-[18px] border border-ink-100 bg-white;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 10px 24px -18px rgba(15, 23, 42, 0.15);
+  }
+
+  .card-hover {
+    @apply duration-200 ease-out;
+    transition-property: transform, box-shadow;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 30px -18px rgba(15, 23, 42, 0.22);
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border-0 px-5 py-[3px] text-[14.5px] font-bold no-underline transition-all duration-150 ease-out;
+  }
+
+  .btn-primary {
+    @apply text-white;
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+    box-shadow: 0 8px 18px -8px rgba(13, 148, 136, 0.55);
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    @apply border border-ink-300 bg-white text-ink-700;
+  }
+
+  .btn-secondary:hover {
+    @apply bg-ink-100;
+  }
+
+  .btn-coral {
+    @apply text-white;
+    background: linear-gradient(135deg, #fb7185, #f43f5e);
+    box-shadow: 0 8px 18px -8px rgba(244, 63, 94, 0.5);
+  }
+
+  .btn-coral:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+  }
+
+  /* ---------- Pills / tags ---------- */
+  .pill {
+    @apply inline-flex items-center rounded-full px-[11px] py-1 text-xs font-bold;
+  }
+
+  .pill-mint {
+    @apply bg-mint-100 text-mint-700;
+  }
+
+  .pill-coral {
+    background: #ffe4e6;
+    color: #be123c;
+  }
+
+  .pill-amber {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .pill-slate {
+    @apply bg-ink-100 text-ink-500;
+  }
+
+  .pill-purple {
+    background: #ede9fe;
+    color: #6d28d9;
+  }
+
+  /* ---------- Progress ---------- */
+  .progress-track {
+    @apply h-2 overflow-hidden rounded-full bg-ink-100;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full;
+  }
+
+  .section-title {
+    @apply flex items-center gap-2 text-[15px] font-extrabold tracking-[-0.01em] text-ink-900;
+  }
+
+  /* ---------- Top navbar ---------- */
+  .mandari-nav {
+    @apply sticky top-0 z-40 border-b border-ink-100;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+  }
+
+  .mandari-nav-inner {
+    @apply mx-auto flex max-w-shell items-center gap-8 px-6 py-[14px];
+  }
+
+  .mandari-logo {
+    @apply flex items-center gap-2 text-[18px] font-extrabold text-ink-900 no-underline;
+  }
+
+  .mandari-logo .mark {
+    @apply flex h-[30px] w-[30px] items-center justify-center rounded-[9px] text-sm font-extrabold text-white;
+    background: linear-gradient(135deg, #2dd4bf, #0d9488);
+    box-shadow: 0 4px 10px -2px rgba(13, 148, 136, 0.45);
+  }
+
+  .mandari-navlinks {
+    @apply flex flex-1 items-center gap-[26px];
+  }
+
+  .mandari-navlinks a {
+    @apply border-b-2 border-transparent px-[2px] py-[6px] text-[14.5px] font-semibold text-ink-500 no-underline transition-all duration-150;
+  }
+
+  .mandari-navlinks a:hover {
+    @apply text-ink-900;
+  }
+
+  .mandari-navlinks a.active {
+    @apply border-mint-500 text-mint-600;
+  }
+
+  .coin-badge {
+    @apply flex items-center gap-[6px] rounded-full border px-[14px] py-[7px] text-[13.5px] font-bold;
+    background: linear-gradient(135deg, #fff7ed, #fef3c7);
+    border-color: #fde68a;
+    color: #b45309;
+  }
+
+  .icon-btn {
+    @apply flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-0 bg-ink-100 text-ink-500 transition-colors duration-150;
+  }
+
+  .icon-btn:hover {
+    @apply bg-ink-300 text-ink-900;
+  }
+
+  .avatar {
+    @apply flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-bold text-white no-underline;
+    background: linear-gradient(135deg, #fb7185, #f43f5e);
+    box-shadow: 0 4px 10px -2px rgba(244, 63, 94, 0.4);
+  }
+
+  /* ---------- Mandalart mini grid ---------- */
+  .mgrid {
+    @apply grid grid-cols-9 gap-1;
+  }
+
+  .mgrid .cell {
+    @apply flex aspect-square items-center justify-center overflow-hidden rounded-md bg-ink-100 p-[2px] text-center text-[13px] font-bold leading-[1.15] text-ink-500;
+    border: 1px solid rgba(15, 23, 42, 0.03);
+  }
+
+  /* ---------- Footer ---------- */
+  .mandari-footer {
+    @apply mt-[60px] border-t border-ink-100 py-7 text-[12.5px] text-ink-400;
+  }
+
+  /* ---------- Pagination ---------- */
+  .pagination {
+    @apply inline-flex items-center gap-2 text-base font-extrabold;
+  }
+
+  .page-btn {
+    @apply flex h-[38px] w-[38px] cursor-pointer select-none items-center justify-center rounded-[10px] bg-white text-ink-500 transition-all duration-150;
+    border: 1.5px solid #e2e8f0;
+  }
+
+  .page-btn:hover {
+    @apply border-ink-300 text-ink-700;
+    background: #f8fafc;
+  }
+
+  .page-btn.active {
+    background: #65b3a1;
+    color: white;
+    border: 1.5px solid #65b3a1;
+  }
+
+  /* ---------- Mandalart Grid Sheet ---------- */
+  .Sheet {
+    @apply font-bold flex items-center justify-center text-center relative;
+    aspect-ratio: 1/1;
+    border-radius: 3px 3px 10px 3px;
+    box-shadow: 0 2px 4px -1px rgba(15, 23, 42, 0.22), 0 1px 0 rgba(255, 255, 255, 0.45) inset;
+    transition: filter .15s ease-out, transform .15s ease-out;
+  }
+
+  .Sheet::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 0 8px 8px;
+    border-color: transparent transparent rgba(15, 23, 42, 0.16) transparent;
+  }
+
+  .Sheet:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+  }
+}

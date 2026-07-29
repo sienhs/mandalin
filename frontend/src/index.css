@@ -1,26 +1,60 @@
 @import "tailwindcss";
 
+
 /**
  * 디자인 토큰.
  * 여러 컴포넌트에서 반복되던 하드코딩 hex 값(bg-[#61B5A7] 등)을 여기로 모아
  * Tailwind 유틸(bg-brand, text-alert 등)로 쓸 수 있게 함. 색을 바꿀 땐 여기만 수정.
  */
 @theme {
-  --color-brand: #61b5a7; /* 로고 배지 / 포커스 링 */
-  --color-brand-active: #65aa9f; /* 내비게이션 active/hover */
-  --color-page: #f4f7f9; /* 페이지 배경 */
-  --color-alert: #d95569; /* 알림 점 / 프로필 배지 */
-  --color-surface-muted: #f6f7f8; /* 아이콘 버튼 배경 */
-  --color-accent-peach: #fff1ec; /* 히어로/로그인 패널 배경 */
-  --color-success: #72cea1; /* 주요 버튼 배경 */
-  --color-success-hover: #5ec492; /* 주요 버튼 hover */
-  --color-warning: #de8433; /* 체크 완료 상태 */
-  --color-gold: #e8b744; /* 알림 종 아이콘 */
-  --color-coin-bg: #f7c85c; /* 코인 아이콘 배경 */
-  --color-coin-text: #d69327; /* 코인 아이콘 글자 */
-  --color-points-bg: #fff6de; /* 포인트 배지 배경 */
-  --color-points-text: #a96028; /* 포인트 배지 글자 */
-  --color-text-muted: #667085; /* 비활성 내비게이션 텍스트 */
+
+  --color-bg-app: #f8fafc;
+
+  --color-ink-100: #f1f5f9;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-700: #334155;
+  --color-ink-900: #0f172a;
+
+  --color-mint-100: #ccfbf1;
+  --color-mint-400: #2dd4bf;
+  --color-mint-500: #14b8a6;
+  --color-mint-600: #0d9488;
+  --color-mint-700: #0f766e;
+
+  --spacing-shell: 1280px;
+
+  --color-brand: #61b5a7;
+  /* 로고 배지 / 포커스 링 */
+  --color-brand-active: #65aa9f;
+  /* 내비게이션 active/hover */
+  --color-page: #f4f7f9;
+  /* 페이지 배경 */
+  --color-alert: #d95569;
+  /* 알림 점 / 프로필 배지 */
+  --color-surface-muted: #f6f7f8;
+  /* 아이콘 버튼 배경 */
+  --color-accent-peach: #fff1ec;
+  /* 히어로/로그인 패널 배경 */
+  --color-success: #72cea1;
+  /* 주요 버튼 배경 */
+  --color-success-hover: #5ec492;
+  /* 주요 버튼 hover */
+  --color-warning: #de8433;
+  /* 체크 완료 상태 */
+  --color-gold: #e8b744;
+  /* 알림 종 아이콘 */
+  --color-coin-bg: #f7c85c;
+  /* 코인 아이콘 배경 */
+  --color-coin-text: #d69327;
+  /* 코인 아이콘 글자 */
+  --color-points-bg: #fff6de;
+  /* 포인트 배지 배경 */
+  --color-points-text: #a96028;
+  /* 포인트 배지 글자 */
+  --color-text-muted: #667085;
+  /* 비활성 내비게이션 텍스트 */
 }
 
 /**
@@ -31,6 +65,7 @@
  * 유틸을 같이 써서 크기/색 등 개별 값만 자유롭게 덮어쓸 수 있음.
  */
 @layer components {
+
   /* 페이지 최상위 배경(로그인 필요/불필요 화면 공통) */
   .page-shell {
     @apply min-h-screen bg-page text-slate-950;
