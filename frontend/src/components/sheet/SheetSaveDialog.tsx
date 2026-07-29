@@ -59,10 +59,6 @@ export default function SheetSaveDialog({
         <Button variant="ghost" size="lg" onClick={onClose} className="ui-btn--modal">
           계속 편집하기
         </Button>
-        {/*
-          생성 확정만 전용 색(#858ae3)을 쓴다. 색만 다르고 크기는 다른 팝업 버튼과
-          같아야 하므로 공통 버튼의 모양 클래스는 그대로 얹는다.
-        */}
         <button
           type="button"
           onClick={onConfirm}

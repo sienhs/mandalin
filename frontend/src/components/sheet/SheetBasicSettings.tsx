@@ -19,7 +19,7 @@ type SheetBasicSettingsProps = {
   onManualTaskCreate: () => void
 }
 
-/** 좌측 sticky 패널: 핵심 목표 · 기간 · 공개 여부 · 과제 생성 버튼 */
+/** 좌측 패널: 핵심 목표 · 기간 · 공개 여부 · 과제 생성 버튼 */
 export default function SheetBasicSettings({
   mainGoal,
   onMainGoalChange,

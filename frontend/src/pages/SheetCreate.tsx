@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import SheetBasicSettings from '../components/sheet/SheetBasicSettings'
@@ -13,9 +14,18 @@ import './SheetCreate.css'
 
 /** 새 만다라트를 만드는 화면. 좌측 기본 설정 · 우측 2D 뷰와 사이드 패널로 구성된다. */
 export default function SheetCreate() {
+  const navigate = useNavigate()
   const editor = useSheetEditor()
   const [saveOpen, setSaveOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+
+  /**
+   * 생성 확정. 이동은 replace 로 해서 뒤로 가기가 작성 화면으로 돌아오지 않게 한다.
+   */
+  const confirmCreate = () => {
+    setSaveOpen(false)
+    navigate('/sheets', { replace: true })
+  }
 
   return (
     <div className="min-h-screen bg-[#F6F7F8]">
@@ -77,10 +87,7 @@ export default function SheetCreate() {
         <SheetSaveDialog
           filledCount={editor.filledCount}
           onClose={() => setSaveOpen(false)}
-          onConfirm={() => {
-            /* 생성 로직 연결 */
-            setSaveOpen(false)
-          }}
+          onConfirm={confirmCreate}
         />
       )}
 
