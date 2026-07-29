@@ -1,7 +1,10 @@
 package com.ssafy.mandarin.domain.sheet.service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +30,8 @@ import com.ssafy.mandarin.domain.user.entity.User;
 import com.ssafy.mandarin.domain.village.entity.ItemDir;
 import com.ssafy.mandarin.domain.village.entity.ItemSpot;
 import com.ssafy.mandarin.domain.village.repository.ItemSpotRepository;
+import com.ssafy.mandarin.global.exception.BusinessException;
+import com.ssafy.mandarin.global.exception.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -210,12 +215,45 @@ public class SheetService {
     }
 
     /**
+     * 과제 진행률 0~100.
+     *
+     * <p>완료 표시된 과제는 목표 횟수를 다 채우지 않았어도 100 이다 — 사용자가 완료로 표시한
+     * 것을 미완성으로 보여주면 화면과 데이터가 어긋난다. 그 외에는 시도/목표 비율을 쓴다.
+     *
+     * <p>targetCount 가 0 이나 null 인 과제는 비율을 낼 수 없어 0 으로 둔다. 생성 시 항상
+     * 1 이상이 들어가지만(SheetService.createSheet), 과거 데이터나 직접 수정된 행이 있을 수 있다.
+     */
+    private Integer progressOf(Subject subject) {
+        if (Boolean.TRUE.equals(subject.getIsDone())) {
+            return 100;
+        }
+
+        Integer target = subject.getTargetCount();
+        Integer tries = subject.getTryCount();
+        if (target == null || target <= 0 || tries == null || tries <= 0) {
+            return 0;
+        }
+
+        return Math.min(100, (int) Math.round(tries * 100.0 / target));
+    }
+
+    /**
      * 만다라트 상세 정보 조회
      * 특정 만다라트 시트의 64개 과제 상태 및 도메인 구조를 조회
+     *
+     * <p>비공개 시트는 소유자만 볼 수 있다. 이 검사가 없으면 로그인한 아무 사용자가 sheetId 를
+     * 훑어 남의 목표를 전부 읽을 수 있다 — 공개 여부(isOpen)를 두는 의미가 없어진다.
+     *
+     * @param userId 조회를 요청한 사용자
+     * @throws BusinessException 시트가 없거나(404), 비공개 시트에 남이 접근할 때(403)
      */
-    public SheetDetailResponse getSheetDetail(Long sheetId) {
+    public SheetDetailResponse getSheetDetail(Long userId, Long sheetId) {
         Sheet sheet = sheetRepository.findById(sheetId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 만다라트 시트입니다. id=" + sheetId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.SHEET_NOT_FOUND));
+
+        if (!Boolean.TRUE.equals(sheet.getIsOpen()) && !sheet.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.SHEET_ACCESS_DENIED);
+        }
 
         List<Domain> domains = domainRepository.findBySheetIdOrderByPositionAsc(sheetId);
         List<SheetDetailResponse.DomainDetailResponse> domainResponses = new ArrayList<>();
@@ -226,9 +264,27 @@ public class SheetService {
             List<Subject> subjects = subjectRepository.findByDomainIdOrderByPositionAsc(domain.getId());
             List<SheetDetailResponse.SubjectDetailResponse> subjectResponses = new ArrayList<>();
 
+            LocalDate today = LocalDate.now();
+            LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+
             for (Subject subject : subjects) {
                 if (Boolean.TRUE.equals(subject.getIsDone())) {
                     doneSubjects++;
+                }
+
+                // daily/weekly 수행 체크 클릭 완료 여부 연산
+                boolean isDonePeriod = false;
+                if (Boolean.TRUE.equals(subject.getIsDone())) {
+                    isDonePeriod = true;
+                } else if (subject.getUpdatedAt() != null) {
+                    if (subject.getPeriod() == SubjectPeriod.DAILY) {
+                        isDonePeriod = subject.getUpdatedAt().toLocalDate().isEqual(today);
+                    } else if (subject.getPeriod() == SubjectPeriod.WEEKLY) {
+                        LocalDate updatedDate = subject.getUpdatedAt().toLocalDate();
+                        // 월 ~ 일 사이에 체크했는지 검사
+                        isDonePeriod = !updatedDate.isBefore(monday) && !updatedDate.isAfter(sunday);
+                    }
                 }
 
                 subjectResponses.add(SheetDetailResponse.SubjectDetailResponse.builder()
@@ -240,8 +296,11 @@ public class SheetService {
                         .targetCount(subject.getTargetCount())
                         .tryCount(subject.getTryCount())
                         .isDone(subject.getIsDone())
+                        .isDonePeriod(isDonePeriod)
+                        .progress(progressOf(subject))
                         .build());
             }
+
 
             domainResponses.add(SheetDetailResponse.DomainDetailResponse.builder()
                     .domainId(domain.getId())

@@ -43,7 +43,7 @@ public class Sheet extends BaseEntity {
     @Builder.Default
     private Boolean isOpen = false;
 
-    @Column(name = "`like`")
+    @Column(name = "likeCount")
     @Builder.Default
     private Long likeCount = 0L;
 

@@ -45,7 +45,7 @@ public class Subject extends BaseEntity {
     private String title;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name="period_type",nullable = false)
     private SubjectPeriod period;
 
     @Column(nullable = false)
@@ -68,6 +68,11 @@ public class Subject extends BaseEntity {
 
     public void updateIsDone(Boolean isDone) {
         this.isDone = isDone;
+    }
+
+    /** 수행 횟수를 직접 지정한다. 음수는 0 으로 눌러 진행률이 음수가 되지 않게 한다. */
+    public void updateTryCount(Integer tryCount) {
+        this.tryCount = tryCount == null || tryCount < 0 ? 0 : tryCount;
     }
 
     public void incrementTryCount() {

@@ -24,7 +24,26 @@ public enum ErrorCode {
 
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found."),
 
-	CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read building modeling data.");
+	// Friend
+	FRIEND_REQUEST_ALREADY_SENT(HttpStatus.CONFLICT, "Friend request already sent."),
+	FRIEND_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "Friend request not found."),
+	ALREADY_FRIEND(HttpStatus.CONFLICT, "Already friends."),
+	CANNOT_REQUEST_YOURSELF(HttpStatus.BAD_REQUEST, "Cannot send friend request to yourself."),
+	FRIEND_NOT_FOUND(HttpStatus.NOT_FOUND, "Friend relationship not found."),
+	CATALOG_LOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read building modeling data."),
+
+	// Shop
+	BUILDING_NOT_FOUND(HttpStatus.NOT_FOUND, "Building not found."),
+	BUILDING_ALREADY_OWNED(HttpStatus.CONFLICT, "Building is already owned."),
+	INSUFFICIENT_POINT(HttpStatus.BAD_REQUEST, "Not enough points."),
+
+	// Sheet
+	SHEET_NOT_FOUND(HttpStatus.NOT_FOUND, "Mandalart sheet not found."),
+	SHEET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "This mandalart sheet is private."),
+
+	// Subject
+	SUBJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "Subject not found."),
+	SUBJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Not your subject.");
 
 	private final HttpStatus status;
 	private final String message;
