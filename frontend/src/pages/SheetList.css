@@ -134,11 +134,6 @@
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -18px rgba(15, 23, 42, 0.15);
   }
 
-  .sheet-group-icon {
-    @apply flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-[16px] text-[30px];
-    background: #a99cf0;
-  }
-
   .sheet-group-main {
     @apply flex min-w-0 flex-1 flex-col gap-1;
   }
@@ -220,22 +215,6 @@
   .invite-item {
     @apply flex flex-col gap-3 rounded-[16px] bg-white p-3.5;
     border: 1px solid #e2e8f0;
-  }
-
-  .invite-head {
-    @apply flex items-center gap-3;
-  }
-
-  .invite-icon {
-    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[19px] leading-none;
-  }
-
-  .invite-icon--blue {
-    background: #cfe0f8;
-  }
-
-  .invite-icon--pink {
-    background: #f8d7dc;
   }
 
   .invite-title {

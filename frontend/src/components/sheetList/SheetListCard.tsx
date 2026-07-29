@@ -1,19 +1,19 @@
 import ProgressBar from '../common/ProgressBar'
 import { cn } from '../../utils/cn'
+import { TOTAL_GOALS } from './sheetList.data'
 import type { SheetSummary } from './sheetList.types'
-
-/** 'YYYY-MM-DD' → 'YYYY.MM.DD' */
-const toDotted = (date: string) => date.replaceAll('-', '.')
+import { themeOfSheet, toDottedDate } from './sheetList.utils'
 
 type SheetListCardProps = {
   sheet: SheetSummary
-  onOpen: (id: number) => void
-  onRemove: (id: number) => void
+  onOpen: (sheetId: number) => void
+  onRemove: (sheetId: number) => void
 }
 
 /** 목록 화면의 개인 만다라트 카드: 썸네일 · 제목 · 기간 · 달성률 */
 export default function SheetListCard({ sheet, onOpen, onRemove }: SheetListCardProps) {
-  const { id, title, isOpen, startDate, endDate, totalGoals, achievementRate, theme } = sheet
+  const { sheetId, title, isOpen, achievementRate, createdAt, expiredAt } = sheet
+  const theme = themeOfSheet(sheetId)
 
   return (
     <article className={cn('sheet-card', `sheet-card--${theme}`)}>
@@ -21,7 +21,7 @@ export default function SheetListCard({ sheet, onOpen, onRemove }: SheetListCard
         <span className="sheet-card-badge">{isOpen ? '공개' : '비공개'}</span>
         <button
           type="button"
-          onClick={() => onRemove(id)}
+          onClick={() => onRemove(sheetId)}
           aria-label={`${title} 삭제`}
           className="sheet-card-remove"
         >
@@ -35,16 +35,16 @@ export default function SheetListCard({ sheet, onOpen, onRemove }: SheetListCard
       {/* 카드 본문 전체가 상세로 가는 버튼 */}
       <button
         type="button"
-        onClick={() => onOpen(id)}
+        onClick={() => onOpen(sheetId)}
         className="sheet-card-body cursor-pointer border-0 bg-transparent text-left"
       >
         <h3 className="sheet-card-title">{title}</h3>
         <p className="sheet-card-period">
-          {toDotted(startDate)}~{toDotted(endDate)}
+          {toDottedDate(createdAt)}~{toDottedDate(expiredAt)}
         </p>
 
         <div className="sheet-card-meta">
-          <span className="sheet-card-goals">총 {totalGoals}개 목표</span>
+          <span className="sheet-card-goals">총 {TOTAL_GOALS}개 목표</span>
           <span className="sheet-card-percent">{achievementRate}%</span>
         </div>
 

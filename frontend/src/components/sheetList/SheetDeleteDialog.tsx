@@ -23,7 +23,7 @@ export default function SheetDeleteDialog({
         <>
           <b className="font-extrabold text-ink-700">{title}</b> — 이 작업은 되돌릴 수 없으며,
           <br />
-          연결된 모든 태스크가 삭제됩니다.
+          연결된 모든 과제가 삭제됩니다.
         </>
       }
       confirmLabel="삭제하기"

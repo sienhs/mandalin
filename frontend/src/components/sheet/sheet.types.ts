@@ -33,7 +33,7 @@ export type Domain = {
 export type Subject = {
   domainId: number //도메인 아이디
   userId: number //유저 아이디
-  title: string //태스크 이름
+  title: string //과제 이름
   period: Period //기간 설정
   point: number //획득 포인트
   targetCount: number //목표횟수
@@ -42,12 +42,6 @@ export type Subject = {
   isDone: boolean //완료 여부
   createdAt: string //생성 날짜
   updatedAt: string //수정 날짜
-}
-
-/** 추천 태스크 (Subject 기반) */
-export type SubjectTemplate = Partial<Subject> & {
-  emoji: string //추천 태스크 이모지
-  domainName: string //추천 태스크의 도메인명
 }
 
 /** 9x9 그리드에서의 위치. b = 3x3 블록 번호, c = 블록 안의 칸 번호. */
@@ -71,7 +65,7 @@ export type GridCell = {
   subject: Subject | null
 }
 
-/** 태스크 설정 팝업이 저장 전까지 들고 있는 임시 값. */
+/** 과제 설정 팝업이 저장 전까지 들고 있는 임시 값. */
 export type TaskDraft = {
   /** 수정 중인 칸의 위치 */
   cell: CellPos

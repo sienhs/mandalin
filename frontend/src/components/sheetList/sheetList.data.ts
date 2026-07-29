@@ -1,55 +1,64 @@
-import type { GroupInvite, GroupSheetSummary, SheetSummary } from './sheetList.types'
+import type {
+  GroupInvite,
+  GroupSheetSummary,
+  SheetCardTheme,
+  SheetSummary,
+} from './sheetList.types'
+
+/**
+ * 만다라트 한 장의 과제 수. 도메인 8개 × 도메인별 과제 8개로 항상 고정이므로
+ * 서버에서 받지 않고 여기서 쓴다.
+ */
+export const TOTAL_GOALS = 64
+
+/** 카드에 돌려 쓸 색 테마. themeOfSheet 가 시트 아이디로 하나를 고른다. */
+export const CARD_THEMES: SheetCardTheme[] = ['green', 'blue', 'amber']
 
 /**
  * 목록 화면 목업 데이터.
- * TODO: GET /api/sheets (SheetListResponse) 연동 시 이 파일을 걷어낼 것.
  */
 export const MY_SHEETS: SheetSummary[] = [
   {
-    id: 1,
+    sheetId: 1,
     title: '건강한 몸 만들기',
     isOpen: true,
-    startDate: '2026-06-01',
-    endDate: '2026-06-30',
-    totalGoals: 64,
+    likeCount: 12,
     achievementRate: 32,
-    theme: 'green',
+    createdAt: '2026-06-01',
+    expiredAt: '2026-06-30',
   },
   {
-    id: 2,
+    sheetId: 2,
     title: 'ios 개발자 취업',
     isOpen: false,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    totalGoals: 64,
+    likeCount: 0,
     achievementRate: 58,
-    theme: 'blue',
+    createdAt: '2026-01-01',
+    expiredAt: '2026-12-31',
   },
   {
-    id: 3,
+    sheetId: 3,
     title: 'ios 개발자 취업',
     isOpen: false,
-    startDate: '2026-03-01',
-    endDate: '2026-12-31',
-    totalGoals: 64,
+    likeCount: 4,
     achievementRate: 41,
-    theme: 'amber',
+    createdAt: '2026-03-01',
+    expiredAt: '2026-12-31',
   },
 ]
 
 export const GROUP_SHEETS: GroupSheetSummary[] = [
   {
-    id: 1,
-    title: '스터디 그룹-알고리즘 마스터',
-    totalGoals: 64,
+    groupId: 1,
+    groupTitle: '스터디 그룹-알고리즘 마스터',
     doneGoals: 23,
     memberCount: 4,
     achievementRate: 31,
   },
 ]
 
-/** 받은 그룹 초대 목업. TODO: 초대 조회 API 연동 시 교체 */
+/** 받은 그룹 초대 목업. */
 export const GROUP_INVITES: GroupInvite[] = [
-  { id: 1, groupTitle: '꾸준한 독서 모임', inviterName: '도현', emoji: '📚', iconTheme: 'blue' },
-  { id: 2, groupTitle: '운동 크루', inviterName: '민지', emoji: '💪', iconTheme: 'pink' },
+  { groupId: 1, groupTitle: '꾸준한 독서 모임', inviterName: '도현' },
+  { groupId: 2, groupTitle: '운동 크루', inviterName: '민지' },
 ]

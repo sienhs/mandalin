@@ -100,7 +100,7 @@ export const buildGrid = (
     }),
   )
 
-/** 입력된 태스크 수 확인 함수. 안내 문구가 남아 있는 칸은 비어 있는 것으로 센다. */
+/** 입력된 과제 수 확인 함수. 안내 문구가 남아 있는 칸은 비어 있는 것으로 센다. */
 export const countFilledCells = (grid: GridCell[][]): number => {
   const placeholders: string[] = [PLACEHOLDER.sheet, PLACEHOLDER.domain, PLACEHOLDER.subject]
   const empty = grid.flat().filter((cell) => placeholders.includes(cell.task)).length

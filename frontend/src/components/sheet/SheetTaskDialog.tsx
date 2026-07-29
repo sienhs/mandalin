@@ -18,7 +18,7 @@ type SheetTaskDialogProps = {
   onSave: () => void
 }
 
-/** 태스크 설정 팝업: 목표 태스크 이름 · 마감 기한 · 목표 횟수 */
+/** 과제 설정 팝업: 목표 과제 이름 · 마감 기한 · 목표 횟수 */
 export default function SheetTaskDialog({
   draft,
   onChange,
@@ -30,7 +30,7 @@ export default function SheetTaskDialog({
     <SheetDialog>
       <div className="flex w-[400px] flex-col gap-5 rounded-[24px] bg-white p-6 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] text-left">
         <div>
-          <h2 className="m-0 text-xl font-extrabold text-ink-900 mb-2">태스크 설정</h2>
+          <h2 className="m-0 text-xl font-extrabold text-ink-900 mb-2">과제 설정</h2>
           <span className="inline-block rounded-full bg-[#e8dcbd] px-3 py-1 text-xs font-bold text-ink-900">
             {draft.domain}
           </span>
@@ -38,7 +38,7 @@ export default function SheetTaskDialog({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="task-title" className="text-[13px] font-bold text-ink-900">
-            목표 태스크
+            목표 과제
           </label>
           <input
             id="task-title"

@@ -7,7 +7,6 @@ import SheetGrid from '../components/sheet/SheetGrid'
 import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
 import SheetSaveDialog from '../components/sheet/SheetSaveDialog'
 import SheetTaskDialog from '../components/sheet/SheetTaskDialog'
-import SheetTaskLibrary from '../components/sheet/SheetTaskLibrary'
 import { TOTAL_CELLS } from '../components/sheet/sheet.data'
 import { useSheetEditor } from '../components/sheet/useSheetEditor'
 import './SheetCreate.css'
@@ -47,6 +46,7 @@ export default function SheetCreate() {
             onEndDateChange={editor.changeEndDate}
             isPublic={editor.isPublic}
             onPublicChange={editor.changePublic}
+            onManualTaskCreate={editor.openSelectedTaskDialog}
           />
 
           {/* 우측: 하나의 카드 안에 9x9 그리드 · 저장 경고 · 사이드 패널 */}
@@ -65,17 +65,9 @@ export default function SheetCreate() {
               onOpen={editor.openTaskDialog}
             />
 
-            {/* 사이드 패널: 미니 그리드 + 추가할 수 있는 과제 */}
-            <div className="col-start-2 row-start-2 flex flex-col gap-3">
+            {/* 사이드 패널: 선택한 블록의 3x3 확대 그리드 */}
+            <div className="col-start-2 row-start-2">
               <SheetMiniGrid blockIndex={editor.selectedBlockIndex} cells={editor.miniGrid} />
-              <SheetTaskLibrary
-                search={editor.taskSearch}
-                onSearchChange={editor.setTaskSearch}
-                tasks={editor.recommendedTasks}
-                onAdd={editor.addRecommendedTask}
-                page={editor.page}
-                onPageChange={editor.setPage}
-              />
             </div>
           </div>
         </div>

@@ -1,12 +1,11 @@
 import Button from '../common/Button'
-import { cn } from '../../utils/cn'
 import SheetListDialog from './SheetListDialog'
 import type { GroupInvite } from './sheetList.types'
 
 type SheetInviteDialogProps = {
   invites: GroupInvite[]
-  onAccept: (id: number) => void
-  onReject: (id: number) => void
+  onAccept: (groupId: number) => void
+  onReject: (groupId: number) => void
   onClose: () => void
 }
 
@@ -44,20 +43,12 @@ export default function SheetInviteDialog({
       {invites.length > 0 ? (
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {invites.map((invite) => (
-            <li key={invite.id} className="invite-item">
-              <div className="invite-head">
-                <span
-                  className={cn('invite-icon', `invite-icon--${invite.iconTheme}`)}
-                  aria-hidden="true"
-                >
-                  {invite.emoji}
-                </span>
-                <div className="min-w-0">
-                  <h3 className="invite-title">{invite.groupTitle}</h3>
-                  <p className="invite-from">
-                    <b>{invite.inviterName}</b>님의 초대
-                  </p>
-                </div>
+            <li key={invite.groupId} className="invite-item">
+              <div className="min-w-0">
+                <h3 className="invite-title">{invite.groupTitle}</h3>
+                <p className="invite-from">
+                  <b>{invite.inviterName}</b>님의 초대
+                </p>
               </div>
 
               <div className="invite-actions">
@@ -68,7 +59,7 @@ export default function SheetInviteDialog({
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => onAccept(invite.id)}
+                  onClick={() => onAccept(invite.groupId)}
                   className="flex-1"
                 >
                   수락하기
@@ -76,7 +67,7 @@ export default function SheetInviteDialog({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onReject(invite.id)}
+                  onClick={() => onReject(invite.groupId)}
                   className="flex-1"
                 >
                   거절

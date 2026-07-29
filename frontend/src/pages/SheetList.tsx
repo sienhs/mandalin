@@ -26,14 +26,14 @@ export default function SheetList() {
 
   const confirmDelete = () => {
     if (!deleteTarget) return
-    // TODO: DELETE /api/sheets/{id} 연결
-    setSheets((prev) => prev.filter((sheet) => sheet.id !== deleteTarget.id))
+    // TODO: DELETE /api/sheets/{sheetId} 연결
+    setSheets((prev) => prev.filter((sheet) => sheet.sheetId !== deleteTarget.sheetId))
     setDeleteTarget(null)
   }
 
   // TODO: 초대 수락 · 거절 API 연결. 지금은 목록에서만 없앤다.
-  const removeInvite = (id: number) => {
-    setInvites((prev) => prev.filter((invite) => invite.id !== id))
+  const removeInvite = (groupId: number) => {
+    setInvites((prev) => prev.filter((invite) => invite.groupId !== groupId))
   }
 
   return (
@@ -73,10 +73,10 @@ export default function SheetList() {
           {sheets.length > 0 ? (
             <ul className="m-0 grid list-none grid-cols-1 gap-5 p-0 sm:grid-cols-2 lg:grid-cols-3">
               {sheets.map((sheet) => (
-                <li key={sheet.id}>
+                <li key={sheet.sheetId}>
                   <SheetListCard
                     sheet={sheet}
-                    onOpen={(id) => navigate(`/sheet/${id}`)}
+                    onOpen={(sheetId) => navigate(`/sheet/${sheetId}`)}
                     onRemove={() => setDeleteTarget(sheet)}
                   />
                 </li>
@@ -103,8 +103,11 @@ export default function SheetList() {
           {groups.length > 0 ? (
             <ul className="m-0 flex list-none flex-col gap-4 p-0">
               {groups.map((group) => (
-                <li key={group.id}>
-                  <SheetGroupCard group={group} onMove={(id) => navigate(`/sheet/group/${id}`)} />
+                <li key={group.groupId}>
+                  <SheetGroupCard
+                    group={group}
+                    onMove={(groupId) => navigate(`/sheet/group/${groupId}`)}
+                  />
                 </li>
               ))}
             </ul>

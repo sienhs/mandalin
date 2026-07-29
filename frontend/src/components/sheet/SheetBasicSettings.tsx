@@ -15,9 +15,11 @@ type SheetBasicSettingsProps = {
   onEndDateChange: (value: string) => void
   isPublic: boolean
   onPublicChange: (value: boolean) => void
+  /** 선택한 칸의 과제 설정 팝업 열기 */
+  onManualTaskCreate: () => void
 }
 
-/** 좌측 sticky 패널: 핵심 목표 · 기간 · 공개 여부 · 태스크 생성 버튼 */
+/** 좌측 sticky 패널: 핵심 목표 · 기간 · 공개 여부 · 과제 생성 버튼 */
 export default function SheetBasicSettings({
   mainGoal,
   onMainGoalChange,
@@ -27,6 +29,7 @@ export default function SheetBasicSettings({
   onEndDateChange,
   isPublic,
   onPublicChange,
+  onManualTaskCreate,
 }: SheetBasicSettingsProps) {
   return (
     <section
@@ -111,10 +114,10 @@ export default function SheetBasicSettings({
 
       <div className="flex flex-col gap-2">
         <Button variant="danger" size="sm" className="w-full">
-          AI로 태스크 생성
+          AI로 과제 생성
         </Button>
-        <Button variant="primary" size="sm" className="w-full">
-          수동 태스크 생성
+        <Button variant="primary" size="sm" className="w-full" onClick={onManualTaskCreate}>
+          수동 과제 생성
         </Button>
       </div>
     </section>
