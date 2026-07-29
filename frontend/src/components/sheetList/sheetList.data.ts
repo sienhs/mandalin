@@ -5,18 +5,15 @@ import type {
   SheetSummary,
 } from './sheetList.types'
 
-/**
- * 만다라트 한 장의 과제 수. 도메인 8개 × 도메인별 과제 8개로 항상 고정이므로
- * 서버에서 받지 않고 여기서 쓴다.
- */
+
+//만다라트 한 장의 과제 수. 
 export const TOTAL_GOALS = 64
 
 /** 카드에 돌려 쓸 색 테마. themeOfSheet 가 시트 아이디로 하나를 고른다. */
 export const CARD_THEMES: SheetCardTheme[] = ['green', 'blue', 'amber']
 
-/**
- * 목록 화면 목업 데이터.
- */
+
+//목록 화면 목업 데이터.
 export const MY_SHEETS: SheetSummary[] = [
   {
     sheetId: 1,
@@ -57,7 +54,7 @@ export const GROUP_SHEETS: GroupSheetSummary[] = [
   },
 ]
 
-/** 받은 그룹 초대 목업. */
+// 받은 그룹 초대 목업.
 export const GROUP_INVITES: GroupInvite[] = [
   { groupId: 1, groupTitle: '꾸준한 독서 모임', inviterName: '도현' },
   { groupId: 2, groupTitle: '운동 크루', inviterName: '민지' },

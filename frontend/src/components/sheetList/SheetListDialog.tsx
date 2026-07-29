@@ -10,10 +10,8 @@ type SheetListDialogProps = {
   children: ReactNode
 }
 
-/**
- * 목록 화면 팝업이 공유하는 오버레이.
- * 배경 클릭과 Esc 로 닫힌다.
- */
+
+//목록 화면 팝업이 공유하는 오버레이.
 export default function SheetListDialog({
   labelledBy,
   className,
@@ -48,7 +46,6 @@ type SheetListConfirmDialogProps = {
   /** 제목 요소의 id. 오버레이의 aria-labelledby 와 연결한다. */
   titleId: string
   icon: string
-  /** 아이콘 원의 색 변형 */
   tone: 'mint' | 'danger'
   title: string
   description: ReactNode

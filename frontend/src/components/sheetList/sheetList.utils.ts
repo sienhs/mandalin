@@ -1,10 +1,7 @@
 import { CARD_THEMES } from './sheetList.data'
 import type { SheetCardTheme } from './sheetList.types'
 
-/**
- * 'YYYY-MM-DD' 또는 'YYYY-MM-DDTHH:mm:ss' → 'YYYY.MM.DD'
- * 서버(LocalDateTime)는 시각까지 붙여 내려주므로 앞 10자만 쓴다.
- */
+//'YYYY-MM-DD' 또는 'YYYY-MM-DDTHH:mm:ss' → 'YYYY.MM.DD'
 export const toDottedDate = (value: string): string => value.slice(0, 10).replaceAll('-', '.')
 
 /**

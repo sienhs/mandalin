@@ -14,7 +14,6 @@ import './SheetList.css'
 /** 내 만다라트 목록 화면. 개인 만다라트 카드 목록과 그룹 만다라트 목록으로 구성된다. */
 export default function SheetList() {
   const navigate = useNavigate()
-  // TODO: GET /api/sheets 연동 시 목업 상태를 서버 데이터로 교체
   const [sheets, setSheets] = useState(MY_SHEETS)
   const [invites, setInvites] = useState(GROUP_INVITES)
   const groups = GROUP_SHEETS
@@ -26,12 +25,10 @@ export default function SheetList() {
 
   const confirmDelete = () => {
     if (!deleteTarget) return
-    // TODO: DELETE /api/sheets/{sheetId} 연결
     setSheets((prev) => prev.filter((sheet) => sheet.sheetId !== deleteTarget.sheetId))
     setDeleteTarget(null)
   }
 
-  // TODO: 초대 수락 · 거절 API 연결. 지금은 목록에서만 없앤다.
   const removeInvite = (groupId: number) => {
     setInvites((prev) => prev.filter((invite) => invite.groupId !== groupId))
   }

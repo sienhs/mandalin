@@ -10,7 +10,7 @@ type SheetListCardProps = {
   onRemove: (sheetId: number) => void
 }
 
-/** 목록 화면의 개인 만다라트 카드: 썸네일 · 제목 · 기간 · 달성률 */
+//목록 화면의 개인 만다라트 카드
 export default function SheetListCard({ sheet, onOpen, onRemove }: SheetListCardProps) {
   const { sheetId, title, isOpen, achievementRate, createdAt, expiredAt } = sheet
   const theme = themeOfSheet(sheetId)

@@ -52,10 +52,6 @@ export default function SheetInviteDialog({
               </div>
 
               <div className="invite-actions">
-                {/*
-                  초대 항목 안의 버튼은 팝업 하단 동작 버튼이 아니라 목록 항목의
-                  동작이므로, 고정 폭(ui-btn--modal) 대신 항목 폭을 나눠 쓴다.
-                */}
                 <Button
                   variant="primary"
                   size="sm"
