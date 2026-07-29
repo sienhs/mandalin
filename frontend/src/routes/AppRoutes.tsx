@@ -7,7 +7,9 @@ import LandingPage from '../pages/LandingPage'
 import LoginPage from '../pages/LoginPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
 import TestHubPage from '../pages/TestHubPage'
+import SheetCreate from '../pages/SheetCreate'
 import ProtectedRoute from './ProtectedRoute'
+
 
 /**
  * 3D(three.js)를 쓰는 화면은 lazy 로 끊는다.
@@ -29,6 +31,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/sheet/create" element={<SheetCreate />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/test" element={<TestHubPage />} />
       <Route element={<ProtectedRoute />}>
