@@ -32,7 +32,7 @@ export function Scene({
       gl={{ preserveDrawingBuffer: true }}
       // 섬이 "떠 있다"는 게 보이려면 눈높이가 낮아야 한다. 예전 [31,28,31] 은
       // 거의 위에서 내려보는 각도라 측면 암반이 한 줄로만 보였다.
-      camera={{ position: [46, 21, 46], fov: 38 }}
+      camera={{ position: [54, 25, 54], fov: 38 }}
       onPointerMissed={() => onSelect(-1)}
     >
       <color attach="background" args={[sky.bg]} />
@@ -48,9 +48,9 @@ export function Scene({
         shadow-camera-right={40}
         shadow-camera-top={40}
         shadow-camera-bottom={-40}
-        // 섬 아래 암반까지 그림자 범위에 넣는다.
+        // 섬 아래 매달린 암반(최대 depth 28 + 늘어진 침)까지 그림자 범위에 넣는다.
         shadow-camera-near={0.5}
-        shadow-camera-far={120}
+        shadow-camera-far={180}
       />
 
       <Village
@@ -73,8 +73,8 @@ export function Scene({
         // 수평보다 살짝 아래까지 허용해 섬 측면(암반)이 보이게 한다.
         // 완전히 아래로는 못 가게 막아 바닥 면이 드러나지 않도록 한다.
         maxPolarAngle={Math.PI / 1.92}
-        // 섬 아래쪽에 여유를 둬 회전할 때 암반 전체가 화면에 들어오게 한다.
-        target={[0, -5, 0]}
+        // 섬 아래쪽에 여유를 둬 회전할 때 매달린 암반 전체가 화면에 들어오게 한다.
+        target={[0, -10, 0]}
       />
     </Canvas>
   )
