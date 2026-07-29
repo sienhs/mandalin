@@ -7,20 +7,9 @@
  * Color tokens live in tailwind.config.ts (mint / coral / amber / ink).
  */
 
-@layer base {
-
-  html,
-  body {
-    @apply m-0 p-0;
-  }
-
-  body {
-    @apply bg-[#F6F7F8] text-ink-900 font-sans antialiased;
-  }
-}
-
 @layer components {
-  .page-shell {
+  /* 시트 생성 페이지 밖의 공통 .page-shell을 덮어쓰지 않도록 전용 이름을 사용한다. */
+  .sheet-page-shell {
     @apply mx-auto w-full max-w-shell px-6;
   }
 
@@ -47,13 +36,14 @@
     @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border-0 px-5 py-[3px] text-[14.5px] font-bold no-underline transition-all duration-150 ease-out;
   }
 
-  .btn-primary {
+  /* 공통 HomePage의 .btn-primary와 충돌하지 않는 시트 전용 버튼 변형. */
+  .sheet-btn-primary {
     @apply text-white;
     background: linear-gradient(135deg, #14b8a6, #0d9488);
     box-shadow: 0 8px 18px -8px rgba(13, 148, 136, 0.55);
   }
 
-  .btn-primary:hover {
+  .sheet-btn-primary:hover {
     filter: brightness(1.06);
     transform: translateY(-1px);
   }
@@ -162,11 +152,12 @@
     color: #b45309;
   }
 
-  .icon-btn {
+  /* 공통 Header의 .icon-btn을 덮어쓰지 않는 시트 전용 아이콘 버튼. */
+  .sheet-icon-btn {
     @apply flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-0 bg-ink-100 text-ink-500 transition-colors duration-150;
   }
 
-  .icon-btn:hover {
+  .sheet-icon-btn:hover {
     @apply bg-ink-300 text-ink-900;
   }
 
