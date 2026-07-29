@@ -1,7 +1,10 @@
 package com.ssafy.mandarin.domain.sheet.service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -226,9 +229,27 @@ public class SheetService {
             List<Subject> subjects = subjectRepository.findByDomainIdOrderByPositionAsc(domain.getId());
             List<SheetDetailResponse.SubjectDetailResponse> subjectResponses = new ArrayList<>();
 
+            LocalDate today = LocalDate.now();
+            LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+
             for (Subject subject : subjects) {
                 if (Boolean.TRUE.equals(subject.getIsDone())) {
                     doneSubjects++;
+                }
+
+                // daily/weekly 수행 체크 클릭 완료 여부 연산
+                boolean isDonePeriod = false;
+                if (Boolean.TRUE.equals(subject.getIsDone())) {
+                    isDonePeriod = true;
+                } else if (subject.getUpdatedAt() != null) {
+                    if (subject.getPeriod() == SubjectPeriod.DAILY) {
+                        isDonePeriod = subject.getUpdatedAt().toLocalDate().isEqual(today);
+                    } else if (subject.getPeriod() == SubjectPeriod.WEEKLY) {
+                        LocalDate updatedDate = subject.getUpdatedAt().toLocalDate();
+                        // 월 ~ 일 사이에 체크했는지 검사
+                        isDonePeriod = !updatedDate.isBefore(monday) && !updatedDate.isAfter(sunday);
+                    }
                 }
 
                 subjectResponses.add(SheetDetailResponse.SubjectDetailResponse.builder()
@@ -240,8 +261,10 @@ public class SheetService {
                         .targetCount(subject.getTargetCount())
                         .tryCount(subject.getTryCount())
                         .isDone(subject.getIsDone())
+                        .isDonePeriod(isDonePeriod)
                         .build());
             }
+
 
             domainResponses.add(SheetDetailResponse.DomainDetailResponse.builder()
                     .domainId(domain.getId())

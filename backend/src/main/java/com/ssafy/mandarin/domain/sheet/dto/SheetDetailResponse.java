@@ -50,5 +50,6 @@ public class SheetDetailResponse {
         private Integer targetCount;
         private Integer tryCount;
         private Boolean isDone;
+        private Boolean isDonePeriod;
     }
 }
