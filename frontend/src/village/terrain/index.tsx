@@ -20,11 +20,13 @@ import { WaterWay } from './WaterWay'
  * 암반 색도 지형에 맞춰 다르게 준다.
  */
 const BASE: Record<Terrain, { topY: number; rock: Color; lip: Color; depth: number }> = {
-  CITY_ROAD: { topY: -0.05, rock: PALETTE.concrete.clone().multiplyScalar(0.62), lip: PALETTE.plaza, depth: 13 },
-  DIRT_ROAD: { topY: -0.05, rock: PALETTE.bark, lip: PALETTE.soil, depth: 13 },
-  GRASS_PATH: { topY: -0.05, rock: PALETTE.bark, lip: PALETTE.soil, depth: 14 },
+  // 암반색은 bark(거의 검은 갈색) 대신 path 계열 사암색을 쓴다. bark 로는 기둥 사이
+  // 그림자 틈과 깊이 그라데이션이 전부 검게 뭉쳐 실루엣이 읽히지 않는다.
+  CITY_ROAD: { topY: -0.05, rock: PALETTE.concrete.clone().multiplyScalar(0.66), lip: PALETTE.plaza, depth: 26 },
+  DIRT_ROAD: { topY: -0.05, rock: PALETTE.path.clone().multiplyScalar(0.86), lip: PALETTE.soil, depth: 27 },
+  GRASS_PATH: { topY: -0.05, rock: PALETTE.path.clone().multiplyScalar(0.8), lip: PALETTE.soil, depth: 28 },
   // 수면(-0.34)과 그 아래 수심 면(-0.79)보다 더 아래에서 시작한다.
-  WATER_WAY: { topY: -0.85, rock: PALETTE.bark.clone().lerp(PALETTE.concrete, 0.25), lip: PALETTE.soil, depth: 12 },
+  WATER_WAY: { topY: -0.85, rock: PALETTE.path.clone().lerp(PALETTE.concrete, 0.3), lip: PALETTE.soil, depth: 26 },
 }
 
 function TerrainSurface({ terrain }: { terrain: Terrain }) {
