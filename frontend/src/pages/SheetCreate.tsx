@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Header from '../components/common/Header'
 import SheetBasicSettings from '../components/sheet/SheetBasicSettings'
 import SheetCancelDialog from '../components/sheet/SheetCancelDialog'
@@ -7,15 +8,42 @@ import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
 import SheetSaveDialog from '../components/sheet/SheetSaveDialog'
 import SheetTaskDialog from '../components/sheet/SheetTaskDialog'
 import SheetTaskLibrary from '../components/sheet/SheetTaskLibrary'
+import { buildCreatePayload, createSheet } from '../components/sheet/sheet.api'
 import { TOTAL_CELLS } from '../components/sheet/sheet.data'
 import { useSheetEditor } from '../components/sheet/useSheetEditor'
 import './SheetCreate.css'
 
 /** 새 만다라트를 만드는 화면. 좌측 기본 설정 · 우측 2D 뷰와 사이드 패널로 구성된다. */
 export default function SheetCreate() {
+  const navigate = useNavigate()
   const editor = useSheetEditor()
   const [saveOpen, setSaveOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  /**
+   * 만다라트를 서버에 저장하고 마을로 넘어간다.
+   *
+   * 실패하면 다이얼로그를 닫지 않는다 — 닫아버리면 저장된 줄 알고 화면을 떠나 편집 내용을
+   * 전부 잃는다(이 화면은 로컬 상태만 들고 있다).
+   */
+  const submit = async () => {
+    if (saving) return
+
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const payload = buildCreatePayload(editor.sheetData, editor.domains, editor.subjects)
+      await createSheet(payload)
+      setSaveOpen(false)
+      navigate('/village')
+    } catch (cause: unknown) {
+      setSaveError(cause instanceof Error ? cause.message : '만다라트를 저장하지 못했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#F6F7F8]">
@@ -63,6 +91,11 @@ export default function SheetCreate() {
               <p className="m-0 whitespace-nowrap text-[11.5px] font-bold text-[#dc3424]">
                 한 번 저장하면 목표를 수정할 수 없어요!
               </p>
+              {saveError && (
+                <p className="m-0 text-[11.5px] font-bold text-[#dc3424]" role="alert">
+                  {saveError}
+                </p>
+              )}
             </div>
 
             <SheetGrid
@@ -92,10 +125,7 @@ export default function SheetCreate() {
         <SheetSaveDialog
           filledCount={editor.filledCount}
           onClose={() => setSaveOpen(false)}
-          onConfirm={() => {
-            /* 생성 로직 연결 */
-            setSaveOpen(false)
-          }}
+          onConfirm={() => { void submit() }}
         />
       )}
 
