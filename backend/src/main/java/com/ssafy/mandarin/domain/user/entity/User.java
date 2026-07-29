@@ -42,8 +42,10 @@ public class User extends BaseEntity {
     }
 
     /**
-     * Releases the email so the person can sign up again later, since {@code users.email} is
-     * unique and the row is kept for soft-delete auditing.
+     * 소프트 삭제. 행은 감사 목적으로 남기고 표시 이름만 지운다.
+     *
+     * <p>재가입은 oauth_identities 를 지우는 것으로 열린다(UserAccountService 참고).
+     * 이 프로젝트에는 이메일 컬럼이 없다 — 카카오에서 profile_nickname 만 받는다.
      */
     public void withdraw() {
         this.name = "withdrawn user";

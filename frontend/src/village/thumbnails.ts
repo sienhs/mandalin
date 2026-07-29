@@ -1,11 +1,12 @@
-import type { AnyBuildingKey } from './buildings'
-import type { Stage } from './catalog'
+import type { Stage } from './partTypes'
 
 /**
- * 건물 썸네일(static PNG) 경로 규칙.
+ * 건물 썸네일(로컬 static PNG) 경로 규칙.
  * `/thumbnails` 스튜디오의 다운로드 파일명(`${key}_s${stage}.png`)과 동일 규칙.
- * PNG를 `public/thumbnails/`에 커밋하면 상점이 <img>로 가볍게 표시(수백 개 대응).
+ *
+ * 실서비스 썸네일은 서버가 내려주는 thumbnailUrl 이 정본이고, 이 경로는 아직 안 올라간
+ * 건물을 로컬에서 보기 위한 폴백이다.
  */
-export function thumbnailSrc(key: AnyBuildingKey, stage: Stage = 3): string {
+export function thumbnailSrc(key: string, stage: Stage = 3): string {
   return `/thumbnails/${key}_s${stage}.png`
 }

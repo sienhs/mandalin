@@ -1,16 +1,17 @@
-import type { MouseEventHandler } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useEffect, useState, type MouseEventHandler } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/auth'
+import { cn } from '../../utils/cn'
 
 type HeaderProps = {
-  points?: number
-  profileInitial?: string
   hasNotification?: boolean
   onNotificationClick?: MouseEventHandler<HTMLButtonElement>
   onProfileClick?: MouseEventHandler<HTMLButtonElement>
 }
 
+/** 로그인 후 서비스 공통 상단 내비게이션 메뉴. */
 const NAV_ITEMS = [
-  { label: '홈', to: '/' },
+  { label: '홈', to: '/home' },
   { label: '내 만다라트', to: '/village' },
   { label: '상점', to: '/shop' },
   { label: '리포트', to: '/report' },
@@ -22,7 +23,11 @@ function CoinIcon() {
   return (
     <span
       aria-hidden="true"
-      className="grid size-5 shrink-0 place-items-center rounded-full bg-[#F7C85C] text-[11px] font-black text-[#D69327] shadow-[inset_0_0_0_2px_rgba(255,255,255,0.38)]"
+      className={cn(
+        'grid size-5 shrink-0 place-items-center rounded-full',
+        'bg-coin-bg text-[11px] font-black text-coin-text',
+        'shadow-[inset_0_0_0_2px_rgba(255,255,255,0.38)]',
+      )}
     >
       ₩
     </span>
@@ -34,39 +39,62 @@ function BellIcon({ hasNotification }: { hasNotification: boolean }) {
     <span className="relative" aria-hidden="true">
       <svg
         viewBox="0 0 24 24"
-        className="size-5 fill-[#E8B744] stroke-[#E8B744]"
+        className="size-5 fill-gold stroke-gold"
         strokeWidth="1.8"
       >
         <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" />
         <path d="M10 20h4" fill="none" strokeLinecap="round" />
       </svg>
       {hasNotification && (
-        <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-[#D95569] ring-2 ring-[#F6F7F8]" />
+        <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-alert ring-2 ring-surface-muted" />
       )}
     </span>
   )
 }
 
+/**
+ * 로그인 후 화면 공통 헤더 — 로고, 주 메뉴, 포인트, 알림, 프로필 아바타.
+ * 유저 데이터는 AuthContext에서 가져오며, 세션 복원 중(isRestoringSession)에는
+ * 아바타 자리에 로딩 표시를 보여준다.
+ */
 export default function Header({
-  points = 12400,
-  profileInitial = '지',
   hasNotification = false,
   onNotificationClick,
   onProfileClick,
 }: HeaderProps) {
+  const { user, isRestoringSession, logout } = useAuth()
+  const navigate = useNavigate()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [profileImageFailed, setProfileImageFailed] = useState(false)
+  const profileImageUrl = user?.profileImageUrl
+  const profileInitial = user?.name.trim().slice(0, 1)
+  const point = user?.point
+
+  // 프로필 이미지 URL이 바뀌면(유저 전환 등) 이전 로드 실패 상태를 초기화해 다시 시도.
+  useEffect(() => {
+    setProfileImageFailed(false)
+  }, [profileImageUrl])
+
+  // logout()은 서버 요청이 실패해도 로컬 세션을 비우므로 성공/실패를 가르지 않는다.
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    await logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <header className="h-20 w-full border-b border-slate-100 bg-white">
-      <div className="mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 sm:px-8">
+      <div className="header-row">
         <div className="flex h-full min-w-0 items-center gap-8 lg:gap-12">
           <NavLink
-            to="/"
+            to="/home"
             aria-label="만다린 홈"
             className="flex shrink-0 items-center gap-3 text-slate-950 no-underline"
           >
-            <span className="grid size-9 place-items-center rounded-[11px] bg-[#61B5A7] text-base font-extrabold text-white shadow-sm">
+            <span className="brand-mark size-9 rounded-[11px] text-base shadow-sm">
               만
             </span>
-            <span className="text-xl font-extrabold tracking-[-0.04em]">만다린</span>
+            <span className="brand-wordmark text-xl">만다린</span>
           </NavLink>
 
           <nav
@@ -77,15 +105,15 @@ export default function Header({
               <NavLink
                 key={to}
                 to={to}
-                end={to === '/'}
+                end={to === '/home'}
                 className={({ isActive }) =>
-                  [
+                  cn(
                     'relative flex h-full items-center whitespace-nowrap pt-0.5 text-[15px] font-bold tracking-[-0.02em] no-underline transition-colors',
                     'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:transition-transform',
                     isActive
-                      ? 'text-[#65AA9F] after:scale-x-100 after:bg-[#65AA9F]'
-                      : 'text-[#667085] after:scale-x-0 after:bg-transparent hover:text-[#65AA9F]',
-                  ].join(' ')
+                      ? 'text-brand-active after:scale-x-100 after:bg-brand-active'
+                      : 'text-text-muted after:scale-x-0 after:bg-transparent hover:text-brand-active',
+                  )
                 }
               >
                 {label}
@@ -96,29 +124,73 @@ export default function Header({
 
         <div className="ml-5 flex shrink-0 items-center gap-4">
           <div
-            aria-label={`${points.toLocaleString('ko-KR')} 포인트`}
-            className="flex h-10 items-center gap-1.5 rounded-full bg-[#FFF6DE] px-4 text-[15px] font-extrabold text-[#A96028]"
+            aria-label={point == null ? '포인트 정보 없음' : `${point.toLocaleString('ko-KR')} 포인트`}
+            className={cn(
+              'flex h-10 items-center gap-1.5 rounded-full px-4',
+              'bg-points-bg text-[15px] font-extrabold text-points-text',
+            )}
           >
             <CoinIcon />
-            <span>{points.toLocaleString('ko-KR')} P</span>
+            <span>{point == null ? '— P' : `${point.toLocaleString('ko-KR')} P`}</span>
           </div>
 
           <button
             type="button"
             aria-label="알림 보기"
             onClick={onNotificationClick}
-            className="grid size-10 cursor-pointer place-items-center rounded-full border-0 bg-[#F6F7F8] transition-colors hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#61B5A7]"
+            className={cn(
+              'icon-btn focus-ring size-10',
+              'bg-surface-muted transition-colors hover:bg-slate-200',
+              'focus-visible:outline-brand',
+            )}
           >
             <BellIcon hasNotification={hasNotification} />
           </button>
 
           <button
             type="button"
-            aria-label="내 프로필"
+            aria-label={user ? `${user.name} 프로필` : '내 프로필'}
             onClick={onProfileClick}
-            className="grid size-10 cursor-pointer place-items-center rounded-full border-0 bg-[#D95569] text-base font-bold text-white transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D95569]"
+            className={cn(
+              'icon-btn focus-ring size-10 overflow-hidden',
+              'bg-alert text-base font-bold text-white',
+              'transition-transform hover:scale-105',
+              'focus-visible:outline-alert',
+            )}
           >
-            {profileInitial.slice(0, 1)}
+            {/*
+              프로필 아바타 3단 폴백:
+              1) 카카오 프로필 사진(user.profileImageUrl, 로그인 시 백엔드가 내려줌)이 있고
+                 로드에 실패하지 않았으면 그대로 표시.
+              2) 이미지가 없거나 onError로 profileImageFailed가 true가 되면 이름 첫 글자로 대체.
+              3) 이름도 아직 없으면(세션 복원 중이거나 비로그인) 로딩 점(…) 또는 기본 아이콘.
+            */}
+            {profileImageUrl && !profileImageFailed ? (
+              <img
+                src={profileImageUrl}
+                alt=""
+                onError={() => setProfileImageFailed(true)}
+                className="size-full object-cover"
+              />
+            ) : profileInitial ? (
+              profileInitial
+            ) : (
+              <span aria-hidden="true">{isRestoringSession ? '…' : '👤'}</span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={cn(
+              'focus-ring h-10 whitespace-nowrap rounded-full px-4',
+              'border border-slate-200 bg-white text-[14px] font-bold text-text-muted',
+              'transition-colors hover:bg-surface-muted hover:text-slate-700',
+              'disabled:cursor-progress disabled:opacity-60',
+            )}
+          >
+            {isLoggingOut ? '로그아웃 중…' : '로그아웃'}
           </button>
         </div>
       </div>

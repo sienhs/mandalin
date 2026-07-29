@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bounds, Center } from '@react-three/drei'
-import { StageBuilding, type AnyBuildingKey } from './buildings'
-import type { Stage } from './catalog'
+import { StageParts } from './buildings'
+import type { Part, Stage } from './partTypes'
 
 /**
  * 썸네일 베이커 — WebGL 컨텍스트 폭발 방지.
@@ -10,16 +10,19 @@ import type { Stage } from './catalog'
  * 건물마다 <Canvas>를 띄우면 브라우저 컨텍스트 한도(~16)를 금방 넘겨 마을 캔버스가 손실됨.
  * 대신 숨겨진 **단일 캔버스 하나**가 큐의 건물을 하나씩 렌더→toDataURL로 구워 캐시하고,
  * 화면에는 <img>(BuildingImage)로만 표시한다. → 컨텍스트는 마을(1) + 베이커(1) = 2개 고정.
+ *
+ * 굽는 대상은 건물 key 가 아니라 **parts 배열**이다. 서버가 내려준 보유 건물이든 로컬
+ * 카탈로그든 같은 큐로 처리하려고, 호출자가 캐시 id 와 parts 를 함께 넘긴다.
  */
 
-type Job = { k: AnyBuildingKey; stage: Stage }
+type Job = { id: string; parts: Part[]; stage: Stage }
 
 const cache = new Map<string, string>()
 const queued = new Set<string>()
 let queue: Job[] = []
 const listeners = new Set<() => void>()
 
-const ck = (k: string, s: number) => `${k}_s${s}`
+const ck = (id: string, s: number) => `${id}_s${s}`
 const emit = () => listeners.forEach((l) => l())
 const subscribe = (l: () => void) => {
   listeners.add(l)
@@ -28,28 +31,28 @@ const subscribe = (l: () => void) => {
   }
 }
 
-export function requestThumbnail(k: AnyBuildingKey, stage: Stage) {
-  const key = ck(k, stage)
+export function requestThumbnail(id: string, parts: Part[], stage: Stage) {
+  const key = ck(id, stage)
   if (cache.has(key) || queued.has(key)) return
   queued.add(key)
-  queue.push({ k, stage })
+  queue.push({ id, parts, stage })
   emit()
 }
 
-export function getCachedThumbnail(k: AnyBuildingKey, stage: Stage): string | null {
-  return cache.get(ck(k, stage)) ?? null
+export function getCachedThumbnail(id: string, stage: Stage): string | null {
+  return cache.get(ck(id, stage)) ?? null
 }
 
 /** 캐시된 dataURL 반환. 없으면 베이킹 큐에 등록하고 완료 시 리렌더. */
-export function useThumbnail(k: AnyBuildingKey | null, stage: Stage): string | null {
-  const key = k ? ck(k, stage) : ''
+export function useThumbnail(id: string | null, parts: Part[] | null, stage: Stage): string | null {
+  const key = id ? ck(id, stage) : ''
   const value = useSyncExternalStore(
     subscribe,
-    () => (k ? cache.get(key) ?? null : null),
+    () => (id ? cache.get(key) ?? null : null),
   )
   useEffect(() => {
-    if (k) requestThumbnail(k, stage)
-  }, [k, stage, key])
+    if (id && parts) requestThumbnail(id, parts, stage)
+  }, [id, parts, stage, key])
   return value
 }
 
@@ -74,7 +77,7 @@ function BakeOne({ job, onDone }: { job: Job; onDone: (url: string) => void }) {
       <Bounds fit clip margin={1.15}>
         <Center>
           <group scale={2.4}>
-            <StageBuilding k={job.k} stage={job.stage} theme="warm" />
+            <StageParts parts={job.parts} stage={job.stage} theme="warm" />
           </group>
         </Center>
       </Bounds>
@@ -99,9 +102,9 @@ export function ThumbnailBakery({ size = 160 }: { size?: number }) {
 
   const handleDone = (url: string) => {
     if (!current) return
-    const key = ck(current.k, current.stage)
+    const key = ck(current.id, current.stage)
     cache.set(key, url)
-    queue = queue.filter((j) => ck(j.k, j.stage) !== key)
+    queue = queue.filter((j) => ck(j.id, j.stage) !== key)
     setCurrent(null)
     emit()
   }
@@ -114,7 +117,7 @@ export function ThumbnailBakery({ size = 160 }: { size?: number }) {
         camera={{ position: [3, 2.2, 3], fov: 32 }}
         frameloop="always"
       >
-        {current && <BakeOne key={ck(current.k, current.stage)} job={current} onDone={handleDone} />}
+        {current && <BakeOne key={ck(current.id, current.stage)} job={current} onDone={handleDone} />}
       </Canvas>
     </div>
   )

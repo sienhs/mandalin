@@ -1,20 +1,17 @@
 import { useState, type ReactNode } from 'react'
 import { PALETTE } from './palette'
 import { progressStage, type Task } from './types'
-import { StageBuilding, type AnyBuildingKey } from './buildings'
-import {
-  CITY_SLOT_KEYS,
-  VILLAGE_SLOT_KEYS,
-  type Stage,
-  type ThemeKey,
-} from './catalog'
+import { StageParts } from './buildings'
+import { CellSelection } from './selection'
+import type { Stage, ThemeKey } from './partTypes'
+import { partsOf, type OwnedCatalog } from './ownedCatalog'
 
 /** ref 단위(footprint≈0.3~0.46) → 셀 월드 크기로 키우는 배율. */
 const BUILD_SCALE = 2.4
 
 /** 칸별 수동 설정: 어떤 건물을, 어떤 단계로. 'auto'면 진행률·slot 기반. */
 export interface CellOverride {
-  building: AnyBuildingKey | 'auto'
+  building: string | 'auto'
   stage: Stage | 'auto'
 }
 
@@ -28,6 +25,10 @@ interface Props {
   /** 1단계 일관화 테마. */
   theme: ThemeKey
   override: CellOverride
+  /** 서버가 내려준 보유 건물. 여기 없는 건물은 그릴 수단이 없다. */
+  catalog: OwnedCatalog
+  /** 지금 선택된 자리인지. 우측 패널의 하이라이트와 짝을 이룬다. */
+  selected: boolean
   position: [number, number, number]
   onClick?: () => void
 }
@@ -53,27 +54,29 @@ function Plot() {
  * 건물 종류: override.building이 지정되면 그것, 아니면 slot+urbanLevel 자동.
  * 표시 단계: override.stage가 지정되면 그것, 아니면 진행률(0=빈땅,1,2,3).
  */
-export function GrowableObject({ task, slot, urbanLevel, theme, override, position, onClick }: Props) {
+export function GrowableObject({
+  task, slot, urbanLevel, theme, override, catalog, selected, position, onClick,
+}: Props) {
   const [hovered, setHovered] = useState(false)
   const isCity = urbanLevel >= 0.5
 
-  const key: AnyBuildingKey =
-    override.building !== 'auto'
-      ? override.building
-      : (isCity ? CITY_SLOT_KEYS : VILLAGE_SLOT_KEYS)[slot % 8]
+  const slots = isCity ? catalog.citySlots : catalog.villageSlots
+  const key = override.building !== 'auto' ? override.building : slots[slot % 8]
 
   const stage: 0 | 1 | 2 | 3 =
     override.stage !== 'auto' ? override.stage : progressStage(task.progress)
 
+  // 서버가 안 내려준(=미보유) 건물이 지정돼 있으면 빈 땅으로 떨어뜨린다.
+  const parts = key ? partsOf(catalog, key) : null
+  const built = stage !== 0 && (stage === 1 || parts !== null)
+
   let content: ReactNode
-  const built = stage !== 0
-  if (stage === 0) content = <Plot />
-  else content = <StageBuilding k={key} stage={stage} theme={theme} />
+  if (!built) content = <Plot />
+  else content = <StageParts parts={parts} stage={stage as Stage} theme={theme} />
 
   return (
     <group
       position={position}
-      scale={built ? BUILD_SCALE : 1}
       onPointerOver={(e) => {
         e.stopPropagation()
         setHovered(true)
@@ -84,13 +87,10 @@ export function GrowableObject({ task, slot, urbanLevel, theme, override, positi
         onClick?.()
       }}
     >
-      {hovered && (
-        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.42, 0.5, 24]} />
-          <meshBasicMaterial color={0xffe08a} transparent opacity={0.8} />
-        </mesh>
-      )}
-      {content}
+      {/* 하이라이트는 건물 스케일 밖에 둔다. 안에 두면 건물과 같이 커져 칸 크기와 어긋난다. */}
+      <CellSelection hovered={hovered} active={selected} />
+
+      <group scale={built ? BUILD_SCALE : 1}>{content}</group>
     </group>
   )
 }

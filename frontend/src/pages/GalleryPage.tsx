@@ -4,6 +4,7 @@ import { TopBar } from '../components/TopBar'
 import { BuildingImage } from '../village/BuildingImage'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { BUILDING_LIST, type Stage } from '../village/catalog'
+import { localParts } from '../village/localCatalog'
 
 const STAGES: { v: Stage; label: string }[] = [
   { v: 1, label: '1·일관화' },
@@ -34,7 +35,7 @@ export default function GalleryPage() {
                 background: 'linear-gradient(180deg, #eaf4f8, #f6f9fb)',
               }}
             >
-              <BuildingImage k={b.key} stage={stage} size={150} alt={b.label} />
+              <BuildingImage k={b.key} parts={localParts(b.key)} stage={stage} size={150} alt={b.label} />
             </div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{b.label}</div>
             <div style={{ fontSize: 11, color: '#9aa7b0' }}>{b.key}</div>
