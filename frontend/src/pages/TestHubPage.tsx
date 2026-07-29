@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { TopBar } from '../components/TopBar'
-import { applySheetProgress, applySubjectProgress } from '../components/sheet/demo.api'
+import { applySheetProgress, applySubjectProgress, grantDemoPoint } from '../components/sheet/demo.api'
+import { buildSampleSheetPayload } from '../components/sheet/demo.data'
 import {
+  createSheet,
   fetchMySheets,
   fetchSheetDetail,
   type SheetDetail,
@@ -29,6 +31,9 @@ const CARDS = [
 
 const PRESETS = [0, 30, 60, 100]
 
+/** 시연에서 한 번에 지급하는 포인트. 가장 비싼 건물이 300P 라 넉넉하다. */
+const GRANT_AMOUNT = 50_000
+
 const CARD: React.CSSProperties = {
   background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 4px 18px rgba(0,0,0,0.10)',
 }
@@ -44,6 +49,7 @@ export default function TestHubPage() {
   const [detail, setDetail] = useState<SheetDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const fail = (cause: unknown, fallback: string) => {
     setError(cause instanceof Error ? cause.message : fallback)
@@ -83,6 +89,41 @@ export default function TestHubPage() {
     }
   }
 
+  /** 샘플 만다라트를 만들고 그것을 선택한다. 81칸을 손으로 채우지 않고 마을을 보기 위한 것. */
+  const createSample = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const newId = await createSheet(buildSampleSheetPayload())
+      const list = await fetchMySheets()
+      setSheets(list)
+      setSheetId(newId)
+      setNotice('샘플 만다라트를 만들었습니다. 진행률을 올리고 마을에서 확인해 보세요.')
+    } catch (cause: unknown) {
+      fail(cause, '샘플 만다라트를 만들지 못했습니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** 시연용 포인트 지급. Header 의 잔액은 다음 조회 때 갱신된다. */
+  const grantPoint = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const balance = await grantDemoPoint(GRANT_AMOUNT)
+      setNotice(`${GRANT_AMOUNT.toLocaleString('ko-KR')}P 지급 완료 — 현재 잔액 ${balance.toLocaleString('ko-KR')}P`)
+    } catch (cause: unknown) {
+      fail(cause, '포인트를 지급하지 못했습니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg,#cfe8f0,#eef2f5)', fontFamily: 'system-ui, sans-serif' }}>
       <TopBar />
@@ -112,9 +153,27 @@ export default function TestHubPage() {
             끕니다(<code>DEMO_PROGRESS_ENABLED=false</code>).
           </p>
 
+          {/* 만다라트 없이도 마을을 볼 수 있게 하는 지름길 + 포인트 지급 */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            <button type="button" disabled={busy} onClick={() => void createSample()}
+              style={{ ...BTN, background: '#eaf3fb', borderColor: '#b8d6ee', padding: '7px 12px' }}>
+              🏗 샘플 만다라트 생성
+            </button>
+            <button type="button" disabled={busy} onClick={() => void grantPoint()}
+              style={{ ...BTN, background: '#fff6e0', borderColor: '#eccf92', padding: '7px 12px' }}>
+              🪙 {GRANT_AMOUNT.toLocaleString('ko-KR')}P 받기
+            </button>
+          </div>
+
           {error && (
             <p style={{ margin: '0 0 12px', padding: '8px 12px', borderRadius: 8, background: '#fdecea', color: '#b3261e', fontSize: 12.5, fontWeight: 700 }} role="alert">
               {error}
+            </p>
+          )}
+
+          {notice && (
+            <p style={{ margin: '0 0 12px', padding: '8px 12px', borderRadius: 8, background: '#eaf6ee', color: '#2e7d5b', fontSize: 12.5, fontWeight: 700 }} role="status">
+              {notice}
             </p>
           )}
 
@@ -122,7 +181,8 @@ export default function TestHubPage() {
 
           {sheets != null && sheets.length === 0 && (
             <p style={{ fontSize: 13, color: '#5a6b76' }}>
-              만다라트가 없습니다. <Link to="/sheet/create" style={{ color: '#2b6cb0' }}>먼저 만들어 주세요</Link>.
+              만다라트가 없습니다. 위의 <b>샘플 만다라트 생성</b> 을 누르거나{' '}
+              <Link to="/sheet/create" style={{ color: '#2b6cb0' }}>직접 만들어</Link> 주세요.
             </p>
           )}
 

@@ -1,11 +1,13 @@
 import { apiFetch } from '../../api'
 
 /**
- * 시연용 진행률 조작 API.
+ * 시연용 API.
  *
- * 과제 수행 체크 API(SubjectController)가 나오기 전까지 마을이 자라는 모습을 보여주기 위한
- * 임시 통로다. 백엔드가 `@Profile("!prod")` 라 프로덕션에서는 이 경로가 404 다 —
- * 시연 화면(/test)에서만 쓴다.
+ * 과제 수행 체크와 포인트 적립이 아직 없어 마을이 자라지도, 건물을 살 수도 없다. 발표에서
+ * 그 흐름을 보여주기 위한 임시 통로다.
+ *
+ * 백엔드가 `app.demo.enabled` 로 켜고 끄며(기본 true), 끄면 이 경로들이 404 가 된다.
+ * 시연 화면(/test)에서만 쓴다 — 정식 서비스 전에 제거 대상이다.
  */
 
 type DemoProgressBody = {
@@ -30,5 +32,13 @@ export function applySubjectProgress(subjectId: number, progress: number): Promi
   return apiFetch<void>(`/api/v1/demo/subjects/${subjectId}/progress`, {
     method: 'PATCH',
     body: JSON.stringify({ progress }),
+  })
+}
+
+/** 내 계정에 포인트를 지급한다. 지급 후 잔액을 돌려준다. */
+export function grantDemoPoint(amount: number): Promise<number> {
+  return apiFetch<number>('/api/v1/demo/points', {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
   })
 }

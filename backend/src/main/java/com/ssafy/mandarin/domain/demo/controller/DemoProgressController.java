@@ -23,14 +23,14 @@ import lombok.RequiredArgsConstructor;
  * 시연용 진행률 조작 API.
  *
  * <p>과제 수행 체크 API 가 나오기 전까지 마을이 자라는 모습을 보여주기 위한 임시 통로다.
- * 발표 때 배포 환경에서도 써야 해서 프로필로 막지 않고 {@code app.demo.progress-enabled}
- * 스위치로 켜고 끈다(기본 true). 포인트 적립이 구현되면 반드시 끈다.
+ * 발표 때 배포 환경에서도 써야 해서 프로필로 막지 않고 {@code app.demo.enabled}
+ * 스위치로 켜고 끈다(기본 true). 정식 서비스 전에 반드시 끈다.
  */
 @RestController
 @RequestMapping("/api/v1/demo")
-@ConditionalOnProperty(name = "app.demo.progress-enabled", havingValue = "true")
+@ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 @RequiredArgsConstructor
-@Tag(name = "Demo", description = "시연용 진행률 조작 (프로덕션 미포함)")
+@Tag(name = "Demo", description = "시연용 (정식 서비스 전 제거 대상)")
 public class DemoProgressController {
 
 	private final DemoProgressService demoProgressService;
