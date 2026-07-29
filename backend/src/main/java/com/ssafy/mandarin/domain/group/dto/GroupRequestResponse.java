@@ -6,36 +6,29 @@ import com.ssafy.mandarin.domain.group.entity.GroupRequest;
 import com.ssafy.mandarin.domain.group.entity.GroupRequestProgress;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
-@Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @Schema(description = "그룹 초대 요청 응답 DTO")
-public class GroupRequestResponse {
-
+public record GroupRequestResponse(
     @Schema(description = "초대 요청 ID", example = "1")
-    private Long requestId;
+    Long requestId,
 
     @Schema(description = "그룹 ID", example = "10")
-    private Long groupId;
+    Long groupId,
 
     @Schema(description = "그룹 이름", example = "SSAFY 15기 D106 팀방")
-    private String groupTitle;
+    String groupTitle,
 
     @Schema(description = "초대한 팀장 이름", example = "홍길동")
-    private String creatorName;
+    String creatorName,
 
     @Schema(description = "요청 상태", example = "NOT_READ")
-    private GroupRequestProgress progress;
+    GroupRequestProgress progress,
 
     @Schema(description = "요청 생성 시각")
-    private LocalDateTime createdAt;
-
+    LocalDateTime createdAt
+) {
     public static GroupRequestResponse from(GroupRequest request) {
         return GroupRequestResponse.builder()
             .requestId(request.getId())

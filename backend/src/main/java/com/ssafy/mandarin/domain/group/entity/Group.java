@@ -2,6 +2,7 @@ package com.ssafy.mandarin.domain.group.entity;
 
 import java.time.LocalDateTime;
 
+import com.ssafy.mandarin.domain.building.entity.UserBuilding;
 import com.ssafy.mandarin.domain.user.entity.User;
 
 import jakarta.persistence.Column;
@@ -56,8 +57,9 @@ public class Group {
     @JoinColumn(name = "user_id3")
     private User member3;
 
-    @Column(name = "inven_id")
-    private Long invenId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "inven_id")
+    private UserBuilding inven;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

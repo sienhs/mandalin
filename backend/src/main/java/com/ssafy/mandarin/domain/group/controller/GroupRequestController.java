@@ -60,7 +60,7 @@ public class GroupRequestController {
         @RequestBody @Valid GroupInviteStatusRequest request
     ) {
         groupService.updateInviteStatus(requestId, userId, request);
-        String message = Boolean.TRUE.equals(request.getAccept()) ? "Group invitation accepted" : "Group invitation rejected";
+        String message = Boolean.TRUE.equals(request.accept()) ? "Group invitation accepted" : "Group invitation rejected";
         return ResponseEntity.ok(ApiResponse.success(message));
     }
 }

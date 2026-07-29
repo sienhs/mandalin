@@ -25,7 +25,7 @@ CREATE TABLE groups (
     user_id1        BIGINT REFERENCES users(id),  -- 팀원1
     user_id2        BIGINT REFERENCES users(id),  -- 팀원2
     user_id3        BIGINT REFERENCES users(id),  -- 팀원3
-    inven_id        BIGINT,                        -- 중앙 랜드마크 건물
+    inven_id        BIGINT REFERENCES user_building(id) ON DELETE SET NULL, -- 중앙 랜드마크 건물 (UserBuilding 참조)
     created_at      TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -45,4 +45,5 @@ CREATE INDEX idx_groups_creator ON groups (creator_id);
 CREATE INDEX idx_groups_user1 ON groups (user_id1);
 CREATE INDEX idx_groups_user2 ON groups (user_id2);
 CREATE INDEX idx_groups_user3 ON groups (user_id3);
+CREATE INDEX idx_groups_inven ON groups (inven_id);
 CREATE INDEX idx_group_request_receiver ON group_request (receiver_id);

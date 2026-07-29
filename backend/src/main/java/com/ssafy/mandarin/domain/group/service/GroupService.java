@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ssafy.mandarin.domain.auth.repository.UserRepository;
 import com.ssafy.mandarin.domain.building.entity.BuildingItem;
 import com.ssafy.mandarin.domain.building.entity.BuildingType;
+import com.ssafy.mandarin.domain.building.entity.UserBuilding;
 import com.ssafy.mandarin.domain.building.repository.BuildingItemRepository;
 import com.ssafy.mandarin.domain.building.repository.UserBuildingRepository;
 import com.ssafy.mandarin.domain.group.dto.GroupCreateRequest;
@@ -66,13 +67,13 @@ public class GroupService {
         User creator = findActiveUserById(userId);
 
         // 개인 시트 소유자 검증
-        Sheet personalSheet = findAndValidateOwnedSheet(request.getSheetId(), creator);
+        Sheet personalSheet = findAndValidateOwnedSheet(request.sheetId(), creator);
 
         // 랜드마크 건물 검증 (LANDMARK 타입 + 팀장 인벤토리 소유 여부)
-        validateLandmarkBuilding(userId, request.getCenterBuildingId());
+        UserBuilding invenBuilding = validateLandmarkBuilding(userId, request.centerBuildingId());
 
         // 팀장의 도메인 2개 검증
-        List<Domain> creatorDomains = validateAndGetDomains(personalSheet, request.getDomainIds());
+        List<Domain> creatorDomains = validateAndGetDomains(personalSheet, request.domainIds());
 
         // GroupSheet 생성 및 팀장 도메인(1, 2) 세팅
         GroupSheet groupSheet = GroupSheet.builder().build();
@@ -81,10 +82,10 @@ public class GroupService {
 
         // Group 생성
         Group group = Group.builder()
-            .title(request.getTitle())
+            .title(request.title())
             .creator(creator)
             .groupSheet(savedGroupSheet)
-            .invenId(request.getCenterBuildingId())
+            .inven(invenBuilding)
             .build();
 
         Group savedGroup = groupRepository.save(group);
@@ -106,7 +107,7 @@ public class GroupService {
             throw new BusinessException(ErrorCode.GROUP_FULL);
         }
 
-        for (Long targetUserId : request.getInviteUserIds()) {
+        for (Long targetUserId : request.inviteUserIds()) {
             if (targetUserId.equals(creator.getId())) {
                 throw new BusinessException(ErrorCode.CANNOT_REQUEST_YOURSELF);
             }
@@ -137,11 +138,16 @@ public class GroupService {
         }
     }
 
-    // ─── 3. 그룹 도메인 맵핑 (팀원) ────────────────────────────────────────────
+    // ─── 3. 그룹 도메인 맵핑 (팀원 전용) ────────────────────────────────────────
 
     public void mapDomains(Long groupId, Long userId, GroupDomainMappingRequest request) {
         User member = findActiveUserById(userId);
         Group group = findGroupById(groupId);
+
+        // 팀장인 경우 그룹 생성 시 이미 맵핑되었으므로 팀원 전용 엔드포인트에서는 불가
+        if (group.isCreator(member.getId())) {
+            throw new BusinessException(ErrorCode.NOT_GROUP_CREATOR);
+        }
 
         // 초대 수락 여부 (그룹 멤버 등록 여부) 검증
         if (!group.isMember(member.getId())) {
@@ -149,10 +155,10 @@ public class GroupService {
         }
 
         // 개인 시트 소유자 검증
-        Sheet personalSheet = findAndValidateOwnedSheet(request.getSheetId(), member);
+        Sheet personalSheet = findAndValidateOwnedSheet(request.sheetId(), member);
 
         // 도메인 2개 검증
-        List<Domain> memberDomains = validateAndGetDomains(personalSheet, request.getDomainIds());
+        List<Domain> memberDomains = validateAndGetDomains(personalSheet, request.domainIds());
 
         GroupSheet groupSheet = group.getGroupSheet();
         if (groupSheet == null) {
@@ -160,19 +166,14 @@ public class GroupService {
         }
 
         int slotIndex = group.getMemberSlotIndex(member.getId());
-        if (slotIndex == 0) {
-            // 팀장인 경우 (slot 1, 2)
-            if (group.isCreator(member.getId())) {
-                groupSheet.mapCreatorDomains(memberDomains.get(0), memberDomains.get(1));
-            } else {
-                throw new BusinessException(ErrorCode.GROUP_INVITE_NOT_ACCEPTED);
-            }
-        } else {
-            // 팀원인 경우 (slot 3~8)
-            groupSheet.mapMemberDomains(slotIndex, memberDomains.get(0), memberDomains.get(1));
+        if (slotIndex < 1 || slotIndex > 3) {
+            throw new BusinessException(ErrorCode.GROUP_INVITE_NOT_ACCEPTED);
         }
 
-        log.info("Group domains mapped: groupId={}, userId={}, slotIndex={}", groupId, member.getId(), slotIndex);
+        // 팀원 도메인 맵핑 (slot 1 -> domain3/4, slot 2 -> domain5/6, slot 3 -> domain7/8)
+        groupSheet.mapMemberDomains(slotIndex, memberDomains.get(0), memberDomains.get(1));
+
+        log.info("Group member domains mapped: groupId={}, userId={}, slotIndex={}", groupId, member.getId(), slotIndex);
     }
 
     // ─── 4. 그룹 만다라트 상세 조회 ──────────────────────────────────────────
@@ -231,12 +232,14 @@ public class GroupService {
 
         double groupAchievementRate = (totalGroupDoneSubjects / 64.0) * 100.0;
 
+        Long landmarkId = group.getInven() != null ? group.getInven().getId() : null;
+
         return GroupDetailResponse.builder()
             .groupId(group.getId())
             .title(group.getTitle())
             .creatorId(group.getCreator().getId())
             .creatorName(group.getCreator().getName())
-            .landmarkBuildingId(group.getInvenId())
+            .landmarkBuildingId(landmarkId)
             .groupAchievementRate(Math.round(groupAchievementRate * 10.0) / 10.0)
             .mappedDomainCount(mappedDomainCount)
             .members(memberResponses)
@@ -302,7 +305,7 @@ public class GroupService {
             throw new BusinessException(ErrorCode.GROUP_REQUEST_NOT_FOUND);
         }
 
-        if (Boolean.TRUE.equals(request.getAccept())) {
+        if (Boolean.TRUE.equals(request.accept())) {
             Group group = groupRequest.getGroup();
             if (group.isFull()) {
                 throw new BusinessException(ErrorCode.GROUP_FULL);
@@ -340,7 +343,7 @@ public class GroupService {
         return sheet;
     }
 
-    private void validateLandmarkBuilding(Long userId, Long centerBuildingId) {
+    private UserBuilding validateLandmarkBuilding(Long userId, Long centerBuildingId) {
         BuildingItem building = buildingItemRepository.findById(centerBuildingId)
             .orElseThrow(() -> new BusinessException(ErrorCode.BUILDING_NOT_FOUND));
 
@@ -348,10 +351,15 @@ public class GroupService {
             throw new BusinessException(ErrorCode.INVALID_LANDMARK);
         }
 
-        boolean owned = userBuildingRepository.existsByUserIdAndBuildingItemId(userId, centerBuildingId);
-        if (!owned && !building.isDefaultGranted()) {
-            throw new BusinessException(ErrorCode.BUILDING_NOT_OWNED);
-        }
+        return userBuildingRepository.findAllWithItemByUserId(userId).stream()
+            .filter(ub -> ub.getBuildingItem().getId().equals(centerBuildingId))
+            .findFirst()
+            .orElseGet(() -> {
+                if (building.isDefaultGranted()) {
+                    return userBuildingRepository.save(UserBuilding.of(userId, building));
+                }
+                throw new BusinessException(ErrorCode.BUILDING_NOT_OWNED);
+            });
     }
 
     private List<Domain> validateAndGetDomains(Sheet sheet, List<Long> domainIds) {
@@ -391,9 +399,15 @@ public class GroupService {
     private long countDoneSubjectsForDomains(List<Domain> domains) {
         long count = 0;
         for (Domain domain : domains) {
-            count += subjectRepository.countByDomainIdAndIsDoneTrue(domain.getId());
+            count += countDoneSubjectsForDomain(domain.getId());
         }
         return count;
+    }
+
+    private long countDoneSubjectsForDomain(Long domainId) {
+        return subjectRepository.findByDomainIdOrderByPositionAsc(domainId).stream()
+            .filter(subject -> Boolean.TRUE.equals(subject.getIsDone()))
+            .count();
     }
 
     private GroupDetailResponse.MemberContributionResponse buildMemberContribution(
@@ -406,7 +420,7 @@ public class GroupService {
         List<GroupDetailResponse.DomainSummaryResponse> domainSummaries = new ArrayList<>();
         for (int i = 0; i < domains.size(); i++) {
             Domain d = domains.get(i);
-            long dDone = subjectRepository.countByDomainIdAndIsDoneTrue(d.getId());
+            long dDone = countDoneSubjectsForDomain(d.getId());
             double dRate = (dDone / DOMAIN_SUBJECT_COUNT) * 100.0;
 
             domainSummaries.add(GroupDetailResponse.DomainSummaryResponse.builder()
