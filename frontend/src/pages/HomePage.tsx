@@ -1,22 +1,8 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/common/Header'
+import { fetchTodoSubjects, type TodoSubject } from '../components/home/home.api'
 import { cn } from '../utils/cn'
-
-type DailyTask = {
-  id: number
-  title: string
-  completed: boolean
-}
-
-// TODO: 백엔드 연동 전까지 쓰는 목업 데이터. API 연결 시 서버 응답으로 교체.
-const INITIAL_TASKS: DailyTask[] = [
-  { id: 1, title: '주 3회 유산소', completed: false },
-  { id: 2, title: '물 2L 마시기', completed: true },
-  { id: 3, title: '스트레칭 10분', completed: false },
-  { id: 4, title: '감사일기 쓰기', completed: false },
-  { id: 5, title: '11시 취침', completed: false },
-]
 
 function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
   return (
@@ -36,7 +22,9 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
 /** 로그인 후 홈 화면 (`/home`) — 오늘의 할 일 체크리스트 + 내 마을 도시 미리보기. */
 export default function HomePage() {
   const navigate = useNavigate()
-  const [tasks, setTasks] = useState(INITIAL_TASKS)
+  const [tasks, setTasks] = useState<TodoSubject[]>([])
+  const [isTasksLoading, setIsTasksLoading] = useState(true)
+  const [tasksError, setTasksError] = useState<string | null>(null)
   // TODO: 마을 3D 씬을 구운 썸네일 URL로 채울 자리. 아직 연동 전이라 항상 null →
   // 아래에서 폴백 이미지(image-load-error.png)를 보여준다.
   const [cityImageUrl] = useState<string | null>(null)
@@ -46,16 +34,39 @@ export default function HomePage() {
     ? cityImageUrl!
     : '/images/image-load-error.png'
 
-  const toggleTask = (taskId: number) => {
+  const loadTasks = useCallback(async () => {
+    setIsTasksLoading(true)
+    setTasksError(null)
+
+    try {
+      const todos = await fetchTodoSubjects()
+      setTasks([...(todos ?? [])].sort((a, b) => a.position - b.position))
+    } catch (cause: unknown) {
+      setTasks([])
+      setTasksError(
+        cause instanceof Error ? cause.message : '오늘의 할 일을 불러오지 못했습니다.',
+      )
+    } finally {
+      setIsTasksLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadTasks()
+  }, [loadTasks])
+
+  const toggleTask = (subjectId: number) => {
     setTasks((currentTasks) =>
       currentTasks.map((task) =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task,
+        task.subjectId === subjectId
+          ? { ...task, isDoneToday: !task.isDoneToday }
+          : task,
       ),
     )
   }
 
   const resetTasks = () => {
-    setTasks(INITIAL_TASKS)
+    void loadTasks()
   }
 
   return (
@@ -77,33 +88,56 @@ export default function HomePage() {
             </p>
           </div>
 
-          <ul className="mt-8 space-y-2.5 p-0">
-            {tasks.map((task) => (
-              <li key={task.id} className="list-none">
+          <ul
+            className="mt-8 space-y-2.5 p-0"
+            aria-busy={isTasksLoading}
+          >
+            {isTasksLoading && (
+              <li
+                className="h-[54px] list-none animate-pulse rounded-xl bg-slate-200"
+                role="status"
+                aria-label="오늘의 할 일 불러오는 중"
+              />
+            )}
+            {!isTasksLoading && tasksError && (
+              <li
+                className="list-none rounded-xl bg-red-50 px-5 py-4 text-sm font-bold text-red-500"
+                role="alert"
+              >
+                {tasksError}
+              </li>
+            )}
+            {!isTasksLoading && !tasksError && tasks.length === 0 && (
+              <li className="list-none rounded-xl bg-[#F1F4F8] px-5 py-4 text-sm font-bold text-slate-400">
+                오늘 등록된 할 일이 없습니다.
+              </li>
+            )}
+            {!isTasksLoading && !tasksError && tasks.map((task) => (
+              <li key={task.subjectId} className="list-none">
                 <label
                   className={cn(
                     'flex min-h-[54px] cursor-pointer items-center gap-4 rounded-xl px-5 transition-colors',
-                    task.completed
+                    task.isDoneToday
                       ? 'bg-[#FAECD3] text-slate-400'
                       : 'bg-[#F1F4F8] text-slate-950 hover:bg-[#EAEFF4]',
                   )}
                 >
                   <input
                     type="checkbox"
-                    checked={task.completed}
-                    onChange={() => toggleTask(task.id)}
+                    checked={task.isDoneToday}
+                    onChange={() => toggleTask(task.subjectId)}
                     className="peer sr-only"
                   />
                   <span
                     className={cn(
                       'grid size-5 shrink-0 place-items-center rounded-full border-2',
-                    task.completed
+                    task.isDoneToday
                         ? 'border-warning bg-warning text-white'
                         : 'border-slate-300 bg-white',
                     )}
                     aria-hidden="true"
                   >
-                    {task.completed && (
+                    {task.isDoneToday && (
                       <svg
                         viewBox="0 0 16 16"
                         className="size-3 fill-none stroke-current"
@@ -118,7 +152,7 @@ export default function HomePage() {
                   <span
                     className={cn(
                       'text-sm font-bold tracking-[-0.02em]',
-                      task.completed && 'line-through decoration-slate-400',
+                      task.isDoneToday && 'line-through decoration-slate-400',
                     )}
                   >
                     {task.title}
