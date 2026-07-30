@@ -22,8 +22,7 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
 /** 로그인 후 홈 화면 (`/home`) — 오늘의 할 일 체크리스트 + 내 마을 도시 미리보기. */
 export default function HomePage() {
   const navigate = useNavigate()
-  const [tasks, setTasks] = useState<TodoSubject[]>([])
-  const [isTasksLoading, setIsTasksLoading] = useState(true)
+  const [tasks, setTasks] = useState<TodoSubject[] | null>(null)
   const [tasksError, setTasksError] = useState<string | null>(null)
   // TODO: 마을 3D 씬을 구운 썸네일 URL로 채울 자리. 아직 연동 전이라 항상 null →
   // 아래에서 폴백 이미지(image-load-error.png)를 보여준다.
@@ -35,7 +34,6 @@ export default function HomePage() {
     : '/images/image-load-error.png'
 
   const loadTasks = useCallback(async () => {
-    setIsTasksLoading(true)
     setTasksError(null)
 
     try {
@@ -46,8 +44,6 @@ export default function HomePage() {
       setTasksError(
         cause instanceof Error ? cause.message : '오늘의 할 일을 불러오지 못했습니다.',
       )
-    } finally {
-      setIsTasksLoading(false)
     }
   }, [])
 
@@ -57,11 +53,11 @@ export default function HomePage() {
 
   const toggleTask = (subjectId: number) => {
     setTasks((currentTasks) =>
-      currentTasks.map((task) =>
+      currentTasks?.map((task) =>
         task.subjectId === subjectId
           ? { ...task, isDoneToday: !task.isDoneToday }
           : task,
-      ),
+      ) ?? null,
     )
   }
 
@@ -89,12 +85,7 @@ export default function HomePage() {
           </div>
 
           <ul className="mt-8 space-y-2.5 p-0">
-            {isTasksLoading && (
-              <li className="list-none rounded-xl bg-[#F1F4F8] px-5 py-4 text-sm font-bold text-slate-400">
-                오늘의 할 일을 불러오는 중...
-              </li>
-            )}
-            {!isTasksLoading && tasksError && (
+            {tasksError && (
               <li
                 className="list-none rounded-xl bg-red-50 px-5 py-4 text-sm font-bold text-red-500"
                 role="alert"
@@ -102,12 +93,12 @@ export default function HomePage() {
                 {tasksError}
               </li>
             )}
-            {!isTasksLoading && !tasksError && tasks.length === 0 && (
+            {!tasksError && tasks?.length === 0 && (
               <li className="list-none rounded-xl bg-[#F1F4F8] px-5 py-4 text-sm font-bold text-slate-400">
                 오늘 등록된 할 일이 없습니다.
               </li>
             )}
-            {tasks.map((task) => (
+            {tasks?.map((task) => (
               <li key={task.subjectId} className="list-none">
                 <label
                   className={cn(
