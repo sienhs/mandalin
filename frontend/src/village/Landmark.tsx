@@ -22,6 +22,8 @@ interface Props {
   center: Domain
   catalog: OwnedCatalog
   override: LandmarkOverride
+  /** 디테일 부품을 그릴지(성능 옵션). 기본 true. */
+  details?: boolean
   selected: boolean
   onClick: () => void
 }
@@ -35,7 +37,7 @@ interface Props {
  * 보유하지 않은(=서버가 parts 를 안 준) 랜드마크는 그릴 수단이 없으므로 공사 부지로
  * 떨어진다 — 미보유 건물을 세울 수 없다는 원칙은 여기서도 같다.
  */
-export function Landmark({ center, catalog, override, selected, onClick }: Props) {
+export function Landmark({ center, catalog, override, details = true, selected, onClick }: Props) {
   const [hovered, setHovered] = useState(false)
 
   const key = override.building !== 'auto' ? override.building : catalog.landmarks[0]?.itemKey
@@ -58,7 +60,7 @@ export function Landmark({ center, catalog, override, selected, onClick }: Props
       <LandmarkSelection hovered={hovered} active={selected} span={LANDMARK_SPAN} />
 
       <group scale={BUILD_SCALE}>
-        <LandmarkParts parts={parts} stage={stage} />
+        <LandmarkParts parts={parts} stage={stage} details={details} />
       </group>
     </group>
   )

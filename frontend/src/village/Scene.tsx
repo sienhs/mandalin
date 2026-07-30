@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Sky } from '@react-three/drei'
 import { Village } from './Village'
@@ -19,6 +19,31 @@ interface Props {
   catalog: OwnedCatalog
   selectedTaskId: string | null
   landmark: LandmarkOverride
+  /**
+   * 섬 아랫부분(매달린 암반·종유석)을 그릴지. 기본 true.
+   *
+   * 1,296개 인스턴스가 그림자까지 드리우는 가장 무거운 장식이라, 프레임이 부족한 환경에서
+   * 가장 먼저 끄게 되는 부분이다. 끄면 지표면만 남아 평평한 판처럼 보인다.
+   */
+  islandBase?: boolean
+  /** 그림자를 그릴지. 기본 true. 끄면 그림자맵 패스(2048²)가 사라진다. */
+  shadows?: boolean
+  /**
+   * 디테일 부품(창문틀·열주·발코니·옥탑 설비·간판 등)을 그릴지. 기본 true.
+   *
+   * 완성 단계(진행률 75% 이상)에서 draw call 이 517 → 1,016 으로 뛰는데 그 증가분의 대부분이
+   * 이 부품들이다(끄면 607). 삼각형 수는 15만개로 문제가 아니고, draw call 과 mesh 마다
+   * 새로 만들어지는 geometry(1,007개)가 병목이다.
+   */
+  details?: boolean
+  /**
+   * 캔버스 안에 추가로 렌더할 것. 실서비스에서는 쓰지 않는다.
+   *
+   * 렌더 통계(draw call 수)는 `useThree` 로 renderer 에 닿아야 읽을 수 있는데, 그 훅은
+   * Canvas 안에서만 동작한다. 테스트 화면이 계측기를 꽂을 자리를 열어 두는 것 — 대신
+   * 공용 컴포넌트에 진단 코드를 심지 않는다.
+   */
+  children?: ReactNode
   onSelect: (domainIndex: number) => void
   onSelectTask: (taskId: string) => void
 }
@@ -26,13 +51,13 @@ interface Props {
 /** R3F Canvas + 조명 + OrbitControls. isometric 느낌의 초기 시점. */
 export function Scene({
   mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, landmark,
-  onSelect, onSelectTask,
+  islandBase = true, shadows = true, details = true, children, onSelect, onSelectTask,
 }: Props) {
   const sky = SKY[terrain]
 
   return (
     <Canvas
-      shadows
+      shadows={shadows}
       gl={{ preserveDrawingBuffer: true }}
       // 섬이 "떠 있다"는 게 보이려면 눈높이가 낮아야 한다. 예전 [31,28,31] 은
       // 거의 위에서 내려보는 각도라 측면 암반이 한 줄로만 보였다.
@@ -80,10 +105,14 @@ export function Scene({
           catalog={catalog}
           selectedTaskId={selectedTaskId}
           landmark={landmark}
+          islandBase={islandBase}
+          details={details}
           onSelect={onSelect}
           onSelectTask={onSelectTask}
         />
       </Suspense>
+
+      {children}
 
       <OrbitControls
         makeDefault

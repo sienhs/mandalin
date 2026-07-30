@@ -25,6 +25,8 @@ interface Props {
   override: CellOverride
   /** 서버가 내려준 보유 건물. 여기 없는 건물은 그릴 수단이 없다. */
   catalog: OwnedCatalog
+  /** 디테일 부품을 그릴지(성능 옵션). 기본 true. */
+  details?: boolean
   /** 지금 선택된 자리인지. 우측 패널의 하이라이트와 짝을 이룬다. */
   selected: boolean
   position: [number, number, number]
@@ -53,7 +55,7 @@ function Plot() {
  * 표시 단계: override.stage가 지정되면 그것, 아니면 진행률(0=빈땅,1,2,3).
  */
 export function GrowableObject({
-  task, slot, urbanLevel, theme, override, catalog, selected, position, onClick,
+  task, slot, urbanLevel, theme, override, catalog, selected, position, details = true, onClick,
 }: Props) {
   const [hovered, setHovered] = useState(false)
   const isCity = urbanLevel >= 0.5
@@ -70,7 +72,7 @@ export function GrowableObject({
 
   let content: ReactNode
   if (!built) content = <Plot />
-  else content = <StageParts parts={parts} stage={stage as Stage} theme={theme} />
+  else content = <StageParts parts={parts} stage={stage as Stage} theme={theme} details={details} />
 
   return (
     <group

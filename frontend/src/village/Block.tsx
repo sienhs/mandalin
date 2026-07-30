@@ -25,6 +25,8 @@ interface Props {
   selectedTaskId: string | null
   /** 정중앙 블록에 세울 랜드마크 설정. 다른 블록에서는 쓰이지 않는다. */
   landmark: LandmarkOverride
+  /** 디테일 부품을 그릴지(성능 옵션). 기본 true. */
+  details?: boolean
   onSelect: () => void
   /** 자리를 클릭했을 때. 도메인 선택과 별개로 어느 칸인지 위로 알린다. */
   onSelectTask: (taskId: string) => void
@@ -52,7 +54,7 @@ const TASK_CELLS: [number, number][] = (() => {
  */
 export function Block({
   domain, domainIndex, position, selected, overrides, theme, terrain, catalog,
-  selectedTaskId, landmark, onSelect, onSelectTask,
+  selectedTaskId, landmark, details = true, onSelect, onSelectTask,
 }: Props) {
   const isCenter = domainIndex === CENTER_BLOCK_INDEX
   const urban = urbanLevelOf(domain)
@@ -151,6 +153,7 @@ export function Block({
           center={domain}
           catalog={catalog}
           override={landmark}
+          details={details}
           selected={selected}
           onClick={onSelect}
         />
@@ -167,6 +170,7 @@ export function Block({
               catalog={catalog}
               selected={selectedTaskId === task.id}
               override={overrides[task.id] ?? AUTO_CELL}
+              details={details}
               position={[x, 0, z]}
               onClick={() => {
                 // 도메인 패널을 열고, 그 안에서 어느 칸인지까지 알린다.

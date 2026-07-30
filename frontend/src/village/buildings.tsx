@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Instances, Instance } from '@react-three/drei'
-import { Vector2, type Group } from 'three'
+import { BoxGeometry, Vector2, type Group } from 'three'
 import { PALETTE, resolveColor } from './palette'
 import {
   DETAIL_KINDS,
@@ -23,6 +23,20 @@ import {
  * /village 는 서버가 내려준 보유 건물의 parts 를, 개발용 페이지는 로컬 카탈로그의 parts 를
  * 같은 렌더러에 흘려보낼 수 있다.
  */
+
+/**
+ * 공유 단위 박스(1×1×1). 크기는 `geometry` 가 아니라 **mesh.scale** 로 준다.
+ *
+ * 예전에는 mesh 마다 `<boxGeometry args={[w, h, d]} />` 를 썼는데, 그러면 크기가 다른 만큼
+ * BufferGeometry 가 새로 생긴다. 완성 단계(진행률 75% 이상)의 마을에서 geometry 가 1,007개까지
+ * 늘어났다 — 전부 같은 정육면체인데 정점 버퍼만 1,007벌이었다.
+ *
+ * 공유하면 GPU 버퍼가 한 벌로 줄고, 연속된 draw 사이에 정점 버퍼를 다시 바인딩하지 않는다.
+ * 비균등 스케일이어도 three 가 normalMatrix 를 따로 계산하므로 조명·flatShading 은 그대로다.
+ *
+ * ⚠️ 공유 자원이라 절대 dispose 하면 안 된다. 모듈 수명과 같이 두고, 필요하면 여기만 본다.
+ */
+const UNIT_BOX = new BoxGeometry(1, 1, 1)
 
 // ─────────── 공통 부품 컴포넌트 ───────────
 
@@ -73,7 +87,7 @@ function PitchedRoof({ w, d = w, y, height, color }: { w: number; d?: number; y:
   const c = resolveColor(color)
   return (
     <group position={[0, y, 0]}>
-      <mesh position={[0, 0.015, 0]} castShadow><boxGeometry args={[w * 1.12, 0.03, d * 1.12]} /><meshStandardMaterial color={c.clone().multiplyScalar(0.8)} roughness={0.9} /></mesh>
+      <mesh position={[0, 0.015, 0]} castShadow geometry={UNIT_BOX} scale={[w * 1.12, 0.03, d * 1.12]}><meshStandardMaterial color={c.clone().multiplyScalar(0.8)} roughness={0.9} /></mesh>
       <mesh position={[0, height / 2 + 0.03, 0]} rotation={[0, Math.PI / 4, 0]} castShadow><coneGeometry args={[Math.max(w, d) * 0.82, height, 4]} /><meshStandardMaterial color={c} roughness={0.9} flatShading /></mesh>
     </group>
   )
@@ -84,10 +98,10 @@ function Parapet({ w, d = w, y, color }: { w: number; d?: number; y: number; col
   const t = 0.03, ph = 0.07
   return (
     <group position={[0, y + ph / 2, 0]}>
-      <mesh position={[0, 0, d / 2]}><boxGeometry args={[w + t, ph, t]} /><meshStandardMaterial color={c} roughness={0.85} /></mesh>
-      <mesh position={[0, 0, -d / 2]}><boxGeometry args={[w + t, ph, t]} /><meshStandardMaterial color={c} roughness={0.85} /></mesh>
-      <mesh position={[w / 2, 0, 0]}><boxGeometry args={[t, ph, d + t]} /><meshStandardMaterial color={c} roughness={0.85} /></mesh>
-      <mesh position={[-w / 2, 0, 0]}><boxGeometry args={[t, ph, d + t]} /><meshStandardMaterial color={c} roughness={0.85} /></mesh>
+      <mesh position={[0, 0, d / 2]} geometry={UNIT_BOX} scale={[w + t, ph, t]}><meshStandardMaterial color={c} roughness={0.85} /></mesh>
+      <mesh position={[0, 0, -d / 2]} geometry={UNIT_BOX} scale={[w + t, ph, t]}><meshStandardMaterial color={c} roughness={0.85} /></mesh>
+      <mesh position={[w / 2, 0, 0]} geometry={UNIT_BOX} scale={[t, ph, d + t]}><meshStandardMaterial color={c} roughness={0.85} /></mesh>
+      <mesh position={[-w / 2, 0, 0]} geometry={UNIT_BOX} scale={[t, ph, d + t]}><meshStandardMaterial color={c} roughness={0.85} /></mesh>
     </group>
   )
 }
@@ -95,8 +109,8 @@ function Parapet({ w, d = w, y, color }: { w: number; d?: number; y: number; col
 function RooftopUnits({ w, y }: { w: number; y: number }) {
   return (
     <group position={[0, y, 0]}>
-      <mesh position={[-w * 0.18, 0.05, w * 0.1]} castShadow><boxGeometry args={[w * 0.3, 0.1, w * 0.25]} /><meshStandardMaterial color={resolveColor('roofDark')} roughness={0.8} /></mesh>
-      <mesh position={[w * 0.2, 0.07, -w * 0.12]} castShadow><boxGeometry args={[w * 0.18, 0.14, w * 0.18]} /><meshStandardMaterial color={resolveColor('concrete')} roughness={0.8} /></mesh>
+      <mesh position={[-w * 0.18, 0.05, w * 0.1]} castShadow geometry={UNIT_BOX} scale={[w * 0.3, 0.1, w * 0.25]}><meshStandardMaterial color={resolveColor('roofDark')} roughness={0.8} /></mesh>
+      <mesh position={[w * 0.2, 0.07, -w * 0.12]} castShadow geometry={UNIT_BOX} scale={[w * 0.18, 0.14, w * 0.18]}><meshStandardMaterial color={resolveColor('concrete')} roughness={0.8} /></mesh>
       <mesh position={[w * 0.05, 0.06, w * 0.22]} castShadow><cylinderGeometry args={[0.03, 0.03, 0.12, 8]} /><meshStandardMaterial color={resolveColor('roofDark')} /></mesh>
     </group>
   )
@@ -106,8 +120,8 @@ function CrossPart({ y, z = 0, color, s = 1 }: { y: number; z?: number; color: s
   const c = resolveColor(color)
   return (
     <group position={[0, y, z]}>
-      <mesh><boxGeometry args={[0.17 * s, 0.055 * s, 0.03]} /><meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.45} /></mesh>
-      <mesh><boxGeometry args={[0.055 * s, 0.17 * s, 0.03]} /><meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.45} /></mesh>
+      <mesh geometry={UNIT_BOX} scale={[0.17 * s, 0.055 * s, 0.03]}><meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.45} /></mesh>
+      <mesh geometry={UNIT_BOX} scale={[0.055 * s, 0.17 * s, 0.03]}><meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.45} /></mesh>
     </group>
   )
 }
@@ -127,7 +141,7 @@ function Storefront({ w, d = w, faceH, awning, sign }: { w: number; d?: number; 
     <group>
       <mesh position={[0, faceH * 0.42, z + 0.006]}><planeGeometry args={[w * 0.82, faceH * 0.62]} /><meshStandardMaterial color={resolveColor('glass')} emissive={resolveColor('glass')} emissiveIntensity={0.28} roughness={0.15} metalness={0.4} /></mesh>
       <mesh position={[w * 0.26, faceH * 0.28, z + 0.012]}><planeGeometry args={[w * 0.2, faceH * 0.5]} /><meshStandardMaterial color={resolveColor('roofDark')} roughness={0.4} metalness={0.3} /></mesh>
-      <mesh position={[0, faceH * 0.72, z + w * 0.05]} rotation={[-Math.PI / 8, 0, 0]} castShadow><boxGeometry args={[w * 0.98, 0.02, w * 0.24]} /><meshStandardMaterial color={resolveColor(awning)} roughness={0.8} /></mesh>
+      <mesh position={[0, faceH * 0.72, z + w * 0.05]} rotation={[-Math.PI / 8, 0, 0]} castShadow geometry={UNIT_BOX} scale={[w * 0.98, 0.02, w * 0.24]}><meshStandardMaterial color={resolveColor(awning)} roughness={0.8} /></mesh>
       <mesh position={[0, faceH * 0.92, z + 0.02]}><planeGeometry args={[w * 0.9, faceH * 0.16]} /><meshStandardMaterial color={resolveColor(sign)} emissive={resolveColor(sign)} emissiveIntensity={0.3} /></mesh>
     </group>
   )
@@ -141,7 +155,7 @@ function ColumnsPart({ w, d = w, y, h, count = 4, color }: { w: number; d?: numb
       {xs.map((x, i) => (
         <mesh key={i} position={[x, y + h / 2, d / 2 + 0.03]} castShadow><cylinderGeometry args={[0.022, 0.022, h, 10]} /><meshStandardMaterial color={c} roughness={0.7} /></mesh>
       ))}
-      <mesh position={[0, y + h + 0.025, d / 2 + 0.03]} castShadow><boxGeometry args={[w * 0.9, 0.05, 0.06]} /><meshStandardMaterial color={c} roughness={0.7} /></mesh>
+      <mesh position={[0, y + h + 0.025, d / 2 + 0.03]} castShadow geometry={UNIT_BOX} scale={[w * 0.9, 0.05, 0.06]}><meshStandardMaterial color={c} roughness={0.7} /></mesh>
     </group>
   )
 }
@@ -152,7 +166,7 @@ function BalconiesPart({ w, d = w, y0, y1, floors, color }: { w: number; d?: num
     <group>
       {Array.from({ length: floors }).map((_, i) => {
         const y = floors === 1 ? y0 : y0 + (y1 - y0) * (i / (floors - 1))
-        return <mesh key={i} position={[0, y, d / 2 + 0.03]} castShadow><boxGeometry args={[w * 0.92, 0.02, 0.06]} /><meshStandardMaterial color={c} roughness={0.8} /></mesh>
+        return <mesh key={i} position={[0, y, d / 2 + 0.03]} castShadow geometry={UNIT_BOX} scale={[w * 0.92, 0.02, 0.06]}><meshStandardMaterial color={c} roughness={0.8} /></mesh>
       })}
     </group>
   )
@@ -176,7 +190,7 @@ function BladesPart({ y }: { y: number }) {
     <group ref={ref} position={[0, y, 0.2]}>
       {[0, 1, 2, 3].map((i) => (
         <group key={i} rotation={[0, 0, (i * Math.PI) / 2]}>
-          <mesh position={[0, 0.28, 0]} castShadow><boxGeometry args={[0.05, 0.5, 0.02]} /><meshStandardMaterial color={resolveColor('wood')} roughness={0.7} /></mesh>
+          <mesh position={[0, 0.28, 0]} castShadow geometry={UNIT_BOX} scale={[0.05, 0.5, 0.02]}><meshStandardMaterial color={resolveColor('wood')} roughness={0.7} /></mesh>
           <mesh position={[0.05, 0.28, 0.012]}><planeGeometry args={[0.07, 0.44]} /><meshStandardMaterial color={resolveColor('blade')} roughness={0.6} side={2} /></mesh>
         </group>
       ))}
@@ -346,8 +360,7 @@ function ArchPart({
   return (
     <group position={[x, y, z]} rotation={[0, rotY, 0]}>
       {[-1, 1].map((sign) => (
-        <mesh key={sign} position={[sign * (r + thick / 2), spring / 2, 0]} castShadow receiveShadow>
-          <boxGeometry args={[thick, spring, d]} />
+        <mesh key={sign} position={[sign * (r + thick / 2), spring / 2, 0]} castShadow receiveShadow geometry={UNIT_BOX} scale={[thick, spring, d]}>
           <meshStandardMaterial color={c} roughness={0.85} flatShading />
         </mesh>
       ))}
@@ -358,9 +371,7 @@ function ArchPart({
             key={i}
             position={[-Math.cos(a) * mid, spring + Math.sin(a) * mid, 0]}
             rotation={[0, 0, a - Math.PI / 2]}
-            castShadow
-          >
-            <boxGeometry args={[thick, chord, d]} />
+            castShadow geometry={UNIT_BOX} scale={[thick, chord, d]}>
             <meshStandardMaterial color={c} roughness={0.85} flatShading />
           </mesh>
         )
@@ -391,18 +402,15 @@ function LatticePart({
         return (
           <group key={i}>
             {corners.map(([sx, sz]) => (
-              <mesh key={`${sx}${sz}`} position={[sx * half, yc + segH / 2, sz * half]} castShadow>
-                <boxGeometry args={[t, segH, t]} />
+              <mesh key={`${sx}${sz}`} position={[sx * half, yc + segH / 2, sz * half]} castShadow geometry={UNIT_BOX} scale={[t, segH, t]}>
                 <meshStandardMaterial color={c} roughness={0.6} metalness={0.35} flatShading />
               </mesh>
             ))}
             {/* 수평재 — 층 경계마다 한 겹 */}
-            <mesh position={[0, yc + segH, 0]} castShadow>
-              <boxGeometry args={[halfAt(f1) * 2 + t, t * 0.7, t]} />
+            <mesh position={[0, yc + segH, 0]} castShadow geometry={UNIT_BOX} scale={[halfAt(f1) * 2 + t, t * 0.7, t]}>
               <meshStandardMaterial color={c} roughness={0.6} metalness={0.35} flatShading />
             </mesh>
-            <mesh position={[0, yc + segH, 0]} castShadow>
-              <boxGeometry args={[t, t * 0.7, halfAt(f1) * 2 + t]} />
+            <mesh position={[0, yc + segH, 0]} castShadow geometry={UNIT_BOX} scale={[t, t * 0.7, halfAt(f1) * 2 + t]}>
               <meshStandardMaterial color={c} roughness={0.6} metalness={0.35} flatShading />
             </mesh>
           </group>
@@ -435,8 +443,7 @@ function FloodlightPart({ pos, h, color = 'concrete' }: { pos: Vec3; h: number; 
         <cylinderGeometry args={[0.018, 0.03, h, 6]} />
         <meshStandardMaterial color={resolveColor(color)} roughness={0.5} metalness={0.4} />
       </mesh>
-      <mesh position={[0, h + 0.05, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.1, 0.05]} />
+      <mesh position={[0, h + 0.05, 0]} castShadow geometry={UNIT_BOX} scale={[0.2, 0.1, 0.05]}>
         <meshStandardMaterial color={resolveColor('roofDark')} roughness={0.6} />
       </mesh>
       <mesh position={[0, h + 0.05, 0.032]}>
@@ -457,12 +464,10 @@ function PoolPart({
   return (
     <group position={[x, y, z]}>
       {/* 테두리를 먼저 깔고 그 위에 수면을 얹는다. 순서가 뒤바뀌면 테두리가 물을 덮는다. */}
-      <mesh position={[0, 0.011, 0]} receiveShadow>
-        <boxGeometry args={[w + 0.07, 0.022, d + 0.07]} />
+      <mesh position={[0, 0.011, 0]} receiveShadow geometry={UNIT_BOX} scale={[w + 0.07, 0.022, d + 0.07]}>
         <meshStandardMaterial color={resolveColor('stoneLight')} roughness={0.9} />
       </mesh>
-      <mesh position={[0, 0.028, 0]} receiveShadow>
-        <boxGeometry args={[w, 0.014, d]} />
+      <mesh position={[0, 0.028, 0]} receiveShadow geometry={UNIT_BOX} scale={[w, 0.014, d]}>
         <meshStandardMaterial color={c} roughness={0.12} metalness={0.55} />
       </mesh>
     </group>
@@ -471,20 +476,21 @@ function PoolPart({
 
 // ─────────── 부품 → JSX 디스패치 ───────────
 
-function renderPart(p: Part, stage: Stage, i: number) {
+function renderPart(p: Part, stage: Stage, i: number, details = true) {
   if (stage === 2 && DETAIL_KINDS.has(p.k)) return null
+  // 성능 옵션. 디테일 부품은 완성 단계(3) draw call 의 약 40% 를 차지한다.
+  if (!details && DETAIL_KINDS.has(p.k)) return null
   switch (p.k) {
     case 'plinth': {
       const c = resolveColor(p.color)
-      return <mesh key={i} position={[0, PL / 2, 0]} castShadow receiveShadow><boxGeometry args={[p.w * 1.14, PL, (p.d ?? p.w) * 1.14]} /><meshStandardMaterial color={c} roughness={0.95} /></mesh>
+      return <mesh key={i} position={[0, PL / 2, 0]} castShadow receiveShadow geometry={UNIT_BOX} scale={[p.w * 1.14, PL, (p.d ?? p.w) * 1.14]}><meshStandardMaterial color={c} roughness={0.95} /></mesh>
     }
     case 'box': {
       const c = resolveColor(p.color)
       const y = p.y ?? 0
       return (
         <group key={i} position={[p.x ?? 0, 0, p.z ?? 0]}>
-          <mesh position={[0, y + p.h / 2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[p.w, p.h, p.d ?? p.w]} />
+          <mesh position={[0, y + p.h / 2, 0]} castShadow receiveShadow geometry={UNIT_BOX} scale={[p.w, p.h, p.d ?? p.w]}>
             <meshStandardMaterial color={c} roughness={p.rough ?? 0.6} metalness={p.metal ?? 0.1} flatShading emissive={c} emissiveIntensity={p.emissive ? 0.5 : 0} />
           </mesh>
           {stage === 3 && p.windows && (
@@ -560,8 +566,8 @@ function Stage1({ theme }: { theme: ThemeKey }) {
   const cap = c.clone().multiplyScalar(0.78)
   return (
     <group>
-      <mesh position={[0, PL / 2, 0]} receiveShadow><boxGeometry args={[0.34 * 1.14, PL, 0.34 * 1.14]} /><meshStandardMaterial color={cap} roughness={0.95} /></mesh>
-      <mesh position={[0, PL + 0.24, 0]} castShadow receiveShadow><boxGeometry args={[0.32, 0.48, 0.32]} /><meshStandardMaterial color={c} roughness={0.85} flatShading /></mesh>
+      <mesh position={[0, PL / 2, 0]} receiveShadow geometry={UNIT_BOX} scale={[0.34 * 1.14, PL, 0.34 * 1.14]}><meshStandardMaterial color={cap} roughness={0.95} /></mesh>
+      <mesh position={[0, PL + 0.24, 0]} castShadow receiveShadow geometry={UNIT_BOX} scale={[0.32, 0.48, 0.32]}><meshStandardMaterial color={c} roughness={0.85} flatShading /></mesh>
       <PitchedRoof w={0.32} y={PL + 0.48} height={0.16} color={theme === 'stone' ? 'concrete' : 'roof'} />
     </group>
   )
@@ -571,10 +577,12 @@ function Stage1({ theme }: { theme: ThemeKey }) {
  * 단계별 디스패치: 1=일관화 shell, 2=형태(디테일 생략), 3=완성.
  * 1단계는 모든 건물이 같은 shell 이라 parts 없이도 그릴 수 있다.
  */
-export function StageParts({ parts, stage, theme }: { parts: Part[] | null; stage: Stage; theme: ThemeKey }) {
+export function StageParts({
+  parts, stage, theme, details = true,
+}: { parts: Part[] | null; stage: Stage; theme: ThemeKey; details?: boolean }) {
   if (stage === 1) return <Stage1 theme={theme} />
   if (!parts) return null
-  return <group>{parts.map((p, i) => renderPart(p, stage, i))}</group>
+  return <group>{parts.map((p, i) => renderPart(p, stage, i, details))}</group>
 }
 
 // ─────────── 랜드마크 8단계 렌더 ───────────
@@ -595,55 +603,46 @@ export function ConstructionSite({ span = LANDMARK_REF }: { span?: number }) {
   }
   return (
     <group>
-      <mesh position={[0, 0.02, 0]} receiveShadow>
-        <boxGeometry args={[span * 0.96, 0.04, span * 0.96]} />
+      <mesh position={[0, 0.02, 0]} receiveShadow geometry={UNIT_BOX} scale={[span * 0.96, 0.04, span * 0.96]}>
         <meshStandardMaterial color={resolveColor('soil')} roughness={1} />
       </mesh>
 
       {/* 가설 울타리 */}
       {fence.map((p, i) => (
-        <mesh key={i} position={[p[0], 0.14, p[2]]} castShadow>
-          <boxGeometry args={[0.06, 0.28, 0.06]} />
+        <mesh key={i} position={[p[0], 0.14, p[2]]} castShadow geometry={UNIT_BOX} scale={[0.06, 0.28, 0.06]}>
           <meshStandardMaterial color={resolveColor('wood')} roughness={0.9} />
         </mesh>
       ))}
 
       {/* 기초 파일 */}
       {[[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0, 0]].map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.06, z]} receiveShadow>
-          <boxGeometry args={[0.5, 0.12, 0.5]} />
+        <mesh key={i} position={[x, 0.06, z]} receiveShadow geometry={UNIT_BOX} scale={[0.5, 0.12, 0.5]}>
           <meshStandardMaterial color={resolveColor('concrete')} roughness={0.95} />
         </mesh>
       ))}
 
       {/* 타워크레인 */}
       <group position={[half * 0.6, 0, -half * 0.6]}>
-        <mesh position={[0, 0.06, 0]} receiveShadow>
-          <boxGeometry args={[0.34, 0.12, 0.34]} />
+        <mesh position={[0, 0.06, 0]} receiveShadow geometry={UNIT_BOX} scale={[0.34, 0.12, 0.34]}>
           <meshStandardMaterial color={resolveColor('concrete')} roughness={0.95} />
         </mesh>
         <LatticePart w={0.2} h={1.5} y={0.12} taper={0.9} rungs={5} color="accent" />
-        <mesh position={[-0.5, 1.68, 0]} castShadow>
-          <boxGeometry args={[1.5, 0.08, 0.08]} />
+        <mesh position={[-0.5, 1.68, 0]} castShadow geometry={UNIT_BOX} scale={[1.5, 0.08, 0.08]}>
           <meshStandardMaterial color={resolveColor('accent')} roughness={0.6} metalness={0.3} />
         </mesh>
-        <mesh position={[-1.0, 1.45, 0]}>
-          <boxGeometry args={[0.02, 0.4, 0.02]} />
+        <mesh position={[-1.0, 1.45, 0]} geometry={UNIT_BOX} scale={[0.02, 0.4, 0.02]}>
           <meshStandardMaterial color={resolveColor('roofDark')} />
         </mesh>
-        <mesh position={[-1.0, 1.2, 0]} castShadow>
-          <boxGeometry args={[0.14, 0.14, 0.14]} />
+        <mesh position={[-1.0, 1.2, 0]} castShadow geometry={UNIT_BOX} scale={[0.14, 0.14, 0.14]}>
           <meshStandardMaterial color={resolveColor('roofDark')} roughness={0.7} />
         </mesh>
       </group>
 
       {/* 자재 더미 */}
-      <mesh position={[-half * 0.6, 0.09, half * 0.55]} castShadow>
-        <boxGeometry args={[0.5, 0.18, 0.3]} />
+      <mesh position={[-half * 0.6, 0.09, half * 0.55]} castShadow geometry={UNIT_BOX} scale={[0.5, 0.18, 0.3]}>
         <meshStandardMaterial color={resolveColor('path')} roughness={0.95} />
       </mesh>
-      <mesh position={[-half * 0.6, 0.24, half * 0.55]} castShadow>
-        <boxGeometry args={[0.42, 0.12, 0.26]} />
+      <mesh position={[-half * 0.6, 0.24, half * 0.55]} castShadow geometry={UNIT_BOX} scale={[0.42, 0.12, 0.26]}>
         <meshStandardMaterial color={resolveColor('wood')} roughness={0.95} />
       </mesh>
     </group>
@@ -657,11 +656,13 @@ export function ConstructionSite({ span = LANDMARK_REF }: { span?: number }) {
  * 그래서 보이는 부품은 항상 "완성 규칙"(stage 3)으로 그린다 — 창문·디테일이 붙은 채로
  * 매스가 하나씩 올라가는 게 공사 진행처럼 읽힌다.
  */
-export function LandmarkParts({ parts, stage }: { parts: Part[] | null; stage: LandmarkStage }) {
+export function LandmarkParts({
+  parts, stage, details = true,
+}: { parts: Part[] | null; stage: LandmarkStage; details?: boolean }) {
   if (stage === 0 || !parts) return <ConstructionSite />
   return (
     <group>
-      {parts.map((p, i) => ((p.st ?? 1) <= stage ? renderPart(p, 3, i) : null))}
+      {parts.map((p, i) => ((p.st ?? 1) <= stage ? renderPart(p, 3, i, details) : null))}
     </group>
   )
 }
@@ -684,7 +685,7 @@ export function FlowerBed() {
   for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) cells.push([a * 0.12, b * 0.12])
   return (
     <group>
-      <mesh position={[0, 0.03, 0]} receiveShadow><boxGeometry args={[0.5, 0.06, 0.5]} /><meshStandardMaterial color={PALETTE.soil} roughness={1} /></mesh>
+      <mesh position={[0, 0.03, 0]} receiveShadow geometry={UNIT_BOX} scale={[0.5, 0.06, 0.5]}><meshStandardMaterial color={PALETTE.soil} roughness={1} /></mesh>
       {cells.map(([x, z], i) => (
         <group key={i} position={[x, 0.06, z]}>
           <mesh position={[0, 0.08, 0]}><cylinderGeometry args={[0.008, 0.008, 0.16, 5]} /><meshStandardMaterial color={PALETTE.foliage} /></mesh>
