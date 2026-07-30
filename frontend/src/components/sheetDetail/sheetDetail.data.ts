@@ -2,7 +2,7 @@ import { MY_SHEETS } from '../sheetList/sheetList.data'
 import type { Domain, Period, Sheet } from '../sheet/sheet.types'
 import { calcTargetCount } from '../sheet/sheet.utils'
 import type { DetailSubject, SheetDetail } from './sheetDetail.types'
-import { rateOf, sheetAchievementRate } from './sheetDetail.utils'
+import { rateOf } from './sheetDetail.utils'
 
 /**
  * 상세 화면 목업.
@@ -15,7 +15,7 @@ type DomainSeed = { title: string; subjects: string[]; doneCount: number }
 /** 과제에 돌려 쓸 기간 설정. 목표 횟수가 주기마다 다르게 잡히는 걸 화면에서 확인하려고 섞어 둔다. */
 const PERIODS: Period[] = ['daily', 'weekly', 'none']
 
-/** 도메인 8개 × 과제 8개. doneCount 합계 26 → 달성률 41%(26/64). */
+
 const DOMAIN_SEEDS: DomainSeed[] = [
   {
     title: '유산소',
@@ -118,6 +118,6 @@ export function loadSheetDetail(sheetId: number): SheetDetail {
     }),
   )
 
-  // 서버라면 응답에 담아 내려줄 값을 목업에서 만들어 준다. 화면은 이 값을 그대로 쓴다.
-  return { sheet, domains, subjects, achievementRate: sheetAchievementRate(subjects) }
+  // 달성률은 담지 않는다 — 화면이 이 과제 상태에서 직접 계산한다.
+  return { sheet, domains, subjects }
 }

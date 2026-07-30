@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../components/common/Button'
 import Header from '../components/common/Header'
@@ -7,6 +7,7 @@ import SheetDeleteDialog from '../components/sheetList/SheetDeleteDialog'
 import SheetGroupCard from '../components/sheetList/SheetGroupCard'
 import SheetInviteDialog from '../components/sheetList/SheetInviteDialog'
 import SheetListCard from '../components/sheetList/SheetListCard'
+import { fetchAchievementRates } from '../components/sheetList/sheetList.api'
 import { GROUP_INVITES, GROUP_SHEETS, MY_SHEETS } from '../components/sheetList/sheetList.data'
 import type { SheetSummary } from '../components/sheetList/sheetList.types'
 import '../styles/sheet-list.css'
@@ -17,6 +18,12 @@ export default function SheetList() {
   const [sheets, setSheets] = useState(MY_SHEETS)
   const [invites, setInvites] = useState(GROUP_INVITES)
   const groups = GROUP_SHEETS
+
+  /**
+   * 시트별 달성률. 카드를 그리는 데 필요한 값이지만 목록 응답에 없어서 따로 받아온다.
+   * 카드는 목록만으로 먼저 그리고, 도착하면 진행 바만 채운다.
+   */
+  const [rates, setRates] = useState<Map<number, number>>(new Map())
 
   const [createOpen, setCreateOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -32,6 +39,20 @@ export default function SheetList() {
   const removeInvite = (groupId: number) => {
     setInvites((prev) => prev.filter((invite) => invite.groupId !== groupId))
   }
+
+  // 목록이 바뀌면(삭제 등) 남은 시트의 달성률만 다시 받는다.
+  useEffect(() => {
+    let alive = true
+    fetchAchievementRates(sheets.map((sheet) => sheet.sheetId))
+      .then((next) => {
+        if (alive) setRates(next)
+      })
+      // 달성률을 못 받아도 목록 자체는 보여준다. 그 카드는 '—%' 로 남는다.
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [sheets])
 
   return (
     <div className="min-h-screen bg-[#F6F7F8]">
@@ -73,6 +94,7 @@ export default function SheetList() {
                 <li key={sheet.sheetId}>
                   <SheetListCard
                     sheet={sheet}
+                    achievementRate={rates.get(sheet.sheetId) ?? null}
                     onOpen={(sheetId) => navigate(`/sheet/${sheetId}`)}
                     onRemove={() => setDeleteTarget(sheet)}
                   />

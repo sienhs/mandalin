@@ -28,7 +28,6 @@ export default function SheetDetail() {
         <div className="card p-6">
           <SheetDetailHeader
             sheet={detail.sheet}
-            doneCount={detail.doneCount}
             achievementRate={detail.achievementRate}
             onOpenVillage={() => navigate('/village')}
           />

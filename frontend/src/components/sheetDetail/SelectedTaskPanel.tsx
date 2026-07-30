@@ -23,7 +23,7 @@ const KIND_LABEL: Record<SelectedTask['kind'], string> = {
 const noticeOf = (subject: DetailSubject): string => {
   if (subject.isDone) return `이미 완료한 과제예요. (+${subject.point}P 획득)`
   if (subject.isDonePeriod) {
-    return `${PERIOD_TERM[subject.period]} 수행은 이미 마쳤어요. 다음 기간에 또 수행할 수 있어요.`
+    return `${PERIOD_TERM[subject.period]} 수행은 이미 마쳤어요. 다음 기간에 또 할 수 있어요.`
   }
   return `수행할 때마다 1회씩 올라갑니다. (목표 달성 시 +${subject.point}P)`
 }
@@ -51,13 +51,25 @@ export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPane
       </p>
 
       {subject && (
+        <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">
+          {PERIOD_LABEL[subject.period]} · {subject.tryCount}/{subject.targetCount}회 수행
+        </p>
+      )}
+
+      {/* 진행도는 칸 종류와 무관하게 같은 자리에 보여준다(과제 = 그 과제의 progress). */}
+      {progressRate !== null && (
         <>
-          <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">
-            {PERIOD_LABEL[subject.period]} · {subject.tryCount}/{subject.targetCount}회 수행
-          </p>
-          <p className="m-0 mt-1.5 text-[12.5px] font-semibold text-ink-500">
-            {noticeOf(subject)}
-          </p>
+          <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">진행도 {progressRate}%</p>
+          {/* 채움 색은 공통 ProgressBar 가 --progress-accent 로 받는다. */}
+          <div className="mt-2 [--progress-accent:#6cbf7f]">
+            <ProgressBar value={progressRate} label={`${title} 진행도`} />
+          </div>
+        </>
+      )}
+
+      {subject ? (
+        <>
+          <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">{noticeOf(subject)}</p>
           <Button
             variant="primary"
             size="lg"
@@ -68,19 +80,10 @@ export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPane
             수행 완료
           </Button>
         </>
-      )}
-
-      {progressRate !== null && (
-        <>
-          <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">진행도 {progressRate}%</p>
-          {/* 채움 색은 공통 ProgressBar 가 --progress-accent 로 받는다. */}
-          <div className="mt-2 [--progress-accent:#6cbf7f]">
-            <ProgressBar value={progressRate} label={`${title} 진행도`} />
-          </div>
-          <p className="m-0 mt-2.5 text-[12.5px] font-semibold text-ink-500">
-            과제 칸을 선택하면 수행할 수 있어요.
-          </p>
-        </>
+      ) : (
+        <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">
+          과제 칸을 선택하면 수행할 수 있어요.
+        </p>
       )}
     </section>
   )

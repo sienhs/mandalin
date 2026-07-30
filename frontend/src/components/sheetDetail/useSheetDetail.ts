@@ -28,7 +28,7 @@ export function useSheetDetail(sheetId: number) {
     setSelectedCell(FIRST_CELL)
   }, [sheetId])
 
-  const { sheet, domains, subjects, achievementRate } = detail
+  const { sheet, domains, subjects } = detail
 
   const grid = buildGrid(sheet.title, domains, subjects)
   const cell = grid[selectedCell.b][selectedCell.c]
@@ -45,6 +45,8 @@ export function useSheetDetail(sheetId: number) {
   const miniGrid = grid[selectedBlockIndex]
 
   const doneCount = countDoneSubjects(subjects)
+  /** 시트 달성률. 서버 값을 쓰지 않고 과제 진행률의 평균으로 계산한다. */
+  const achievementRate = sheetAchievementRate(subjects)
 
   /**
    * 2D 뷰 · 3x3 확대 그리드의 체크(✓) 기준.
@@ -56,16 +58,16 @@ export function useSheetDetail(sheetId: number) {
     cell.isSubject && subjects[cell.domainIndex]?.[cell.subjectIndex]?.isDonePeriod === true
 
   /**
-   * 과제 칸이 아닌 칸의 진행률.
+   * 선택한 칸의 진행률.
    *
-   * 핵심 목표 칸은 서버가 확정한 시트 달성률(achievementRate)을 그대로 쓰고,
-   * 도메인 칸은 그 도메인 과제 8개의 progress 평균을 계산해서 쓴다 — 도메인 단위 값은
-   * 서버가 따로 내려주지 않는다.
+   * 과제 칸은 서버가 내려준 그 과제의 progress 를 그대로 쓰고, 도메인 · 핵심 목표 칸은
+   * 그 칸이 포함하는 과제(8개 · 64개)의 평균을 계산해서 쓴다 — 묶음 단위 값은 서버가
+   * 따로 내려주지 않는다.
    */
   const progressRateOfCell = (): number | null => {
     if (cell.isSheet) return achievementRate
     if (cell.isDomain) return domainProgressOf(subjects[cell.domainIndex] ?? [])
-    return null
+    return selectedSubject?.progress ?? null
   }
 
   const selectedTask: SelectedTask = {
@@ -101,8 +103,8 @@ export function useSheetDetail(sheetId: number) {
         progress: rateOf(tryCount, base.targetCount),
         updatedAt: formatDate(new Date()),
       }
-      // 달성률도 서버가 다시 내려줄 값이다. 재조회 대신 목업이 같은 규칙으로 다시 만든다.
-      return { ...prev, subjects: next, achievementRate: sheetAchievementRate(next) }
+      // 달성률은 subjects 에서 파생되므로 따로 갱신할 게 없다.
+      return { ...prev, subjects: next }
     })
   }
 

@@ -29,13 +29,14 @@ export type DetailSubject = Subject & {
   progress: number
 }
 
-/** 만다라트 한 장의 전체 내용.*/
+/**
+ * 만다라트 한 장의 전체 내용.
+ *
+ */
 export type SheetDetail = {
   sheet: Sheet
   domains: (Domain | null)[]
   subjects: (DetailSubject | null)[][]
-  /** 만다라트 한 장의 달성률 0~100. 서버가 확정해 내려주는 값을 그대로 쓴다. */
-  achievementRate: number
 }
 
 /** 사이드 패널이 그리는, 2D 뷰에서 선택한 칸 하나. */
@@ -49,8 +50,8 @@ export type SelectedTask = {
   /** 과제 칸이면 그 과제. 도메인 칸 · 핵심 목표 칸이면 null. */
   subject: DetailSubject | null
   /**
-   * 도메인 칸 · 핵심 목표 칸이 거느리는 과제의 진행률 0~100. 과제 칸이면 null.
-   * 도메인은 과제 8개의 평균, 핵심 목표는 서버가 내려준 시트 달성률이다.
+   * 선택한 칸의 진행률 0~100. 값이 없는 빈 칸이면 null.
+   * 과제 칸은 그 과제의 progress, 도메인 칸은 과제 8개의 평균, 핵심 목표 칸은 64개의 평균이다.
    */
   progressRate: number | null
 }

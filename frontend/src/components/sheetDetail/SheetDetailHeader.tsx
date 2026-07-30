@@ -3,13 +3,10 @@ import Button from '../common/Button'
 import ProgressBar from '../common/ProgressBar'
 import type { Sheet } from '../sheet/sheet.types'
 import { toDottedDate } from '../sheetList/sheetList.utils'
-import { TOTAL_SUBJECTS } from './sheetDetail.utils'
 
 type SheetDetailHeaderProps = {
   sheet: Sheet
-  /** 완료한 과제 수 */
-  doneCount: number
-  /** 달성률 0~100. 서버가 확정해 내려주는 값. */
+  /** 달성률 0~100. 과제 진행률의 평균(sheetDetail.utils). */
   achievementRate: number
   /** 우상단 '내 마을 보기' */
   onOpenVillage: () => void
@@ -18,7 +15,6 @@ type SheetDetailHeaderProps = {
 /** 상세 화면 머리말: 시트명 · 공개 여부 · 기간 · 달성률 · 내 마을 보기 */
 export default function SheetDetailHeader({
   sheet,
-  doneCount,
   achievementRate,
   onOpenVillage,
 }: SheetDetailHeaderProps) {
@@ -41,7 +37,7 @@ export default function SheetDetailHeader({
       <div className="ml-auto flex items-center gap-3 [--progress-accent:#6cbf7f]">
         {/* 달성률은 서버가 확정한 값이라 완료 개수와 같은 값이 아니다. 따로 적는다. */}
         <p className="m-0 whitespace-nowrap text-[12.5px] font-semibold text-ink-500">
-          달성률 {achievementRate}% · {doneCount}/{TOTAL_SUBJECTS} 완료
+          달성률 {achievementRate}%
         </p>
         <ProgressBar
           value={achievementRate}

@@ -41,11 +41,11 @@ export const domainProgressOf = (domainSubjects: (DetailSubject | null)[]): numb
   averageProgress(domainSubjects, SUBJECTS_PER_DOMAIN)
 
 /**
- * 시트 한 장의 달성률(0~100).
+ * 시트 한 장의 달성률(0~100). 과제 64칸 진행률의 평균이다.
  *
- * 원래는 서버가 확정해 내려주는 값(SheetDetailResponse.achievementRate)이고, 화면은 그걸
- * 그대로 받아 쓴다. 이 함수는 서버가 없는 목업에서 그 값을 만들어 주는 자리 —
- * 상세 조회 API 를 붙이면 응답 값으로 바뀌고 이 함수는 쓰이지 않는다.
+ * 서버도 achievementRate 를 내려주지만 쓰지 않는다 — 서버 값은 '완료한 과제 수 / 64' 라서
+ * 목표를 절반 채운 과제를 0으로 세고, 도메인 진행도(과제 진행률 평균)와 기준이 어긋난다.
+ * 목록 화면도 이 함수를 써야 두 화면의 달성률이 같아진다.
  */
 export const sheetAchievementRate = (subjects: (DetailSubject | null)[][]): number =>
   averageProgress(subjects.flat(), TOTAL_SUBJECTS)
