@@ -6,41 +6,36 @@ import com.ssafy.mandarin.domain.friend.entity.Friends;
 import com.ssafy.mandarin.domain.user.entity.User;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.Builder;
-import lombok.Getter;
 
-@Getter
-@Builder
 @Schema(description = "친구 목록 응답")
-public class FriendResponse {
-
+public record FriendResponse(
     @Schema(description = "친구 관계 ID (삭제 시 사용)", example = "1")
-    private Long friendRelationId;
+    Long friendRelationId,
 
     @Schema(description = "친구 유저 ID", example = "7")
-    private Long friendUserId;
+    Long friendUserId,
 
     @Schema(description = "친구 UUID", example = "a1b2c3d4-...")
-    private String uuid;
+    String uuid,
 
     @Schema(description = "친구 이름", example = "홍길동")
-    private String name;
+    String name,
 
     @Schema(description = "친구 프로필 이미지 URL")
-    private String profileImage;
+    String profileImage,
 
     @Schema(description = "친구가 된 시각")
-    private LocalDateTime createdAt;
-
+    LocalDateTime createdAt
+) {
     public static FriendResponse of(Friends friends, User me) {
         User counterpart = friends.getCounterpart(me);
-        return FriendResponse.builder()
-            .friendRelationId(friends.getId())
-            .friendUserId(counterpart.getId())
-            .uuid(counterpart.getUuid())
-            .name(counterpart.getName())
-            .profileImage(counterpart.getProfileImage())
-            .createdAt(friends.getCreatedAt())
-            .build();
+        return new FriendResponse(
+            friends.getId(),
+            counterpart.getId(),
+            counterpart.getUuid(),
+            counterpart.getName(),
+            counterpart.getProfileImage(),
+            friends.getCreatedAt()
+        );
     }
 }
