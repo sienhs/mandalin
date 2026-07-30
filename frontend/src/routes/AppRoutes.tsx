@@ -10,6 +10,7 @@ import OAuthCallbackPage from '../pages/OAuthCallbackPage'
 import ShopPage from '../pages/ShopPage'
 import TestHubPage from '../pages/TestHubPage'
 import SheetCreate from '../pages/SheetCreate'
+import SheetList from '../pages/SheetList'
 import ProtectedRoute from './ProtectedRoute'
 
 
@@ -34,6 +35,7 @@ export default function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/sheet/create" element={<SheetCreate />} />
+      <Route path="/sheets" element={<SheetList />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/test" element={<TestHubPage />} />
       <Route element={<ProtectedRoute />}>

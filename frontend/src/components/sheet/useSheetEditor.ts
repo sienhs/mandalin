@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { INITIAL_MAIN_GOAL, PLACEHOLDER, TASK_RECOMMEND } from './sheet.data'
-import type { CellPos, Domain, Period, Sheet, Subject, SubjectTemplate, TaskDraft } from './sheet.types'
+import { INITIAL_MAIN_GOAL, PLACEHOLDER } from './sheet.data'
+import type { CellPos, Domain, Period, Sheet, Subject, TaskDraft } from './sheet.types'
 import {
   buildGrid,
   calcTargetCount,
@@ -34,11 +34,7 @@ export function useSheetEditor() {
   // 2D 뷰에서 선택된 칸
   const [selectedCell, setSelectedCell] = useState<CellPos | null>(null)
 
-  // 추가할 수 있는 과제 패널
-  const [taskSearch, setTaskSearch] = useState('')
-  const [page, setPage] = useState('1')
-
-  // 태스크 설정 팝업
+  // 과제 설정 팝업
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [draft, setDraft] = useState<TaskDraft | null>(null)
 
@@ -68,10 +64,6 @@ export function useSheetEditor() {
   const selectedBlockIndex = selectedCell ? selectedCell.b : 0
   const miniGrid = grid[selectedBlockIndex]
 
-  const recommendedTasks = TASK_RECOMMEND.filter(
-    (t) => t.title?.includes(taskSearch) || t.domainName?.includes(taskSearch),
-  )
-
   /** 현재 설정된 기간에서 해당 주기의 목표 횟수 */
   const targetCountOf = (period: Period) => calcTargetCount(period, startDate, endDate)
 
@@ -99,34 +91,7 @@ export function useSheetEditor() {
     })
   }
 
-  /** 칸을 클릭하고 추천 과제의 추가를 누르면 해당 칸에 과제를 자동 입력한다. */
-  const addRecommendedTask = (template: SubjectTemplate) => {
-    if (!selectedCell) {
-      alert('태스크를 추가할 빈칸을 먼저 선택해주세요.')
-      return
-    }
-
-    const cell = grid[selectedCell.b][selectedCell.c]
-    if (cell.isSheet) {
-      alert('핵심 목표 칸에는 태스크를 추가할 수 없습니다.')
-      return
-    }
-    if (cell.isDomain) {
-      alert('도메인 칸에는 태스크를 추가할 수 없습니다.')
-      return
-    }
-
-    const period = template.period ?? 'none'
-    writeSubject(cell.domainIndex, cell.subjectIndex, (base) => ({
-      ...base,
-      title: template.title ?? '',
-      period,
-      targetCount: targetCountOf(period),
-      updatedAt: formatDate(new Date()),
-    }))
-  }
-
-  /** 칸을 더블클릭하면 현재 값을 채운 태스크 설정 팝업을 연다. */
+  /** 칸을 더블클릭하면 현재 값을 채운 과제 설정 팝업을 연다. */
   const openTaskDialog = ({ b, c }: CellPos) => {
     const cell = grid[b][c]
     if (cell.isSheet) return // 중앙의 핵심목표는 좌측 패널에서 수정
@@ -141,6 +106,22 @@ export function useSheetEditor() {
       done: cell.subject?.isDone,
     })
     setTaskDialogOpen(true)
+  }
+
+  /**
+   * 선택한 칸의 과제 설정 팝업을 연다. 좌측 '수동 과제 생성' 버튼이 쓴다.
+   * 더블클릭과 달리 대상 칸이 클릭으로 정해지지 않으므로, 왜 열리지 않는지 알려준다.
+   */
+  const openSelectedTaskDialog = () => {
+    if (!selectedCell) {
+      alert('과제를 설정할 칸을 먼저 선택해주세요.')
+      return
+    }
+    if (grid[selectedCell.b][selectedCell.c].isSheet) {
+      alert('핵심 목표는 좌측 기본 설정에서 수정할 수 있어요.')
+      return
+    }
+    openTaskDialog(selectedCell)
   }
 
   const updateDraft = (patch: Partial<TaskDraft>) => {
@@ -183,7 +164,6 @@ export function useSheetEditor() {
     miniGrid,
     selectedBlockIndex,
     filledCount,
-    recommendedTasks,
     targetCountOf,
 
     // 기본 설정
@@ -200,17 +180,11 @@ export function useSheetEditor() {
     selectedCell,
     setSelectedCell,
 
-    // 추가할 수 있는 과제
-    taskSearch,
-    setTaskSearch,
-    page,
-    setPage,
-    addRecommendedTask,
-
-    // 태스크 설정 팝업
+    // 과제 설정 팝업
     taskDialogOpen,
     draft,
     openTaskDialog,
+    openSelectedTaskDialog,
     updateDraft,
     closeTaskDialog,
     saveTaskDialog,
