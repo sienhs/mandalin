@@ -25,33 +25,33 @@ public class VillageService {
 	private final BuildingPartsReader buildingPartsReader;
 	private final UserVillageRepository userVillageRepository;
 
-	/** 마을 화면 한 방 조회 — 지형 + 배치 가능한(=보유한) 건물 전체. */
+	/** 마을 화면 한 방 조회 — 해당 시트의 지형 + 배치 가능한(=보유한) 건물 전체. */
 	@Transactional
-	public VillageResponse getMyVillage(Long userId) {
+	public VillageResponse getMyVillage(Long userId, Long sheetId) {
 		List<OwnedBuildingResponse> buildings = buildingInventoryService.findOwnedBuildings(userId).stream()
 				.map(this::toResponse)
 				.toList();
 
-		return new VillageResponse(findTerrain(userId), buildings);
+		return new VillageResponse(findTerrain(userId, sheetId), buildings);
 	}
 
 	/**
-	 * 지형을 바꾼다. 몇 번을 불러도 같은 결과가 되는 upsert 다.
+	 * 시트 하나의 지형을 바꾼다. 몇 번을 불러도 같은 결과가 되는 upsert 다.
 	 *
 	 * @return 적용된 지형
 	 */
 	@Transactional
-	public Terrain changeTerrain(Long userId, Terrain terrain) {
-		userVillageRepository.findByUserId(userId)
+	public Terrain changeTerrain(Long userId, Long sheetId, Terrain terrain) {
+		userVillageRepository.findByUserIdAndSheetId(userId, sheetId)
 				.ifPresentOrElse(
 						village -> village.changeTerrain(terrain),
-						() -> userVillageRepository.save(UserVillage.of(userId, terrain)));
+						() -> userVillageRepository.save(UserVillage.of(userId, sheetId, terrain)));
 		return terrain;
 	}
 
 	/** 고른 적 없으면 기본 지형. 마을이 빈 바닥으로 그려지는 상황을 만들지 않는다. */
-	private Terrain findTerrain(Long userId) {
-		return userVillageRepository.findByUserId(userId)
+	private Terrain findTerrain(Long userId, Long sheetId) {
+		return userVillageRepository.findByUserIdAndSheetId(userId, sheetId)
 				.map(UserVillage::getTerrain)
 				.orElse(Terrain.DEFAULT);
 	}
