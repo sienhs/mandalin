@@ -1,13 +1,23 @@
 import { apiFetch } from '../../api'
-import type { AiReport, ReportPeriod } from './report.types'
+import { toAiReport } from './report.mapper'
+import type {
+  AiReport,
+  ReportApiResponse,
+  ReportPeriod,
+} from './report.types'
 
 /**
- * 기간별 AI 리포트를 조회한다.
- * 백엔드 DTO가 확정되면 AiReport 타입을 실제 응답 필드에 맞춰 조정
+ * 기간별 AI 리포트를 조회한 뒤 화면용 모델로 변환한다.
+ * 서버 응답 DTO가 변경되면 ReportApiResponse와 매퍼만 조정한다.
  */
-export function fetchAiReport(
+export async function fetchAiReport(
   period: ReportPeriod,
   signal?: AbortSignal,
 ): Promise<AiReport> {
-  return apiFetch<AiReport>(`/api/v1/reports?type=${period}`, { signal })
+  const response = await apiFetch<ReportApiResponse>(
+    `/api/v1/reports?type=${period}`,
+    { signal },
+  )
+
+  return toAiReport(response, period)
 }
