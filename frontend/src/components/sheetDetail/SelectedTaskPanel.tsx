@@ -1,6 +1,7 @@
 import Button from '../common/Button'
-import type { SelectedTask } from './sheetDetail.types'
-import { PERIOD_LABEL } from './sheetDetail.utils'
+import ProgressBar from '../common/ProgressBar'
+import type { DetailSubject, SelectedTask } from './sheetDetail.types'
+import { PERIOD_LABEL, PERIOD_TERM } from './sheetDetail.utils'
 
 type SelectedTaskPanelProps = {
   task: SelectedTask
@@ -8,12 +9,33 @@ type SelectedTaskPanelProps = {
   onComplete: () => void
 }
 
+/** 칸 종류에 따른 패널 머리말 */
+const KIND_LABEL: Record<SelectedTask['kind'], string> = {
+  sheet: '선택한 핵심 목표',
+  domain: '선택한 도메인',
+  subject: '선택한 과제',
+}
+
+/**
+ * 과제 칸의 안내 문구. 버튼을 누를 수 없을 때는 왜 못 누르는지를 알려준다.
+ * isDonePeriod = 이번 기간에 이미 수행함 → 다음 기간이 오기 전에는 다시 수행할 수 없다.
+ */
+const noticeOf = (subject: DetailSubject): string => {
+  if (subject.isDone) return `이미 완료한 과제예요. (+${subject.point}P 획득)`
+  if (subject.isDonePeriod) {
+    return `${PERIOD_TERM[subject.period]} 수행은 이미 마쳤어요. 다음 기간에 또 수행할 수 있어요.`
+  }
+  return `수행할 때마다 1회씩 올라갑니다. (목표 달성 시 +${subject.point}P)`
+}
+
 /**
  * 3x3 확대 그리드 아래의 '선택한 과제' 패널.
- * 과제 칸을 선택했을 때만 수행 완료 버튼을 보여준다 — 도메인 · 핵심 목표 칸은 수행할 게 없다.
+ *
+ * 과제 칸이면 수행 횟수와 '수행 완료' 버튼을, 도메인 · 핵심 목표 칸이면 그 칸이 포함하고 있는
+ * 과제의 진행도를 보여준다 — 직접 수행할 수 없는 칸이라도 얼마나 채웠는지는 알려준다.
  */
 export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPanelProps) {
-  const { title, domainTitle, subject } = task
+  const { kind, title, domainTitle, subject, progressRate } = task
 
   return (
     <section
@@ -21,37 +43,44 @@ export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPane
       className="rounded-2xl border-[3px] border-[#e9f6e8] bg-[#f5fbf4] p-4"
     >
       <p id="selected-task" className="m-0 text-[12px] font-extrabold text-[#8cc396]">
-        선택한 과제
+        {KIND_LABEL[kind]}
       </p>
 
       <p className="m-0 mt-1.5 text-[15px] font-extrabold tracking-[-0.01em] text-ink-900">
         {domainTitle ? `${domainTitle}>${title}` : title}
       </p>
 
-      {subject ? (
+      {subject && (
         <>
           <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">
             {PERIOD_LABEL[subject.period]} · {subject.tryCount}/{subject.targetCount}회 수행
           </p>
           <p className="m-0 mt-1.5 text-[12.5px] font-semibold text-ink-500">
-            {subject.isDone
-              ? `이미 완료한 과제예요. (+${subject.point}P 획득)`
-              : `완료하면 진행도가 올라갑니다. (+${subject.point}P)`}
+            {noticeOf(subject)}
           </p>
           <Button
             variant="primary"
             size="lg"
             className="mt-3 w-full"
-            disabled={subject.isDone}
+            disabled={subject.isDone || subject.isDonePeriod}
             onClick={onComplete}
           >
             수행 완료
           </Button>
         </>
-      ) : (
-        <p className="m-0 mt-1.5 text-[12.5px] font-semibold text-ink-500">
-          도메인 칸이에요. 과제 칸을 선택하면 수행할 수 있어요.
-        </p>
+      )}
+
+      {progressRate !== null && (
+        <>
+          <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">진행도 {progressRate}%</p>
+          {/* 채움 색은 공통 ProgressBar 가 --progress-accent 로 받는다. */}
+          <div className="mt-2 [--progress-accent:#6cbf7f]">
+            <ProgressBar value={progressRate} label={`${title} 진행도`} />
+          </div>
+          <p className="m-0 mt-2.5 text-[12.5px] font-semibold text-ink-500">
+            과제 칸을 선택하면 수행할 수 있어요.
+          </p>
+        </>
       )}
     </section>
   )

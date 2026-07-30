@@ -1,14 +1,12 @@
 import { MY_SHEETS } from '../sheetList/sheetList.data'
-import type { Domain, Period, Sheet, Subject } from '../sheet/sheet.types'
+import type { Domain, Period, Sheet } from '../sheet/sheet.types'
 import { calcTargetCount } from '../sheet/sheet.utils'
-import type { SheetDetail } from './sheetDetail.types'
+import type { DetailSubject, SheetDetail } from './sheetDetail.types'
+import { rateOf, sheetAchievementRate } from './sheetDetail.utils'
 
 /**
  * 상세 화면 목업.
- *
- * 시트 제목 · 기간 · 공개 여부는 목록 화면과 같은 값을 써야 하므로 MY_SHEETS 에서 가져오고,
  * 도메인 · 과제는 아직 목록에 없는 정보라 아래 표에서 만들어 채운다.
- * 서버 연동 시 loadSheetDetail 만 API 호출로 바꾸면 화면은 그대로 돌아간다.
  */
 
 /** 도메인 하나와 그 안의 과제 8개. doneCount = 앞에서부터 몇 개를 완료 처리할지. */
@@ -91,11 +89,14 @@ export function loadSheetDetail(sheetId: number): SheetDetail {
     subjectCount: seed.doneCount,
   }))
 
-  const subjects: Subject[][] = DOMAIN_SEEDS.map((seed, d) =>
-    seed.subjects.map((title, s): Subject => {
+  const subjects: DetailSubject[][] = DOMAIN_SEEDS.map((seed, d) =>
+    seed.subjects.map((title, s): DetailSubject => {
       const period = PERIODS[s % PERIODS.length]
       const targetCount = calcTargetCount(period, summary.createdAt, summary.expiredAt)
       const isDone = s < seed.doneCount
+      // 완료하지 않은 과제도 절반쯤 수행한 상태를 만들어, 도메인 진행도가 완료 개수와
+      // 다르게 움직이는 걸 화면에서 확인할 수 있게 한다.
+      const tryCount = isDone ? targetCount : Math.floor((targetCount * (s % 3)) / 4)
       return {
         domainId: d + 1,
         userId: 1,
@@ -103,14 +104,20 @@ export function loadSheetDetail(sheetId: number): SheetDetail {
         period,
         point: 100,
         targetCount,
-        tryCount: isDone ? targetCount : 0,
+        tryCount,
         position: s,
         isDone,
+        // 완료한 과제는 항상 true. 나머지는 '이번 기간에 이미 수행한' 상태를 화면에서
+        // 확인할 수 있도록 도메인마다 한두 칸만 true 로 둔다(서버는 updatedAt 으로 판단).
+        isDonePeriod: isDone || s % 4 === 3,
+        // 실제로는 서버가 내려주는 값. 목업은 서버와 같은 규칙(수행/목표)으로 흉내낸다.
+        progress: rateOf(tryCount, targetCount),
         createdAt: summary.createdAt,
         updatedAt: summary.createdAt,
       }
     }),
   )
 
-  return { sheet, domains, subjects }
+  // 서버라면 응답에 담아 내려줄 값을 목업에서 만들어 준다. 화면은 이 값을 그대로 쓴다.
+  return { sheet, domains, subjects, achievementRate: sheetAchievementRate(subjects) }
 }

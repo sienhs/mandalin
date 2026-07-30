@@ -40,11 +40,16 @@ export default function SheetDetail() {
               selectedCell={detail.selectedCell}
               onSelect={detail.setSelectedCell}
               heading={null}
+              isChecked={detail.isChecked}
               className=""
             />
 
             <div className="flex flex-col gap-4">
-              <SheetMiniGrid blockIndex={detail.selectedBlockIndex} cells={detail.miniGrid} />
+              <SheetMiniGrid
+                blockIndex={detail.selectedBlockIndex}
+                cells={detail.miniGrid}
+                isChecked={detail.isChecked}
+              />
               <SelectedTaskPanel task={detail.selectedTask} onComplete={detail.completeTask} />
             </div>
           </div>

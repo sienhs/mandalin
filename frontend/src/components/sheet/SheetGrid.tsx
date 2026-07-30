@@ -12,6 +12,11 @@ type SheetGridProps = {
   onOpen?: (pos: CellPos) => void
   /** 그리드 위 제목과 안내 문구. null 이면 머리말 없이 그리드만 그린다(상세 화면). */
   heading?: { title: string; hint: string } | null
+  /**
+   * 칸에 체크(✓)를 붙일지 판단한다. 넘기지 않으면 체크를 그리지 않는다 —
+   * 아직 수행한 적이 없는 생성 화면에는 표시할 게 없다.
+   */
+  isChecked?: (cell: GridCell) => boolean
   /** 부모 그리드 안에서의 배치 */
   className?: string
 }
@@ -26,6 +31,7 @@ export default function SheetGrid({
   onSelect,
   onOpen,
   heading = CREATE_HEADING,
+  isChecked,
   className = 'col-start-1 row-start-1 row-span-2',
 }: SheetGridProps) {
   return (
@@ -64,7 +70,7 @@ export default function SheetGrid({
                       <span>
                         <SheetCellText text={cell.task} />
                       </span>
-                      {cell.subject?.isDone && (
+                      {isChecked?.(cell) && (
                         <span className="absolute right-[3px] top-[2px] text-[7px]">✓</span>
                       )}
                     </button>

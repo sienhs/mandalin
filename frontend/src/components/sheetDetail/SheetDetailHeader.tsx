@@ -9,7 +9,7 @@ type SheetDetailHeaderProps = {
   sheet: Sheet
   /** 완료한 과제 수 */
   doneCount: number
-  /** 달성률 0~100 */
+  /** 달성률 0~100. 서버가 확정해 내려주는 값. */
   achievementRate: number
   /** 우상단 '내 마을 보기' */
   onOpenVillage: () => void
@@ -39,8 +39,9 @@ export default function SheetDetailHeader({
 
       {/* 달성률: 글자 + 진행 바. 채움 색은 공통 ProgressBar 가 --progress-accent 로 받는다. */}
       <div className="ml-auto flex items-center gap-3 [--progress-accent:#6cbf7f]">
+        {/* 달성률은 서버가 확정한 값이라 완료 개수와 같은 값이 아니다. 따로 적는다. */}
         <p className="m-0 whitespace-nowrap text-[12.5px] font-semibold text-ink-500">
-          달성률 {achievementRate}%({doneCount}/{TOTAL_SUBJECTS} 완료)
+          달성률 {achievementRate}% · {doneCount}/{TOTAL_SUBJECTS} 완료
         </p>
         <ProgressBar
           value={achievementRate}
@@ -50,7 +51,7 @@ export default function SheetDetailHeader({
       </div>
 
       <Button variant="primary" onClick={onOpenVillage}>
-        내 마을 보기
+        3D 마을 보기
       </Button>
     </header>
   )
