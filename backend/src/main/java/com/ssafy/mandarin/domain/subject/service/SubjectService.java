@@ -101,8 +101,8 @@ public class SubjectService {
         long totalEarnedPoint = 0L;
         LocalDate today = LocalDate.now();
 
-        if (request.getSubjectIds() != null) {
-            for (Long subjectId : request.getSubjectIds()) {
+        if (request.subjectIds() != null) {
+            for (Long subjectId : request.subjectIds()) {
                 Subject subject = subjectRepository.findById(subjectId)
                         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 과제입니다. id=" + subjectId));
 
