@@ -7,6 +7,8 @@ type SelectedTaskPanelProps = {
   task: SelectedTask
   /** '수행 완료' */
   onComplete: () => void
+  /** 남의 만다라트를 보는 중. 수행에 관한 안내와 버튼을 감춘다. */
+  readOnly?: boolean
 }
 
 /** 칸 종류에 따른 패널 머리말 */
@@ -34,7 +36,11 @@ const noticeOf = (subject: DetailSubject): string => {
  * 과제 칸이면 수행 횟수와 '수행 완료' 버튼을, 도메인 · 핵심 목표 칸이면 그 칸이 포함하고 있는
  * 과제의 진행도를 보여준다 — 직접 수행할 수 없는 칸이라도 얼마나 채웠는지는 알려준다.
  */
-export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPanelProps) {
+export default function SelectedTaskPanel({
+  task,
+  onComplete,
+  readOnly = false,
+}: SelectedTaskPanelProps) {
   const { kind, title, domainTitle, subject, progressRate } = task
 
   return (
@@ -67,24 +73,28 @@ export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPane
         </>
       )}
 
-      {subject ? (
-        <>
-          <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">{noticeOf(subject)}</p>
-          <Button
-            variant="primary"
-            size="lg"
-            className="mt-3 w-full"
-            disabled={subject.isDone || subject.isDonePeriod}
-            onClick={onComplete}
-          >
-            수행 완료
-          </Button>
-        </>
-      ) : (
-        <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">
-          과제 칸을 선택하면 수행할 수 있어요.
-        </p>
-      )}
+      {/* 남의 만다라트에서는 수행에 관한 안내와 버튼을 아예 빼둔다. */}
+      {!readOnly &&
+        (subject ? (
+          <>
+            <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">
+              {noticeOf(subject)}
+            </p>
+            <Button
+              variant="primary"
+              size="lg"
+              className="mt-3 w-full"
+              disabled={subject.isDone || subject.isDonePeriod}
+              onClick={onComplete}
+            >
+              수행 완료
+            </Button>
+          </>
+        ) : (
+          <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">
+            과제 칸을 선택하면 수행할 수 있어요.
+          </p>
+        ))}
     </section>
   )
 }

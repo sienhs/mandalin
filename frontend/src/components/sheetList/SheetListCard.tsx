@@ -12,7 +12,8 @@ type SheetListCardProps = {
    */
   achievementRate: number | null
   onOpen: (sheetId: number) => void
-  onRemove: (sheetId: number) => void
+  /** 삭제(X) 버튼. 넘기지 않으면 버튼이 없다 — 남의 만다라트는 지울 수 없다. */
+  onRemove?: (sheetId: number) => void
 }
 
 //목록 화면의 개인 만다라트 카드
@@ -29,14 +30,16 @@ export default function SheetListCard({
     <article className={cn('sheet-card', `sheet-card--${theme}`)}>
       <div className="sheet-card-thumb">
         <span className="sheet-card-badge">{isOpen ? '공개' : '비공개'}</span>
-        <button
-          type="button"
-          onClick={() => onRemove(sheetId)}
-          aria-label={`${title} 삭제`}
-          className="sheet-card-remove"
-        >
-          ✕
-        </button>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={() => onRemove(sheetId)}
+            aria-label={`${title} 삭제`}
+            className="sheet-card-remove"
+          >
+            ✕
+          </button>
+        )}
         <span className="sheet-card-emoji" aria-hidden="true">
           🏙️
         </span>
