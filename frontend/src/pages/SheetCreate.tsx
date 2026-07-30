@@ -4,6 +4,7 @@ import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import SheetBasicSettings from '../components/sheet/SheetBasicSettings'
 import SheetCancelDialog from '../components/sheet/SheetCancelDialog'
+import SheetDomainDialog from '../components/sheet/SheetDomainDialog'
 import SheetGrid from '../components/sheet/SheetGrid'
 import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
 import SheetSaveDialog from '../components/sheet/SheetSaveDialog'
@@ -74,7 +75,7 @@ export default function SheetCreate() {
             onEndDateChange={editor.changeEndDate}
             isPublic={editor.isPublic}
             onPublicChange={editor.changePublic}
-            onManualTaskCreate={editor.openSelectedTaskDialog}
+            onManualTaskCreate={editor.openSelectedCellDialog}
           />
 
           {/* 우측: 하나의 카드 안에 9x9 그리드 · 저장 경고 · 사이드 패널 */}
@@ -95,7 +96,7 @@ export default function SheetCreate() {
               grid={editor.grid}
               selectedCell={editor.selectedCell}
               onSelect={editor.setSelectedCell}
-              onOpen={editor.openTaskDialog}
+              onOpen={editor.openCellDialog}
             />
 
             {/* 사이드 패널: 선택한 블록의 3x3 확대 그리드 */}
@@ -123,8 +124,17 @@ export default function SheetCreate() {
           draft={editor.draft}
           onChange={editor.updateDraft}
           targetCount={editor.targetCountOf(editor.draft.period)}
-          onClose={editor.closeTaskDialog}
-          onSave={editor.saveTaskDialog}
+          onClose={editor.closeDialog}
+          onSave={editor.saveDialog}
+        />
+      )}
+
+      {editor.domainDialogOpen && editor.draft && (
+        <SheetDomainDialog
+          draft={editor.draft}
+          onChange={editor.updateDraft}
+          onClose={editor.closeDialog}
+          onSave={editor.saveDialog}
         />
       )}
     </div>
