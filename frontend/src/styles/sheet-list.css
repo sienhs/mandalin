@@ -3,7 +3,7 @@
 /*
  * 내 만다라트 목록 화면 전용 스타일.
  *
- * 색은 pages/SheetCreate.css 및 SheetCreate 화면과 같은 팔레트를 쓴다.
+ * 색은 styles/sheet-create.css 및 SheetCreate 화면과 같은 팔레트를 쓴다.
  *   초록(주요 버튼)  #97cca1  — SheetCreate 저장 버튼
  *   보라(보조 버튼)  #858ae3  — SheetCreate 생성하기 버튼
  *   빨강(알림 점)    #dc3424  — SheetCreate 저장 경고 문구

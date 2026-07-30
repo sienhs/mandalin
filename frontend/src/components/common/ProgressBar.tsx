@@ -1,5 +1,5 @@
 import { cn } from '../../utils/cn'
-import './ProgressBar.css'
+import '../../styles/progress-bar.css'
 
 type ProgressBarProps = {
   /** 진행률 0~100. 범위를 벗어난 값은 잘라낸다. */

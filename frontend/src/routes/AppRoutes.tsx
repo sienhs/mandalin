@@ -1,19 +1,21 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import LoadingFallback from '../components/common/LoadingFallback'
+import AiCoachPage from '../pages/AiCoachPage'
 import FriendsPage from '../pages/FriendsPage'
 import HomePage from '../pages/HomePage'
 import LandingPage from '../pages/LandingPage'
+import LeaderboardPage from '../pages/LeaderboardPage'
 import LoginPage from '../pages/LoginPage'
 import MyPage from '../pages/MyPage'
+import NotFoundPage from '../pages/NotFoundPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
-import ShopPage from '../pages/ShopPage'
-import TestHubPage from '../pages/TestHubPage'
 import SheetCreate from '../pages/SheetCreate'
 import SheetDetail from '../pages/SheetDetail'
 import SheetList from '../pages/SheetList'
+import ShopPage from '../pages/ShopPage'
+import TestHubPage from '../pages/TestHubPage'
 import ProtectedRoute from './ProtectedRoute'
-
 
 /**
  * 3D(three.js)를 쓰는 화면은 lazy 로 끊는다.
@@ -35,6 +37,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/ai-coach" element={<AiCoachPage />} />
       <Route path="/sheet/create" element={<SheetCreate />} />
       {/* 고정 경로(/sheet/create)가 :sheetId 보다 먼저 잡히므로 순서와 무관하게 안전하다. */}
       <Route path="/sheet/:sheetId" element={<SheetDetail />} />
@@ -44,14 +47,52 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/home" element={<HomePage />} />
         <Route path="/friends" element={<FriendsPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/shop" element={<ShopPage />} />
-        <Route path="/village" element={<Lazy><VillagePage /></Lazy>} />
+        <Route
+          path="/village"
+          element={
+            <Lazy>
+              <VillagePage />
+            </Lazy>
+          }
+        />
       </Route>
-      <Route path="/thumbnails" element={<Lazy><ThumbnailStudioPage /></Lazy>} />
-      <Route path="/gallery" element={<Lazy><GalleryPage /></Lazy>} />
-      <Route path="/premium" element={<Lazy><PremiumGalleryPage /></Lazy>} />
-      <Route path="/inspect" element={<Lazy><InspectPage /></Lazy>} />
+      <Route
+        path="/thumbnails"
+        element={
+          <Lazy>
+            <ThumbnailStudioPage />
+          </Lazy>
+        }
+      />
+      <Route
+        path="/gallery"
+        element={
+          <Lazy>
+            <GalleryPage />
+          </Lazy>
+        }
+      />
+      <Route
+        path="/premium"
+        element={
+          <Lazy>
+            <PremiumGalleryPage />
+          </Lazy>
+        }
+      />
+      <Route
+        path="/inspect"
+        element={
+          <Lazy>
+            <InspectPage />
+          </Lazy>
+        }
+      />
+      {/* 위 어디에도 안 걸리면 백지 대신 404. 반드시 마지막에 둔다. */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }

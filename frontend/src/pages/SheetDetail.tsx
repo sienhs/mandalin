@@ -6,7 +6,7 @@ import SelectedTaskPanel from '../components/sheetDetail/SelectedTaskPanel'
 import SheetDetailHeader from '../components/sheetDetail/SheetDetailHeader'
 import { useSheetDetail } from '../components/sheetDetail/useSheetDetail'
 // 카드(.card) · 9x9 칸(.Sheet) · 3x3 확대 그리드(.mgrid) · 배지(.pill) 는 생성 화면과 공유한다.
-import './SheetCreate.css'
+import '../styles/sheet-create.css'
 
 /**
  * 만다라트 상세 화면. 목록 화면의 카드를 눌러 들어온다.
