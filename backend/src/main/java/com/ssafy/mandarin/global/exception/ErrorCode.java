@@ -49,7 +49,7 @@ public enum ErrorCode {
 	SHEET_REQUIRED(HttpStatus.BAD_REQUEST, "Individual Mandarat sheet is required to create or join a group."),
 	SHEET_NOT_OWNED(HttpStatus.FORBIDDEN, "This sheet does not belong to the requesting user."),
 	INVALID_LANDMARK(HttpStatus.BAD_REQUEST, "Selected building is not a valid LANDMARK type."),
-	BUILDING_NOT_OWNED(HttpStatus.FORBIDDEN, "Building is not owned by the user.")
+	BUILDING_NOT_OWNED(HttpStatus.FORBIDDEN, "Building is not owned by the user."),
 	// Sheet
 	SHEET_NOT_FOUND(HttpStatus.NOT_FOUND, "Mandalart sheet not found."),
 	SHEET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "This mandalart sheet is private."),
