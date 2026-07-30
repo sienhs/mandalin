@@ -12,6 +12,7 @@ import NotFoundPage from '../pages/NotFoundPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
 import ReportPage from '../pages/ReportPage'
 import SheetCreate from '../pages/SheetCreate'
+import SheetDetail from '../pages/SheetDetail'
 import SheetList from '../pages/SheetList'
 import ShopPage from '../pages/ShopPage'
 import TestHubPage from '../pages/TestHubPage'
@@ -39,6 +40,8 @@ export default function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/ai-coach" element={<AiCoachPage />} />
       <Route path="/sheet/create" element={<SheetCreate />} />
+      {/* 고정 경로(/sheet/create)가 :sheetId 보다 먼저 잡히므로 순서와 무관하게 안전하다. */}
+      <Route path="/sheet/:sheetId" element={<SheetDetail />} />
       <Route path="/sheets" element={<SheetList />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/test" element={<TestHubPage />} />
