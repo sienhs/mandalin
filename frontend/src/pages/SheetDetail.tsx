@@ -40,6 +40,10 @@ export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
             achievementRate={detail.achievementRate}
             // 친구 만다라트에서도 지금은 내 마을로 간다. 친구 마을 화면이 생기면 그때 갈린다.
             onOpenVillage={() => navigate('/village')}
+            readOnly={readOnly}
+            liked={detail.liked}
+            likeCount={detail.likeCount}
+            onToggleLike={detail.toggleLike}
           />
 
           {/* 좌: 9x9 2D 뷰 · 우: 3x3 확대 그리드와 선택한 과제 */}
