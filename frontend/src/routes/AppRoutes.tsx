@@ -10,6 +10,7 @@ import LoginPage from '../pages/LoginPage'
 import MyPage from '../pages/MyPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import OAuthCallbackPage from '../pages/OAuthCallbackPage'
+import ReportPage from '../pages/ReportPage'
 import SheetCreate from '../pages/SheetCreate'
 import SheetList from '../pages/SheetList'
 import ShopPage from '../pages/ShopPage'
@@ -46,6 +47,7 @@ export default function AppRoutes() {
         <Route path="/friends" element={<FriendsPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/mypage" element={<MyPage />} />
+        <Route path="/report" element={<ReportPage />} />
         <Route path="/shop" element={<ShopPage />} />
         <Route
           path="/village"
