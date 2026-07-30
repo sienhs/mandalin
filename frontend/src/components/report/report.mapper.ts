@@ -57,11 +57,15 @@ export function toAiReport(
   return {
     ...response,
     ...labels,
-    metrics: response.metrics.map((metric, index) => ({
+    metrics: (response.metrics ?? []).map((metric, index) => ({
       ...metric,
       tone: METRIC_TONES[index % METRIC_TONES.length],
     })),
-    trends: response.trends ? toProgressRows(response.trends) : undefined,
-    categories: toProgressRows(response.categories),
+    strengths: response.strengths ?? [],
+    improvements: response.improvements ?? [],
+    trends: response.trends?.length
+      ? toProgressRows(response.trends)
+      : undefined,
+    categories: toProgressRows(response.categories ?? []),
   }
 }

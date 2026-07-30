@@ -19,11 +19,11 @@ export type ReportProgressResponse = {
 export type ReportApiResponse = {
   title: string
   summary: string
-  metrics: ReportMetricResponse[]
-  strengths: string[]
-  improvements: string[]
-  trends?: ReportProgressResponse[]
-  categories: ReportProgressResponse[]
+  metrics?: ReportMetricResponse[] | null
+  strengths?: string[] | null
+  improvements?: string[] | null
+  trends?: ReportProgressResponse[] | null
+  categories?: ReportProgressResponse[] | null
 }
 
 /** 화면에 표시할 지표 모델 */
