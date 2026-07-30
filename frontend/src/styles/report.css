@@ -90,6 +90,36 @@
   gap: 18px;
 }
 
+.report-error {
+  display: grid;
+  min-height: 260px;
+  place-content: center;
+  justify-items: center;
+  border: 1px solid #e1e7eb;
+  border-radius: 18px;
+  background: #fff;
+  color: #334155;
+  text-align: center;
+  box-shadow: 0 10px 24px rgba(51, 65, 85, 0.1);
+}
+
+.report-error p {
+  max-width: 520px;
+  margin: 10px 24px 18px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.report-error button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  background: var(--report-primary);
+  color: #fff;
+  font-weight: 800;
+}
+
 .report-summary,
 .report-insights section,
 .report-chart,

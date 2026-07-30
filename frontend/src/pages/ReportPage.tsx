@@ -1,8 +1,12 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import Header from '../components/common/Header'
 import ProgressBar from '../components/common/ProgressBar'
-import { REPORTS } from '../components/report/report.data'
-import type { ReportPeriod, ReportProgress } from '../components/report/report.types'
+import { fetchAiReport } from '../components/report/report.api'
+import type {
+  AiReport,
+  ReportPeriod,
+  ReportProgress,
+} from '../components/report/report.types'
 import { cn } from '../utils/cn'
 import '../styles/report.css'
 
@@ -74,16 +78,34 @@ function ReportLoading() {
 export default function ReportPage() {
   const [period, setPeriod] = useState<ReportPeriod>('weekly')
   const [isLoading, setIsLoading] = useState(true)
-  const report = REPORTS[period]
+  const [report, setReport] = useState<AiReport | null>(null)
+  const [reportError, setReportError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 700)
-    return () => window.clearTimeout(timer)
-  }, [period])
+    const controller = new AbortController()
+
+    setIsLoading(true)
+    setReport(null)
+    setReportError(null)
+
+    fetchAiReport(period, controller.signal)
+      .then(setReport)
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        setReportError(
+          cause instanceof Error ? cause.message : 'AI 리포트를 불러오지 못했습니다.',
+        )
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [period, reloadKey])
 
   const changePeriod = (nextPeriod: ReportPeriod) => {
     if (nextPeriod === period) return
-    setIsLoading(true)
     setPeriod(nextPeriod)
   }
 
@@ -116,7 +138,15 @@ export default function ReportPage() {
 
         {isLoading ? (
           <ReportLoading />
-        ) : (
+        ) : reportError ? (
+          <section className="report-error" role="alert">
+            <strong>리포트를 불러오지 못했어요</strong>
+            <p>{reportError}</p>
+            <button type="button" onClick={() => setReloadKey((current) => current + 1)}>
+              다시 시도
+            </button>
+          </section>
+        ) : report ? (
           <div className="report-content">
             <section className={cn('report-summary', `is-${period}`)}>
               <div className="report-summary-copy">
@@ -167,6 +197,10 @@ export default function ReportPage() {
               <ReportProgressList rows={report.categories} />
             </section>
           </div>
+        ) : (
+          <section className="report-error">
+            <strong>표시할 리포트가 없습니다.</strong>
+          </section>
         )}
       </main>
     </div>
