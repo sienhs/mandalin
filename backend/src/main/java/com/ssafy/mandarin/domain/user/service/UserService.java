@@ -39,16 +39,16 @@ public class UserService {
      */
     public User getOrCreateUser(String uuid, String name, String profileImage) {
         return userRepository.findByUuid(uuid)
-            .orElseGet(() -> {
-                User newUser = User.builder()
-                    .uuid(uuid)
-                    .name(name != null ? name : "사용자")
-                    .profileImage(profileImage)
-                    .point(0)
-                    .build();
-                log.info("New user registered: uuid={}, name={}", uuid, name);
-                return userRepository.save(newUser);
-            });
+                .orElseGet(() -> {
+                    User newUser = User.builder()
+                            .uuid(uuid)
+                            .name(name != null ? name : "사용자")
+                            .profileImage(profileImage)
+                            .point(0)
+                            .build();
+                    log.info("New user registered: uuid={}, name={}", uuid, name);
+                    return userRepository.save(newUser);
+                });
     }
 
     public User getOrCreateUser(String uuid, String name) {
@@ -57,7 +57,7 @@ public class UserService {
 
     private User findActiveUserById(Long userId) {
         return userRepository.findById(userId)
-            .filter(user -> !user.isWithdrawn())
-            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .filter(user -> !user.isWithdrawn())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 }

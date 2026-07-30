@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ssafy.mandarin.domain.friend.dto.FriendRequestResponse;
 import com.ssafy.mandarin.domain.friend.dto.FriendResponse;
 import com.ssafy.mandarin.domain.friend.dto.FriendSendRequest;
+import com.ssafy.mandarin.domain.friend.dto.FriendSheetResponse;
 import com.ssafy.mandarin.domain.friend.service.FriendService;
 import com.ssafy.mandarin.global.response.ApiResponse;
 
@@ -27,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/friends")
 @RequiredArgsConstructor
-@Tag(name = "Friend", description = "Friend list, requests management, and deletion")
+@Tag(name = "Friend", description = "Friend list, requests management, deletion, and friend's sheets")
 public class FriendController {
 
     private final FriendService friendService;
@@ -39,6 +40,16 @@ public class FriendController {
     ) {
         List<FriendResponse> result = friendService.getMyFriends(userId);
         return ResponseEntity.ok(ApiResponse.success("Friend list retrieved", result));
+    }
+
+    @GetMapping("/{friendId}/sheets")
+    @Operation(summary = "Get friend's public sheets")
+    public ResponseEntity<ApiResponse<List<FriendSheetResponse>>> getFriendPublicSheets(
+        @RequestParam Long userId,
+        @PathVariable Long friendId
+    ) {
+        List<FriendSheetResponse> result = friendService.getFriendPublicSheets(friendId, userId);
+        return ResponseEntity.ok(ApiResponse.success("Friend's public sheets retrieved", result));
     }
 
     @PostMapping("/requests")
