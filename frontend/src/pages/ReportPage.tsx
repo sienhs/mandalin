@@ -32,6 +32,7 @@ function ReportProgressList({ rows }: { rows: ReportProgress[] }) {
             value={row.value}
             label={`${row.label} ${row.value}%`}
             className="report-progress"
+            animated
           />
         </div>
       ))}

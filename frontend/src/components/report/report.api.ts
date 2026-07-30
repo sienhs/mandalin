@@ -14,10 +14,14 @@ export async function fetchAiReport(
   period: ReportPeriod,
   signal?: AbortSignal,
 ): Promise<AiReport> {
-  const response = await apiFetch<ReportApiResponse>(
+  const response = await apiFetch<ReportApiResponse | null>(
     `/api/v1/reports?type=${period}`,
     { signal },
   )
+
+  if (!response || typeof response !== 'object' || Array.isArray(response)) {
+    throw new Error('표시할 리포트 데이터가 없습니다.')
+  }
 
   return toAiReport(response, period)
 }

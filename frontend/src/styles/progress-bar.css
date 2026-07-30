@@ -16,6 +16,9 @@
   .ui-progress-fill {
     @apply h-full rounded-full;
     background: var(--progress-accent, #94a3b8);
+  }
+
+  .ui-progress-fill.is-animated {
     transition: width 0.3s ease-out;
   }
 }

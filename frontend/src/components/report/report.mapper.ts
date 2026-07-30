@@ -2,6 +2,7 @@ import type {
   AiReport,
   ReportApiResponse,
   ReportMetric,
+  ReportMetricResponse,
   ReportPeriod,
   ReportProgress,
   ReportProgressResponse,
@@ -37,11 +38,65 @@ const REPORT_LABELS: Record<
   },
 }
 
+function normalizeText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    const normalized = normalizeText(item)
+    return normalized ? [normalized] : []
+  })
+}
+
+function normalizeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : []
+}
+
+/** 문자열을 목록 순서와 무관한 양수로 바꿔 같은 라벨에 같은 테마를 배정한다. */
+function stableIndexOf(label: string, themeCount: number): number {
+  let hash = 0
+
+  for (const character of label.trim()) {
+    hash = (hash * 31 + character.codePointAt(0)!) >>> 0
+  }
+
+  return hash % themeCount
+}
+
 function toProgressRows(rows: ReportProgressResponse[]): ReportProgress[] {
-  return rows.map((row, index) => ({
-    ...row,
-    color: PROGRESS_COLORS[index % PROGRESS_COLORS.length],
-  }))
+  return rows.flatMap((row) => {
+    const label = normalizeText(row.label)
+
+    if (!label || typeof row.value !== 'number' || !Number.isFinite(row.value)) {
+      return []
+    }
+
+    return [{
+      label,
+      value: Math.min(100, Math.max(0, row.value)),
+      color: PROGRESS_COLORS[stableIndexOf(label, PROGRESS_COLORS.length)],
+    }]
+  })
+}
+
+function toMetrics(rows: ReportMetricResponse[]): ReportMetric[] {
+  return rows.flatMap((row) => {
+    const label = normalizeText(row.label)
+
+    if (!label || row.value == null) return []
+
+    return [{
+      label,
+      value: String(row.value),
+      tone: METRIC_TONES[stableIndexOf(label, METRIC_TONES.length)],
+    }]
+  })
 }
 
 /**
@@ -55,17 +110,20 @@ export function toAiReport(
   const labels = REPORT_LABELS[period]
 
   return {
-    ...response,
+    title:
+      normalizeText(response.title) ||
+      (period === 'weekly' ? '이번 주 AI 리포트' : '이번 달 AI 리포트'),
+    summary:
+      normalizeText(response.summary) ||
+      '아직 표시할 리포트 요약이 없습니다.',
     ...labels,
-    metrics: (response.metrics ?? []).map((metric, index) => ({
-      ...metric,
-      tone: METRIC_TONES[index % METRIC_TONES.length],
-    })),
-    strengths: response.strengths ?? [],
-    improvements: response.improvements ?? [],
-    trends: response.trends?.length
-      ? toProgressRows(response.trends)
-      : undefined,
-    categories: toProgressRows(response.categories ?? []),
+    metrics: toMetrics(normalizeArray(response.metrics)),
+    strengths: normalizeStringList(response.strengths),
+    improvements: normalizeStringList(response.improvements),
+    trends: (() => {
+      const rows = toProgressRows(normalizeArray(response.trends))
+      return rows.length > 0 ? rows : undefined
+    })(),
+    categories: toProgressRows(normalizeArray(response.categories)),
   }
 }

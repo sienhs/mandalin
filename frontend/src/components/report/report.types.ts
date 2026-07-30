@@ -2,14 +2,14 @@ export type ReportPeriod = 'weekly' | 'monthly'
 
 /** 서버에서 전달받는 리포트 지표 데이터 */
 export type ReportMetricResponse = {
-  value: string
-  label: string
+  value?: string | number | null
+  label?: string | null
 }
 
 /** 서버에서 전달받는 달성률 데이터 */
 export type ReportProgressResponse = {
-  label: string
-  value: number
+  label?: string | null
+  value?: number | null
 }
 
 /**
@@ -17,8 +17,8 @@ export type ReportProgressResponse = {
  * 색상과 화면 섹션명 등 표현 정보는 포함하지 않는다.
  */
 export type ReportApiResponse = {
-  title: string
-  summary: string
+  title?: string | null
+  summary?: string | null
   metrics?: ReportMetricResponse[] | null
   strengths?: string[] | null
   improvements?: string[] | null
