@@ -9,7 +9,7 @@ import SheetInviteDialog from '../components/sheetList/SheetInviteDialog'
 import SheetListCard from '../components/sheetList/SheetListCard'
 import { GROUP_INVITES, GROUP_SHEETS, MY_SHEETS } from '../components/sheetList/sheetList.data'
 import type { SheetSummary } from '../components/sheetList/sheetList.types'
-import './SheetList.css'
+import '../styles/sheet-list.css'
 
 /** 내 만다라트 목록 화면. 개인 만다라트 카드 목록과 그룹 만다라트 목록으로 구성된다. */
 export default function SheetList() {
