@@ -30,8 +30,7 @@ public class UserController {
     @GetMapping("/me")
     @Operation(summary = "Get my profile")
     public ResponseEntity<ApiResponse<MyProfileResponse>> getMyProfile(
-        @RequestParam Long userId
-    ) {
+            @RequestParam Long userId) {
         MyProfileResponse profile = userService.getMyProfile(userId);
         return ResponseEntity.ok(ApiResponse.success("My profile retrieved", profile));
     }
@@ -39,8 +38,7 @@ public class UserController {
     @GetMapping("/me/points")
     @Operation(summary = "Get my points")
     public ResponseEntity<ApiResponse<PointResponse>> getPoints(
-        @RequestParam Long userId
-    ) {
+            @RequestParam Long userId) {
         PointResponse point = userService.getPoints(userId);
         return ResponseEntity.ok(ApiResponse.success("Points retrieved", point));
     }
@@ -48,9 +46,8 @@ public class UserController {
     @GetMapping("/{uuid}")
     @Operation(summary = "Search user by UUID")
     public ResponseEntity<ApiResponse<UserSearchResponse>> searchUser(
-        @RequestParam Long userId,
-        @PathVariable String uuid
-    ) {
+            @RequestParam Long userId,
+            @PathVariable String uuid) {
         UserSearchResponse result = friendService.searchUserByUuid(uuid, userId);
         return ResponseEntity.ok(ApiResponse.success("User found", result));
     }
