@@ -35,6 +35,8 @@ public enum ErrorCode {
 	// Shop
 	BUILDING_NOT_FOUND(HttpStatus.NOT_FOUND, "Building not found."),
 	BUILDING_ALREADY_OWNED(HttpStatus.CONFLICT, "Building is already owned."),
+	/** 랜드마크는 포인트로 살 수 없다 — 만다라트 완성 보상으로만 해금된다. */
+	BUILDING_NOT_PURCHASABLE(HttpStatus.BAD_REQUEST, "This building is a reward, not for sale."),
 	INSUFFICIENT_POINT(HttpStatus.BAD_REQUEST, "Not enough points."),
 
 	// Sheet

@@ -32519,7 +32519,7 @@
       "name": "월드컵 대경기장",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 3,
@@ -33552,7 +33552,7 @@
       "name": "원형 대투기장",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.92,
@@ -35361,7 +35361,7 @@
       "name": "오각 국방청사",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.96,
@@ -36157,7 +36157,7 @@
       "name": "대의회 의사당",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.9,
@@ -36886,7 +36886,7 @@
       "name": "개선문 광장",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.92,
@@ -37804,7 +37804,7 @@
       "name": "대궁전",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.92,
@@ -38385,7 +38385,7 @@
       "name": "대전각",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.88,
@@ -39269,7 +39269,7 @@
       "name": "백대리석 영묘",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.9,
@@ -39891,7 +39891,7 @@
       "name": "격자 철탑",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.9,
@@ -40405,7 +40405,7 @@
       "name": "삼엽 초고층",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.9,
@@ -40931,7 +40931,7 @@
       "name": "항만 오페라하우스",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.9,
@@ -41320,7 +41320,7 @@
       "name": "대피라미드 군",
       "theme": "LANDMARK",
       "type": "LANDMARK",
-      "price": 1500,
+      "price": 0,
       "defaultGranted": false,
       "size": {
         "width": 2.94,

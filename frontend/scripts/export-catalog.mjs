@@ -16,6 +16,10 @@
  * ⚠️ type=LANDMARK 는 "정중앙 3×3 자리에 세울 수 있는 건물"이라는 뜻이다. 예전에는 테마마다
  * 앞 3종을 LANDMARK 로 표시했지만(=그냥 대표 건물), 그 값을 자리 판정에 쓰게 되면서 1칸짜리
  * 건물이 3×3 자리 후보로 올라오는 문제가 생겨 랜드마크 카탈로그 전용 표시로 회수했다.
+ *
+ * ⚠️ 랜드마크는 값이 0 이다. 포인트로 사는 물건이 아니라 **만다라트 완성 보상**이라서
+ * 상점 진열에서도 빠진다(ShopService.findAll). 0 은 "무료"가 아니라 "상점 재화가 아님"의
+ * 표시다 — 여기에 가격을 넣으면 상점에 다시 올려도 되는 물건처럼 보인다.
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -26,7 +30,6 @@ import { PREMIUM_CONFIGS, PREMIUM_THEMES } from '../src/village/premium/index.ts
 import {
   LANDMARK_CONFIGS,
   LANDMARK_DEFAULT_KEY,
-  LANDMARK_PRICE,
   LANDMARK_THEME,
 } from '../src/village/landmarks/index.ts'
 
@@ -202,13 +205,13 @@ for (const theme of PREMIUM_THEMES) {
   }
 }
 
-// 랜드마크 — 정중앙 3×3 자리 전용. 한 종은 무료로 지급해 중앙이 비지 않게 한다.
+// 랜드마크 — 정중앙 3×3 자리 전용. 완성 보상으로 해금하므로 값이 없다(상점 미진열).
+// 한 종만 기본 지급해, 아무것도 완성하지 않은 유저의 중앙이 비지 않게 한다.
 for (const [key, config] of Object.entries(LANDMARK_CONFIGS)) {
-  const free = key === LANDMARK_DEFAULT_KEY
   push(key, config, LANDMARK_THEME, {
     type: 'LANDMARK',
-    price: free ? 0 : LANDMARK_PRICE,
-    defaultGranted: free,
+    price: 0,
+    defaultGranted: key === LANDMARK_DEFAULT_KEY,
   })
 }
 

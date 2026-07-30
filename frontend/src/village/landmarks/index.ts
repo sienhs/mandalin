@@ -3,7 +3,8 @@
  *
  * 일반 건물(catalog.ts / premium/*)과 분리한 이유:
  *  - 부지가 3×3(ref 3.0)이라 좌표 스케일이 완전히 다르다.
- *  - 단계가 3단계가 아니라 8단계이고, 부품마다 `s`(등장 단계)를 달아 공사가 진행되듯 자란다.
+ *  - 단계가 3단계가 아니라 8단계이고, 부품마다 `st`(등장 단계 1~8)를 달아 공사가 진행되듯
+ *    자란다. `s` 가 아니다 — `cross` 부품이 이미 `s`(십자 크기)를 쓰고 있어 뜻이 겹친다.
  *  - 배치 자리도 다르다. 마을 정중앙 블록(만다라트 중심 목표) 하나뿐이다.
  *
  * ⚠️ 이 모듈도 `/village` 에서 import 하면 안 된다. 마을은 서버가 내려준 보유 건물의
@@ -40,8 +41,16 @@ export const LANDMARK_THEME = 'LANDMARK'
  */
 export const LANDMARK_DEFAULT_KEY: LandmarkKey = 'lm_civic_plaza'
 
-/** 기본 지급분을 뺀 나머지 랜드마크 가격(포인트). 일반 프리미엄(300)보다 비싸다. */
-export const LANDMARK_PRICE = 1500
+/*
+ * 랜드마크에는 가격 상수가 없다.
+ *
+ * 포인트로 사는 물건이 아니라 **만다라트 완성 보상**으로 해금한다. 상점 목록에서도 빠진다
+ * (ShopService.findAll 이 type=LANDMARK 를 걸러낸다). 시드의 price 는 0 으로 나가는데,
+ * 그건 "무료"가 아니라 "상점 재화가 아님"의 표시다.
+ *
+ * 보상 지급이 붙기 전까지는 /test 의 "랜드마크 전부 획득"(POST /api/v1/demo/buildings/landmarks)
+ * 이 그 자리를 대신한다.
+ */
 
 /** UI 목록용: [key, label]. */
 export const LANDMARK_LIST: { key: LandmarkKey; label: string }[] = LANDMARK_KEYS.map((key) => ({

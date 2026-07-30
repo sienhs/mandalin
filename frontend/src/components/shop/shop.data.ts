@@ -27,7 +27,12 @@ export const THEME_STYLES: Record<string, ThemeStyle> = {
   WEST: { label: '서부', emoji: '🤠', background: '#F0E2CE' },
   SEOUL: { label: '서울', emoji: '🏢', background: '#E5E9EE' },
   ARTDECO: { label: '아르데코', emoji: '🎭', background: '#F2E6D8' },
-  // 마을 정중앙 3×3 자리 전용. 8단계로 자라는 거대 건물이라 테마와 격이 다르다.
+  /*
+   * 마을 정중앙 3×3 자리 전용. 만다라트 완성 보상이라 ShopService.findAll 이 걸러내므로
+   * **현재 이 항목은 쓰이지 않는다**(상점 응답에 LANDMARK 가 오지 않는다). 지우면 나중에
+   * "획득한 보상" 같은 구역이 붙었을 때 라벨이 '기타'로 떨어지므로 자리만 남겨 둔다.
+   * 마을 쪽 라벨은 여기가 아니라 ownedCatalog.THEME_LABELS 가 따로 갖고 있다.
+   */
   LANDMARK: { label: '랜드마크', emoji: '🗺️', background: '#E9E3D3' },
 }
 
