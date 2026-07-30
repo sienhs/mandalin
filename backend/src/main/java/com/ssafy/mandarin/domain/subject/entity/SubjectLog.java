@@ -1,8 +1,8 @@
-package com.ssafy.mandarin.domain.sheet.entity;
+package com.ssafy.mandarin.domain.subject.entity;
 
 import java.time.LocalDateTime;
 
-import com.ssafy.mandarin.domain.template.entity.DomainTemplate;
+import com.ssafy.mandarin.domain.user.entity.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,43 +21,30 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "domain")
+@Table(name = "subject_log")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor
 @Builder
-public class Domain {
+public class SubjectLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sheet_id", nullable = false)
-    private Sheet sheet;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "domain_template_id")
-    private DomainTemplate domainTemplate;
+    @JoinColumn(name = "subject_id", nullable = false)
+    private Subject subject;
 
-    @Column(nullable = false)
-    private String title;
-
-    @Column(nullable = false)
-    private Integer position;
-
-    @Column(name = "subject_count")
-    private Integer subjectCount;
+    @Column(name = "earned_point", nullable = false)
+    private Long earnedPoint;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    public void incrementSubjectCount() {
-        if (this.subjectCount == null) {
-            this.subjectCount = 0;
-        }
-        this.subjectCount++;
-    }
 
     @PrePersist
     public void prePersist() {
@@ -66,5 +53,3 @@ public class Domain {
         }
     }
 }
-
-

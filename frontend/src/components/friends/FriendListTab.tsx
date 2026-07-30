@@ -4,7 +4,7 @@ import FriendAvatar from './FriendAvatar'
 import FriendsPagination from './FriendsPagination'
 import type { Friend } from './friends.types'
 
-const ITEMS_PER_PAGE = 4
+const ITEMS_PER_PAGE = 10
 
 type FriendListTabProps = {
   friends: Friend[]

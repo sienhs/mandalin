@@ -11,7 +11,7 @@ import SheetTaskDialog from '../components/sheet/SheetTaskDialog'
 import { buildCreatePayload, createSheet } from '../components/sheet/sheet.api'
 import { TOTAL_CELLS } from '../components/sheet/sheet.data'
 import { useSheetEditor } from '../components/sheet/useSheetEditor'
-import './SheetCreate.css'
+import '../styles/sheet-create.css'
 
 /** 새 만다라트를 만드는 화면. 좌측 기본 설정 · 우측 2D 뷰와 사이드 패널로 구성된다. */
 export default function SheetCreate() {
@@ -74,6 +74,7 @@ export default function SheetCreate() {
             onEndDateChange={editor.changeEndDate}
             isPublic={editor.isPublic}
             onPublicChange={editor.changePublic}
+            onAiTaskCreate={() => navigate('/ai-coach')}
             onManualTaskCreate={editor.openSelectedTaskDialog}
           />
 

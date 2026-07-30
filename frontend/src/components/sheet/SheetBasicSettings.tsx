@@ -15,6 +15,8 @@ type SheetBasicSettingsProps = {
   onEndDateChange: (value: string) => void
   isPublic: boolean
   onPublicChange: (value: boolean) => void
+  /** AI 코치 화면 열기 */
+  onAiTaskCreate: () => void
   /** 선택한 칸의 과제 설정 팝업 열기 */
   onManualTaskCreate: () => void
 }
@@ -29,6 +31,7 @@ export default function SheetBasicSettings({
   onEndDateChange,
   isPublic,
   onPublicChange,
+  onAiTaskCreate,
   onManualTaskCreate,
 }: SheetBasicSettingsProps) {
   return (
@@ -113,7 +116,7 @@ export default function SheetBasicSettings({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Button variant="danger" size="sm" className="w-full">
+        <Button variant="danger" size="sm" className="w-full" onClick={onAiTaskCreate}>
           AI로 과제 생성
         </Button>
         <Button variant="primary" size="sm" className="w-full" onClick={onManualTaskCreate}>

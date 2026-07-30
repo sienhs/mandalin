@@ -1,9 +1,9 @@
-@reference "../../index.css";
+@reference "../index.css";
 
 /*
  * 공통 버튼.
  * 만다라트 생성 화면과 목록 화면에서 겹쳐 쓰던 버튼 스타일을 한곳에 모았다.
- * 색은 pages/SheetCreate.css 팔레트를 따른다.
+ * 색은 styles/sheet-create.css 팔레트를 따른다.
  *   primary  #97cca1  — 저장 · 생성 · 수락 등 주요 동작
  *   danger   #b85b56  — 삭제 · 되돌리기 등 경고를 동반한 동작
  *   ghost    흰 배경 + #cbd5e1 테두리 — 취소 · 거절
