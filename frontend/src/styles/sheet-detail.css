@@ -19,8 +19,9 @@
 @layer components {
 
   /* ---------- 머리말 ---------- */
+  /* flex-wrap 을 쓰지 않는다 — 확대하면 달성률·버튼이 아래 줄로 내려가 배치가 흔들린다. */
   .sheet-detail-header {
-    @apply mb-5 flex flex-wrap items-center gap-x-5 gap-y-3;
+    @apply mb-5 flex items-center gap-5;
   }
 
   .sheet-detail-heading {

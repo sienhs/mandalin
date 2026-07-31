@@ -46,7 +46,8 @@ export default function SheetGrid({
       )}
 
       <ul
-        className="mx-auto my-0 grid w-full max-w-[500px] list-none grid-cols-3 gap-2 p-0 self-start"
+        // 폭 고정: w-full 로 두면 컨테이너가 좁아질 때 칸이 눌려 글자가 칸을 넘친다.
+        className="mx-auto my-0 grid w-[500px] list-none grid-cols-3 gap-2 p-0 self-start"
         aria-label="만다라트 9x9 과제 그리드"
       >
         {grid.map((block, b) => (

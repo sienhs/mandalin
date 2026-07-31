@@ -30,11 +30,17 @@ export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
   const { sheetId } = useParams()
   const detail = useSheetDetail(Number(sheetId) || 1)
 
+  // min-w: 가로 스크롤이 생겼을 때 오른쪽에 배경 없는 흰 띠가 보이지 않게 한다.
   return (
-    <div className="min-h-screen bg-[#F6F7F8]">
+    <div className="min-h-screen min-w-[1280px] bg-[#F6F7F8]">
       <Header />
 
-      <main className="mx-auto max-w-[1280px] px-6 pb-[70px] pt-6">
+      {/*
+        폭을 고정한다(반응형 아님) — max-w 로 두면 브라우저를 확대할 때 CSS 뷰포트가 좁아지면서
+        컨테이너가 같이 줄고, 9x9 칸이 눌려 글자와 칸 비율이 깨진다.
+        좁은 창에서는 화면이 줄어드는 대신 가로 스크롤이 생긴다.
+      */}
+      <main className="mx-auto w-[1280px] px-6 pb-[70px] pt-6">
         <div className="card p-6">
           <SheetDetailHeader
             sheet={detail.sheet}
