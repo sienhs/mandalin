@@ -1,21 +1,4 @@
 -- 만다라트 시트 · 세부목표(domain) · 하위과제(subject) · 좋아요 스키마.
---
--- 컬럼명과 NULL 여부는 Hibernate 가 엔티티에서 실제로 기대하는 것에 맞췄다
--- (ddl-auto=create 로 스키마를 생성해 대조했다). 엔티티만 눈으로 보고 옮기면 어긋난다:
---
---  * Sheet.likeCount 는 @Column(name = "like_count") 로 명시돼 있다. 이름을 생략하거나
---    camelCase 로 적어도 Spring Boot 의 CamelCaseToUnderscoresNamingStrategy 가
---    snake_case 로 바꾸므로, 어느 쪽이든 실제 컬럼명은 like_count 다.
---  * Sheet/Subject 는 BaseEntity 를 상속하고 그 안의 updatedAt 이 nullable = false 라,
---    updated_at 을 NULL 허용으로 두면 기동 시 validate 가 실패한다.
---  * Domain / Likes 는 BaseEntity 를 상속하지 않는다 — updated_at 컬럼이 없다.
---
--- 사용자 테이블은 V1 의 users 를 참조한다. ERD 표기는 user 지만 PostgreSQL 예약어라
--- 따옴표 없이 쓸 수 없고, 별도 user 테이블을 만들면 User 엔티티가 매핑된 users 와
--- 데이터가 갈라진다(시트는 빈 user 를, 로그인은 users 를 보게 된다).
---
--- FK 의 ON DELETE 는 V1/V2/V3 관례를 따라 CASCADE 로 맞췄다. SheetService.deleteSheet 가
--- 자식을 순서대로 직접 지우므로 평소에는 작동하지 않고, 누락 시 고아 행을 막는 안전망이다.
 
 -- 만다라트 시트
 CREATE TABLE sheet (
@@ -54,8 +37,6 @@ CREATE TABLE subject (
     domain_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     title VARCHAR(255) NOT NULL,
-    -- SubjectPeriod 가 @Enumerated(EnumType.STRING) 이라 상수 이름이 저장된다.
-    -- enum 의 value("daily" 등)는 JSON 직렬화용이고 DB 값과 다르다.
     period_type VARCHAR(20) NOT NULL,
     point BIGINT NOT NULL DEFAULT 0,
     target_count INTEGER,
@@ -63,7 +44,7 @@ CREATE TABLE subject (
     position INTEGER NOT NULL,
     is_done BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT (CURRENT_TIMESTAMP - INTERVAL '1 day'),
     CONSTRAINT fk_subject_domain FOREIGN KEY (domain_id)
         REFERENCES domain (id) ON DELETE CASCADE,
     CONSTRAINT fk_subject_user FOREIGN KEY (user_id)
@@ -86,5 +67,4 @@ CREATE TABLE likes (
         REFERENCES sheet (id) ON DELETE CASCADE
 );
 
--- PK 선두 컬럼이 user_id 라 "이 시트를 누가 좋아요했나" 조회는 인덱스를 타지 못한다.
 CREATE INDEX idx_likes_sheet ON likes (sheet_id);
