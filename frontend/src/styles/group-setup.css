@@ -308,8 +308,14 @@
     @apply m-0 mt-2 text-[12.5px] font-semibold leading-[1.6] text-ink-400;
   }
 
+  /*
+   * 랜드마크가 늘어나면 이 목록 안에서만 스크롤한다.
+   * 높이는 4줄까지 보이는 값(줄 42px + 간격 6px 기준) — 5개째부터 스크롤이 생기고,
+   * 잘린 줄이 살짝 보여서 더 있다는 걸 알 수 있다.
+   * overscroll-contain: 목록 끝에서 계속 굴려도 뒤 페이지가 따라 움직이지 않는다.
+   */
   .group-landmark-list {
-    @apply m-0 mt-4 flex max-h-[240px] list-none flex-col gap-1.5 overflow-y-auto p-0;
+    @apply m-0 mt-4 flex max-h-[190px] list-none flex-col gap-1.5 overflow-y-auto overscroll-contain p-0;
   }
 
   .group-landmark-option {

@@ -13,6 +13,9 @@ export const MOCK_LANDMARKS: GroupLandmark[] = [
   { buildingId: 2, name: '시민 회관', icon: '🏛' },
   { buildingId: 3, name: '대경기장', icon: '🏟' },
   { buildingId: 4, name: '왕궁', icon: '🏰' },
+  // 5개째부터 목록이 스크롤되는 것을 확인하려고 둔 항목들
+  { buildingId: 5, name: '대관람차', icon: '🎡' },
+  { buildingId: 6, name: '모아이 석상', icon: '🗿' },
 ]
 
 /**
