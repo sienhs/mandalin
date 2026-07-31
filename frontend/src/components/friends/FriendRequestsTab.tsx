@@ -3,7 +3,7 @@ import FriendAvatar from './FriendAvatar'
 import FriendsPagination from './FriendsPagination'
 import type { Friend } from './friends.types'
 
-const ITEMS_PER_PAGE = 10
+const ITEMS_PER_PAGE = 4
 
 type FriendRequestsTabProps = {
   requests: Friend[]

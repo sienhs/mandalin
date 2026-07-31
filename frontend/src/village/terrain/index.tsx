@@ -42,17 +42,10 @@ function TerrainSurface({ terrain }: { terrain: Terrain }) {
   }
 }
 
-/**
- * @param islandBase 섬 아랫부분(매달린 암반·종유석)을 그릴지. 기본 true.
- *   이 장식만 인스턴스 1,296개 + 그림자라 마을에서 가장 무겁다. 프레임을 재거나 저사양
- *   환경을 볼 때 여기서 끈다. 끄면 지표면만 남아 평평한 판이 된다.
- */
-export function TerrainGround({
-  terrain, islandBase = true,
-}: { terrain: Terrain; islandBase?: boolean }) {
+export function TerrainGround({ terrain }: { terrain: Terrain }) {
   return (
     <group>
-      {islandBase && <FloatingBase {...BASE[terrain]} />}
+      <FloatingBase {...BASE[terrain]} />
       <TerrainSurface terrain={terrain} />
     </group>
   )

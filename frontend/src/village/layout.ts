@@ -24,15 +24,6 @@ export const SPAN = PITCH * 3 + GAP + 0.6
 /** 블록 중심 좌표 (x/z 공통). */
 export const BLOCK_CENTERS = [-PITCH, 0, PITCH] as const
 
-/** ref 단위(일반 건물 footprint≈0.3~0.46) → 월드 크기 배율. 랜드마크도 같은 배율을 쓴다. */
-export const BUILD_SCALE = 2.4
-
-/**
- * 3×3 블록 그리드에서 정중앙 블록 index.
- * 만다라트의 중심 목표 자리이고, 여기에만 랜드마크(3×3 거대 건물)가 선다.
- */
-export const CENTER_BLOCK_INDEX = 4
-
 /** 블록 사이 통로 중심선 2개. */
 export const ROAD_CENTERS = [-PITCH / 2, PITCH / 2] as const
 

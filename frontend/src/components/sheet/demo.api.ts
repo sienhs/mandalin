@@ -42,22 +42,3 @@ export function grantDemoPoint(amount: number): Promise<number> {
     body: JSON.stringify({ amount }),
   })
 }
-
-export type DemoUnlockResult = {
-  /** 이번 호출로 새로 지급된 종수. 이미 다 갖고 있었으면 0. */
-  granted: number
-  /** 지급 후 보유 종수. */
-  owned: number
-  /** 카탈로그의 전체 종수. */
-  total: number
-}
-
-/**
- * 랜드마크(마을 정중앙 3×3) 전 종을 해금한다. 포인트를 쓰지 않는다.
- *
- * 랜드마크는 상점에서 사는 물건이 아니라 만다라트 완성 보상이다. 그 보상 지급이 아직 없어서
- * 기본 지급 1종 말고는 정중앙에 세워 볼 수가 없다. 그 자리를 메우는 임시 통로다.
- */
-export function unlockDemoLandmarks(): Promise<DemoUnlockResult> {
-  return apiFetch<DemoUnlockResult>('/api/v1/demo/buildings/landmarks', { method: 'POST' })
-}

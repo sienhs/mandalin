@@ -34,8 +34,8 @@ export function useSheetEditor() {
   // 2D 뷰에서 선택된 칸
   const [selectedCell, setSelectedCell] = useState<CellPos | null>(null)
 
-  /** 열려 있는 팝업. 칸 종류에 따라 갈린다(도메인 칸 = 도메인 설정, 과제 칸 = 과제 설정). */
-  const [openDialog, setOpenDialog] = useState<'task' | 'domain' | null>(null)
+  // 과제 설정 팝업
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [draft, setDraft] = useState<TaskDraft | null>(null)
 
   // 기본 설정 패널의 값은 별도 상태를 두지 않고 sheetData 한곳에만 저장한다.
@@ -91,8 +91,8 @@ export function useSheetEditor() {
     })
   }
 
-  /** 칸을 더블클릭하면 현재 값을 채운 설정 팝업을 연다. 도메인 칸과 과제 칸은 팝업이 다르다. */
-  const openCellDialog = ({ b, c }: CellPos) => {
+  /** 칸을 더블클릭하면 현재 값을 채운 과제 설정 팝업을 연다. */
+  const openTaskDialog = ({ b, c }: CellPos) => {
     const cell = grid[b][c]
     if (cell.isSheet) return // 중앙의 핵심목표는 좌측 패널에서 수정
 
@@ -105,14 +105,14 @@ export function useSheetEditor() {
       period: cell.subject?.period ?? 'none',
       done: cell.subject?.isDone,
     })
-    setOpenDialog(cell.isDomain ? 'domain' : 'task')
+    setTaskDialogOpen(true)
   }
 
   /**
-   * 선택한 칸의 설정 팝업을 연다. 좌측 '수동 과제 생성' 버튼이 쓴다.
+   * 선택한 칸의 과제 설정 팝업을 연다. 좌측 '수동 과제 생성' 버튼이 쓴다.
    * 더블클릭과 달리 대상 칸이 클릭으로 정해지지 않으므로, 왜 열리지 않는지 알려준다.
    */
-  const openSelectedCellDialog = () => {
+  const openSelectedTaskDialog = () => {
     if (!selectedCell) {
       alert('과제를 설정할 칸을 먼저 선택해주세요.')
       return
@@ -121,17 +121,17 @@ export function useSheetEditor() {
       alert('핵심 목표는 좌측 기본 설정에서 수정할 수 있어요.')
       return
     }
-    openCellDialog(selectedCell)
+    openTaskDialog(selectedCell)
   }
 
   const updateDraft = (patch: Partial<TaskDraft>) => {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev))
   }
 
-  const closeDialog = () => setOpenDialog(null)
+  const closeTaskDialog = () => setTaskDialogOpen(false)
 
   /** 팝업의 임시 값을 실제 도메인 · 과제 상태에 반영한다. */
-  const saveDialog = () => {
+  const saveTaskDialog = () => {
     if (!draft) return
     const cell = grid[draft.cell.b][draft.cell.c]
     // 입력을 비운 채 저장하면 열었을 때의 값을 유지한다.
@@ -150,7 +150,7 @@ export function useSheetEditor() {
       }))
     }
 
-    setOpenDialog(null)
+    setTaskDialogOpen(false)
   }
 
   return {
@@ -180,14 +180,13 @@ export function useSheetEditor() {
     selectedCell,
     setSelectedCell,
 
-    // 설정 팝업 (도메인 칸 · 과제 칸)
-    taskDialogOpen: openDialog === 'task',
-    domainDialogOpen: openDialog === 'domain',
+    // 과제 설정 팝업
+    taskDialogOpen,
     draft,
-    openCellDialog,
-    openSelectedCellDialog,
+    openTaskDialog,
+    openSelectedTaskDialog,
     updateDraft,
-    closeDialog,
-    saveDialog,
+    closeTaskDialog,
+    saveTaskDialog,
   }
 }

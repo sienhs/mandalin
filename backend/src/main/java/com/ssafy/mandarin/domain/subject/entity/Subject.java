@@ -14,15 +14,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "subject")
@@ -83,13 +80,5 @@ public class Subject extends BaseEntity {
             this.tryCount = 0;
         }
         this.tryCount++;
-    }
-
-    @PrePersist
-    public void prePersist() {
-        // 엔티티가 처음 저장될 때, updatedAt을 하루 전으로 초기화
-        if (getUpdatedAt() == null || getUpdatedAt().isAfter(LocalDateTime.now().minusHours(1))) {
-            initUpdatedAt(LocalDateTime.now().minusDays(1));
-        }
     }
 }

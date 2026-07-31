@@ -10,16 +10,8 @@
  *
  * 상점 메타(type/price)는 여기서 규칙으로 파생한다 — 건물마다 손으로 적지 않는다.
  *  - 기본 15종(catalog.ts): 가입 시 자동 지급이라 0P
- *  - 프리미엄 241종: 전부 같은 가격, 전부 NORMAL
- *  - 랜드마크(landmarks/*): 마을 정중앙 3×3 전용, 8단계로 자라는 거대 건물. 전부 LANDMARK
- *
- * ⚠️ type=LANDMARK 는 "정중앙 3×3 자리에 세울 수 있는 건물"이라는 뜻이다. 예전에는 테마마다
- * 앞 3종을 LANDMARK 로 표시했지만(=그냥 대표 건물), 그 값을 자리 판정에 쓰게 되면서 1칸짜리
- * 건물이 3×3 자리 후보로 올라오는 문제가 생겨 랜드마크 카탈로그 전용 표시로 회수했다.
- *
- * ⚠️ 랜드마크는 값이 0 이다. 포인트로 사는 물건이 아니라 **만다라트 완성 보상**이라서
- * 상점 진열에서도 빠진다(ShopService.findAll). 0 은 "무료"가 아니라 "상점 재화가 아님"의
- * 표시다 — 여기에 가격을 넣으면 상점에 다시 올려도 되는 물건처럼 보인다.
+ *  - 프리미엄 241종: 전부 같은 가격
+ *  - 프리미엄 테마 파일은 "랜드마크 우선" 순서로 작성되어 있어 앞 3종을 LANDMARK로 취급
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -27,25 +19,24 @@ import { fileURLToPath } from 'node:url'
 
 import { BUILDING_CONFIGS } from '../src/village/catalog.ts'
 import { PREMIUM_CONFIGS, PREMIUM_THEMES } from '../src/village/premium/index.ts'
-import {
-  LANDMARK_CONFIGS,
-  LANDMARK_DEFAULT_KEY,
-  LANDMARK_THEME,
-} from '../src/village/landmarks/index.ts'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(HERE, '..', '..')
 const OUT = path.join(REPO, 'backend', 'src', 'main', 'resources', 'catalog', 'buildings.json')
 
+/** 테마별 앞에서부터 이 개수만큼 LANDMARK. */
+const LANDMARKS_PER_THEME = 3
 /** 프리미엄 건물 가격(전 종류 동일). 기본 제공 건물은 0. */
 const PREMIUM_PRICE = 300
+/** 기본 15종 중 랜드마크 취급할 건물. */
+const BASIC_LANDMARKS = ['clocktower', 'windmill', 'skyscraper', 'civic']
 
 // ── 1. parts → 바운딩 박스 ─────────────────────────────────────────────────
 
 const PL = 0.07
 
 /** 부품 하나가 차지하는 축정렬 범위. 렌더러(buildings.tsx)의 지오메트리와 맞춘 근사치. */
-export function partBounds(p) {
+function partBounds(p) {
   const box = (cx, cz, hw, hd, y0, y1) => ({ x0: cx - hw, x1: cx + hw, z0: cz - hd, z1: cz + hd, y0, y1 })
   switch (p.k) {
     case 'plinth': {
@@ -114,47 +105,6 @@ export function partBounds(p) {
     }
     case 'tree':
       return box(0, 0, 0.72, 0.72, 0, 2.26)
-
-    // ── 랜드마크 부품 ──
-    case 'polyPrism': {
-      const y = p.y ?? 0
-      return box(p.x ?? 0, p.z ?? 0, p.r, p.r, y, y + p.h)
-    }
-    case 'ring': {
-      const y = p.y ?? 0
-      return box(0, 0, p.ro * (p.sx ?? 1), p.ro * (p.sz ?? 1), y, y + p.h)
-    }
-    case 'bowl': {
-      const y = p.y ?? 0
-      // 안쪽으로 기울어진 띠라 두께 0.05 만큼 아래로 내려간다(BowlPart 와 같은 값).
-      return box(0, 0, p.ro * (p.sx ?? 1), p.ro * (p.sz ?? 1), y - 0.05, y + p.h)
-    }
-    case 'arch': {
-      const y = p.y ?? 0
-      // 개구부 폭 + 양쪽 기둥. 상부 반원이 thick/2 만큼 더 올라간다.
-      let hw = p.w / 2 + p.thick
-      let hd = p.d / 2
-      const quarter = Math.round(((p.rotY ?? 0) / (Math.PI / 2)) % 4)
-      if (quarter % 2 !== 0) [hw, hd] = [hd, hw]
-      return box(p.x ?? 0, p.z ?? 0, hw, hd, y, y + p.h + p.thick / 2)
-    }
-    case 'lattice': {
-      const y = p.y ?? 0
-      return box(0, 0, p.w / 2, p.w / 2, y, y + p.h)
-    }
-    case 'shell': {
-      const [x, y, z] = p.pos
-      return box(x, z, p.w / 2, p.d / 2, y, y + p.h)
-    }
-    case 'floodlight': {
-      const [x, y, z] = p.pos
-      return box(x, z, 0.1, 0.05, y, y + p.h + 0.1)
-    }
-    case 'pool': {
-      const d = p.d ?? p.w
-      const y = p.y ?? 0
-      return box(p.x ?? 0, p.z ?? 0, (p.w + 0.07) / 2, (d + 0.07) / 2, y, y + 0.035)
-    }
     default:
       return null
   }
@@ -180,15 +130,16 @@ function sizeOf(parts) {
 const items = []
 let sortOrder = 0
 
-const push = (itemKey, config, theme, { type = 'NORMAL', price, defaultGranted } = {}) => {
+const push = (itemKey, config, theme, type) => {
+  const basic = theme === 'BASIC'
   items.push({
     itemKey,
     name: config.label,
     theme,
     type,
-    price,
+    price: basic ? 0 : PREMIUM_PRICE,
     // 가입 시 자동 지급 대상 — 상점에서 살 필요 없이 처음부터 보유
-    defaultGranted,
+    defaultGranted: basic,
     size: sizeOf(config.parts),
     sortOrder: sortOrder++,
     parts: config.parts,
@@ -196,54 +147,19 @@ const push = (itemKey, config, theme, { type = 'NORMAL', price, defaultGranted }
 }
 
 for (const [key, config] of Object.entries(BUILDING_CONFIGS)) {
-  push(key, config, 'BASIC', { price: 0, defaultGranted: true })
+  push(key, config, 'BASIC', BASIC_LANDMARKS.includes(key) ? 'LANDMARK' : 'NORMAL')
 }
 
 for (const theme of PREMIUM_THEMES) {
-  for (const key of theme.keys) {
-    push(key, PREMIUM_CONFIGS[key], theme.id.toUpperCase(), { price: PREMIUM_PRICE, defaultGranted: false })
-  }
-}
-
-// 랜드마크 — 정중앙 3×3 자리 전용. 완성 보상으로 해금하므로 값이 없다(상점 미진열).
-// 한 종만 기본 지급해, 아무것도 완성하지 않은 유저의 중앙이 비지 않게 한다.
-for (const [key, config] of Object.entries(LANDMARK_CONFIGS)) {
-  push(key, config, LANDMARK_THEME, {
-    type: 'LANDMARK',
-    price: 0,
-    defaultGranted: key === LANDMARK_DEFAULT_KEY,
+  theme.keys.forEach((key, i) => {
+    push(key, PREMIUM_CONFIGS[key], theme.id.toUpperCase(), i < LANDMARKS_PER_THEME ? 'LANDMARK' : 'NORMAL')
   })
 }
 
-/**
- * 파일로 쓰는 건 이 스크립트를 직접 실행했을 때만 한다.
- * check-landmarks.mjs 가 partBounds 를 import 하는데, 그때 시드까지 다시 써지면
- * "검사만 돌렸는데 카탈로그가 바뀌는" 부작용이 생긴다.
- */
-function dump() {
-  mkdirSync(path.dirname(OUT), { recursive: true })
-  writeFileSync(OUT, JSON.stringify({ version: 1, items }, null, 2) + '\n', 'utf8')
+mkdirSync(path.dirname(OUT), { recursive: true })
+writeFileSync(OUT, JSON.stringify({ version: 1, items }, null, 2) + '\n', 'utf8')
 
-  const byTheme = items.reduce((acc, it) => ({ ...acc, [it.theme]: (acc[it.theme] ?? 0) + 1 }), {})
-  console.log(`✅ ${items.length}종 → ${path.relative(REPO, OUT)}`)
-  console.log(`   LANDMARK ${items.filter((i) => i.type === 'LANDMARK').length}종, 기본 지급 ${items.filter((i) => i.defaultGranted).length}종`)
-  console.log(Object.entries(byTheme).map(([t, n]) => `   ${t}: ${n}`).join('\n'))
-
-  // 랜드마크는 3×3(ref 3.0) 안에 들어가야 한다. 넘으면 옆 블록·길 위로 삐져나오는데
-  // 화면을 열어보기 전까지 드러나지 않으므로 여기서 알린다.
-  const oversized = items.filter((i) => i.type === 'LANDMARK' && (i.size.width > 3.02 || i.size.depth > 3.02))
-  if (oversized.length > 0) {
-    console.warn('⚠️ 3×3(ref 3.0) 을 넘는 랜드마크:')
-    for (const i of oversized) {
-      console.warn(`   ${i.itemKey}: ${i.size.width} × ${i.size.depth}`)
-    }
-  }
-}
-
-// partBounds 만 import 한 경우(check-landmarks)에는 실행되지 않는다.
-const runDirectly = process.argv[1] != null
-  && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
-
-if (runDirectly) {
-  dump()
-}
+const byTheme = items.reduce((acc, it) => ({ ...acc, [it.theme]: (acc[it.theme] ?? 0) + 1 }), {})
+console.log(`✅ ${items.length}종 → ${path.relative(REPO, OUT)}`)
+console.log(`   LANDMARK ${items.filter((i) => i.type === 'LANDMARK').length}종, 기본 지급 ${items.filter((i) => i.defaultGranted).length}종`)
+console.log(Object.entries(byTheme).map(([t, n]) => `   ${t}: ${n}`).join('\n'))

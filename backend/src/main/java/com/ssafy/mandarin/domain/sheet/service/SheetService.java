@@ -67,12 +67,11 @@ public class SheetService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
 
         // 2. 만다라트 최상위 시트 엔티티 생성 및 저장
-        // 2. 만다라트 최상위 시트 엔티티 생성 및 저장
         Sheet sheet = Sheet.builder()
                 .user(user)
-                .title(request.title())
-                .isOpen(request.isOpen() != null ? request.isOpen() : false)
-                .expiredAt(request.expiredAt())
+                .title(request.getTitle())
+                .isOpen(request.getIsOpen() != null ? request.getIsOpen() : false)
+                .expiredAt(request.getExpiredAt())
                 .likeCount(0L)
                 .build();
 
@@ -90,28 +89,28 @@ public class SheetService {
         }
 
         // 4. 8개 도메인 및 하위 64개 세부 과제 저장
-        if (request.domains() != null) {
-            for (SheetCreateRequest.DomainCreateRequest domainReq : request.domains()) {
+        if (request.getDomains() != null) {
+            for (SheetCreateRequest.DomainCreateRequest domainReq : request.getDomains()) {
                 Domain domain = Domain.builder()
                         .sheet(savedSheet)
-                        .title(domainReq.title())
-                        .position(domainReq.position())
+                        .title(domainReq.getTitle())
+                        .position(domainReq.getPosition())
                         .subjectCount(0) // 완료된 과제 수 초기값 0
                         .build();
 
                 Domain savedDomain = domainRepository.save(domain);
 
-                if (domainReq.subjects() != null) {
-                    for (SheetCreateRequest.SubjectCreateRequest subjectReq : domainReq.subjects()) {
+                if (domainReq.getSubjects() != null) {
+                    for (SheetCreateRequest.SubjectCreateRequest subjectReq : domainReq.getSubjects()) {
                         // 과제 주기(daily, weekly, none) 확인 및 미지정 시 NONE 적용
-                        SubjectPeriod period = subjectReq.period() != null ? subjectReq.period()
+                        SubjectPeriod period = subjectReq.getPeriod() != null ? subjectReq.getPeriod()
                                 : SubjectPeriod.NONE;
 
                         // period별 target_count 자동 산정
                         // daily -> total_days / 1 | weekly -> total_days / 7 | none -> 1
                         int calculatedTargetCount;
-                        if (subjectReq.targetCount() != null && subjectReq.targetCount() > 0) {
-                            calculatedTargetCount = subjectReq.targetCount();
+                        if (subjectReq.getTargetCount() != null && subjectReq.getTargetCount() > 0) {
+                            calculatedTargetCount = subjectReq.getTargetCount();
                         } else {
                             if (period == SubjectPeriod.DAILY) {
                                 calculatedTargetCount = (int) totalDays;
@@ -128,10 +127,10 @@ public class SheetService {
                         Subject subject = Subject.builder()
                                 .domain(savedDomain)
                                 .user(user)
-                                .title(subjectReq.title())
-                                .position(subjectReq.position())
+                                .title(subjectReq.getTitle())
+                                .position(subjectReq.getPosition())
                                 .period(period)
-                                .point(subjectReq.point() != null ? subjectReq.point() : 100L)
+                                .point(subjectReq.getPoint() != null ? subjectReq.getPoint() : 100L)
                                 .targetCount(calculatedTargetCount)
                                 .tryCount(0)
                                 .isDone(false)
@@ -146,10 +145,10 @@ public class SheetService {
         // 5. 3D 건물 배치 정보 처리 
         Map<String, SheetCreateRequest.ItemSpotCreateRequest> userSpotMap = new HashMap<>();
 
-        if (request.itemSpots() != null) {
-            for (SheetCreateRequest.ItemSpotCreateRequest spotReq : request.itemSpots()) {
-                int domPos = spotReq.domainPosition();
-                int itemPos = spotReq.itemPosition() != null ? spotReq.itemPosition() : 5;
+        if (request.getItemSpots() != null) {
+            for (SheetCreateRequest.ItemSpotCreateRequest spotReq : request.getItemSpots()) {
+                int domPos = spotReq.getDomainPosition();
+                int itemPos = spotReq.getItemPosition() != null ? spotReq.getItemPosition() : 5;
                 userSpotMap.put(domPos + "_" + itemPos, spotReq);
             }
         }
@@ -164,8 +163,8 @@ public class SheetService {
                         .sheet(savedSheet)
                         .domainPosition(5)
                         .itemPosition(5)
-                        .invenId(spotReq != null ? spotReq.invenId() : null) // 유저 지정 스킨 or 기본 랜드마크 스킨(null)
-                        .dir(spotReq != null && spotReq.dir() != null ? spotReq.dir() : ItemDir.DEG_0)
+                        .invenId(spotReq != null ? spotReq.getInvenId() : null) // 유저 지정 스킨 or 기본 랜드마크 스킨(null)
+                        .dir(spotReq != null && spotReq.getDir() != null ? spotReq.getDir() : ItemDir.DEG_0)
                         .build();
                 itemSpotRepository.save(landmarkSpot);
             } else {
@@ -178,8 +177,8 @@ public class SheetService {
                             .sheet(savedSheet)
                             .domainPosition(dPos)
                             .itemPosition(iPos)
-                            .invenId(spotReq != null ? spotReq.invenId() : null) // 유저 지정 스킨 or 기본 스킨(null)
-                            .dir(spotReq != null && spotReq.dir() != null ? spotReq.dir() : ItemDir.DEG_0)
+                            .invenId(spotReq != null ? spotReq.getInvenId() : null) // 유저 지정 스킨 or 기본 스킨(null)
+                            .dir(spotReq != null && spotReq.getDir() != null ? spotReq.getDir() : ItemDir.DEG_0)
                             .build();
                     itemSpotRepository.save(itemSpot);
                 }
@@ -256,11 +255,6 @@ public class SheetService {
             throw new BusinessException(ErrorCode.SHEET_ACCESS_DENIED);
         }
 
-        boolean isLiked = false;
-        if (userId != null) {
-            isLiked = likesRepository.existsByIdUserIdAndIdSheetId(userId, sheetId);
-        }
-
         List<Domain> domains = domainRepository.findBySheetIdOrderByPositionAsc(sheetId);
         List<SheetDetailResponse.DomainDetailResponse> domainResponses = new ArrayList<>();
 
@@ -324,7 +318,6 @@ public class SheetService {
                 .title(sheet.getTitle())
                 .isOpen(sheet.getIsOpen())
                 .likeCount(sheet.getLikeCount() != null ? sheet.getLikeCount() : 0L)
-                .isLiked(isLiked)
                 .achievementRate(Math.round(achievementRate * 10.0) / 10.0)
                 .createdAt(sheet.getCreatedAt())
                 .expiredAt(sheet.getExpiredAt())
