@@ -35,6 +35,13 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASS: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      # AI 음성봇 입장 티켓 서명 키. **AI 전용 EC2 의 ai/.env 에 있는 SFU_TICKET_SECRET 과
+      # 같은 값이어야 한다.** 두 호스트에 나뉘어 있어서 어긋나도 양쪽 다 기동은 되고,
+      # 사용자만 입장에서 튕긴다 — 한쪽을 바꾸면 반드시 같이 바꿀 것.
+      #
+      # JWT_SECRET 을 재사용하면 안 된다(SFU 가 액세스 토큰까지 위조할 수 있게 된다).
+      # 비워두면 티켓 발급만 실패하고 나머지 API 는 정상 동작한다.
+      SFU_TICKET_SECRET: ${SFU_TICKET_SECRET:-}
       KAKAO_OAUTH_CLIENT_ID: ${KAKAO_OAUTH_CLIENT_ID}
       KAKAO_OAUTH_CLIENT_SECRET: ${KAKAO_OAUTH_CLIENT_SECRET}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}

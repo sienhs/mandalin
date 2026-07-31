@@ -1,0 +1,86 @@
+@reference "../index.css";
+
+@layer components {
+  /* 리더보드 페이지의 전체 너비와 헤더 아래 여백. */
+  .leaderboard-main {
+    @apply mx-auto min-h-[calc(100vh-5rem)] w-full max-w-[1440px] px-5 py-9 sm:px-8 lg:py-10;
+  }
+
+  /* 랭킹 목록을 감싸는 흰색 콘텐츠 카드. */
+  .leaderboard-panel {
+    @apply mt-8 min-h-[540px] rounded-[24px] bg-white px-6 py-8 sm:px-10 lg:px-12;
+  }
+
+  .leaderboard-list {
+    @apply mt-14 list-none p-0;
+  }
+
+  .leaderboard-row {
+    @apply flex min-h-24 items-center gap-4 border-b border-slate-200 px-1 py-3 last:border-b-0 sm:gap-5 sm:px-4;
+  }
+
+  .leaderboard-rank {
+    @apply grid size-13 shrink-0 place-items-center rounded-lg bg-slate-50 text-xl font-extrabold text-slate-300;
+  }
+
+  .leaderboard-rank-first {
+    @apply bg-[#FFBA37] text-slate-950;
+  }
+
+  .leaderboard-rank-second {
+    @apply bg-[#BBC2CC] text-slate-950;
+  }
+
+  .leaderboard-rank-third {
+    @apply bg-[#DB894A] text-white;
+  }
+
+  .leaderboard-avatar {
+    @apply grid size-13 shrink-0 place-items-center overflow-hidden rounded-full text-xl font-extrabold text-white;
+  }
+
+  .leaderboard-avatar img {
+    @apply size-full object-cover;
+  }
+
+  .leaderboard-title {
+    @apply block truncate text-lg font-extrabold tracking-[-0.025em] sm:text-xl;
+  }
+
+  .leaderboard-owner {
+    @apply mt-1 block truncate text-sm font-bold text-slate-400;
+  }
+
+  .leaderboard-likes {
+    @apply flex w-24 shrink-0 items-center gap-2 text-sm font-extrabold text-red-500 sm:text-base;
+  }
+
+  .leaderboard-likes span {
+    @apply text-2xl leading-none;
+  }
+
+  .leaderboard-view-button {
+    @apply hidden shrink-0 rounded-xl border-2 border-slate-400 bg-white px-5 py-2.5;
+    @apply text-sm font-extrabold text-slate-400 no-underline transition;
+    @apply hover:border-brand hover:text-brand sm:inline-flex;
+  }
+
+  .leaderboard-pagination {
+    @apply mt-7 flex items-center justify-center gap-2;
+  }
+
+  .leaderboard-pagination button {
+    @apply grid size-9 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white;
+    @apply text-sm font-extrabold text-slate-700 transition hover:border-success;
+    @apply disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .leaderboard-pagination .leaderboard-page-active {
+    @apply border-success bg-success text-white;
+  }
+
+  .leaderboard-state {
+    @apply mt-12 grid min-h-80 place-items-center rounded-2xl bg-slate-50 px-6 text-center text-sm font-bold text-slate-400;
+  }
+}
+

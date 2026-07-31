@@ -10,12 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ssafy.mandarin.domain.auth.repository.UserRepository;
 import com.ssafy.mandarin.domain.friend.dto.FriendRequestResponse;
 import com.ssafy.mandarin.domain.friend.dto.FriendResponse;
+import com.ssafy.mandarin.domain.friend.dto.FriendSheetResponse;
 import com.ssafy.mandarin.domain.friend.dto.UserSearchResponse;
 import com.ssafy.mandarin.domain.friend.entity.FriendRequest;
 import com.ssafy.mandarin.domain.friend.entity.Friends;
 import com.ssafy.mandarin.domain.friend.entity.RequestProgress;
 import com.ssafy.mandarin.domain.friend.repository.FriendRequestRepository;
 import com.ssafy.mandarin.domain.friend.repository.FriendsRepository;
+import com.ssafy.mandarin.domain.sheet.repository.SheetRepository;
 import com.ssafy.mandarin.domain.user.entity.User;
 import com.ssafy.mandarin.global.exception.BusinessException;
 import com.ssafy.mandarin.global.exception.ErrorCode;
@@ -32,6 +34,7 @@ public class FriendService {
     private final UserRepository userRepository;
     private final FriendRequestRepository friendRequestRepository;
     private final FriendsRepository friendsRepository;
+    private final SheetRepository sheetRepository;
 
     // ─── 유저 UUID 검색 ────────────────────────────────────────────────────
 
@@ -51,6 +54,23 @@ public class FriendService {
         return friendsRepository.findAllByUser(me)
             .stream()
             .map(friends -> FriendResponse.of(friends, me))
+            .collect(Collectors.toList());
+    }
+
+    // ─── 친구의 공개 시트 목록 조회 ──────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<FriendSheetResponse> getFriendPublicSheets(Long friendId, Long myUserId) {
+        User me = findActiveUserById(myUserId);
+        User friend = findActiveUserById(friendId);
+
+        if (!friendsRepository.existsFriendship(me, friend)) {
+            throw new BusinessException(ErrorCode.FRIEND_NOT_FOUND);
+        }
+
+        return sheetRepository.findByUserIdAndIsOpenTrueOrderByCreatedAtDesc(friend.getId())
+            .stream()
+            .map(FriendSheetResponse::from)
             .collect(Collectors.toList());
     }
 
