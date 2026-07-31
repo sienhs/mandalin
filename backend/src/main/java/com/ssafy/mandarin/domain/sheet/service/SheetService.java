@@ -256,6 +256,11 @@ public class SheetService {
             throw new BusinessException(ErrorCode.SHEET_ACCESS_DENIED);
         }
 
+        boolean isLiked = false;
+        if (userId != null) {
+            isLiked = likesRepository.existsByIdUserIdAndIdSheetId(userId, sheetId);
+        }
+
         List<Domain> domains = domainRepository.findBySheetIdOrderByPositionAsc(sheetId);
         List<SheetDetailResponse.DomainDetailResponse> domainResponses = new ArrayList<>();
 
@@ -319,6 +324,7 @@ public class SheetService {
                 .title(sheet.getTitle())
                 .isOpen(sheet.getIsOpen())
                 .likeCount(sheet.getLikeCount() != null ? sheet.getLikeCount() : 0L)
+                .isLiked(isLiked)
                 .achievementRate(Math.round(achievementRate * 10.0) / 10.0)
                 .createdAt(sheet.getCreatedAt())
                 .expiredAt(sheet.getExpiredAt())
