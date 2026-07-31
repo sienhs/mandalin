@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import ProgressBar from '../components/common/ProgressBar'
+import { MOCK_FRIENDS } from '../components/friends/friends.data'
+import GroupInviteDialog from '../components/group/GroupInviteDialog'
 import GroupMoveDialog from '../components/group/GroupMoveDialog'
 import { GROUP_DOMAIN_SLOTS, loadGroupDetail } from '../components/group/group.data'
 import { MY_SHEETS } from '../components/sheetList/sheetList.data'
@@ -52,6 +54,12 @@ export default function GroupDetail() {
   /** 줄을 눌러 고른 멤버. 처음에는 팀장이 골라져 있다 — 이동 버튼이 항상 갈 곳을 갖도록. */
   const [pickedUserId, setPickedUserId] = useState(detail.members[0].userId)
   const [moveOpen, setMoveOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  /**
+   * 이 화면에서 초대를 보낸 친구.
+   * 연동하면 서버가 초대 상태를 알고 있으므로(GroupRequest), 상세 응답이나 초대 목록에서 받는다.
+   */
+  const [invitedIds, setInvitedIds] = useState<number[]>([])
 
   const pickedIndex = detail.members.findIndex((member) => member.userId === pickedUserId)
   const pickedMember = detail.members[pickedIndex] ?? detail.members[0]
@@ -139,17 +147,13 @@ export default function GroupDetail() {
               )}
 
               <div className="group-detail-actions">
-                {/*
-                  도메인 8자리가 다 차면 초대 버튼을 감춘다 — 더 받을 자리가 없다.
-                  연동 시 POST /api/v1/groups/{groupId}/invites 로 초대를 보낸다.
-                  아직 초대할 친구를 고르는 화면이 없어서 친구 목록으로 보낸다.
-                */}
+                {/* 도메인 8자리가 다 차면 초대 버튼을 감춘다 — 더 받을 자리가 없다. */}
                 {canInvite && (
                   <Button
                     variant="primary"
                     size="lg"
                     className="group-detail-invite"
-                    onClick={() => navigate('/friends')}
+                    onClick={() => setInviteOpen(true)}
                   >
                     멤버 초대하기
                   </Button>
@@ -167,6 +171,16 @@ export default function GroupDetail() {
           </div>
         </div>
       </main>
+
+      {inviteOpen && (
+        <GroupInviteDialog
+          friends={MOCK_FRIENDS}
+          invitedIds={invitedIds}
+          // 연동 시 POST /api/v1/groups/{groupId}/invites 로 초대를 보낸다.
+          onInvite={(friendId) => setInvitedIds((prev) => [...prev, friendId])}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
 
       {moveOpen && (
         <GroupMoveDialog

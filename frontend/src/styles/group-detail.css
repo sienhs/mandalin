@@ -221,4 +221,80 @@
   .group-move-actions {
     @apply mt-7 flex justify-center gap-3;
   }
+
+  /* ---------- 친구 초대 팝업 ---------- */
+  .group-invite-dialog {
+    @apply relative flex w-[420px] flex-col rounded-[24px] bg-white px-7 py-6;
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.2);
+  }
+
+  .group-invite-close {
+    @apply absolute right-5 top-5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[17px] font-bold leading-none text-ink-400 transition-colors duration-150;
+  }
+
+  .group-invite-close:hover {
+    @apply bg-ink-100 text-ink-700;
+  }
+
+  .group-invite-title {
+    @apply m-0 text-[18px] font-extrabold tracking-[-0.02em] text-ink-900;
+  }
+
+  .group-invite-desc {
+    @apply m-0 mt-2 text-[12.5px] font-semibold leading-[1.6] text-ink-400;
+  }
+
+  /* 목록 라벨 + 이름 검색 */
+  .group-invite-search {
+    @apply mt-5 flex items-center justify-between gap-3;
+  }
+
+  .group-invite-search-label {
+    @apply text-[13.5px] font-extrabold text-ink-900;
+  }
+
+  .group-invite-input {
+    @apply w-[150px] rounded-lg border bg-white px-2.5 py-[6px] text-[12.5px] font-semibold text-ink-900;
+    border-color: #e7eaee;
+  }
+
+  .group-invite-input::placeholder {
+    @apply font-semibold text-ink-400;
+  }
+
+  .group-invite-input:focus {
+    @apply outline-none;
+    border-color: #97cca1;
+  }
+
+  /* 친구 목록. 길어지면 이 안에서만 스크롤한다. */
+  .group-invite-list {
+    @apply m-0 mt-3 flex max-h-[220px] list-none flex-col gap-1 overflow-y-auto p-0;
+  }
+
+  .group-invite-item {
+    @apply flex items-center gap-3 rounded-xl px-2 py-2;
+  }
+
+  .group-invite-item:hover {
+    @apply bg-ink-100;
+  }
+
+  /* 배경색은 친구 데이터의 avatarColor(bg-[#...]) 가 붙는다. */
+  .group-invite-avatar {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-full text-[14px] font-extrabold text-white;
+  }
+
+  .group-invite-name {
+    @apply flex-1 truncate text-[14px] font-extrabold text-ink-900;
+  }
+
+  /* 초대 / 초대됨 버튼. 두 상태의 폭을 맞춰 줄이 흔들리지 않게 한다. */
+  .ui-btn.group-invite-action {
+    @apply w-[68px] shrink-0;
+  }
+
+  .group-invite-empty {
+    @apply m-0 py-8 text-center text-[13px] font-semibold text-ink-400;
+  }
 }
