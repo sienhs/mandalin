@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bounds, Center } from '@react-three/drei'
-import { LandmarkParts, StageParts } from './buildings'
-import type { LandmarkStage, Part, Stage } from './partTypes'
+import { StageParts } from './buildings'
+import type { Part, Stage } from './partTypes'
 
 /**
  * 썸네일 베이커 — WebGL 컨텍스트 폭발 방지.
@@ -15,8 +15,7 @@ import type { LandmarkStage, Part, Stage } from './partTypes'
  * 카탈로그든 같은 큐로 처리하려고, 호출자가 캐시 id 와 parts 를 함께 넘긴다.
  */
 
-/** landmark=true 면 8단계 랜드마크 렌더러로 굽는다(일반 건물과 단계 규칙이 다르다). */
-type Job = { id: string; parts: Part[]; stage: Stage | LandmarkStage; landmark?: boolean }
+type Job = { id: string; parts: Part[]; stage: Stage }
 
 const cache = new Map<string, string>()
 const queued = new Set<string>()
@@ -32,32 +31,28 @@ const subscribe = (l: () => void) => {
   }
 }
 
-export function requestThumbnail(
-  id: string, parts: Part[], stage: Stage | LandmarkStage, landmark = false,
-) {
+export function requestThumbnail(id: string, parts: Part[], stage: Stage) {
   const key = ck(id, stage)
   if (cache.has(key) || queued.has(key)) return
   queued.add(key)
-  queue.push({ id, parts, stage, landmark })
+  queue.push({ id, parts, stage })
   emit()
 }
 
-export function getCachedThumbnail(id: string, stage: Stage | LandmarkStage): string | null {
+export function getCachedThumbnail(id: string, stage: Stage): string | null {
   return cache.get(ck(id, stage)) ?? null
 }
 
 /** 캐시된 dataURL 반환. 없으면 베이킹 큐에 등록하고 완료 시 리렌더. */
-export function useThumbnail(
-  id: string | null, parts: Part[] | null, stage: Stage | LandmarkStage, landmark = false,
-): string | null {
+export function useThumbnail(id: string | null, parts: Part[] | null, stage: Stage): string | null {
   const key = id ? ck(id, stage) : ''
   const value = useSyncExternalStore(
     subscribe,
     () => (id ? cache.get(key) ?? null : null),
   )
   useEffect(() => {
-    if (id && parts) requestThumbnail(id, parts, stage, landmark)
-  }, [id, parts, stage, landmark, key])
+    if (id && parts) requestThumbnail(id, parts, stage)
+  }, [id, parts, stage, key])
   return value
 }
 
@@ -81,11 +76,8 @@ function BakeOne({ job, onDone }: { job: Job; onDone: (url: string) => void }) {
       <directionalLight position={[-3, 2, -2]} intensity={0.4} />
       <Bounds fit clip margin={1.15}>
         <Center>
-          {/* Bounds 가 카메라를 맞춰 주므로 랜드마크(3×3)도 같은 배율로 둬도 화면에 들어온다. */}
           <group scale={2.4}>
-            {job.landmark
-              ? <LandmarkParts parts={job.parts} stage={job.stage as LandmarkStage} />
-              : <StageParts parts={job.parts} stage={job.stage as Stage} theme="warm" />}
+            <StageParts parts={job.parts} stage={job.stage} theme="warm" />
           </group>
         </Center>
       </Bounds>

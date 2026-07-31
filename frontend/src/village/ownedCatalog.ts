@@ -23,7 +23,6 @@ const THEME_LABELS: Record<string, string> = {
   STEAMPUNK: '스팀펑크',
   EGYPT: '이집트',
   ARTDECO: '아르데코',
-  LANDMARK: '랜드마크',
 }
 
 export function themeLabel(theme: string): string {
@@ -44,11 +43,6 @@ export interface OwnedCatalog {
   /** 자동 배치용 8칸 — 도시풍(높은 건물). */
   citySlots: string[]
   themes: ThemeGroup[]
-  /**
-   * 보유한 랜드마크(3×3, 8단계). 일반 건물 목록과 완전히 분리한다 —
-   * 한 변이 3배라 1칸 자리에 놓이면 옆 블록과 길을 덮어버린다.
-   */
-  landmarks: OwnedBuilding[]
 }
 
 const EMPTY: OwnedCatalog = {
@@ -57,7 +51,6 @@ const EMPTY: OwnedCatalog = {
   villageSlots: [],
   citySlots: [],
   themes: [],
-  landmarks: [],
 }
 
 /**
@@ -70,17 +63,8 @@ const EMPTY: OwnedCatalog = {
  * 초고층 8개로 채워져 마천루 숲이 된다. 아래·위 절반 안에서 **고르게 표본을 뽑아**
  * 성장 대비는 유지하면서 실루엣이 다양해지게 한다.
  */
-export function buildOwnedCatalog(all: OwnedBuilding[]): OwnedCatalog {
-  if (all.length === 0) return EMPTY
-
-  // 랜드마크는 정중앙 3×3 자리 전용이다. 여기서 갈라내지 않으면 높이순 슬롯 표본에 뽑혀
-  // 1칸 자리에 거대 건물이 서고, 피커에도 섞여 나온다.
-  const landmarks = all.filter((b) => b.type === 'LANDMARK')
-  const buildings = all.filter((b) => b.type !== 'LANDMARK')
-
-  if (buildings.length === 0) {
-    return { ...EMPTY, list: all, byKey: new Map(all.map((b) => [b.itemKey, b])), landmarks }
-  }
+export function buildOwnedCatalog(buildings: OwnedBuilding[]): OwnedCatalog {
+  if (buildings.length === 0) return EMPTY
 
   const byHeight = [...buildings].sort((a, b) => a.size.height - b.size.height)
 
@@ -104,14 +88,12 @@ export function buildOwnedCatalog(all: OwnedBuilding[]): OwnedCatalog {
   }
 
   return {
-    // byKey 는 랜드마크까지 포함한다 — partsOf 로 랜드마크 모델도 찾아야 한다.
     list: buildings,
-    byKey: new Map(all.map((b) => [b.itemKey, b])),
+    byKey: new Map(buildings.map((b) => [b.itemKey, b])),
     // 낮은 절반 = 마을풍, 높은 절반 = 도시풍. 각 구간에서 고르게 뽑는다.
     villageSlots: pick(byHeight.slice(0, Math.max(1, Math.floor(byHeight.length / 2)))),
     citySlots: pick(byHeight.slice(Math.floor(byHeight.length / 2))),
     themes: themeOrder.map((id) => ({ id, label: themeLabel(id), items: grouped.get(id)! })),
-    landmarks,
   }
 }
 

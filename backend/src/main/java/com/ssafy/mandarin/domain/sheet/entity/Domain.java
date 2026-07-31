@@ -2,6 +2,8 @@ package com.ssafy.mandarin.domain.sheet.entity;
 
 import java.time.LocalDateTime;
 
+import com.ssafy.mandarin.domain.template.entity.DomainTemplate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -34,6 +36,10 @@ public class Domain {
     @JoinColumn(name = "sheet_id", nullable = false)
     private Sheet sheet;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "domain_template_id")
+    private DomainTemplate domainTemplate;
+
     @Column(nullable = false)
     private String title;
 
@@ -46,13 +52,6 @@ public class Domain {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public void incrementSubjectCount() {
-        if (this.subjectCount == null) {
-            this.subjectCount = 0;
-        }
-        this.subjectCount++;
-    }
-
     @PrePersist
     public void prePersist() {
         if (this.createdAt == null) {
@@ -60,5 +59,3 @@ public class Domain {
         }
     }
 }
-
-

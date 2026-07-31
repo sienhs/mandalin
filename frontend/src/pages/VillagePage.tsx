@@ -4,13 +4,10 @@ import { TopBar } from '../components/TopBar'
 import { Scene } from '../village/Scene'
 import { fetchMySheets, fetchSheetDetail, type SheetDetail } from '../components/sheet/sheet.api'
 import { toMandalart } from '../village/mandalart'
-import { landmarkStageOf, urbanLevelOf } from '../village/types'
-import { CENTER_BLOCK_INDEX } from '../village/layout'
-import { LANDMARK_STAGE_LABELS, THEMES, type LandmarkStage, type Stage, type ThemeKey } from '../village/partTypes'
+import { urbanLevelOf } from '../village/types'
+import { THEMES, type Stage, type ThemeKey } from '../village/partTypes'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
-import { AUTO_LANDMARK, type LandmarkOverride } from '../village/Landmark'
 import { BuildingPicker } from '../village/BuildingPicker'
-import { LandmarkPanel } from '../village/LandmarkPanel'
 import { TerrainSwitcher } from '../village/TerrainSwitcher'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { buildOwnedCatalog } from '../village/ownedCatalog'
@@ -21,15 +18,6 @@ const STAGE_OPTS: { value: Stage | 'auto'; label: string }[] = [
   { value: 1, label: '1·일관화' },
   { value: 2, label: '2·형태' },
   { value: 3, label: '3·완성' },
-]
-
-/** 랜드마크 단계 선택(0~8). 자동이면 전체 진행률 12.5% 구간으로 결정된다. */
-const LANDMARK_STAGE_OPTS: { value: LandmarkStage | 'auto'; label: string }[] = [
-  { value: 'auto', label: '자동 (진행률)' },
-  ...(Object.keys(LANDMARK_STAGE_LABELS) as unknown as LandmarkStage[]).map((k) => {
-    const stage = Number(k) as LandmarkStage
-    return { value: stage, label: `${stage}·${LANDMARK_STAGE_LABELS[stage]}` }
-  }),
 ]
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -52,12 +40,6 @@ export default function VillagePage() {
   const [overrides, setOverrides] = useState<Record<string, CellOverride>>({})
   const [themes, setThemes] = useState<Record<string, ThemeKey>>({})
   const [pickerTask, setPickerTask] = useState<string | null>(null)
-  /**
-   * 정중앙 랜드마크 설정. 아직 서버에 저장할 자리(item_spot)를 읽고 쓰는 API 가 없어
-   * 칸 오버라이드와 같이 클라이언트 상태로 둔다.
-   */
-  const [landmark, setLandmark] = useState<LandmarkOverride>(AUTO_LANDMARK)
-  const [landmarkPicker, setLandmarkPicker] = useState(false)
   /** 3D 에서 고른 건물 자리. 우측 목록의 스포트라이트와 같은 값을 본다. */
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
   const spotlightRef = useRef<HTMLDivElement>(null)
@@ -76,8 +58,6 @@ export default function VillagePage() {
     [sheet],
   )
   const domain = selected != null && mandalart ? mandalart.domains[selected] : null
-  /** 정중앙 블록은 8칸이 아니라 랜드마크 1개를 설정한다. */
-  const isCenter = selected === CENTER_BLOCK_INDEX
 
   useEffect(() => {
     let alive = true
@@ -233,7 +213,6 @@ export default function VillagePage() {
         terrain={terrainPreview ?? village.terrain}
         catalog={catalog}
         selectedTaskId={selectedTask}
-        landmark={landmark}
         onSelect={(i) => {
           if (i < 0) {
             setSelected(null)
@@ -304,23 +283,9 @@ export default function VillagePage() {
             </button>
           </div>
           <div style={{ fontSize: 12, color: '#5a6b76', marginBottom: 12 }}>
-            {isCenter
-              ? `중심 목표 · 전체 진행률 ${Math.round(urbanLevelOf(domain) * 100)}% · ${landmarkStageOf(domain)}/8 단계`
-              : `도시화 ${Math.round(urbanLevelOf(domain) * 100)}% · ${urbanLevelOf(domain) >= 0.5 ? '도시풍' : '마을풍'}`}
+            도시화 {Math.round(urbanLevelOf(domain) * 100)}% · {urbanLevelOf(domain) >= 0.5 ? '도시풍' : '마을풍'}
           </div>
 
-          {isCenter ? (
-            <LandmarkPanel
-              center={domain}
-              catalog={catalog}
-              override={landmark}
-              stageOpts={LANDMARK_STAGE_OPTS}
-              onPatch={(patch) => setLandmark((prev) => ({ ...prev, ...patch }))}
-              onOpenPicker={() => setLandmarkPicker(true)}
-              onReset={() => setLandmark(AUTO_LANDMARK)}
-            />
-          ) : (
-          <>
           {/* 일관화 컨트롤 */}
           <div style={{ background: '#f2f6f8', borderRadius: 10, padding: 12, marginBottom: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>1단계 테마 (일관화 색)</div>
@@ -458,8 +423,6 @@ export default function VillagePage() {
           >
             이 도메인 전부 자동으로 되돌리기
           </button>
-          </>
-          )}
         </div>
       )}
 
@@ -470,18 +433,6 @@ export default function VillagePage() {
         pending={terrainPending}
         error={terrainError}
       />
-
-      {/* 랜드마크 선택 모달 — 보유 랜드마크만 후보로 둔다 */}
-      {landmarkPicker && (
-        <BuildingPicker
-          catalog={catalog}
-          value={landmark.building}
-          title="랜드마크 선택 (3×3)"
-          landmarkOnly
-          onPick={(v) => setLandmark((prev) => ({ ...prev, building: v }))}
-          onClose={() => setLandmarkPicker(false)}
-        />
-      )}
 
       {/* 건물 썸네일 그리드 선택 모달 */}
       {pickerTask && (

@@ -29,8 +29,6 @@
   /* 로고 배지 / 포커스 링 */
   --color-brand-active: #65aa9f;
   /* 내비게이션 active/hover */
-  --color-brand-soft: #e8f5f1;
-  /* 모바일 내비게이션 active 배경 */
   --color-page: #f4f7f9;
   /* 페이지 배경 */
   --color-alert: #d95569;
@@ -75,7 +73,7 @@
 
   /* Header/PublicHeader 내부 가로 정렬 컨테이너. 좌우 padding은 인스턴스별 px-*로 덮어쓰기 */
   .header-row {
-    @apply mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8;
+    @apply mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 sm:px-8;
   }
 
   /* "만" 로고 사각 배지. 크기/둥근 정도/글자 크기는 인스턴스별로 함께 지정 */
@@ -101,11 +99,6 @@
   /* HomePage 주요 초록 CTA(적용하기 / 새 만다라트 만들기) */
   .btn-primary {
     @apply h-12 cursor-pointer rounded-xl border-0 bg-success text-sm font-extrabold text-white transition hover:bg-success-hover;
-  }
-
-  /* 흰 배경의 보조/취소 동작 버튼. */
-  .btn-secondary {
-    @apply h-12 cursor-pointer rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-400 transition hover:bg-slate-50;
   }
 
   /* 카드 제목 아래 보조 설명 텍스트 */
