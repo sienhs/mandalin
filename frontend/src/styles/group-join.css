@@ -1,0 +1,93 @@
+@reference "../index.css";
+
+/*
+ * 그룹 만다라트 합류 화면 전용 스타일.
+ *
+ * 카드(.card) · 9x9 칸(.Sheet) · 3x3 확대 그리드(.mgrid) 는 생성 화면과 공유하므로
+ * styles/sheet-create.css 에 있다. 이 파일은 합류 화면에만 있는 것 —
+ * 상단 배너 · 만다라트 선택 드롭다운 · 선택한 도메인 블록 표시 — 만 담는다.
+ *
+ * 색:
+ *   배너        #f3f0fc 배경 · #ddd5f7 아이콘 · #6f66cf 글자 (목록 화면 연보라와 같은 계열)
+ *   선택 블록    #dc3424 테두리 (생성 화면 저장 경고와 같은 빨강)
+ */
+
+@layer components {
+
+  /* ---------- 상단 안내 카드 (아이콘 없음) ---------- */
+  .group-join-banner {
+    @apply mb-4 rounded-2xl px-5 py-4;
+    background: #f3f0fc;
+  }
+
+  .group-join-banner-title {
+    @apply m-0 text-[15px] font-extrabold tracking-[-0.01em] text-ink-900;
+  }
+
+  .group-join-banner-desc {
+    @apply m-0 mt-1 text-[12.5px] font-semibold;
+    color: #6f66cf;
+  }
+
+  /* ---------- 머리말 (취소 · 저장) ---------- */
+  .group-join-actions {
+    @apply mb-[18px] flex items-center justify-end gap-2.5;
+  }
+
+  /* ---------- 만다라트 선택 드롭다운 ---------- */
+  .group-join-picker {
+    @apply flex items-center gap-2.5;
+  }
+
+  .group-join-select {
+    @apply cursor-pointer rounded-xl border bg-white px-3 py-[7px] text-[13px] font-semibold text-ink-900;
+    border-color: #e7eaee;
+  }
+
+  .group-join-select:focus {
+    @apply outline-none;
+    border-color: #97cca1;
+  }
+
+  /* ---------- 고른 도메인 블록 ---------- */
+  /*
+   * 3x3 블록 하나가 도메인 하나다. 칸(.Sheet)에 테두리를 주면 9칸이 각각 둘러싸이므로
+   * 블록을 감싸는 li 에 준다.
+   *
+   * 색과 방식은 생성 화면에서 칸을 고를 때와 같다(outline-2 outline-mint-700).
+   * border/padding 을 쓰면 칸이 밀려 생성 화면의 그리드와 모양이 달라지므로 outline 을 쓴다 —
+   * outline 은 배치를 차지하지 않는다.
+   */
+  .group-join-block--picked {
+    @apply outline outline-2 outline-mint-700;
+  }
+
+  /* 고를 수 없는 블록(중앙 = 핵심 목표와 도메인 라벨). 모양은 그대로 두고 반응만 막는다. */
+  .group-join-block--locked {
+    @apply cursor-not-allowed;
+  }
+
+  /* ---------- 고른 도메인 패널 ---------- */
+  .group-join-picked {
+    @apply rounded-2xl border-[3px] p-4;
+    border-color: #e9f6e8;
+    background: #f5fbf4;
+  }
+
+  .group-join-picked-label {
+    @apply m-0 text-[12px] font-extrabold;
+    color: #8cc396;
+  }
+
+  .group-join-picked-list {
+    @apply m-0 mt-1.5 flex list-none flex-col gap-1 p-0;
+  }
+
+  .group-join-picked-item {
+    @apply text-[15px] font-extrabold tracking-[-0.01em] text-ink-900;
+  }
+
+  .group-join-picked-hint {
+    @apply m-0 mt-2 text-[11.5px] font-semibold text-ink-500;
+  }
+}

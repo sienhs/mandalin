@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import LoadingFallback from '../components/common/LoadingFallback'
 import AiCoachPage from '../pages/AiCoachPage'
 import FriendSheetList from '../pages/FriendSheetList'
+import GroupJoin from '../pages/GroupJoin'
 import FriendsPage from '../pages/FriendsPage'
 import HomePage from '../pages/HomePage'
 import LandingPage from '../pages/LandingPage'
@@ -48,6 +49,8 @@ export default function AppRoutes() {
         친구 만다라트. 소유자를 데이터로 판별하지 않고 이 경로로 구분한다 —
         여기로 들어온 상세는 항상 남의 것이므로 읽기 전용이다.
       */}
+      {/* 그룹 초대를 수락하면 여기로 온다 — 내 도메인 2개를 골라 그룹에 넣는 화면 */}
+      <Route path="/group/:groupId/join" element={<GroupJoin />} />
       <Route path="/friends/:friendId/sheets" element={<FriendSheetList />} />
       <Route path="/friends/:friendId/sheet/:sheetId" element={<SheetDetail readOnly />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
