@@ -6,6 +6,7 @@ import lombok.Builder;
 
 @Builder
 public record TodoListResponse(
+        Long sheetId,
         Long subjectId,
         Long domainId,
         String domainTitle,
