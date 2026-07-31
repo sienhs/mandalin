@@ -81,4 +81,12 @@ public class Subject extends BaseEntity {
         }
         this.tryCount++;
     }
+
+    @PrePersist
+    public void prePersist() {
+        // 엔티티가 처음 저장될 때, updatedAt을 하루 전으로 초기화
+        if (getUpdatedAt() == null || getUpdatedAt().isAfter(LocalDateTime.now().minusHours(1))) {
+            initUpdatedAt(LocalDateTime.now().minusDays(1));
+        }
+    }
 }

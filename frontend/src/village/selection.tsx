@@ -113,6 +113,37 @@ export function CellSelection({ hovered, active }: { hovered: boolean; active: b
 }
 
 /**
+ * 랜드마크(3×3) 자리 표시.
+ *
+ * 셀용 링(반지름 1.1)을 그대로 쓰면 거대 건물 발밑에 깔려 아예 안 보인다.
+ * 3×3 칸 전체를 감싸는 크기로 키우고, 선이 화면에서 사라지지 않게 두께도 같이 키운다.
+ */
+export function LandmarkSelection({ hovered, active, span }: { hovered: boolean; active: boolean; span: number }) {
+  const ring = useRef<Mesh>(null)
+
+  useFrame((state) => {
+    if (!ring.current) return
+    const material = ring.current.material as MeshBasicMaterial
+    material.opacity = active ? 0.6 + Math.sin(state.clock.elapsedTime * 1.5) * 0.16 : 0.4
+  })
+
+  if (!hovered && !active) return null
+
+  const half = span / 2
+  return (
+    <group position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh ref={ring}>
+        <ringGeometry args={[half * 0.99, half * 1.06, 72]} />
+        <meshBasicMaterial color={active ? ACTIVE : HOVER} transparent opacity={0.45} depthWrite={false} />
+      </mesh>
+      {active && (
+        <CornerBrackets half={half * 1.02} arm={span * 0.16} thickness={0.24} color={ACTIVE} opacity={0.95} />
+      )}
+    </group>
+  )
+}
+
+/**
  * 블록(도메인) 선택 표시.
  * 사방을 두른 노란 사각 링을 없애고 모서리 브래킷만 남긴다 — 블록 안 건물들을 가리지 않는다.
  */
