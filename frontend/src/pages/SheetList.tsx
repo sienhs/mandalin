@@ -124,7 +124,7 @@ export default function SheetList() {
             <h2 id="group-sheets" className="sheet-list-subheading">
               그룹 만다라트
             </h2>
-            <Button variant="primary" onClick={() => navigate('/sheet/create?type=group')}>
+            <Button variant="primary" onClick={() => navigate('/group/new')}>
               그룹 생성
             </Button>
           </div>
