@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 음성 어시스턴트</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <!-- ── Room ──────────────────────────────────────────────────────── -->
+  <section id="room-view" class="room">
+    <header class="topbar">
+      <div class="room-meta">
+        <!-- 호스트 앱(index.css)의 .brand-mark / .brand-wordmark 와 같은 모양 -->
+        <span class="brand-mark" aria-hidden="true">만</span>
+        <span class="brand-wordmark">AI 음성 어시스턴트</span>
+        <span id="conn-state" class="badge">연결 중</span>
+      </div>
+      <div class="controls">
+        <button id="btn-connect" type="button" class="primary">연결하기</button>
+        <button id="btn-mic"  class="ctl" aria-pressed="true" title="마이크">🎤</button>
+        <button id="btn-talk" class="ctl talk" disabled title="연결이 완료되면 사용할 수 있습니다">🎙 AI에게 말하기</button>
+        <button id="btn-leave" class="ctl danger" title="연결 종료">연결 종료</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <!-- 담아둔 실천과제. 저장소는 브라우저 localStorage 입니다(board.js 참고). -->
+      <aside id="task-board" class="board">
+        <div class="board-head">
+          <span>내 실천과제</span>
+          <span id="board-count" class="badge">0</span>
+        </div>
+        <p id="board-empty" class="board-empty">
+          아직 담은 과제가 없습니다. AI가 과제를 제안하면 <b>담기</b>를 눌러 여기에 모아두세요.
+        </p>
+        <ul id="board-list" class="board-list"></ul>
+      </aside>
+
+      <div class="avatar-panel">
+        <div id="ai-avatar" class="ai-avatar" aria-hidden="true">AI</div>
+      </div>
+
+      <aside id="chat-panel" class="chat">
+        <div class="chat-head">대화</div>
+        <ul id="chat-log" class="chat-log"></ul>
+        <form id="chat-form" class="chat-form">
+          <input id="chat-input" autocomplete="off" placeholder="메시지 입력…" maxlength="1000" />
+          <button type="submit" class="primary">보내기</button>
+        </form>
+      </aside>
+    </main>
+  </section>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
