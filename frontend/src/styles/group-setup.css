@@ -15,6 +15,50 @@
 
 @layer components {
 
+  /* ---------- 페이지 틀 ---------- */
+  /*
+   * 폭을 고정한다(반응형 아님) — 생성 · 상세 화면과 같은 이유다. max-w 로 두면 브라우저를
+   * 확대할 때 컨테이너가 줄고 9x9 칸이 눌려 비율이 깨진다.
+   * min-w: 가로 스크롤이 생겼을 때 오른쪽에 배경 없는 흰 띠가 보이지 않게 한다.
+   */
+  .group-setup-page {
+    @apply min-h-screen min-w-[1280px];
+    background: #f6f7f8;
+  }
+
+  .group-setup-main {
+    @apply mx-auto w-[1280px] px-6 pb-[70px] pt-6;
+  }
+
+  /* 만다라트 카드. 좌: 9x9 · 우: 확대 그리드와 고른 도메인. 항상 .card 와 함께 쓴다. */
+  .group-setup-card {
+    @apply grid grid-cols-[1fr_360px] items-start gap-x-6 gap-y-2 p-5;
+  }
+
+  /* 카드 좌측 상단: 2D 뷰 제목과 만다라트 드롭다운 */
+  .group-setup-toolbar {
+    @apply col-start-1 row-start-1 flex items-center justify-between gap-3 pb-1;
+  }
+
+  /* 항상 공용 .section-title 과 함께 쓴다 */
+  .group-setup-view-title {
+    @apply m-0 text-sm;
+  }
+
+  /* 카드 우측 상단 경고 */
+  .group-setup-warning {
+    @apply col-start-2 row-start-1 m-0 whitespace-nowrap pb-1 text-[11.5px] font-bold;
+    color: #dc3424;
+  }
+
+  .group-setup-grid {
+    @apply col-start-1 row-start-2;
+  }
+
+  .group-setup-side {
+    @apply col-start-2 row-start-2 flex flex-col gap-4;
+  }
+
   /* ---------- 상단 안내 카드 (취소 · 저장 버튼을 함께 담는다) ---------- */
   .group-setup-banner {
     @apply mb-4 flex items-center justify-between gap-5 rounded-2xl px-5 py-4;
@@ -59,6 +103,10 @@
   /* ---------- 만다라트 선택 드롭다운 ---------- */
   .group-setup-picker {
     @apply flex items-center gap-2.5;
+  }
+
+  .group-setup-picker-label {
+    @apply text-[12px] font-bold text-ink-500;
   }
 
   .group-setup-select {

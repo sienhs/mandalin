@@ -102,11 +102,10 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
   }
 
   return (
-    // min-w: 생성 · 상세 화면과 같이 폭을 고정한다(반응형 아님).
-    <div className="min-h-screen min-w-[1280px] bg-[#F6F7F8]">
+    <div className="group-setup-page">
       <Header />
 
-      <main className="mx-auto w-[1280px] px-6 pb-[70px] pt-6">
+      <main className="group-setup-main">
         <section className="group-setup-banner">
           <div className="group-setup-banner-main">
             {mode === 'create' ? (
@@ -144,12 +143,12 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
           </div>
         </section>
 
-        <div className="card grid grid-cols-[1fr_360px] items-start gap-x-6 gap-y-2 p-5">
+        <div className="card group-setup-card">
           {/* 좌측 상단: 어떤 만다라트에서 도메인을 낼지 고른다 */}
-          <div className="col-start-1 row-start-1 flex items-center justify-between gap-3 pb-1">
-            <h2 className="section-title m-0 text-sm">2D 뷰 (도메인)</h2>
+          <div className="group-setup-toolbar">
+            <h2 className="section-title group-setup-view-title">2D 뷰 (도메인)</h2>
             <div className="group-setup-picker">
-              <label htmlFor="group-setup-sheet" className="text-[12px] font-bold text-ink-500">
+              <label htmlFor="group-setup-sheet" className="group-setup-picker-label">
                 내 만다라트
               </label>
               <select
@@ -168,9 +167,7 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
           </div>
 
           {/* 우측 상단: 저장 경고 */}
-          <p className="col-start-2 row-start-1 m-0 whitespace-nowrap pb-1 text-[11.5px] font-bold text-[#dc3424]">
-            한 번 저장하면 수정할 수 없어요!
-          </p>
+          <p className="group-setup-warning">한 번 저장하면 수정할 수 없어요!</p>
 
           {/* 칸을 누르면 그 칸이 속한 블록(=도메인)이 골라진다 */}
           <SheetGrid
@@ -178,7 +175,7 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
             selectedCell={null}
             onSelect={({ b }) => toggleBlock(b)}
             heading={null}
-            className="col-start-1 row-start-2"
+            className="group-setup-grid"
             blockClassName={(b) =>
               cn(
                 picked.includes(b) && 'group-setup-block--picked',
@@ -187,7 +184,7 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
             }
           />
 
-          <div className="col-start-2 row-start-2 flex flex-col gap-4">
+          <div className="group-setup-side">
             <SheetMiniGrid blockIndex={shownBlock} cells={grid[shownBlock]} />
 
             <section className="group-setup-picked" aria-labelledby="picked-domains">
