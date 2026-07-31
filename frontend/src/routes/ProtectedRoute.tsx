@@ -2,9 +2,6 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { rememberIntendedPath } from '../auth/redirectTo'
 import { useAuth } from '../contexts/auth'
 
-// true면 비로그인 접근 허용, false면 로그인 사용자만 접근 허용.
-const ALLOW_GUEST_ACCESS = false
-
 /**
  * 인증 복원이 끝날 때까지 기다린 뒤 로그인 사용자만 하위 라우트에 접근시킨다.
  *
@@ -15,10 +12,6 @@ const ALLOW_GUEST_ACCESS = false
 export default function ProtectedRoute() {
   const { isAuthenticated, isRestoringSession } = useAuth()
   const location = useLocation()
-
-  if (ALLOW_GUEST_ACCESS) {
-    return <Outlet />
-  }
 
   if (isRestoringSession) {
     return (

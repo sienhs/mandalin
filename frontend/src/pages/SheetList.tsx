@@ -40,6 +40,16 @@ export default function SheetList() {
     setInvites((prev) => prev.filter((invite) => invite.groupId !== groupId))
   }
 
+  /**
+   * 초대 수락 → 내 도메인을 고르는 합류 화면으로 넘어간다.
+   * 그룹 이름은 합류 화면 배너에 쓰므로 함께 넘긴다(새로고침 대비는 그 화면에서 처리).
+   */
+  const acceptInvite = (groupId: number) => {
+    const invite = invites.find((item) => item.groupId === groupId)
+    removeInvite(groupId)
+    navigate(`/group/${groupId}/join`, { state: { groupTitle: invite?.groupTitle } })
+  }
+
   // 목록이 바뀌면(삭제 등) 남은 시트의 달성률만 다시 받는다.
   useEffect(() => {
     let alive = true
@@ -114,7 +124,7 @@ export default function SheetList() {
             <h2 id="group-sheets" className="sheet-list-subheading">
               그룹 만다라트
             </h2>
-            <Button variant="primary" onClick={() => navigate('/sheet/create?type=group')}>
+            <Button variant="primary" onClick={() => navigate('/group/new')}>
               그룹 생성
             </Button>
           </div>
@@ -156,7 +166,7 @@ export default function SheetList() {
       {inviteOpen && (
         <SheetInviteDialog
           invites={invites}
-          onAccept={removeInvite}
+          onAccept={acceptInvite}
           onReject={removeInvite}
           onClose={() => setInviteOpen(false)}
         />
