@@ -135,7 +135,7 @@ export default function SheetList() {
                 <li key={group.groupId}>
                   <SheetGroupCard
                     group={group}
-                    onMove={(groupId) => navigate(`/sheet/group/${groupId}`)}
+                    onMove={(groupId) => navigate(`/group/${groupId}`)}
                   />
                 </li>
               ))}
