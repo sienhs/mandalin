@@ -80,17 +80,25 @@
   }
 
   /* ---------- 좌: 이미지 · 우: 멤버 ---------- */
-  /* flex-1: 카드에 남은 높이를 이 영역이 다 쓴다(이미지가 그만큼 커진다). */
+  /*
+   * flex-1: 카드에 남은 높이를 이 영역이 받는다.
+   * items-start: 이미지가 비율(3:2)대로 높이를 정하도록 늘리지 않는다 — stretch 면
+   * align-self 가 높이를 강제해 aspect-ratio 가 무시된다.
+   */
   .group-detail-body {
-    @apply grid flex-1 grid-cols-[1fr_340px] items-stretch gap-7;
+    @apply grid flex-1 grid-cols-[1fr_340px] items-start gap-7;
   }
 
   /*
    * 그룹 마을 이미지가 들어갈 자리. 아직 이미지가 없어 자리만 잡아 둔다.
    * 이미지가 준비되면 이 상자 안에 넣고 점선 테두리와 안내 문구를 지운다.
+   *
+   * 크기는 3:2 로 고정한다 — 폭이 814px(페이지 폭 고정에서 계산)이므로 814 × 543px 이다.
+   * 이미지는 레티나 대응으로 2배(1628 × 1086px)로 준비한다.
    */
   .group-detail-image {
-    @apply flex h-full items-center justify-center rounded-2xl;
+    @apply flex w-full items-center justify-center rounded-2xl;
+    aspect-ratio: 3 / 2;
     background: #f6f8fa;
     border: 1.5px dashed #d7dee4;
   }

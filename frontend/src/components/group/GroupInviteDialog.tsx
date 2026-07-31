@@ -3,6 +3,8 @@ import Button from '../common/Button'
 import type { Friend } from '../friends/friends.types'
 import SheetDialog from '../sheet/SheetDialog'
 import { cn } from '../../utils/cn'
+// 이 팝업의 스타일. 페이지가 아니라 컴포넌트가 직접 불러온다 — 다른 화면에서 써도 스타일이 붙는다.
+import '../../styles/group-detail.css'
 
 type GroupInviteDialogProps = {
   friends: Friend[]
