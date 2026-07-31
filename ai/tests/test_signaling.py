@@ -2,12 +2,15 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import Settings
 from app.main import create_app
 
 
+# `_env_file=None` 이 핵심입니다. 빼면 개발자의 `.env` 가 섞여 들어와 같은 코드가
+# 로컬에서는 통과하고 컨테이너·CI 에서는 깨집니다(conftest.py 의 같은 취지 참고).
 @pytest.fixture
 def client():
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(Settings(_env_file=None))) as c:
         yield c
 
 
@@ -35,11 +38,17 @@ def test_invalid_room_names_get_a_readable_error(client, room_id):
         assert message["code"] == "BAD_ROOM_ID"
 
 
-def test_bot_listen_is_a_known_message_type(client):
-    with client.websocket_connect("/ws/demo") as ws:
-        ws.send_json({"type": "join", "displayName": "우찬"})
-        ws.receive_json()
-        ws.send_json({"type": "bot-listen", "state": "start"})
-        error = ws.receive_json()
-        # 스키마에 등록돼 있으므로 BAD_MESSAGE 가 아니라 도메인 에러가 와야 합니다.
-        assert error["code"] == "NO_AUDIO_TRACK"
+# NO_AUDIO_TRACK 까지 가려면 `bot_enabled`(기본 False)와 `bot_voice_enabled` 를 둘 다
+# 켜야 합니다 — 안 그러면 manager 가 그 앞에서 BOT_VOICE_DISABLED 로 막습니다.
+# provider 는 기본값 echo 로 둡니다. 여기서 검증하는 건 메시지 타입이 스키마에
+# 등록돼 있는지이지 LLM 응답이 아니라서, 키가 필요한 gemini 를 쓸 이유가 없습니다.
+def test_bot_listen_is_a_known_message_type():
+    settings = Settings(_env_file=None, bot_enabled=True, bot_voice_enabled=True)
+    with TestClient(create_app(settings)) as client:
+        with client.websocket_connect("/ws/demo") as ws:
+            ws.send_json({"type": "join", "displayName": "우찬"})
+            ws.receive_json()
+            ws.send_json({"type": "bot-listen", "state": "start"})
+            error = ws.receive_json()
+            # 스키마에 등록돼 있으므로 BAD_MESSAGE 가 아니라 도메인 에러가 와야 합니다.
+            assert error["code"] == "NO_AUDIO_TRACK"
