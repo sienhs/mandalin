@@ -1,6 +1,0 @@
-# httpx is a runtime dependency; requirements.txt already pulls it in.
--r requirements.txt
-pytest>=8.3
-pytest-asyncio>=0.24
-ruff>=0.7
-pytest-timeout>=2.3
