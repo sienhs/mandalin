@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import ProgressBar from '../components/common/ProgressBar'
+import GroupMoveDialog from '../components/group/GroupMoveDialog'
 import { GROUP_DOMAIN_SLOTS, loadGroupDetail } from '../components/group/group.data'
 import { MY_SHEETS } from '../components/sheetList/sheetList.data'
 import { cn } from '../utils/cn'
@@ -12,6 +13,10 @@ import '../styles/group-detail.css'
 
 /** 멤버 줄에 돌려 쓰는 색. 자리 순서대로 붙는다. */
 const MEMBER_COLORS = ['green', 'orange', 'blue', 'amber'] as const
+
+/** 멤버 순서에 따른 색 클래스. 팝업 아바타도 같은 색을 쓴다. */
+const colorClassOf = (index: number): string =>
+  `group-detail-member--${MEMBER_COLORS[index % MEMBER_COLORS.length]}`
 
 /**
  * 그룹 만다라트 화면. 그룹을 만든 직후, 그리고 목록에서 그룹 카드를 눌러 들어온다.
@@ -44,12 +49,19 @@ export default function GroupDetail() {
   /** 도메인 자리가 남아 있으면 아직 초대할 수 있다 */
   const canInvite = detail.mappedDomainCount < GROUP_DOMAIN_SLOTS
 
+  /** 줄을 눌러 고른 멤버. 처음에는 팀장이 골라져 있다 — 이동 버튼이 항상 갈 곳을 갖도록. */
+  const [pickedUserId, setPickedUserId] = useState(detail.members[0].userId)
+  const [moveOpen, setMoveOpen] = useState(false)
+
+  const pickedIndex = detail.members.findIndex((member) => member.userId === pickedUserId)
+  const pickedMember = detail.members[pickedIndex] ?? detail.members[0]
+
   return (
     <div className="group-detail-page">
       <Header />
 
       <main className="group-detail-main">
-        <div className="card p-6">
+        <div className="card group-detail-card">
           <header className="group-detail-header">
             <div className="group-detail-identity">
               <h1 className="group-detail-title">{detail.title}</h1>
@@ -90,10 +102,17 @@ export default function GroupDetail() {
                     key={member.userId}
                     className={cn(
                       'group-detail-member',
-                      `group-detail-member--${MEMBER_COLORS[i % MEMBER_COLORS.length]}`,
+                      colorClassOf(i),
+                      member.userId === pickedUserId && 'group-detail-member--picked',
                     )}
                   >
-                    <div className="group-detail-member-row">
+                    {/* 줄을 누르면 그 멤버가 골라진다 — 아래 이동 버튼이 이 멤버를 따라간다. */}
+                    <button
+                      type="button"
+                      onClick={() => setPickedUserId(member.userId)}
+                      aria-pressed={member.userId === pickedUserId}
+                      className="group-detail-member-pick"
+                    >
                       <span className="group-detail-member-name">
                         <span aria-hidden="true" className="group-detail-member-dot" />
                         {member.name}
@@ -101,7 +120,7 @@ export default function GroupDetail() {
                       <span className="group-detail-member-rate">
                         {member.memberAchievementRate}%
                       </span>
-                    </div>
+                    </button>
                     <ProgressBar
                       value={member.memberAchievementRate}
                       label={`${member.name} 기여도`}
@@ -139,7 +158,7 @@ export default function GroupDetail() {
                   variant="ghost"
                   size="lg"
                   className="group-detail-move"
-                  onClick={() => navigate(`/sheet/${mySheetId}`)}
+                  onClick={() => setMoveOpen(true)}
                 >
                   선택한 만다라트로 이동
                 </Button>
@@ -148,6 +167,15 @@ export default function GroupDetail() {
           </div>
         </div>
       </main>
+
+      {moveOpen && (
+        <GroupMoveDialog
+          memberName={pickedMember.name}
+          colorClass={colorClassOf(Math.max(0, pickedIndex))}
+          onConfirm={() => navigate(`/sheet/${mySheetId}`)}
+          onClose={() => setMoveOpen(false)}
+        />
+      )}
     </div>
   )
 }
