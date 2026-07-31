@@ -11,9 +11,6 @@ type SheetDomainDialogProps = {
 
 /**
  * 도메인 설정 팝업: 목표 도메인 이름만 받는다.
- *
- * 과제 설정 팝업과 분리한 이유: 도메인 칸에는 마감 기한 · 목표 횟수가 없다.
- * 한 팝업에서 칸 종류에 따라 입력을 감추면, 무엇을 편집하는 중인지가 팝업 제목에만 남는다.
  */
 export default function SheetDomainDialog({
   draft,

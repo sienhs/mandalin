@@ -24,8 +24,6 @@ export function useSheetDetail(sheetId: number) {
   /**
    * 좋아요 상태. 표시할 값을 그대로 들고 있고, 여기에 무엇도 더하지 않는다.
    *
-   * count 에 내 좋아요를 더하는 식으로 만들면 안 된다 — 서버가 주는 likeCount 는 내 좋아요를
-   * 이미 포함하므로 이중 계산이 된다(내가 누른 시트를 다시 열 때마다 1 크게 보인다).
    * 연동 시 초기값은 상세 응답의 likeCount · isLiked 로, 토글 뒤에는 토글 응답
    * (SheetLikeResponse)의 두 값으로 덮어쓴다.
    */

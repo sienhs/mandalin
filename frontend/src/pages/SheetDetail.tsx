@@ -7,6 +7,7 @@ import SheetDetailHeader from '../components/sheetDetail/SheetDetailHeader'
 import { useSheetDetail } from '../components/sheetDetail/useSheetDetail'
 // 카드(.card) · 9x9 칸(.Sheet) · 3x3 확대 그리드(.mgrid) · 배지(.pill) 는 생성 화면과 공유한다.
 import '../styles/sheet-create.css'
+import '../styles/sheet-detail.css'
 
 type SheetDetailProps = {
   /**
@@ -47,7 +48,7 @@ export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
           />
 
           {/* 좌: 9x9 2D 뷰 · 우: 3x3 확대 그리드와 선택한 과제 */}
-          <div className="grid grid-cols-[1fr_360px] items-start gap-6">
+          <div className="sheet-detail-body">
             <SheetGrid
               grid={detail.grid}
               selectedCell={detail.selectedCell}
@@ -57,7 +58,7 @@ export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
               className=""
             />
 
-            <div className="flex flex-col gap-4">
+            <div className="sheet-detail-side">
               <SheetMiniGrid
                 blockIndex={detail.selectedBlockIndex}
                 cells={detail.miniGrid}
