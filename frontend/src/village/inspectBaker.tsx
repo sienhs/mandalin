@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bounds, Center } from '@react-three/drei'
-import { StageBuilding, type AnyBuildingKey } from './localCatalog'
-import type { Stage } from './partTypes'
+import { StageBuilding, isLandmarkKey, type AnyBuildingKey } from './localCatalog'
+import type { LandmarkStage, Stage } from './partTypes'
 
 /**
  * 검수용 4방면 베이커 — 썸네일 베이커와 동일 원리(숨은 단일 캔버스 + toDataURL)지만
@@ -10,7 +10,11 @@ import type { Stage } from './partTypes'
  * 헤드리스 브라우저에서도 <img>(dataURL)로 캡처된다.
  */
 
-type Job = { key: AnyBuildingKey; stage: Stage; az: number }
+/**
+ * stage 는 건물 종류에 따라 뜻이 다르다 — 일반 건물은 1~3, 랜드마크는 1~8.
+ * 캐시 키에 그대로 들어가므로 같은 key 를 다른 의미로 굽는 충돌은 없다.
+ */
+type Job = { key: AnyBuildingKey; stage: Stage | LandmarkStage; az: number }
 
 const cache = new Map<string, string>()
 const queued = new Set<string>()
@@ -24,7 +28,9 @@ const subscribe = (l: () => void) => {
   return () => { listeners.delete(l) }
 }
 
-export function useInspectShot(key: AnyBuildingKey | null, stage: Stage, az: number): string | null {
+export function useInspectShot(
+  key: AnyBuildingKey | null, stage: Stage | LandmarkStage, az: number,
+): string | null {
   const id = key ? ck(key, stage, az) : ''
   const value = useSyncExternalStore(subscribe, () => (key ? cache.get(id) ?? null : null))
   useEffect(() => {
@@ -58,7 +64,12 @@ function BakeOne({ job, onDone }: { job: Job; onDone: (url: string) => void }) {
         <Center>
           <group rotation={[0, (job.az * Math.PI) / 180, 0]}>
             <group scale={2.4}>
-              <StageBuilding k={job.key} stage={job.stage} theme="warm" />
+              <StageBuilding
+                k={job.key}
+                stage={isLandmarkKey(job.key) ? 3 : (job.stage as Stage)}
+                landmarkStage={job.stage as LandmarkStage}
+                theme="warm"
+              />
             </group>
           </group>
         </Center>

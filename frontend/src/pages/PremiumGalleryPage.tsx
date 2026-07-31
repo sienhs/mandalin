@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { TopBar } from '../components/TopBar'
 import { BuildingImage } from '../village/BuildingImage'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
-import { PREMIUM_THEMES, PREMIUM_CONFIGS, type PremiumKey } from '../village/premium'
-import { localParts } from '../village/localCatalog'
+import { PREMIUM_THEMES } from '../village/premium'
+import { LANDMARK_VIEWER_THEME } from '../village/landmarks'
+import { isLandmarkKey, localLabel, localParts } from '../village/localCatalog'
 import type { Stage } from '../village/partTypes'
 
 const STAGES: { v: Stage; label: string }[] = [
@@ -22,8 +23,11 @@ export default function PremiumGalleryPage() {
   const [stage, setStage] = useState<Stage>(3)
   // ?theme=<id> 로 한 테마만 렌더(검증 부하 감소). 없으면 전체.
   const onlyTheme = new URLSearchParams(window.location.search).get('theme')
-  const themes = onlyTheme ? PREMIUM_THEMES.filter((t) => t.id === onlyTheme) : PREMIUM_THEMES
-  const total = PREMIUM_THEMES.reduce((n, t) => n + t.keys.length, 0)
+  // 랜드마크(3×3·8단계)도 같은 뷰어에서 검수한다. 단계 토글은 일반 건물 기준(1~3)이고,
+  // 랜드마크 카드는 항상 완성(8단계)로 굽는다 — 단계별 검수는 /inspect 에서 한다.
+  const all = [...PREMIUM_THEMES, LANDMARK_VIEWER_THEME]
+  const themes = onlyTheme ? all.filter((t) => t.id === onlyTheme) : all
+  const total = all.reduce((n, t) => n + t.keys.length, 0)
 
   return (
     <div style={{ minHeight: '100vh', background: '#eef2f5', fontFamily: 'system-ui, sans-serif', padding: '64px 24px 24px' }}>
@@ -31,7 +35,7 @@ export default function PremiumGalleryPage() {
       <ThumbnailBakery />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>💎 프리미엄 건물 <span style={{ color: '#9aa7b0', fontWeight: 400, fontSize: 15 }}>({total})</span></h1>
+        <h1 style={{ margin: 0, fontSize: 22 }}>💎 프리미엄 · 랜드마크 건물 <span style={{ color: '#9aa7b0', fontWeight: 400, fontSize: 15 }}>({total})</span></h1>
         <div style={{ display: 'flex', gap: 6 }}>
           {STAGES.map((s) => (
             <button
@@ -70,9 +74,16 @@ export default function PremiumGalleryPage() {
                       background: 'linear-gradient(180deg, #eaf4f8, #f6f9fb)',
                     }}
                   >
-                    <BuildingImage k={key} parts={localParts(key)} stage={stage} size={150} alt={PREMIUM_CONFIGS[key as PremiumKey].label} />
+                    <BuildingImage
+                      k={key}
+                      parts={localParts(key)}
+                      stage={isLandmarkKey(key) ? 8 : stage}
+                      size={150}
+                      alt={localLabel(key)}
+                      landmark={isLandmarkKey(key)}
+                    />
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{PREMIUM_CONFIGS[key as PremiumKey].label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{localLabel(key)}</div>
                   <div style={{ fontSize: 11, color: '#9aa7b0' }}>{key}</div>
                 </div>
               ))}

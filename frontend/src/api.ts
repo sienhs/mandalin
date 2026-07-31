@@ -155,7 +155,7 @@ export function exchangeOAuthCode(code: string): Promise<LoginData> {
 export type UserProfileData = Omit<LoginData, 'accessToken'>
 
 export function fetchMyProfile(): Promise<UserProfileData> {
-  return apiFetch<UserProfileData>('/api/users/me')
+  return apiFetch<UserProfileData>('/api/v1/users/me')
 }
 
 /**

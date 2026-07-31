@@ -23,10 +23,17 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * 로그인한 사용자 본인의 계정 API.
+ *
+ * <p>예전에는 {@code /api/v1/users/**} 에 같은 일을 하는 {@code UserController} 가 따로 있었다.
+ * 그쪽은 신원을 {@code @RequestParam userId} 로 받아 남의 계정을 조회할 수 있었고, 응답 DTO 도
+ * 필드명만 다른 사본({@code MyProfileResponse})이었다. 여기로 합치고 그쪽을 지웠다.
+ */
 @RestController
-@RequestMapping("/api/users/me")
+@RequestMapping("/api/v1/users/me")
 @RequiredArgsConstructor
-@Tag(name = "User Account", description = "Profile update and account withdrawal")
+@Tag(name = "User Account", description = "My profile, profile update, and account withdrawal")
 public class UserAccountController {
 
 	private final UserAccountService userAccountService;

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { thumbnailSrc } from './thumbnails'
 import { useThumbnail } from './thumbnailBaker'
-import type { Part, Stage } from './partTypes'
+import type { LandmarkStage, Part, Stage } from './partTypes'
 
 interface Props {
   /** 건물 key — static PNG 경로와 베이킹 캐시 id 로 쓰인다. */
@@ -10,9 +10,11 @@ interface Props {
   remoteUrl?: string | null
   /** 이미지가 모두 없을 때 직접 구울 부품 배열. */
   parts?: Part[] | null
-  stage?: Stage
+  stage?: Stage | LandmarkStage
   size?: number
   alt?: string
+  /** 랜드마크(8단계) — 단계 규칙이 달라 렌더러를 갈아탄다. 기본 단계는 8(완성). */
+  landmark?: boolean
 }
 
 /**
@@ -21,14 +23,15 @@ interface Props {
  * 2) 로컬 static PNG(`/thumbnails/*.png`)
  * 3) 둘 다 없으면 parts 로 라이브 베이킹 (페이지에 <ThumbnailBakery/> 마운트 필요)
  */
-export function BuildingImage({ k, remoteUrl, parts, stage = 3, size = 140, alt }: Props) {
+export function BuildingImage({ k, remoteUrl, parts, stage, size = 140, alt, landmark = false }: Props) {
   // 폴백은 remote → static 순으로 내려간다. 실패한 URL을 전부 기억해야
   // static 도 실패했을 때 remote 로 되돌아가 무한 루프가 나지 않는다.
   const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set())
 
-  const candidates = [remoteUrl, thumbnailSrc(k, stage)].filter((u): u is string => !!u)
+  const shown: Stage | LandmarkStage = stage ?? (landmark ? 8 : 3)
+  const candidates = [remoteUrl, thumbnailSrc(k, shown)].filter((u): u is string => !!u)
   const showing = candidates.find((u) => !failed.has(u)) ?? null
-  const baked = useThumbnail(showing ? null : k, parts ?? null, stage)
+  const baked = useThumbnail(showing ? null : k, parts ?? null, shown, landmark)
 
   const imgStyle: React.CSSProperties = { objectFit: 'contain', display: 'block' }
 

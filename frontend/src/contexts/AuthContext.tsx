@@ -17,7 +17,7 @@ import {
  * 세션리스 인증: 클라이언트는 아무것도 저장하지 않는다(sessionStorage/localStorage 미사용).
  * 로그인 상태의 유일한 근거는 서버가 내려준 httpOnly 리프레시 쿠키뿐이라, 앱이 처음 뜰 때마다
  * `/api/auth/reissue`로 "아직 유효한 쿠키가 있는지" 물어 accessToken 을 복원하고,
- * 이어서 `/api/users/me` 로 사용자 정보를 되찾는다.
+ * 이어서 `/api/v1/users/me` 로 사용자 정보를 되찾는다.
  *
  * 토큰의 실제 보관소는 `auth/session` 모듈이다. apiFetch 가 Authorization 헤더를 붙일 때
  * 거기서 읽으므로, 여기 state 와 반드시 같이 움직여야 한다 — 갈라지면 헤더가 안 붙는다.
