@@ -4,7 +4,6 @@ import Button from '../components/common/Button'
 import Header from '../components/common/Header'
 import SheetBasicSettings from '../components/sheet/SheetBasicSettings'
 import SheetCancelDialog from '../components/sheet/SheetCancelDialog'
-import SheetDomainDialog from '../components/sheet/SheetDomainDialog'
 import SheetGrid from '../components/sheet/SheetGrid'
 import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
 import SheetSaveDialog from '../components/sheet/SheetSaveDialog'
@@ -12,7 +11,7 @@ import SheetTaskDialog from '../components/sheet/SheetTaskDialog'
 import { buildCreatePayload, createSheet } from '../components/sheet/sheet.api'
 import { TOTAL_CELLS } from '../components/sheet/sheet.data'
 import { useSheetEditor } from '../components/sheet/useSheetEditor'
-import '../styles/sheet-create.css'
+import './SheetCreate.css'
 
 /** 새 만다라트를 만드는 화면. 좌측 기본 설정 · 우측 2D 뷰와 사이드 패널로 구성된다. */
 export default function SheetCreate() {
@@ -46,16 +45,10 @@ export default function SheetCreate() {
     }
   }
 
-  // min-w: 가로 스크롤이 생겼을 때 오른쪽에 배경 없는 흰 띠가 보이지 않게 한다.
   return (
-    <div className="min-h-screen min-w-[1280px] bg-[#F6F7F8]">
+    <div className="min-h-screen bg-[#F6F7F8]">
       <Header />
-      {/*
-        폭을 고정한다(반응형 아님) — max-w 로 두면 브라우저를 확대할 때 CSS 뷰포트가 좁아지면서
-        컨테이너가 같이 줄고, 9x9 칸이 눌려 글자와 칸 비율이 깨진다.
-        좁은 창에서는 화면이 줄어드는 대신 가로 스크롤이 생긴다.
-      */}
-      <main className="mx-auto w-[1280px] px-6 pb-[70px] pt-6">
+      <main className="mx-auto max-w-[1280px] px-6 pb-[70px] pt-6">
         {/* 헤더: 제목 · 저장/취소 */}
         <header className="mb-[18px] flex items-center justify-between gap-4">
           <h1 className="section-title m-0 text-[20px]">새 만다라트 만들기</h1>
@@ -81,11 +74,7 @@ export default function SheetCreate() {
             onEndDateChange={editor.changeEndDate}
             isPublic={editor.isPublic}
             onPublicChange={editor.changePublic}
-
-            onManualTaskCreate={editor.openSelectedCellDialog}
-            onAiTaskCreate={() => navigate('/ai-coach')}
-
-
+            onManualTaskCreate={editor.openSelectedTaskDialog}
           />
 
           {/* 우측: 하나의 카드 안에 9x9 그리드 · 저장 경고 · 사이드 패널 */}
@@ -106,7 +95,7 @@ export default function SheetCreate() {
               grid={editor.grid}
               selectedCell={editor.selectedCell}
               onSelect={editor.setSelectedCell}
-              onOpen={editor.openCellDialog}
+              onOpen={editor.openTaskDialog}
             />
 
             {/* 사이드 패널: 선택한 블록의 3x3 확대 그리드 */}
@@ -134,17 +123,8 @@ export default function SheetCreate() {
           draft={editor.draft}
           onChange={editor.updateDraft}
           targetCount={editor.targetCountOf(editor.draft.period)}
-          onClose={editor.closeDialog}
-          onSave={editor.saveDialog}
-        />
-      )}
-
-      {editor.domainDialogOpen && editor.draft && (
-        <SheetDomainDialog
-          draft={editor.draft}
-          onChange={editor.updateDraft}
-          onClose={editor.closeDialog}
-          onSave={editor.saveDialog}
+          onClose={editor.closeTaskDialog}
+          onSave={editor.saveTaskDialog}
         />
       )}
     </div>

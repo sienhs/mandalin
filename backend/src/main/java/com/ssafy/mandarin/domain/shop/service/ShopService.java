@@ -8,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.mandarin.domain.auth.repository.UserRepository;
 import com.ssafy.mandarin.domain.building.entity.BuildingItem;
-import com.ssafy.mandarin.domain.building.entity.BuildingType;
 import com.ssafy.mandarin.domain.building.entity.UserBuilding;
 import com.ssafy.mandarin.domain.building.repository.BuildingItemRepository;
 import com.ssafy.mandarin.domain.building.repository.UserBuildingRepository;
@@ -47,10 +46,6 @@ public class ShopService {
 	 *
 	 * <p>기본 지급을 먼저 반영하는 이유: 이걸 빼면 신규 유저에게 기본 제공 건물이
 	 * "미보유(=구매 가능)"로 보이고, 사려고 하면 이미 갖고 있다는 오류가 난다.
-	 *
-	 * <p>랜드마크({@code type=LANDMARK}, 마을 정중앙 3×3)는 진열하지 않는다 — 포인트로 사는
-	 * 물건이 아니라 만다라트 완성 보상으로 해금한다. 목록에서만 빼고 {@link #purchase} 는
-	 * 따로 막는다: 목록에 없다고 해서 itemId 를 직접 넣은 요청이 막히는 것은 아니다.
 	 */
 	@Transactional
 	public List<ShopBuildingResponse> findAll(Long userId) {
@@ -58,7 +53,6 @@ public class ShopService {
 
 		Set<Long> ownedItemIds = userBuildingRepository.findOwnedItemIdsByUserId(userId);
 		return buildingItemRepository.findAllByOrderBySortOrderAsc().stream()
-				.filter(item -> item.getType() != BuildingType.LANDMARK)
 				.map(item -> ShopBuildingResponse.of(item, ownedItemIds.contains(item.getId())))
 				.toList();
 	}
@@ -78,20 +72,11 @@ public class ShopService {
 	 * 같은 유저의 동시 요청 두 건이 모두 "미보유"를 읽고 통과해, 포인트가 두 번 빠진다
 	 * (건물 자체는 {@code uk_user_building} 유니크 제약이 막지만 그때는 이미 차감된 뒤다).
 	 *
-	 * @throws BusinessException 건물이 없거나(404), 판매 대상이 아니거나(400), 이미 보유했거나(409),
-	 *                           포인트가 부족할 때(400)
+	 * @throws BusinessException 건물이 없거나(404), 이미 보유했거나(409), 포인트가 부족할 때(400)
 	 */
 	@Transactional
 	public BuildingPurchaseResponse purchase(Long userId, Long itemId) {
 		BuildingItem item = findItem(itemId);
-
-		/*
-		 * 랜드마크는 완성 보상이라 값이 0 이다. 목록에서 뺀 것만으로는 못 막는다 — itemId 를
-		 * 직접 넣은 요청이 그대로 통과해 0P 로 전 종을 긁어갈 수 있다.
-		 */
-		if (item.getType() == BuildingType.LANDMARK) {
-			throw new BusinessException(ErrorCode.BUILDING_NOT_PURCHASABLE);
-		}
 
 		User user = userRepository.findByIdForUpdate(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));

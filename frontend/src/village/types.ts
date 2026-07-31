@@ -38,25 +38,6 @@ export function progressStage(progress: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-/**
- * 중앙 블록 랜드마크의 표시 단계 0~8.
- *
- * 중앙 블록의 8개 "과제"는 실제 과제가 아니라 **8개 도메인의 평균 진행률**이다
- * (mandalart.ts 가 그렇게 만든다). 그래서 그 평균 = 만다라트 전체 진행률이고,
- * 12.5%(=100/8) 구간마다 한 단계씩 올린다 — 도메인 8개와 단계 8개가 1:1로 읽힌다.
- *
- *  0%          → 0 (공사 부지)
- *  0 초과~12.5 → 1
- *  ...
- *  87.5~100    → 8 (완성)
- */
-export function landmarkStageOf(center: Domain): 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 {
-  const percent = urbanLevelOf(center) * 100
-  if (percent <= 0) return 0
-  const stage = Math.floor(percent / 12.5) + 1
-  return Math.min(8, stage) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
-}
-
 /** 블록의 도시화 정도 0~1 (평균 진행률). 마을풍↔도시풍 보간에 사용. */
 export function urbanLevelOf(domain: Domain): number {
   if (domain.tasks.length === 0) return 0

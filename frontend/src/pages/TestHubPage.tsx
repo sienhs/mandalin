@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { TopBar } from '../components/TopBar'
-import {
-  applySheetProgress,
-  applySubjectProgress,
-  grantDemoPoint,
-  unlockDemoLandmarks,
-} from '../components/sheet/demo.api'
+import { applySheetProgress, applySubjectProgress, grantDemoPoint } from '../components/sheet/demo.api'
 import { buildSampleSheetPayload } from '../components/sheet/demo.data'
 import {
   createSheet,
@@ -28,7 +23,6 @@ import {
 
 const CARDS = [
   { to: '/village', emoji: '🏡', title: '마을', desc: '만다라트 3D 마을 — 진행률에 따라 건물이 자란다' },
-  { to: '/testVillage', emoji: '🧪', title: '마을 UI 테스트', desc: '서버 없이 뜨는 하네스 — 전 종 보유·진행률 슬라이더' },
   { to: '/shop', emoji: '🏪', title: '건물 상점', desc: '포인트로 건물 구매 (테마별)' },
   { to: '/sheet/create', emoji: '📝', title: '만다라트 만들기', desc: '핵심 목표·도메인·과제 입력 후 저장' },
   { to: '/gallery', emoji: '🏘', title: '건물 모아보기', desc: '전체 건물 카탈로그' },
@@ -130,29 +124,6 @@ export default function TestHubPage() {
     }
   }
 
-  /**
-   * 랜드마크 전 종 해금. 포인트를 쓰지 않는다 — 만다라트 완성 보상 자리를 임시로 메우는 것이다.
-   *
-   * 이미 다 보유한 상태에서 눌러도 오류가 아니라 "이미 전부" 로 알린다. 멱등한 API 인데
-   * 화면이 0 을 실패처럼 보여주면 눌러도 되는지 헷갈린다.
-   */
-  const unlockLandmarks = async () => {
-    if (busy) return
-    setBusy(true)
-    setError(null)
-    setNotice(null)
-    try {
-      const { granted, owned, total } = await unlockDemoLandmarks()
-      setNotice(granted > 0
-        ? `랜드마크 ${granted}종 해금 — ${owned}/${total}종 보유. 마을 정중앙 블록에서 골라 보세요.`
-        : `이미 랜드마크 ${owned}/${total}종을 전부 갖고 있습니다.`)
-    } catch (cause: unknown) {
-      fail(cause, '랜드마크를 해금하지 못했습니다.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg,#cfe8f0,#eef2f5)', fontFamily: 'system-ui, sans-serif' }}>
       <TopBar />
@@ -180,9 +151,6 @@ export default function TestHubPage() {
             <br />
             발표용이라 배포 환경에서도 동작합니다. 실제 수행 체크 API 가 나오면 서버에서
             끕니다(<code>DEMO_PROGRESS_ENABLED=false</code>).
-            <br />
-            <b>랜드마크</b>(마을 정중앙 3×3)는 상점에서 사는 물건이 아니라 만다라트 완성 보상입니다.
-            그 보상 지급이 아직 없어 <b>🗺 랜드마크 전부 획득</b> 으로 해금해 두고 검수합니다 — 포인트를 쓰지 않습니다.
           </p>
 
           {/* 만다라트 없이도 마을을 볼 수 있게 하는 지름길 + 포인트 지급 */}
@@ -194,11 +162,6 @@ export default function TestHubPage() {
             <button type="button" disabled={busy} onClick={() => void grantPoint()}
               style={{ ...BTN, background: '#fff6e0', borderColor: '#eccf92', padding: '7px 12px' }}>
               🪙 {GRANT_AMOUNT.toLocaleString('ko-KR')}P 받기
-            </button>
-            <button type="button" disabled={busy} onClick={() => void unlockLandmarks()}
-              style={{ ...BTN, background: '#f0ecdf', borderColor: '#cfc4a6', padding: '7px 12px' }}
-              title="포인트를 쓰지 않습니다. 만다라트 완성 보상이 붙기 전까지 쓰는 임시 해금입니다.">
-              🗺 랜드마크 전부 획득
             </button>
           </div>
 

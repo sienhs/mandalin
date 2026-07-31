@@ -107,19 +107,13 @@ export const countFilledCells = (grid: GridCell[][]): number => {
   return TOTAL_CELLS - empty
 }
 
-/**
- * 기간 설정에 따라 수행횟수를 자동으로 계산하는 함수. 항상 1 이상이다.
- *
- * 0 을 돌려주지 않는 이유: 기간이 7일보다 짧은 시트의 '매주' 과제가 floor(일수/7) = 0 이 되고
- * (종료일이 시작일보다 앞서면 모든 주기가 0), 그 값이 저장되면 진행률(수행/목표)이 0 으로
- * 나눠져 0% 에 갇힌다. 한 번도 수행할 수 없는 과제는 만들 수 없으니 최소 1 회로 본다.
- */
+/** 기간 설정에 따라 수행횟수를 자동으로 계산하는 함수. */
 export const calcTargetCount = (period: Period, startDate: string, endDate: string): number => {
   if (period === 'none') return 1
   const diffTime = new Date(endDate).getTime() - new Date(startDate).getTime()
-  if (diffTime < 0) return 1
+  if (diffTime < 0) return 0
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
-  return Math.max(1, period === 'daily' ? diffDays : Math.floor(diffDays / 7))
+  return period === 'daily' ? diffDays : Math.floor(diffDays / 7)
 }
 
 /** 아직 값이 없는 도메인 칸을 처음 저장할 때 쓰는 기본값. */

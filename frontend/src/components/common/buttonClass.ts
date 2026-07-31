@@ -1,5 +1,5 @@
 import { cn } from '../../utils/cn'
-import '../../styles/button.css'
+import './Button.css'
 
 /** primary = 주요 동작, danger = 경고를 동반한 동작, ghost = 취소 */
 export type ButtonVariant = 'primary' | 'danger' | 'ghost'
