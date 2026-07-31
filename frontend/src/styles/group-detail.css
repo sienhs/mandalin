@@ -1,0 +1,188 @@
+@reference "../index.css";
+
+/*
+ * 그룹 만다라트 화면 전용 스타일.
+ *
+ * 카드(.card) 는 생성 화면과 공유하므로 styles/sheet-create.css 에 있다.
+ *
+ * 색:
+ *   그룹 강조    #8b7fe3 (목록 화면 그룹 카드 --sheet-accent 와 같은 값)
+ *   아이콘 배지  #ddd5f7 배경
+ *   멤버 카드    #eef8f0 배경 · #d7ebdb 테두리 · #4f9d68 퍼센트
+ *   안내 상자    #f6f8fa 배경
+ *   진행 바      #6cbf7f (상세 화면 달성률과 같은 값)
+ */
+
+@layer components {
+
+  /* ---------- 페이지 틀 ---------- */
+  /* 폭 고정(반응형 아님) — 생성 · 상세 화면과 같은 이유다. */
+  .group-detail-page {
+    @apply min-h-screen min-w-[1280px];
+    background: #f6f7f8;
+  }
+
+  .group-detail-main {
+    @apply mx-auto w-[1280px] px-6 pb-[70px] pt-6;
+  }
+
+  /* ---------- 머리말 ---------- */
+  .group-detail-header {
+    @apply mb-7 flex items-start justify-between gap-6;
+  }
+
+  .group-detail-identity {
+    @apply min-w-0;
+  }
+
+  .group-detail-title {
+    @apply m-0 text-[17px] font-extrabold tracking-[-0.02em] text-ink-900;
+  }
+
+  .group-detail-sub {
+    @apply m-0 mt-1 text-[12.5px] font-semibold text-ink-400;
+  }
+
+  /* ---------- 달성률 ---------- */
+  .group-detail-rate {
+    --progress-accent: #6cbf7f;
+    @apply flex shrink-0 flex-col items-end gap-2;
+  }
+
+  .group-detail-rate-row {
+    @apply flex items-center gap-3;
+  }
+
+  .group-detail-rate-text {
+    @apply m-0 whitespace-nowrap text-[12px] font-semibold text-ink-500;
+  }
+
+  .group-detail-rate-bar {
+    @apply w-[150px];
+  }
+
+  .group-detail-rate-label {
+    @apply m-0 text-[11.5px] font-bold text-ink-400;
+  }
+
+  .group-detail-rate-big {
+    @apply m-0 text-[30px] font-extrabold leading-none tracking-[-0.03em];
+    color: #8b7fe3;
+  }
+
+  /* ---------- 좌: 이미지 · 우: 멤버 ---------- */
+  .group-detail-body {
+    @apply grid grid-cols-[1fr_340px] items-start gap-7;
+  }
+
+  /*
+   * 그룹 마을 이미지가 들어갈 자리. 아직 이미지가 없어 자리만 잡아 둔다.
+   * 이미지가 준비되면 이 상자 안에 넣고 점선 테두리와 안내 문구를 지운다.
+   */
+  .group-detail-image {
+    @apply flex h-[300px] items-center justify-center rounded-2xl;
+    background: #f6f8fa;
+    border: 1.5px dashed #d7dee4;
+  }
+
+  .group-detail-image-note {
+    @apply m-0 text-[12.5px] font-semibold text-ink-400;
+  }
+
+  /* ---------- 멤버별 기여도 ---------- */
+  .group-detail-side {
+    @apply flex flex-col gap-3;
+  }
+
+  .group-detail-section-title {
+    @apply m-0 text-[15px] font-extrabold tracking-[-0.01em] text-ink-900;
+  }
+
+  .group-detail-members {
+    @apply m-0 flex list-none flex-col gap-1 p-0;
+  }
+
+  /*
+   * 멤버 한 줄. 점 · 이름 · 퍼센트 · 진행 바가 모두 그 멤버의 색을 쓴다.
+   * 색은 .group-detail-member--* 가 변수 두 개로 넘긴다 —
+   * --member-accent(점 · 글자 · 진행 바)와 --member-tint(가리킬 때의 배경).
+   */
+  .group-detail-member {
+    --progress-accent: var(--member-accent);
+    @apply rounded-xl px-3 py-2 transition-colors duration-150;
+  }
+
+  .group-detail-member:hover {
+    background: var(--member-tint);
+  }
+
+  .group-detail-member--green {
+    --member-accent: #6cbf7f;
+    --member-tint: #eef8f0;
+  }
+
+  .group-detail-member--orange {
+    --member-accent: #e0913c;
+    --member-tint: #fdf1e6;
+  }
+
+  .group-detail-member--blue {
+    --member-accent: #6a7ad4;
+    --member-tint: #eceef9;
+  }
+
+  .group-detail-member--amber {
+    --member-accent: #d9b23a;
+    --member-tint: #fbf6e4;
+  }
+
+  .group-detail-member-row {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .group-detail-member-name {
+    @apply flex min-w-0 items-center gap-2 text-[13px] font-extrabold text-ink-900;
+  }
+
+  /* 이름 앞의 점 */
+  .group-detail-member-dot {
+    @apply h-2 w-2 shrink-0 rounded-full;
+    background: var(--member-accent);
+  }
+
+  .group-detail-member-rate {
+    @apply shrink-0 text-[12.5px] font-extrabold;
+    color: var(--member-accent);
+  }
+
+  .group-detail-member-bar {
+    @apply mt-1.5;
+  }
+
+  /* ---------- 안내 상자 ---------- */
+  .group-detail-notice {
+    @apply m-0 rounded-xl px-4 py-3 text-[11.5px] font-semibold leading-[1.7] text-ink-500;
+    background: #f6f8fa;
+  }
+
+  /* ---------- 아래 버튼 ---------- */
+  .group-detail-actions {
+    @apply mt-1 flex flex-col gap-2.5;
+  }
+
+  .ui-btn.group-detail-invite {
+    @apply w-full;
+  }
+
+  /* '선택한 만다라트로 이동' — 이미지의 검은 버튼. 공통 Button 에 없는 색이라 여기 둔다. */
+  .ui-btn.group-detail-move {
+    @apply w-full;
+    background: #14181d;
+    border-color: #14181d;
+    color: #ffffff;
+  }
+
+  .ui-btn.group-detail-move:not(:disabled):hover {
+    background: #262d36;
+  }
+}

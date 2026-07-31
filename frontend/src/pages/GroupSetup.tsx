@@ -98,7 +98,16 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
    */
   const submit = () => {
     if (!canSubmit) return
-    navigate('/sheets')
+    // 만든(또는 합류한) 그룹 화면으로 간다. 목업이라 새 그룹 아이디가 없어 1번으로 보낸다 —
+    // 연동하면 create 는 응답으로 받은 groupId 를 쓴다.
+    navigate(`/group/${groupId ?? 1}`, {
+      state: {
+        groupTitle: mode === 'create' ? title.trim() : invitedTitle,
+        sheetId,
+        // 방금 만든 그룹은 팀장 혼자인 상태로 보여준다(목업이 아이디로 구분할 수 없다).
+        justCreated: mode === 'create',
+      },
+    })
   }
 
   return (

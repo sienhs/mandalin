@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import LoadingFallback from '../components/common/LoadingFallback'
 import AiCoachPage from '../pages/AiCoachPage'
 import FriendSheetList from '../pages/FriendSheetList'
+import GroupDetail from '../pages/GroupDetail'
 import GroupSetup from '../pages/GroupSetup'
 import FriendsPage from '../pages/FriendsPage'
 import HomePage from '../pages/HomePage'
@@ -55,6 +56,8 @@ export default function AppRoutes() {
       */}
       <Route path="/group/new" element={<GroupSetup mode="create" />} />
       <Route path="/group/:groupId/join" element={<GroupSetup mode="join" />} />
+      {/* 고정 경로(new)가 :groupId 보다 먼저 잡히므로 순서와 무관하게 안전하다. */}
+      <Route path="/group/:groupId" element={<GroupDetail />} />
       <Route path="/friends/:friendId/sheets" element={<FriendSheetList />} />
       <Route path="/friends/:friendId/sheet/:sheetId" element={<SheetDetail readOnly />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
