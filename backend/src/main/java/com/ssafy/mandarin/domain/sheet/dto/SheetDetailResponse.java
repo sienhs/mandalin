@@ -14,6 +14,7 @@ public record SheetDetailResponse(
         String title,
         Boolean isOpen,
         Long likeCount,
+        Boolean isLiked,
         Double achievementRate,
         LocalDateTime createdAt,
         LocalDateTime expiredAt,
