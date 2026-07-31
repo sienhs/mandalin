@@ -51,8 +51,11 @@ export default function GroupDetail() {
   /** 도메인 자리가 남아 있으면 아직 초대할 수 있다 */
   const canInvite = detail.mappedDomainCount < GROUP_DOMAIN_SLOTS
 
-  /** 줄을 눌러 고른 멤버. 처음에는 팀장이 골라져 있다 — 이동 버튼이 항상 갈 곳을 갖도록. */
-  const [pickedUserId, setPickedUserId] = useState(detail.members[0].userId)
+  /**
+   * 줄을 눌러 고른 멤버. 처음에는 팀장이 골라져 있다 — 이동 버튼이 항상 갈 곳을 갖도록.
+   * 멤버가 없는 응답(팀장이 빠진 그룹 등)에도 화면이 터지지 않게 옵셔널로 읽는다.
+   */
+  const [pickedUserId, setPickedUserId] = useState(detail.members[0]?.userId ?? 0)
   const [moveOpen, setMoveOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   /**
@@ -62,7 +65,7 @@ export default function GroupDetail() {
   const [invitedIds, setInvitedIds] = useState<number[]>([])
 
   const pickedIndex = detail.members.findIndex((member) => member.userId === pickedUserId)
-  const pickedMember = detail.members[pickedIndex] ?? detail.members[0]
+  const pickedMember = detail.members[pickedIndex] ?? detail.members[0] ?? null
 
   return (
     <div className="group-detail-page">
@@ -182,7 +185,7 @@ export default function GroupDetail() {
         />
       )}
 
-      {moveOpen && (
+      {moveOpen && pickedMember && (
         <GroupMoveDialog
           memberName={pickedMember.name}
           colorClass={colorClassOf(Math.max(0, pickedIndex))}
