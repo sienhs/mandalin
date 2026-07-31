@@ -4,7 +4,7 @@ import FriendAvatar from './FriendAvatar'
 import FriendsPagination from './FriendsPagination'
 import type { Friend } from './friends.types'
 
-const ITEMS_PER_PAGE = 10
+const ITEMS_PER_PAGE = 4
 
 type FriendListTabProps = {
   friends: Friend[]
@@ -39,7 +39,7 @@ export default function FriendListTab({ friends, onRemove }: FriendListTabProps)
               <strong className="friend-name">{friend.name}</strong>
               <div className="friend-actions">
                 <Link
-                  to={`/friends/${friend.id}/sheets`}
+                  to={`/village?userId=${friend.id}`}
                   state={{ friendName: friend.name }}
                   aria-label={`${friend.name}의 만다라트 보기`}
                   className="friends-primary-action"

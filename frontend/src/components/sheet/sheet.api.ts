@@ -44,12 +44,7 @@ export type DomainDetail = {
   subjects: SubjectDetail[]
 }
 
-/**
- * GET /api/v1/sheets/{id} 응답.
- *
- * achievementRate 는 상세 · 목록 화면에서 쓰지 않는다 — 두 화면은 과제 progress 의 평균으로
- * 달성률을 계산한다(sheetDetail.utils). 시연 화면(/test)만 이 값을 그대로 보여준다.
- */
+/** GET /api/v1/sheets/{id} 응답. */
 export type SheetDetail = {
   sheetId: number
   userId: number

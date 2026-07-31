@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../components/common/Button'
 import Header from '../components/common/Header'
@@ -7,10 +7,9 @@ import SheetDeleteDialog from '../components/sheetList/SheetDeleteDialog'
 import SheetGroupCard from '../components/sheetList/SheetGroupCard'
 import SheetInviteDialog from '../components/sheetList/SheetInviteDialog'
 import SheetListCard from '../components/sheetList/SheetListCard'
-import { fetchAchievementRates } from '../components/sheetList/sheetList.api'
 import { GROUP_INVITES, GROUP_SHEETS, MY_SHEETS } from '../components/sheetList/sheetList.data'
 import type { SheetSummary } from '../components/sheetList/sheetList.types'
-import '../styles/sheet-list.css'
+import './SheetList.css'
 
 /** 내 만다라트 목록 화면. 개인 만다라트 카드 목록과 그룹 만다라트 목록으로 구성된다. */
 export default function SheetList() {
@@ -18,12 +17,6 @@ export default function SheetList() {
   const [sheets, setSheets] = useState(MY_SHEETS)
   const [invites, setInvites] = useState(GROUP_INVITES)
   const groups = GROUP_SHEETS
-
-  /**
-   * 시트별 달성률. 카드를 그리는 데 필요한 값이지만 목록 응답에 없어서 따로 받아온다.
-   * 카드는 목록만으로 먼저 그리고, 도착하면 진행 바만 채운다.
-   */
-  const [rates, setRates] = useState<Map<number, number>>(new Map())
 
   const [createOpen, setCreateOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -39,30 +32,6 @@ export default function SheetList() {
   const removeInvite = (groupId: number) => {
     setInvites((prev) => prev.filter((invite) => invite.groupId !== groupId))
   }
-
-  /**
-   * 초대 수락 → 내 도메인을 고르는 합류 화면으로 넘어간다.
-   * 그룹 이름은 합류 화면 배너에 쓰므로 함께 넘긴다(새로고침 대비는 그 화면에서 처리).
-   */
-  const acceptInvite = (groupId: number) => {
-    const invite = invites.find((item) => item.groupId === groupId)
-    removeInvite(groupId)
-    navigate(`/group/${groupId}/join`, { state: { groupTitle: invite?.groupTitle } })
-  }
-
-  // 목록이 바뀌면(삭제 등) 남은 시트의 달성률만 다시 받는다.
-  useEffect(() => {
-    let alive = true
-    fetchAchievementRates(sheets.map((sheet) => sheet.sheetId))
-      .then((next) => {
-        if (alive) setRates(next)
-      })
-      // 달성률을 못 받아도 목록 자체는 보여준다. 그 카드는 '—%' 로 남는다.
-      .catch(() => undefined)
-    return () => {
-      alive = false
-    }
-  }, [sheets])
 
   return (
     <div className="min-h-screen bg-[#F6F7F8]">
@@ -104,7 +73,6 @@ export default function SheetList() {
                 <li key={sheet.sheetId}>
                   <SheetListCard
                     sheet={sheet}
-                    achievementRate={rates.get(sheet.sheetId) ?? null}
                     onOpen={(sheetId) => navigate(`/sheet/${sheetId}`)}
                     onRemove={() => setDeleteTarget(sheet)}
                   />
@@ -124,7 +92,7 @@ export default function SheetList() {
             <h2 id="group-sheets" className="sheet-list-subheading">
               그룹 만다라트
             </h2>
-            <Button variant="primary" onClick={() => navigate('/group/new')}>
+            <Button variant="primary" onClick={() => navigate('/sheet/create?type=group')}>
               그룹 생성
             </Button>
           </div>
@@ -135,7 +103,7 @@ export default function SheetList() {
                 <li key={group.groupId}>
                   <SheetGroupCard
                     group={group}
-                    onMove={(groupId) => navigate(`/group/${groupId}`)}
+                    onMove={(groupId) => navigate(`/sheet/group/${groupId}`)}
                   />
                 </li>
               ))}
@@ -166,7 +134,7 @@ export default function SheetList() {
       {inviteOpen && (
         <SheetInviteDialog
           invites={invites}
-          onAccept={acceptInvite}
+          onAccept={removeInvite}
           onReject={removeInvite}
           onClose={() => setInviteOpen(false)}
         />

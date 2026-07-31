@@ -35,5 +35,3 @@ out/
 .env
 .env.local
 secrets.properties
-
-Dockerfile
