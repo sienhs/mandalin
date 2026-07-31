@@ -21,11 +21,20 @@ const FIRST_CELL: CellPos = { b: 0, c: 0 }
 export function useSheetDetail(sheetId: number) {
   const [detail, setDetail] = useState(() => loadSheetDetail(sheetId))
   const [selectedCell, setSelectedCell] = useState<CellPos>(FIRST_CELL)
+  /**
+   * 좋아요 상태. 표시할 값을 그대로 들고 있고, 여기에 무엇도 더하지 않는다.
+   *
+   * 연동 시 초기값은 상세 응답의 likeCount · isLiked 로, 토글 뒤에는 토글 응답
+   * (SheetLikeResponse)의 두 값으로 덮어쓴다.
+   */
+  const [like, setLike] = useState(() => ({ liked: false, count: detail.sheet.like }))
 
   // 목록에서 다른 시트로 바로 이동하면(주소만 바뀌고 화면은 그대로) 내용을 다시 불러온다.
   useEffect(() => {
-    setDetail(loadSheetDetail(sheetId))
+    const next = loadSheetDetail(sheetId)
+    setDetail(next)
     setSelectedCell(FIRST_CELL)
+    setLike({ liked: false, count: next.sheet.like })
   }, [sheetId])
 
   const { sheet, domains, subjects } = detail
@@ -43,6 +52,17 @@ export function useSheetDetail(sheetId: number) {
   // 사이드 패널의 3x3 확대 그리드. 선택한 칸이 속한 블록을 보여준다.
   const selectedBlockIndex = selectedCell.b
   const miniGrid = grid[selectedBlockIndex]
+
+  /**
+   * 좋아요 토글.
+   *
+   * 목업이라 서버가 할 계산을 여기서 흉내낸다. 연동하면 아래 한 줄을
+   * `const res = await toggleSheetLike(sheetId); setLike({ liked: res.isLiked, count: res.likeCount })`
+   * 로 바꾸면 된다 — 응답을 그대로 담으므로 표시값에 손을 대지 않는다.
+   */
+  const toggleLike = () => {
+    setLike((prev) => ({ liked: !prev.liked, count: prev.count + (prev.liked ? -1 : 1) }))
+  }
 
   const doneCount = countDoneSubjects(subjects)
   /** 시트 달성률. 서버 값을 쓰지 않고 과제 진행률의 평균으로 계산한다. */
@@ -121,6 +141,11 @@ export function useSheetDetail(sheetId: number) {
     selectedBlockIndex,
     doneCount,
     achievementRate,
+
+    // 좋아요
+    liked: like.liked,
+    likeCount: like.count,
+    toggleLike,
     selectedTask,
 
     // 2D 뷰

@@ -39,7 +39,7 @@ export default function FriendListTab({ friends, onRemove }: FriendListTabProps)
               <strong className="friend-name">{friend.name}</strong>
               <div className="friend-actions">
                 <Link
-                  to={`/village?userId=${friend.id}`}
+                  to={`/friends/${friend.id}/sheets`}
                   state={{ friendName: friend.name }}
                   aria-label={`${friend.name}의 만다라트 보기`}
                   className="friends-primary-action"

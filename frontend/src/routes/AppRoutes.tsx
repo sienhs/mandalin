@@ -2,6 +2,7 @@ import { Suspense, lazy, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import LoadingFallback from '../components/common/LoadingFallback'
 import AiCoachPage from '../pages/AiCoachPage'
+import FriendSheetList from '../pages/FriendSheetList'
 import FriendsPage from '../pages/FriendsPage'
 import HomePage from '../pages/HomePage'
 import LandingPage from '../pages/LandingPage'
@@ -43,6 +44,12 @@ export default function AppRoutes() {
       {/* 고정 경로(/sheet/create)가 :sheetId 보다 먼저 잡히므로 순서와 무관하게 안전하다. */}
       <Route path="/sheet/:sheetId" element={<SheetDetail />} />
       <Route path="/sheets" element={<SheetList />} />
+      {/*
+        친구 만다라트. 소유자를 데이터로 판별하지 않고 이 경로로 구분한다 —
+        여기로 들어온 상세는 항상 남의 것이므로 읽기 전용이다.
+      */}
+      <Route path="/friends/:friendId/sheets" element={<FriendSheetList />} />
+      <Route path="/friends/:friendId/sheet/:sheetId" element={<SheetDetail readOnly />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/test" element={<TestHubPage />} />
       <Route element={<ProtectedRoute />}>

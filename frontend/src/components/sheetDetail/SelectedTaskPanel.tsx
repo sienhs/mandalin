@@ -7,6 +7,8 @@ type SelectedTaskPanelProps = {
   task: SelectedTask
   /** '수행 완료' */
   onComplete: () => void
+  /** 남의 만다라트를 보는 중. 수행에 관한 안내와 버튼을 감춘다. */
+  readOnly?: boolean
 }
 
 /** 칸 종류에 따른 패널 머리말 */
@@ -34,24 +36,25 @@ const noticeOf = (subject: DetailSubject): string => {
  * 과제 칸이면 수행 횟수와 '수행 완료' 버튼을, 도메인 · 핵심 목표 칸이면 그 칸이 포함하고 있는
  * 과제의 진행도를 보여준다 — 직접 수행할 수 없는 칸이라도 얼마나 채웠는지는 알려준다.
  */
-export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPanelProps) {
+export default function SelectedTaskPanel({
+  task,
+  onComplete,
+  readOnly = false,
+}: SelectedTaskPanelProps) {
   const { kind, title, domainTitle, subject, progressRate } = task
 
   return (
-    <section
-      aria-labelledby="selected-task"
-      className="rounded-2xl border-[3px] border-[#e9f6e8] bg-[#f5fbf4] p-4"
-    >
-      <p id="selected-task" className="m-0 text-[12px] font-extrabold text-[#8cc396]">
+    <section aria-labelledby="selected-task" className="sheet-detail-task">
+      <p id="selected-task" className="sheet-detail-task-label">
         {KIND_LABEL[kind]}
       </p>
 
-      <p className="m-0 mt-1.5 text-[15px] font-extrabold tracking-[-0.01em] text-ink-900">
+      <p className="sheet-detail-task-title">
         {domainTitle ? `${domainTitle}>${title}` : title}
       </p>
 
       {subject && (
-        <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">
+        <p className="sheet-detail-task-meta">
           {PERIOD_LABEL[subject.period]} · {subject.tryCount}/{subject.targetCount}회 수행
         </p>
       )}
@@ -59,32 +62,33 @@ export default function SelectedTaskPanel({ task, onComplete }: SelectedTaskPane
       {/* 진행도는 칸 종류와 무관하게 같은 자리에 보여준다(과제 = 그 과제의 progress). */}
       {progressRate !== null && (
         <>
-          <p className="m-0 mt-1 text-[12px] font-semibold text-ink-400">진행도 {progressRate}%</p>
-          {/* 채움 색은 공통 ProgressBar 가 --progress-accent 로 받는다. */}
-          <div className="mt-2 [--progress-accent:#6cbf7f]">
-            <ProgressBar value={progressRate} label={`${title} 진행도`} />
-          </div>
+          <p className="sheet-detail-task-meta">진행도 {progressRate}%</p>
+          <ProgressBar
+            value={progressRate}
+            label={`${title} 진행도`}
+            className="sheet-detail-task-bar"
+          />
         </>
       )}
 
-      {subject ? (
-        <>
-          <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">{noticeOf(subject)}</p>
-          <Button
-            variant="primary"
-            size="lg"
-            className="mt-3 w-full"
-            disabled={subject.isDone || subject.isDonePeriod}
-            onClick={onComplete}
-          >
-            수행 완료
-          </Button>
-        </>
-      ) : (
-        <p className="m-0 mt-2.5 text-[11px] font-semibold text-ink-500">
-          과제 칸을 선택하면 수행할 수 있어요.
-        </p>
-      )}
+      {/* 남의 만다라트에서는 수행에 관한 안내와 버튼을 아예 빼둔다. */}
+      {!readOnly &&
+        (subject ? (
+          <>
+            <p className="sheet-detail-task-notice">{noticeOf(subject)}</p>
+            <Button
+              variant="primary"
+              size="lg"
+              className="sheet-detail-task-button"
+              disabled={subject.isDone || subject.isDonePeriod}
+              onClick={onComplete}
+            >
+              수행 완료
+            </Button>
+          </>
+        ) : (
+          <p className="sheet-detail-task-notice">과제 칸을 선택하면 수행할 수 있어요.</p>
+        ))}
     </section>
   )
 }
