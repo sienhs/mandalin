@@ -35,8 +35,23 @@ public enum ErrorCode {
 	// Shop
 	BUILDING_NOT_FOUND(HttpStatus.NOT_FOUND, "Building not found."),
 	BUILDING_ALREADY_OWNED(HttpStatus.CONFLICT, "Building is already owned."),
+	/** 랜드마크는 포인트로 살 수 없다 — 만다라트 완성 보상으로만 해금된다. */
+	BUILDING_NOT_PURCHASABLE(HttpStatus.BAD_REQUEST, "This building is a reward, not for sale."),
 	INSUFFICIENT_POINT(HttpStatus.BAD_REQUEST, "Not enough points."),
 
+	// Group
+	GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "Group not found."),
+	GROUP_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "Group invitation not found."),
+	GROUP_ALREADY_MEMBER(HttpStatus.CONFLICT, "Already a member of this group."),
+	GROUP_FULL(HttpStatus.BAD_REQUEST, "Group is already full (max 4 members)."),
+	GROUP_REQUEST_ALREADY_SENT(HttpStatus.CONFLICT, "Group invitation already sent."),
+	NOT_GROUP_CREATOR(HttpStatus.FORBIDDEN, "Only the group creator can perform this action."),
+	DOMAIN_NOT_IN_SHEET(HttpStatus.BAD_REQUEST, "Domain does not belong to the specified sheet."),
+	GROUP_INVITE_NOT_ACCEPTED(HttpStatus.FORBIDDEN, "You must accept the group invitation before mapping domains."),
+	SHEET_REQUIRED(HttpStatus.BAD_REQUEST, "Individual Mandarat sheet is required to create or join a group."),
+	SHEET_NOT_OWNED(HttpStatus.FORBIDDEN, "This sheet does not belong to the requesting user."),
+	INVALID_LANDMARK(HttpStatus.BAD_REQUEST, "Selected building is not a valid LANDMARK type."),
+	BUILDING_NOT_OWNED(HttpStatus.FORBIDDEN, "Building is not owned by the user."),
 	// Sheet
 	SHEET_NOT_FOUND(HttpStatus.NOT_FOUND, "Mandalart sheet not found."),
 	SHEET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "This mandalart sheet is private."),

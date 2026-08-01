@@ -1,0 +1,29 @@
+package com.ssafy.mandarin.domain.group.dto;
+
+import java.util.List;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+@Schema(description = "그룹 생성 요청 DTO")
+public record GroupCreateRequest(
+    @NotBlank(message = "그룹 이름을 입력해 주세요.")
+    @Schema(description = "그룹 이름", example = "SSAFY 15기 D106 팀방")
+    String title,
+
+    @NotNull(message = "중앙 랜드마크 건물 ID를 지정해 주세요.")
+    @Schema(description = "팀장이 보유한 랜드마크 건물 인벤토리 ID", example = "5")
+    Long centerBuildingId,
+
+    @NotNull(message = "팀장의 개인 만다라트 시트 ID를 입력해 주세요.")
+    @Schema(description = "팀장의 개인 만다라트 시트 ID", example = "1")
+    Long sheetId,
+
+    @NotNull(message = "도메인 ID 리스트를 전달해 주세요.")
+    @Size(min = 2, max = 2, message = "그룹에 기여할 도메인은 정확히 2개 선택해야 합니다.")
+    @Schema(description = "그룹에 맵핑할 팀장 개인 시트의 도메인 ID 2개", example = "[101, 102]")
+    List<Long> domainIds
+) {
+}
