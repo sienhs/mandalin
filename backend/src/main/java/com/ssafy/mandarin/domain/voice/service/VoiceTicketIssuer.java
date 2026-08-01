@@ -75,7 +75,6 @@ public class VoiceTicketIssuer {
 	 */
 	public VoiceSessionResponse issue(Long userId, String displayName) {
 		if (secretKey == null) {
-			// 설정 누락이라 사용자가 재시도해도 달라지지 않는다. 원인은 기동 시 경고 로그에 있다.
 			log.error("SFU_TICKET_SECRET 이 없어 티켓을 발급할 수 없습니다 (userId={})", userId);
 			throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
 		}
@@ -85,34 +84,22 @@ public class VoiceTicketIssuer {
 		String roomId = roomPrefix + userId;
 
 		String ticket = Jwts.builder()
-				// SFU 의 _claim() 이 어떤 타입이든 문자열로 바꾸지만, 숫자 PK 를 그대로
-				// 넣으면 PyJWT 2.10+ 의 sub 타입 검사에 걸릴 여지가 있어 여기서 맞춘다.
 				.subject(String.valueOf(userId))
 				.claim(CLAIM_NAME, displayName)
-				// 없으면 SFU 가 u_{sub} 로 알아서 만든다. 명시해 두면 나중에 방을 여러 개
-				// 쓸 때 이 줄만 바꾸면 된다.
 				.claim(CLAIM_ROOM, roomId)
 				.audience().add(audience).and()
 				.issuer(issuer)
 				.issuedAt(Date.from(now))
 				// SFU 는 exp 를 필수로 요구한다(require=["exp"]).
 				.expiration(Date.from(expiresAt))
-				// **알고리즘을 반드시 명시한다.** 인자 없는 signWith(key) 는 키 길이에 맞는
-				// 가장 강한 HMAC 을 고른다 — 시크릿을 `openssl rand -hex 32`(=64자=64바이트)로
-				// 만들면 HS512 가 선택된다. SFU 는 AUTH_JWT_ALGORITHMS 기본값이 ["HS256"]
-				// 이라 이 티켓을 거절하는데, 거절 사유는 서명 오류와 뭉뚱그려 AUTH_INVALID
-				// 하나로만 나오므로(오라클 방지) 원인을 찾기 매우 어렵다.
+
 				.signWith(secretKey, Jwts.SIG.HS256)
 				.compact();
 
 		return new VoiceSessionResponse(roomId, ticket, ttl.toSeconds());
 	}
 
-	/**
-	 * 서명 키를 만든다. <b>못 만들어도 예외를 던지지 않는다</b> — 여기서 실패하면
-	 * 애플리케이션 컨텍스트가 통째로 뜨지 않아 로그인·시트 등 무관한 기능까지 죽는다.
-	 * 음성 기능만 비활성화하고 경고를 남긴다.
-	 */
+
 	private static SecretKey buildKey(String ticketSecret, String accessTokenSecret) {
 		if (!StringUtils.hasText(ticketSecret)) {
 			log.warn("SFU_TICKET_SECRET 이 비어 있습니다 — AI 음성 티켓 발급이 비활성화됩니다. "
