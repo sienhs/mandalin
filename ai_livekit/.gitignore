@@ -1,0 +1,38 @@
+# Python Cache
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Tool Caches
+.pytest_cache/
+.ruff_cache/
+
+# 실제 키가 들어갑니다. .env.example 은 플레이스홀더뿐이라 공유합니다.
+.env
+.env.*
+!.env.example
+
+.claude
+.idea
+.vscode/
+.venv
+
+# dev_server.py 가 시트 대신 읽는 로컬 오버라이드. 사람마다 다른 값이라 공유하지
+# 않습니다 — 기본 시트는 dev_server.py 의 DEFAULT_SHEET 에 있습니다.
+sheet.json
+
+# worker 가 매 기동마다 새로 쓰는 진단 로그. 전사문과 발화 내용이 들어갑니다.
+worker.log
+*.log
+
+# 패키징 산출물
+build/
+dist/
+*.egg-info/
+
+# web/ 에 빌드 도구를 붙이는 경우
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

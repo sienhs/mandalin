@@ -1,0 +1,53 @@
+# Comments in this file are ASCII on purpose. pip reads requirements files with
+# the locale encoding when there is no BOM, and this machine's locale is CP949 --
+# UTF-8 Korean comments can make `pip install -r` fail to decode. See
+# ../ai/LEARNING.md section 13.
+
+# --- LiveKit ---------------------------------------------------------------
+# Checked against livekit-agents 1.6.7 (latest on PyPI, 2026-07-25).
+#
+# The 1.6 API is AgentServer + @server.rtc_session() + cli.run_app(server).
+# Earlier 1.x used cli.run_app(WorkerOptions(entrypoint_fnc=...)); WorkerOptions
+# is now an alias of ServerOptions. agent/entrypoint.py is written against 1.6 --
+# check that file first when bumping this floor.
+#
+# Requires Python >=3.10,<3.15.
+livekit-agents~=1.6
+
+# --- STT (decided: Deepgram) -----------------------------------------------
+# Decision: STT -> the existing 3-stage pipeline -> text. The pipeline needs
+# text turns (it forces JSON via responseSchema), so a speech-to-speech
+# realtime model was ruled out. See README "음성 (STT)".
+#
+# Deepgram, for three reasons:
+#   1. Streaming, so it does its own endpointing (endpointing_ms). No separate
+#      VAD package is needed -- a batch STT (Whisper) would have required one.
+#   2. Free tier is $200 of credit, no card, no expiry (~45,000 minutes).
+#   3. Korean: language="ko", or "multi" for Korean/English code switching.
+#
+# CORRECTION: an earlier version of this file said livekit-plugins-google was
+# the cheap default "because the Gemini key already exists". That was wrong.
+# Google Cloud STT needs a GCP SERVICE ACCOUNT, not a Gemini API key, and there
+# is no Gemini-based STT plugin. Do not revert to that reasoning.
+livekit-plugins-deepgram~=1.6
+
+# No VAD package on purpose. Deepgram delimits utterances itself. If you swap to
+# a batch STT (Whisper via Groq/OpenAI), you need livekit-plugins-silero and an
+# explicit turn-detection decision -- see agent/listen.py.
+
+# --- TTS: not doing it (decided) -------------------------------------------
+# Replies go out as text only, same as ../ai. The agent never publishes an audio
+# track, so no TTS plugin and no AgentSession. See README "음성 (STT)".
+#
+# Do not add a TTS plugin here without revisiting that decision -- it changes the
+# product (voice output), the cost model (a third meter: characters or audio
+# seconds), and the agent structure (publishing audio).
+
+# --- Needed by mandarin_goal/ (the goal-design pipeline) --------------------
+# The pipeline was promoted out of ../ai into mandarin_goal/ in this repo, so
+# there is no `pip install -e ../ai` step any more. Those six files need exactly
+# these three third-party packages -- no aiortc, no fastapi, no livekit.
+# tests/test_reuse.py fails if that stops being true.
+pydantic>=2.9
+pydantic-settings>=2.6
+httpx>=0.27

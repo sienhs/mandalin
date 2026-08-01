@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ai_livekit — 로컬 확인</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header>
+    <h1>ai_livekit <span class="sub">로컬 확인용</span></h1>
+    <div class="status">
+      <span id="badge" class="badge off">연결 안 됨</span>
+      <button id="connect" type="button">연결하기</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 왼쪽: 시트. 토큰의 participant metadata 로 들어간 값을 그대로 보여줍니다.
+         AI 가 중복 검사에 쓰는 목록이 무엇인지 눈으로 확인하려는 것입니다. -->
+    <section class="panel" id="sheet-panel">
+      <h2>내 시트 <span class="hint">토큰 metadata</span></h2>
+      <div id="sheet"></div>
+      <p class="note">
+        담기를 누르면 이 목록에 추가되고 <code>mandarin.sheet</code> 토픽으로
+        에이전트에 통째로 다시 보냅니다.
+      </p>
+    </section>
+
+    <!-- 오른쪽: 대화 -->
+    <section class="panel" id="chat-panel">
+      <h2>대화 <span class="hint">lk.chat</span></h2>
+      <div id="log"></div>
+      <!-- 진행 중인 전사문. 최종 전사가 오면 대화 로그로 옮겨가고 여기는 비워집니다.
+           "지워질 글자" 와 "로그에 남을 글자" 를 갈라 두어야 사용자가 헷갈리지 않습니다. -->
+      <div id="caption" hidden></div>
+      <form id="composer">
+        <button id="mic" type="button" disabled title="누르면 10초간 듣습니다">🎤 말하기</button>
+        <input id="input" type="text" autocomplete="off"
+               placeholder="예) 매일 알고리즘 문제 풀고 싶어" disabled />
+        <button id="send" type="submit" disabled>보내기</button>
+      </form>
+      <p class="note" id="mic-note">
+        <b>말하기</b>를 누르면 10초간 듣고 자동으로 멈춥니다. 다 말했으면 한 번 더 눌러
+        바로 끄세요 — <b>켜 둔 시간만큼 STT 가 과금됩니다.</b>
+        응답은 텍스트로 옵니다 — 음성 출력은 만들지 않습니다.
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
