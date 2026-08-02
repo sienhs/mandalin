@@ -1,0 +1,272 @@
+/* 로컬 확인용 화면. `../ai/static/css/style.css` 의 토큰 이름을 따라갑니다 —
+   나중에 React 프론트로 옮길 때 두 파일을 나란히 놓고 비교할 수 있어야 합니다. */
+:root {
+  --color-brand: #f59e0b;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-bg: #fafaf9;
+  --color-surface: #ffffff;
+  --color-border: #e7e5e4;
+  --color-text: #1c1917;
+  --color-text-sub: #57534e;
+  --color-text-muted: #a8a29e;
+
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  color: var(--color-text);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+h1 { font-size: 1.1rem; margin: 0; }
+h1 .sub { font-weight: 400; color: var(--color-text-muted); font-size: 0.8rem; margin-left: 0.5rem; }
+h2 { font-size: 0.9rem; margin: 0 0 0.75rem; }
+h2 .hint, h3 .count {
+  font-weight: 400; font-size: 0.75rem; color: var(--color-text-muted); margin-left: 0.375rem;
+}
+
+.status { display: flex; align-items: center; gap: 0.75rem; }
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.badge.off  { color: var(--color-text-muted); }
+.badge.busy { color: var(--color-warning); border-color: var(--color-warning); }
+.badge.on   { color: var(--color-success); border-color: var(--color-success); }
+
+button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--color-brand); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+#connect, #send {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+}
+
+/* 왼쪽 시트 · 가운데 캐릭터 · 오른쪽 대화.
+   **자리를 이름으로 잡습니다** — 순서에 맡기면 칸이 줄었을 때 대화가 아래로 밀립니다.
+   실제로 그렇게 밀렸습니다: 좁은 폭에서 캐릭터를 전체 폭으로 올렸더니 대화가 그
+   아래로 내려가고, 캐릭터는 화면 밖으로 나가 상태가 바뀌는 것도 안 보였습니다.
+   **대화는 어느 폭에서도 오른쪽 칸입니다.** 폭이 모자라면 캐릭터를 줄입니다. */
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr) minmax(300px, 440px);
+  grid-template-areas: "sheet avatar chat";
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  align-items: start;
+  min-height: 0;
+}
+#sheet-panel  { grid-area: sheet; }
+#avatar-panel { grid-area: avatar; }
+#chat-panel   { grid-area: chat; }
+
+/* 세 칸이 다 들어가지 않는 폭. 시트를 캐릭터 아래로 내리고 **대화는 오른쪽에 둡니다.** */
+@media (max-width: 1000px) {
+  main {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+    grid-template-areas:
+      "avatar chat"
+      "sheet  chat";
+  }
+  #avatar { height: min(30vh, 240px); }
+}
+/* 여기서부터는 나란히 둘 폭이 없습니다. 그제서야 한 줄로 쌓습니다. */
+@media (max-width: 680px) {
+  main {
+    grid-template-columns: 1fr;
+    grid-template-areas: "avatar" "chat" "sheet";
+  }
+  #avatar { height: 160px; }
+  #avatar-panel { position: static; }
+}
+
+/* 캐릭터 */
+#avatar-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  position: sticky;
+  top: 1rem;
+}
+#avatar {
+  height: min(46vh, 380px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* 원본 그림은 왼쪽을 보고 있습니다. 대화가 오른쪽 칸이라 그대로 두면 캐릭터가
+     사용자에게 등을 돌린 것처럼 읽힙니다 — 뒤집어 채팅창을 보게 합니다.
+     **`img` 가 아니라 이 상자를 뒤집습니다.** 그림에 걸린 `scale`/`translateY` 와
+     같은 속성이라, 한쪽에 얹으면 상태가 바뀔 때마다 뒤집힘이 풀립니다. */
+  transform: scaleX(-1);
+}
+#avatar img {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  /* 상태가 바뀔 때 그림이 툭 갈리지 않게 합니다. */
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+/* 생각 중일 때만 살짝 움직입니다 — 멈춰 있으면 응답을 기다리는 중인지
+   화면이 굳은 것인지 구분이 안 됩니다. */
+#avatar[data-state="thinking"] img { animation: avatar-think 1.4s ease-in-out infinite; }
+#avatar[data-state="answering"] img { transform: scale(1.04); }
+@keyframes avatar-think {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #avatar[data-state="thinking"] img { animation: none; }
+}
+.avatar-caption {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+#avatar[data-state="thinking"] + .avatar-caption { color: var(--color-warning); }
+#avatar[data-state="answering"] + .avatar-caption { color: var(--color-success); }
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 1rem;
+  /* 그리드 칸은 기본이 `min-width: auto` 라 내용이 칸보다 넓으면 칸을 밀어냅니다 —
+     긴 전사문 한 줄에 대화 칸이 넘쳐 레이아웃이 틀어지는 것을 막습니다. */
+  min-width: 0;
+}
+
+.note {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin: 0.75rem 0 0;
+}
+.note code { font-size: 0.72rem; }
+.empty { font-size: 0.8rem; color: var(--color-text-muted); margin: 0; }
+
+/* 시트 */
+.domain + .domain { margin-top: 0.875rem; }
+.domain h3 { font-size: 0.85rem; margin: 0 0 0.375rem; }
+.domain ul { margin: 0; padding-left: 1.1rem; }
+.domain li { font-size: 0.8rem; color: var(--color-text-sub); margin-bottom: 0.2rem; }
+.domain li em { color: var(--color-text-muted); font-size: 0.72rem; font-style: normal; }
+
+/* 대화 */
+#log {
+  height: min(58vh, 460px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-right: 0.25rem;
+}
+
+.msg { display: flex; gap: 0.5rem; font-size: 0.875rem; line-height: 1.45; }
+.msg .who {
+  flex: 0 0 3.2rem;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  padding-top: 0.15rem;
+}
+.msg .text { white-space: pre-wrap; word-break: break-word; }
+.msg.me .text { font-weight: 500; }
+.msg.sys .text  { color: var(--color-text-muted); font-size: 0.8rem; }
+.msg.warn .text { color: var(--color-warning); }
+
+/* 구조화 결과 */
+.goal {
+  margin-left: 3.7rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-brand);
+  border-radius: 8px;
+  background: var(--color-bg);
+  font-size: 0.8rem;
+}
+.goal-head { color: var(--color-text-sub); }
+.goal-head code { font-size: 0.75rem; }
+.goal-task {
+  display: flex; align-items: baseline; gap: 0.5rem;
+  margin-top: 0.4rem; font-size: 0.875rem; font-weight: 500;
+}
+.goal-task em { font-weight: 400; font-style: normal; color: var(--color-text-muted); font-size: 0.72rem; }
+.goal .keep { margin-top: 0.5rem; }
+.goal-note { margin-top: 0.4rem; color: var(--color-text-muted); font-size: 0.78rem; }
+.goal details { margin-top: 0.5rem; }
+.goal summary { cursor: pointer; color: var(--color-text-muted); font-size: 0.72rem; }
+.goal pre {
+  margin: 0.375rem 0 0;
+  padding: 0.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  overflow-x: auto;
+}
+
+/* 진행 중인 전사문 — 지워질 글자라 대화 로그와 다르게 보여야 합니다. */
+#caption {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--color-text-sub);
+  font-style: italic;
+  min-height: 1.9rem;
+}
+
+/* 입력 */
+#composer { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+/* 듣는 중에는 눈에 띄어야 합니다 — 켜 둔 시간이 곧 요금입니다. */
+#mic { white-space: nowrap; min-width: 8.5rem; }
+#mic.active {
+  border-color: var(--color-success);
+  color: #fff;
+  background: var(--color-success);
+}
+#input {
+  flex: 1;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  min-width: 0;
+}
+#input:focus { outline: 2px solid var(--color-brand); outline-offset: -1px; }
