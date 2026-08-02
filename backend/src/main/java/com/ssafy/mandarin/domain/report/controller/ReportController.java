@@ -1,13 +1,14 @@
 package com.ssafy.mandarin.domain.report.controller;
 
+import com.ssafy.mandarin.domain.report.dto.WeeklyReportResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ssafy.mandarin.domain.auth.security.CustomUserDetails;
-import com.ssafy.mandarin.domain.report.dto.WeeklySubjectLogResponse;
 import com.ssafy.mandarin.domain.report.service.ReportService;
 import com.ssafy.mandarin.global.response.ApiResponse;
 
@@ -24,14 +25,26 @@ public class ReportController {
     private final ReportService reportService;
 
     @Operation(
-            summary = "주간 과제 수행 로그 및 통계 조회",
-            description = "사용자의 현재 주간(월요일~일요일) 동안의 과제 수행 횟수, 총 획득 포인트, 완료 과제 및 도메인명 상세 목록을 조회합니다."
+            summary = "주간 과제 수행 레포트 제공",
+            description = "AI가 분석하여 사용자의 주간 과제 수행 레포트를 제공합니다."
     )
-    @GetMapping("/weekly-logs")
-    public ResponseEntity<ApiResponse<WeeklySubjectLogResponse>> getWeeklySubjectLogs(
+    @GetMapping
+    public ResponseEntity<ApiResponse<WeeklyReportResponse>> getWeeklyReport(
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        WeeklySubjectLogResponse response = reportService.getWeeklySubjectLogs(userDetails.getUserId());
-        return ResponseEntity.ok(ApiResponse.success("주간 과제 수행 로그 조회가 완료되었습니다.", response));
+        WeeklyReportResponse response = reportService.getWeeklyReport(userDetails.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("주간 AI 분석 레포트가 조회되었습니다.", response));
+    }
+
+    @Operation(
+            summary = "주간 과제 수행 레포트 재생성",
+            description = "기존 레포트를 무시하고 AI 분석 레포트를 새로 생성합니다."
+    )
+    @PostMapping
+    public ResponseEntity<ApiResponse<WeeklyReportResponse>> createWeeklyReport(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        WeeklyReportResponse response = reportService.createWeeklyReport(userDetails.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("주간 AI 분석 레포트가 성공적으로 생성했습니다.", response));
     }
 }

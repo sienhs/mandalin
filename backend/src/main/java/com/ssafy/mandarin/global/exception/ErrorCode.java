@@ -58,7 +58,11 @@ public enum ErrorCode {
 
 	// Subject
 	SUBJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "Subject not found."),
-	SUBJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Not your subject.");
+	SUBJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Not your subject."),
+
+	// Report
+	AI_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "Failed to get a response from the AI service."),
+	REPORT_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate the weekly report.");
 
 	private final HttpStatus status;
 	private final String message;

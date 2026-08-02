@@ -55,6 +55,7 @@ services:
       REFRESH_COOKIE_SECURE: "true"
     depends_on:
       - postgres
+      - redis
     networks:
       - app-net
     # 외부에 직접 노출하지 않음 — nginx를 통해서만 접근
