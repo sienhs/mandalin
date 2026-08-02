@@ -61,6 +61,14 @@ const NEW_MEMBERS: MemberSeed[] = [{ name: '지우', doneSubjects: 6, domains: [
  */
 const MEMBER_COUNT_BY_ID: Record<number, number> = { 2: 2, 3: 3 }
 
+/**
+ * 목업 전용: 그룹 아이디로 중앙 랜드마크를 고른다. 방장이 그룹을 만들 때 정해 둔 값이라는
+ * 뜻이고, 합류 화면이 "이 그룹은 이미 이 랜드마크다" 를 보여줄 때 읽는다.
+ * 그룹마다 다른 값을 둬야 초기값(첫 랜드마크)이 그대로 나오는 것과 구분된다.
+ * 서버를 붙이면 상세 응답의 landmarkBuildingId 가 이 자리를 채우므로 이 표는 지운다.
+ */
+const LANDMARK_BY_GROUP_ID: Record<number, number> = { 1: 4, 2: 2, 3: 3 }
+
 /** 멤버가 낸 도메인 2개에 완료 과제를 앞에서부터 채운다. */
 const buildMember = (seed: MemberSeed, index: number): GroupMemberContribution => ({
   userId: index + 1,
@@ -87,10 +95,13 @@ const buildMember = (seed: MemberSeed, index: number): GroupMemberContribution =
  *
  * justCreated 를 넘기면 방금 만든 그룹(팀장 혼자)을, 넘기지 않으면 기존 그룹(4명)을 준다 —
  * 목업이라 아이디로 구분할 수 없어서 화면이 알려준다. 연동하면 이 갈림길은 사라진다.
+ *
+ * landmarkBuildingId 는 방금 만든 그룹만 화면이 넘긴다(생성 화면에서 방장이 고른 값이고,
+ * 목업에는 저장할 곳이 없다). 그 밖에는 아이디별 목업 값을 준다.
  */
 export function loadGroupDetail(
   groupId: number,
-  overrides?: { title?: string; justCreated?: boolean },
+  overrides?: { title?: string; justCreated?: boolean; landmarkBuildingId?: number },
 ): GroupDetail {
   const seeds = overrides?.justCreated
     ? NEW_MEMBERS
@@ -104,7 +115,7 @@ export function loadGroupDetail(
     title: overrides?.title ?? (overrides?.justCreated ? `${creatorName}님의 만다라트` : '알고리즘 마스터'),
     creatorId: members[0].userId,
     creatorName,
-    landmarkBuildingId: null,
+    landmarkBuildingId: overrides?.landmarkBuildingId ?? LANDMARK_BY_GROUP_ID[groupId] ?? null,
     groupAchievementRate: rateOf(doneSubjects, GROUP_DOMAIN_SLOTS * DOMAIN_COUNT),
     mappedDomainCount: members.length * DOMAINS_PER_MEMBER,
     members,

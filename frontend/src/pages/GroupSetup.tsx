@@ -6,7 +6,7 @@ import SheetGrid from '../components/sheet/SheetGrid'
 import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
 import { buildGrid } from '../components/sheet/sheet.utils'
 import GroupLandmarkDialog from '../components/group/GroupLandmarkDialog'
-import { MOCK_LANDMARKS } from '../components/group/group.data'
+import { loadGroupDetail, MOCK_LANDMARKS } from '../components/group/group.data'
 import { loadSheetDetail } from '../components/sheetDetail/sheetDetail.data'
 import { MY_SHEETS } from '../components/sheetList/sheetList.data'
 import { cn } from '../utils/cn'
@@ -45,8 +45,17 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
 
   /** 도메인을 고르는 2D 뷰와 건물을 보는 3D 뷰를 오간다. */
   const [view, setView] = useState<'2d' | '3d'>('2d')
-  /** 그룹 도시 가운데에 놓을 랜드마크. 생성 요청의 centerBuildingId 로 보낼 값이다. */
-  const [landmarkId, setLandmarkId] = useState(MOCK_LANDMARKS[0].buildingId)
+  /**
+   * 그룹 도시 가운데에 놓을 랜드마크. 생성 요청의 centerBuildingId 로 보낼 값이다.
+   *
+   * 합류하는 그룹은 방장이 이미 정해 뒀으므로 그 값을 읽어 와 보여주기만 한다 —
+   * 연동하면 loadGroupDetail 이 GET /api/v1/groups/{id} 가 되고 이 코드는 그대로 간다.
+   */
+  const [landmarkId, setLandmarkId] = useState(() =>
+    mode === 'join'
+      ? (loadGroupDetail(Number(groupId) || 1).landmarkBuildingId ?? MOCK_LANDMARKS[0].buildingId)
+      : MOCK_LANDMARKS[0].buildingId,
+  )
   const [landmarkOpen, setLandmarkOpen] = useState(false)
   /** 만들 그룹 이름. create 모드에서만 쓴다. */
   const [title, setTitle] = useState('')
@@ -102,7 +111,8 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
    *   create → POST  /api/v1/groups              { title, centerBuildingId, sheetId, domainIds }
    *   join   → PATCH /api/v1/groups/{id}/domains { sheetId, domainIds }
    *
-   * centerBuildingId(중앙 랜드마크)는 이 화면에서 고르지 않는다 — 3D 뷰에서 다룰 값이다.
+   * centerBuildingId(중앙 랜드마크)는 3D 뷰에서 방장만 고르므로 create 요청에만 실린다
+   * (join 모드는 이미 정해진 랜드마크를 보여주기만 하므로 보내지 않는다).
    * domainIds 는 도메인의 실제 아이디인데, 지금 화면이 쓰는 Domain 타입에는 아이디가 없다
    * (상세 응답의 DomainDetail.domainId 가 그 값이다). 그래서 목업에서는 위치만 들고 있다.
    */
@@ -114,6 +124,8 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
       state: {
         groupTitle: mode === 'create' ? title.trim() : invitedTitle,
         sheetId,
+        // 방장이 고른 랜드마크. join 모드는 고르지 않으므로 넘기지 않는다(그룹이 가진 값을 그대로 쓴다).
+        landmarkBuildingId: mode === 'create' ? landmarkId : undefined,
         // 방금 만든 그룹은 팀장 혼자인 상태로 보여준다(목업이 아이디로 구분할 수 없다).
         justCreated: mode === 'create',
       },
