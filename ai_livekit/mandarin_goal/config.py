@@ -50,14 +50,19 @@ class Settings(BaseSettings):
     bot_base_url: str | None = None     # 사내 게이트웨이 등으로 엔드포인트를 바꿀 때
     # 일부 게이트웨이는 헤더 대신 ?key= 를 요구합니다. 켜면 헤더와 함께 보냅니다.
     bot_api_key_in_query: bool = False
-    bot_system_prompt: str = (
-        "너는 화상회의에 참여한 한국어 어시스턴트다. 답변은 3문장 이내로 짧고 구체적으로 한다."
-    )
-    # 프롬프트는 코드가 아니라 콘텐츠라 파일로 두는 편이 낫습니다. 여러 줄로
-    # 길게 쓸 수 있고, 저장하면 **재시작 없이** 다음 응답부터 반영됩니다.
-    # 상대 경로는 저장소 루트 기준이며(`bot/prompt.py` 의 `PROJECT_ROOT`),
-    # 비워두면 위의 BOT_SYSTEM_PROMPT 를 씁니다.
-    bot_system_prompt_file: str | None = None
+    # 환경변수로 프롬프트를 통째로 덮어쓰는 층. **기본값이 비어 있습니다** —
+    # 정본은 `prompts/` 의 파일이고, 여기 문자열을 두면 같은 말을 하는 곳이 둘이
+    # 됩니다(chat 모드 페르소나는 `prompts/chat.md` 로 옮겼습니다).
+    # 우선순위는 파일 > 이 값 > `bot/prompt.py` 의 EMERGENCY 입니다.
+    bot_system_prompt: str = ""
+    # 프롬프트는 코드가 아니라 콘텐츠라 파일로 둡니다. 여러 줄로 길게 쓸 수 있고,
+    # 저장하면 **재시작 없이** 다음 응답부터 반영됩니다. 상대 경로는 저장소 루트
+    # 기준입니다(`bot/prompt.py` 의 `PROJECT_ROOT`).
+    #
+    # **기본값이 저장소의 정본을 가리킵니다.** 예전에는 `None` 이라 환경변수를
+    # 빠뜨리면 조용히 코드 내장 프롬프트로 떨어졌습니다 — 인젝션 차단 규칙이 빠진
+    # 채로 도는데 로그에는 아무 표시도 안 났습니다.
+    bot_system_prompt_file: str = "./prompts/system.md"
     # 실수로 큰 파일을 가리켰을 때 매 요청에 그대로 실려 나가지 않게 하는 상한.
     bot_system_prompt_max_chars: int = 8000
 
@@ -68,7 +73,7 @@ class Settings(BaseSettings):
     # **`chat` 이면 과제를 만들지 않습니다.** `ai_livekit` 은 goal 경로만 배선돼
     # 있어서 `agent/entrypoint.py` 가 기동 시 경고를 남깁니다.
     bot_mode: str = "chat"
-    bot_classify_prompt_file: str | None = None   # 비우면 코드 내장 분류 프롬프트
+    bot_classify_prompt_file: str = "./prompts/classify.md"
     # 프롬프트에 넣을 중복 후보 개수. 후보는 클라이언트(Spring 이 서명한 토큰의
     # metadata)가 실어 보낸 **사용자 시트의 과제**입니다 — 서버가 들고 있던 예시
     # 과제 카탈로그(`BOT_TEMPLATE_FILE`)는 없어졌습니다. 카탈로그의 고정 8칸이

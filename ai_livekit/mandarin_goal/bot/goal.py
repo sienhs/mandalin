@@ -43,28 +43,13 @@ from mandarin_goal.bot.llm import (
     build_backend,
     supports_json,
 )
-from mandarin_goal.bot.prompt import SystemPrompt
+from mandarin_goal.bot.prompt import EMERGENCY, SystemPrompt, fragment
 from mandarin_goal.bot.subjects import FREQUENCY_LABELS, Candidate, frequency_label
 from mandarin_goal.bot.subjects import search as search_subjects
 from mandarin_goal.config import Settings
 from mandarin_goal.sheet import DomainRef
 
 logger = logging.getLogger(__name__)
-
-#: 1단계 기본 프롬프트. `BOT_CLASSIFY_PROMPT_FILE` 로 덮어쓸 수 있습니다.
-DEFAULT_CLASSIFY_PROMPT = """\
-너는 목표 설계 서비스의 1차 분류기다. 사용자의 발화를 듣고 세 가지만 판단한다.
-
-1. intent — 이 발화가 목표/습관/실천과제 설계와 관련된 것인가?
-   - goal     : 하고 싶은 것, 되고 싶은 모습, 습관, 목표를 말하는 발화
-   - chitchat : 인사, 잡담, 서비스와 무관한 질문
-   - unclear  : 판단할 만한 내용이 없음(잡음, 한두 단어)
-2. domain — goal 이면 아래 중 하나. 아니면 비운다.
-   건강, 재정, 관계, 커리어, 학습, 취미, 정신건강, 생활습관
-3. transcript — 발화를 그대로 옮긴 텍스트. 오디오가 주어지면 받아쓰고,
-   텍스트로 주어졌으면 그 문장을 그대로 쓴다. 요약하거나 다듬지 않는다.
-
-해석하거나 조언하지 않는다. 분류만 한다."""
 
 #: 파이프라인을 더 진행하지 않고 끊는 경우와 그때 돌려줄 문구.
 #:
@@ -107,38 +92,45 @@ OFF_TOPIC_REPLY = (
     "만들고 싶은 습관이나 이루고 싶은 목표를 말씀해 주세요."
 )
 
-#: 도메인 정원 규칙. 만다라트가 9x9 이중 3x3 이라 도메인당 8칸입니다.
-#:
-#: 프롬프트 파일이 아니라 여기 있는 이유는 **조건부**이기 때문입니다. 과제 수를
-#: 셀 수 없으면(=`task_counts` 가 비면) 이 규칙은 모델에게 근거 없는 지시일 뿐이라
-#: 넣지 않습니다. `_capacity_context()` 를 보세요.
-DOMAIN_CAPACITY_RULE = (
-    "하나의 도메인에는 최대 8개까지만 담을 수 있다(9x9 이중 3x3 구조). "
-    "이미 8개가 찬 도메인에는 새 과제를 추가하지 않는다."
-)
-
 #: 판단할 내용이 없을 때(잡음, 의미 없는 한두 단어). 거절이 아니라 되묻기입니다.
 UNCLEAR_REPLY = (
     "말씀을 잘 이해하지 못했어요. 어떤 목표나 습관을 만들고 싶은지 "
     "한 문장으로 알려주시면 과제로 정리해 드릴게요."
 )
 
-#: 3단계도 1단계도 도메인을 정하지 못한 경우. **모델을 다시 부르지 않습니다** —
-#: `OFF_TOPIC_REPLY` 와 같은 고정 문구 경로입니다.
+#: 담을 칸을 정하지 못한 경우. **모델을 다시 부르지 않습니다** — `OFF_TOPIC_REPLY`
+#: 와 같은 고정 문구 경로입니다.
 #:
-#: 도메인 없이 담으면 브라우저가 사용자가 만들지 않은 칸으로 밀어넣게 됩니다.
+#: 시트에 없는 칸으로 담으면 사용자가 만들지 않은 칸이 만다라트에 생깁니다.
 #: 담을 곳이 없는 과제를 담은 척하는 것보다 한 번 묻는 편이 낫습니다.
-#:
-#: **도메인 이름을 열거하지 않습니다.** 목록이 사용자 시트마다 다르므로 여기에
-#: 박아두면 남의 시트 기준으로 안내하게 됩니다.
 DOMAIN_UNKNOWN_REPLY = (
-    "어느 영역의 목표인지 확실하지 않아 아직 담지 않았어요. "
+    "어느 칸에 담을지 정하지 못했어요. "
     "어느 칸에 넣고 싶은지 알려주시면 정리해 드릴게요."
 )
 
-#: 도메인 목록이 비었을 때 프롬프트에 넣을 문구. 시트가 아직 빈 사용자입니다.
-#: 슬롯을 빈 문자열로 두면 모델이 태그만 보고 "목록이 없다" 를 스스로 해석해야 합니다.
-NO_DOMAINS_NOTE = "(아직 만든 칸이 없음 — 새 도메인을 제안해도 된다)"
+
+def domain_unknown_reply(domains: Sequence[DomainRef] = ()) -> str:
+    """어느 칸에 담을지 사용자에게 묻습니다. **칸 이름을 실제로 열거합니다.**
+
+    예전에는 열거하지 않았습니다 — 목록이 시트마다 달라서 상수에 박아두면 남의
+    시트 기준으로 안내하게 되기 때문입니다. 이제 `join` 이 실어 보낸 목록을 호출
+    시점에 받으므로 **그 사용자의 칸만** 정확히 보여줄 수 있습니다. 이름을 안
+    보여주면 사용자는 자기 칸 이름을 기억해 내서 타이핑해야 합니다.
+
+    칸이 하나도 없으면 묻지 않고 먼저 만들라고 안내합니다. 없는 칸 중에서 고르라고
+    할 수는 없습니다.
+    """
+    titles = [d.title for d in domains if d.title]
+    if not titles:
+        return (
+            "아직 만들어 둔 칸이 없어서 담을 곳이 없어요. "
+            "만다라트에 칸을 먼저 만들어 주시면 그 칸에 맞춰 과제를 정리해 드릴게요."
+        )
+    return (
+        "어느 칸에 담을지 정하지 못했어요. "
+        f"{' / '.join(titles)} 중에서 알려주시면 정리해 드릴게요."
+    )
+
 
 #: 1단계 스키마.
 #:
@@ -469,9 +461,13 @@ class GoalPipeline:
         self._classify_prompt = SystemPrompt(
             settings,
             file=settings.bot_classify_prompt_file,
-            fallback=DEFAULT_CLASSIFY_PROMPT,
+            fallback=EMERGENCY["classify"],
         )
         self._goal_prompt = SystemPrompt(settings)
+        #: 슬롯에 조건부로 끼워 넣는 조각들. 통짜 프롬프트와 같은 규칙으로 로드되므로
+        #: `prompts/fragments/` 를 고치면 재시작 없이 다음 응답부터 반영됩니다.
+        self._capacity_rule = fragment(settings, "domain_capacity")
+        self._no_domains_note = fragment(settings, "no_domains")
         #: 개발용 결과 캐시(`BOT_CACHE_SIZE`). 기본값 0 이면 아무것도 담기지 않습니다.
         self._cache: OrderedDict[str, GoalResult] = OrderedDict()
 
@@ -656,16 +652,17 @@ class GoalPipeline:
         self._settle_domain(decided, domain)
         self._mark_new_domain(decided, domains)
 
-        if self._is_storable(decided) and not (decided.get("domain") or "").strip():
-            # 3단계도 1단계도 도메인을 못 정했다. **모델을 다시 부르지 않고** 고정
-            # 문구로 되묻는다 — 담을 칸이 없는 과제를 담은 척하지 않기 위해서다.
+        unknown = self._unknown_domain(decided, domains)
+        if unknown is not None:
+            # 담을 칸을 못 정했거나 시트에 없는 칸을 골랐다. **모델을 다시 부르지 않고**
+            # 되묻는다 — 담을 칸이 없는 과제를 담은 척하지 않기 위해서다.
             stages.append("no_domain")
             logger.warning(
-                "goal/no_domain action=%s 인데 도메인이 없어 담기를 보류합니다: %r",
-                decided.get("action"), transcript[:120],
+                "goal/no_domain action=%s domain=%s 로 담기를 보류합니다: %r",
+                decided.get("action"), unknown or "(비어 있음)", transcript[:120],
             )
             return GoalResult(
-                text=DOMAIN_UNKNOWN_REPLY,
+                text=domain_unknown_reply(domains),
                 # `action` 을 갈아끼운다. recommend/generate 로 남기면 브라우저가
                 # 담기 버튼을 그린다(`web/app.js`). `clarify` 는 되묻기라는 실제
                 # 상태와도 맞는다.
@@ -754,6 +751,33 @@ class GoalPipeline:
     def _is_storable(cls, decided: dict) -> bool:
         return decided.get("action") in cls._STORABLE_ACTIONS
 
+    @classmethod
+    def _unknown_domain(
+        cls, decided: dict, domains: Sequence[DomainRef]
+    ) -> str | None:
+        """담을 칸이 사용자 시트에 없으면 그 이름을, 문제없으면 `None` 을 돌려줍니다.
+
+        빈 문자열도 값입니다 — "칸을 아예 못 정했다" 와 "없는 칸을 골랐다" 는 로그에서
+        갈라 봐야 하지만, 사용자에게는 똑같이 되묻기이므로 한 경로로 모읍니다.
+
+        **AI 에게 칸을 지어낼 권한이 없습니다.** 프롬프트로도 막지만 강제는 여기서
+        합니다 — 프롬프트는 어겨도 조용히 통과하고, 서버는 그렇지 않습니다.
+
+        프론트(`frontend/src/pages/AiCoachPage.tsx` 의 `handleGoal`)가 이미 같은
+        검사를 하고 시트에 없는 칸은 버립니다. 서버가 걸러내지 않으면 사용자는
+        `"○○" 칸은 시트에 없어서 "△△" 은 담지 않았어요` 만 보고 턴을 통째로 잃습니다.
+        여기서 되물으면 같은 턴이 "어느 칸에 담을까요" 로 살아납니다.
+
+        `recommend` 는 검사하지 않습니다 — `_resolve_match` 가 후보(=사용자 시트)의
+        값으로 이미 덮었으므로 정의상 시트에 있는 칸입니다.
+        """
+        if not cls._is_storable(decided):
+            return None
+        title = (decided.get("domain") or "").strip()
+        if title and any(d.title == title for d in domains):
+            return None
+        return title
+
     @staticmethod
     def _settle_domain(decided: dict, classified_domain: str | None) -> None:
         """3단계가 도메인을 비웠으면 **1단계 판단으로 채웁니다** (제자리 수정).
@@ -778,8 +802,7 @@ class GoalPipeline:
             "goal/decide domain 이 비어 1단계 판단으로 채웁니다: %s", classified_domain
         )
 
-    @staticmethod
-    def _domain_list(domains: Sequence[DomainRef]) -> str:
+    def _domain_list(self, domains: Sequence[DomainRef]) -> str:
         """`<domain_list>` 슬롯 — 사용자 시트의 칸 이름들.
 
         **고정 목록이 아니라 주입값입니다.** 예전에는 프롬프트 파일에 8개가 박혀
@@ -791,7 +814,7 @@ class GoalPipeline:
         `agent/sheet_transfer.py` 가 자릅니다.
         """
         titles = [d.title for d in domains if d.title]
-        return ", ".join(titles) if titles else NO_DOMAINS_NOTE
+        return ", ".join(titles) if titles else self._no_domains_note.text()
 
     @staticmethod
     def _mark_new_domain(decided: dict, domains: Sequence[DomainRef]) -> None:
@@ -834,7 +857,7 @@ class GoalPipeline:
             counts = self._task_counts()
         if not counts:
             return "(집계 없음 — 정원 규칙 미적용)"
-        return f"{json.dumps(counts, ensure_ascii=False)}\n{DOMAIN_CAPACITY_RULE}"
+        return f"{json.dumps(counts, ensure_ascii=False)}\n{self._capacity_rule.text()}"
 
     def _off_topic(self, intent: str, transcript: str, stages: list[str]) -> GoalResult:
         """목표와 무관한 발화를 고정 문구로 끝냅니다.

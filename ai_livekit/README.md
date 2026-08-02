@@ -149,8 +149,8 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `BOT_STEP_TIMEOUT_SECONDS` | `25` | 게이트웨이는 느립니다. 기본값 15 면 정상 응답이 잘립니다 |
 | `BOT_TIMEOUT_SECONDS` | `45` | 위와 같음(기본값 20) |
 | `BOT_MODE` | `goal` | `chat` 이면 과제를 만들지 않습니다 |
-| `BOT_SYSTEM_PROMPT_FILE` | | 둘 다 필요합니다. CLASSIFY 를 빠뜨리면 코드 내장 |
-| `BOT_CLASSIFY_PROMPT_FILE` | | 기본값이 쓰여서 인젝션 차단 규칙이 조용히 빠집니다 |
+| `BOT_SYSTEM_PROMPT_FILE` | `./prompts/system.md` | 생략 가능. 기본값이 저장소의 정본을 |
+| `BOT_CLASSIFY_PROMPT_FILE` | `./prompts/classify.md` | 가리킵니다 — 다른 파일로 실험할 때만 |
 
 같은 `.env` 를 두 계층이 서로 다르게 읽습니다. `LIVEKIT_*` 는 `agent/__main__.py` 의
 `load_dotenv()` 가 실제 환경변수로 올려줘야 합니다(`livekit-agents` 는 `.env` 를 스스로
