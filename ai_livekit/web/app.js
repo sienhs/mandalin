@@ -60,6 +60,34 @@ function setStatus(text, kind) {
   badge.className = `badge ${kind}`
 }
 
+/**
+ * 캐릭터 상태. 배지는 **연결** 상태를 말하고, 캐릭터는 **AI 가 지금 무엇을 하는지**를
+ * 말합니다 — 둘을 한 곳에 합치면 "연결됨" 만 떠 있는 동안 응답을 기다리는 중인지
+ * 알 수 없습니다.
+ *
+ *   idle      char_3  방에 들어와 시트를 읽는 중 (아무것도 안 하는 상태)
+ *   thinking  char_2  내 말을 보냈고 답을 기다리는 중
+ *   answering char_1  답이 도착함
+ */
+const AVATAR = {
+  idle: { src: './images/char_3.png', caption: '시트를 보고 있어요' },
+  thinking: { src: './images/char_2.png', caption: '생각하고 있어요…' },
+  answering: { src: './images/char_1.png', caption: '답을 드릴게요!' },
+}
+
+// 미리 받아 둡니다. 안 하면 상태가 처음 바뀔 때 그림이 잠깐 빕니다.
+for (const { src } of Object.values(AVATAR)) new Image().src = src
+
+function setAvatar(state) {
+  const next = AVATAR[state]
+  if (!next) return
+  const box = $('avatar')
+  if (box.dataset.state === state) return
+  box.dataset.state = state
+  $('avatar-img').src = next.src
+  $('avatar-caption').textContent = next.caption
+}
+
 function renderSheet() {
   const host = $('sheet')
   host.innerHTML = ''
@@ -272,6 +300,9 @@ async function connect() {
 
   room.registerTextStreamHandler(CHAT_TOPIC, async (reader) => {
     log(aiLabel, await reader.readAll(), 'ai')
+    // 답이 도착한 시점입니다 — 스트림을 다 읽고 나서 바꿉니다. 열리자마자 바꾸면
+    // 아직 아무 글자도 안 뜬 화면에서 캐릭터만 먼저 답한 얼굴이 됩니다.
+    setAvatar('answering')
   })
 
   // 전사문은 `lk.chat` 이 아니라 이 토픽으로 옵니다 — 섞으면 내 말과 AI 답을 구분할
@@ -293,6 +324,8 @@ async function connect() {
     if (payload.final) {
       showCaption('')
       log('나', payload.text, 'me')
+      // 최종 전사가 곧 발화의 끝입니다 — 여기서부터 에이전트가 답을 만듭니다.
+      setAvatar('thinking')
     } else {
       showCaption(payload.text)
     }
@@ -300,6 +333,7 @@ async function connect() {
   room.registerTextStreamHandler(GOAL_TOPIC, async (reader) => {
     try {
       renderGoal(JSON.parse(await reader.readAll()))
+      setAvatar('answering')
     } catch (err) {
       log('시스템', `goal payload 파싱 실패: ${err.message}`, 'warn')
     }
@@ -317,6 +351,8 @@ async function connect() {
     // 타이머를 안 지우면 끊긴 뒤에도 자동 종료가 돌아 `room` 이 null 인 채로 부릅니다.
     clearTalkTimers()
     setMicLabel('🎤 말하기', false)
+    // 끊긴 뒤에 "생각 중" 으로 굳어 있으면 오지 않을 답을 기다리게 됩니다.
+    setAvatar('idle')
     // 재접속하면 hello 를 다시 받습니다. 그때까지 음성은 없는 것으로 둡니다.
     voiceAvailable = false
   })
@@ -332,6 +368,7 @@ async function connect() {
 
   setStatus('방 접속됨 · 에이전트 대기', 'busy')
   log('시스템', `방 "${info.room}" 에 ${info.identity} 로 접속했습니다`, 'sys')
+  setAvatar('idle')
 
   // 에이전트가 이미 들어와 있을 수도 있습니다(재접속 등).
   if (room.remoteParticipants.size > 0) setStatus('에이전트 연결됨', 'on')
@@ -453,6 +490,7 @@ $('composer').addEventListener('submit', async (event) => {
   if (!text || !room) return
   $('input').value = ''
   log('나', text, 'me')
+  setAvatar('thinking')
   await room.localParticipant.sendText(text, { topic: CHAT_TOPIC })
 })
 

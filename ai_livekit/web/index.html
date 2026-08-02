@@ -27,6 +27,16 @@
       </p>
     </section>
 
+    <!-- 가운데: 캐릭터. 상태를 그림 하나로 알려줍니다 —
+         입장 = char_3(읽는 중) · 생각 중 = char_2(턱 괴기) · 응답 = char_1(손가락 들기).
+         `app.js` 의 `setAvatar()` 가 `data-state` 를 바꾸면 그림이 따라갑니다. -->
+    <section class="panel" id="avatar-panel">
+      <div id="avatar" data-state="idle">
+        <img id="avatar-img" src="./images/char_3.png" alt="" />
+      </div>
+      <p class="avatar-caption" id="avatar-caption">시트를 보고 있어요</p>
+    </section>
+
     <!-- 오른쪽: 대화 -->
     <section class="panel" id="chat-panel">
       <h2>대화 <span class="hint">lk.chat</span></h2>

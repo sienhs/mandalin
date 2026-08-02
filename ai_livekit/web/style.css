@@ -74,22 +74,101 @@ button:disabled { opacity: 0.5; cursor: default; }
   color: #fff;
 }
 
+/* 왼쪽 시트 · 가운데 캐릭터 · 오른쪽 대화.
+   **자리를 이름으로 잡습니다** — 순서에 맡기면 칸이 줄었을 때 대화가 아래로 밀립니다.
+   실제로 그렇게 밀렸습니다: 좁은 폭에서 캐릭터를 전체 폭으로 올렸더니 대화가 그
+   아래로 내려가고, 캐릭터는 화면 밖으로 나가 상태가 바뀌는 것도 안 보였습니다.
+   **대화는 어느 폭에서도 오른쪽 칸입니다.** 폭이 모자라면 캐릭터를 줄입니다. */
 main {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(240px, 320px) 1fr;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr) minmax(300px, 440px);
+  grid-template-areas: "sheet avatar chat";
   gap: 1rem;
   padding: 1rem 1.25rem;
   align-items: start;
   min-height: 0;
 }
-@media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+#sheet-panel  { grid-area: sheet; }
+#avatar-panel { grid-area: avatar; }
+#chat-panel   { grid-area: chat; }
+
+/* 세 칸이 다 들어가지 않는 폭. 시트를 캐릭터 아래로 내리고 **대화는 오른쪽에 둡니다.** */
+@media (max-width: 1000px) {
+  main {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+    grid-template-areas:
+      "avatar chat"
+      "sheet  chat";
+  }
+  #avatar { height: min(30vh, 240px); }
+}
+/* 여기서부터는 나란히 둘 폭이 없습니다. 그제서야 한 줄로 쌓습니다. */
+@media (max-width: 680px) {
+  main {
+    grid-template-columns: 1fr;
+    grid-template-areas: "avatar" "chat" "sheet";
+  }
+  #avatar { height: 160px; }
+  #avatar-panel { position: static; }
+}
+
+/* 캐릭터 */
+#avatar-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  position: sticky;
+  top: 1rem;
+}
+#avatar {
+  height: min(46vh, 380px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* 원본 그림은 왼쪽을 보고 있습니다. 대화가 오른쪽 칸이라 그대로 두면 캐릭터가
+     사용자에게 등을 돌린 것처럼 읽힙니다 — 뒤집어 채팅창을 보게 합니다.
+     **`img` 가 아니라 이 상자를 뒤집습니다.** 그림에 걸린 `scale`/`translateY` 와
+     같은 속성이라, 한쪽에 얹으면 상태가 바뀔 때마다 뒤집힘이 풀립니다. */
+  transform: scaleX(-1);
+}
+#avatar img {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  /* 상태가 바뀔 때 그림이 툭 갈리지 않게 합니다. */
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+/* 생각 중일 때만 살짝 움직입니다 — 멈춰 있으면 응답을 기다리는 중인지
+   화면이 굳은 것인지 구분이 안 됩니다. */
+#avatar[data-state="thinking"] img { animation: avatar-think 1.4s ease-in-out infinite; }
+#avatar[data-state="answering"] img { transform: scale(1.04); }
+@keyframes avatar-think {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #avatar[data-state="thinking"] img { animation: none; }
+}
+.avatar-caption {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+#avatar[data-state="thinking"] + .avatar-caption { color: var(--color-warning); }
+#avatar[data-state="answering"] + .avatar-caption { color: var(--color-success); }
 
 .panel {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 1rem;
+  /* 그리드 칸은 기본이 `min-width: auto` 라 내용이 칸보다 넓으면 칸을 밀어냅니다 —
+     긴 전사문 한 줄에 대화 칸이 넘쳐 레이아웃이 틀어지는 것을 막습니다. */
+  min-width: 0;
 }
 
 .note {
