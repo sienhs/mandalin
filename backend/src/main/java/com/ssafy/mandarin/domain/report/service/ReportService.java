@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import com.ssafy.mandarin.domain.report.dto.DomainAnalyzeContent;
+import com.ssafy.mandarin.domain.report.dto.ReportMetricContent;
 import com.ssafy.mandarin.domain.report.dto.WeeklyReportResponse;
 import com.ssafy.mandarin.domain.sheet.entity.Domain;
 import com.ssafy.mandarin.domain.sheet.entity.Sheet;
@@ -58,7 +59,7 @@ public class ReportService {
                         log -> log.getSubject().getDomain().getId(),
                         Collectors.counting()));
 
-        List<DomainAnalyzeContent> domainRate = domains.stream()
+        List<DomainAnalyzeContent> categories = domains.stream()
                 .map(domain -> new DomainAnalyzeContent(
                         domain.getTitle(),
                         toRate(completedByDomainId.getOrDefault(domain.getId(), 0L), subjectCountOf(domain))))
@@ -69,17 +70,21 @@ public class ReportService {
         long earnedPoints = logs.stream().mapToLong(SubjectLog::getEarnedPoint).sum();
 
         // gemini 호출
-        String prompt = buildPrompt(monday, sunday, logs.size(), earnedPoints, overallRate, domainRate);
+        String prompt = buildPrompt(monday, sunday, logs.size(), earnedPoints, overallRate, categories);
         JsonNode analysis = requestAnalysis(prompt);
+
+        List<ReportMetricContent> metrics = List.of(
+                new ReportMetricContent("주간 달성률", overallRate + "%"),
+                new ReportMetricContent("완료 과제", String.valueOf(logs.size()))
+        );
 
         WeeklyReportResponse report = new WeeklyReportResponse(
                 analysis.path("title").asString(""),
                 analysis.path("summary").asString(""),
-                overallRate,
-                logs.size(),
+                metrics,
                 toStringList(analysis.path("strength")),
                 toStringList(analysis.path("weakness")),
-                domainRate
+                categories
         );
 
         redisTemplate.opsForValue().set(cacheKey(userId, monday), report, ttlUntilNextWeek());
@@ -158,7 +163,7 @@ public class ReportService {
         String domainLines = domainRate.isEmpty()
                 ? "- 등록된 도메인 없음"
                 : domainRate.stream()
-                        .map(d -> "- %s: 달성률 %d%%".formatted(d.title(), d.achieveRate()))
+                        .map(d -> "- %s: 달성률 %d%%".formatted(d.label(), d.value()))
                         .collect(Collectors.joining("\n"));
 
         return """

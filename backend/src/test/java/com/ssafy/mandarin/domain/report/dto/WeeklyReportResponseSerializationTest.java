@@ -23,8 +23,7 @@ class WeeklyReportResponseSerializationTest {
 		WeeklyReportResponse report = new WeeklyReportResponse(
 				"꾸준함이 빛난 한 주",
 				"지난주에는 12건의 과제를 완료했습니다.",
-				75,
-				12,
+				List.of(new ReportMetricContent("주간 달성률", "75%"), new ReportMetricContent("완료 과제", "12")),
 				List.of("운동 도메인을 매일 수행했습니다"),
 				List.of("독서 도메인이 비어 있습니다"),
 				List.of(new DomainAnalyzeContent("운동", 90), new DomainAnalyzeContent("독서", 0))

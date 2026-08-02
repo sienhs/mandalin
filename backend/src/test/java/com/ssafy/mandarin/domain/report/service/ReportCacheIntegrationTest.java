@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.report.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -126,11 +127,11 @@ class ReportCacheIntegrationTest {
 
 		assertThat(cached).isEqualTo(created);
 		assertThat(cached.title()).isEqualTo("꾸준함이 빛난 한 주");
-		assertThat(cached.strength()).containsExactly("매일 기록을 남겼습니다", "포인트를 꾸준히 모았습니다");
-		assertThat(cached.weakness()).containsExactly("독서 도메인이 비어 있습니다");
-		assertThat(cached.rate()).isZero();
-		assertThat(cached.subjectCount()).isZero();
-		assertThat(cached.domainRate()).isEmpty();
+		assertThat(cached.strengths()).containsExactly("매일 기록을 남겼습니다", "포인트를 꾸준히 모았습니다");
+		assertThat(cached.improvements()).containsExactly("독서 도메인이 비어 있습니다");
+		assertThat(cached.metrics()).extracting("label", "value")
+				.containsExactly(tuple("주간 달성률", "0%"), tuple("완료 과제", "0"));
+		assertThat(cached.categories()).isEmpty();
 	}
 
 	@Test
