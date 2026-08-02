@@ -75,8 +75,8 @@ public class ReportService {
         WeeklyReportResponse report = new WeeklyReportResponse(
                 analysis.path("title").asString(""),
                 analysis.path("summary").asString(""),
-                String.valueOf(overallRate),
-                String.valueOf(logs.size()),
+                overallRate,
+                logs.size(),
                 toStringList(analysis.path("strength")),
                 toStringList(analysis.path("weakness")),
                 domainRate

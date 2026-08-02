@@ -5,8 +5,8 @@ import java.util.List;
 public record WeeklyReportResponse(
     String title,
     String summary,
-    String rate,
-    String subjectCount,
+    Integer rate,
+    Integer subjectCount,
     List<String> strength,
     List<String> weakness,
     List<DomainAnalyzeContent> domainRate

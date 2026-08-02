@@ -128,8 +128,8 @@ class ReportCacheIntegrationTest {
 		assertThat(cached.title()).isEqualTo("꾸준함이 빛난 한 주");
 		assertThat(cached.strength()).containsExactly("매일 기록을 남겼습니다", "포인트를 꾸준히 모았습니다");
 		assertThat(cached.weakness()).containsExactly("독서 도메인이 비어 있습니다");
-		assertThat(cached.rate()).isEqualTo("0");
-		assertThat(cached.subjectCount()).isEqualTo("0");
+		assertThat(cached.rate()).isZero();
+		assertThat(cached.subjectCount()).isZero();
 		assertThat(cached.domainRate()).isEmpty();
 	}
 
