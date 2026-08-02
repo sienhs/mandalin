@@ -45,10 +45,34 @@
     @apply m-0 text-sm;
   }
 
-  /* 카드 우측 상단 경고 */
+  /* 카드 우측 상단: 경고 문구 + 2D/3D 전환 */
+  .group-setup-topright {
+    @apply col-start-2 row-start-1 flex items-center justify-between gap-3 pb-1;
+  }
+
   .group-setup-warning {
-    @apply col-start-2 row-start-1 m-0 whitespace-nowrap pb-1 text-[11.5px] font-bold;
+    @apply m-0 whitespace-nowrap text-[11.5px] font-bold;
     color: #dc3424;
+  }
+
+  /* ---------- 2D / 3D 전환 ---------- */
+  .group-setup-viewtabs {
+    @apply flex shrink-0 items-center gap-1 rounded-xl p-1;
+    background: #f1f3f6;
+  }
+
+  .group-setup-viewtab {
+    @apply cursor-pointer rounded-lg border-0 bg-transparent px-3 py-1 text-[12px] font-bold text-ink-400 transition-colors duration-150;
+  }
+
+  .group-setup-viewtab:hover {
+    @apply text-ink-700;
+  }
+
+  /* 보고 있는 쪽. 클래스 대신 aria-pressed 를 선택자로 쓴다. */
+  .group-setup-viewtab[aria-pressed='true'] {
+    @apply bg-white text-ink-900;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
   }
 
   .group-setup-grid {
@@ -135,6 +159,195 @@
   /* 고를 수 없는 블록(중앙 = 핵심 목표와 도메인 라벨). 모양은 그대로 두고 반응만 막는다. */
   .group-setup-block--locked {
     @apply cursor-not-allowed;
+  }
+
+  /* ---------- 3D 뷰: 건물 시트 ---------- */
+  /*
+   * 2D 뷰의 9x9 그리드와 같은 폭(500px)·같은 간격으로 둬서, 뷰를 전환해도 카드 크기와
+   * 격자 위치가 흔들리지 않는다.
+   */
+  .group-setup-buildings {
+    @apply mx-auto my-0 grid w-[500px] list-none grid-cols-3 gap-2 p-0;
+  }
+
+  .group-setup-bblock {
+    @apply list-none rounded-md;
+  }
+
+  /* 블록 전체가 도메인을 고르는 버튼 */
+  .group-setup-bblock-pick {
+    @apply block w-full cursor-pointer border-0 bg-transparent p-0;
+  }
+
+  /*
+   * 가운데 블록 = 랜드마크 한 칸. 9칸으로 나누지 않으므로 블록 전체가 하나의 자리다.
+   * 글자 크기는 블록 한 변(약 161px = (500 - gap 16) / 3)의 절반 정도로 잡는다.
+   */
+  .group-setup-blandmark {
+    @apply flex aspect-square w-full items-center justify-center overflow-hidden rounded-md text-[76px] leading-none;
+    background: #fdf6ec;
+    border: 1.5px dashed #e0913c;
+  }
+
+  /*
+   * 랜드마크 이미지 자리. 이모지 대신 넣을 때 쓴다.
+   * 표시 크기 161 × 161px(블록 한 변), 파일은 2배(322 × 322px).
+   */
+  .group-setup-blandmark-img {
+    @apply h-full w-full object-contain;
+  }
+
+  /* 고른 도메인. 2D 뷰의 강조와 같은 색·같은 방식(outline 이라 칸이 밀리지 않는다). */
+  .group-setup-bblock--picked {
+    @apply outline outline-2 outline-mint-700;
+  }
+
+  /* button 안이라 span 이다 — grid 로 3x3 을 만든다. */
+  .group-setup-btiles {
+    @apply grid grid-cols-3 gap-1;
+  }
+
+  /* 빈 땅. 나중에 건물 이미지가 이 안에 들어간다(overflow-hidden 으로 모서리를 지킨다). */
+  .group-setup-btile {
+    @apply flex aspect-square items-center justify-center overflow-hidden rounded-[4px] leading-none;
+    background: #f1f3f6;
+  }
+
+  /*
+   * 건물 이미지 자리.
+   *   <span className="group-setup-btile ...">
+   *     <img className="group-setup-btile-img" src={...} alt="" />
+   *   </span>
+   *
+   * 표시 크기 51 × 51px — (500 - 블록 gap 16) / 3 = 161.3 이 블록 한 변이고,
+   * 그 안에서 (161.3 - 칸 gap 8) / 3 = 51.1 이 칸 한 변이다.
+   * 이미지는 2배(102 × 102px)로 준비한다.
+   */
+  .group-setup-btile-img {
+    @apply h-full w-full object-contain;
+  }
+
+  /* 과제가 있는 칸 = 건물이 선 땅. 그림 없이 색만으로 구분하므로 대비를 조금 더 준다. */
+  .group-setup-btile--built {
+    background: #dbe2ea;
+  }
+
+  /* 고른 도메인은 땅도 초록으로 */
+  .group-setup-bblock--picked .group-setup-btile {
+    background: #eaf6ed;
+  }
+
+  .group-setup-bblock--picked .group-setup-btile--built {
+    background: #cfe9d6;
+  }
+
+
+  /* 그룹 도시 미리보기 자리. 폭 360px(사이드 컬럼) × 3:2 = 360 × 240px. */
+  .group-setup-preview {
+    @apply flex w-full items-center justify-center rounded-2xl;
+    aspect-ratio: 3 / 2;
+    background: #f6f8fa;
+    border: 1.5px dashed #d7dee4;
+  }
+
+  .group-setup-placeholder-note {
+    @apply m-0 px-4 text-center text-[12.5px] font-semibold text-ink-400;
+  }
+
+  /* ---------- 3D 뷰: 메인 건물(랜드마크) ---------- */
+  .group-setup-landmark {
+    @apply rounded-2xl border-[3px] p-4;
+    border-color: #e9f6e8;
+    background: #ffffff;
+  }
+
+  .group-setup-landmark-title {
+    @apply m-0 text-[14px] font-extrabold tracking-[-0.01em] text-ink-900;
+  }
+
+  .group-setup-landmark-desc {
+    @apply m-0 mt-1.5 text-[11.5px] font-semibold leading-[1.6] text-ink-400;
+  }
+
+  .group-setup-landmark-row {
+    @apply mt-3 flex items-center gap-2.5 rounded-xl px-3 py-2.5;
+    background: #f6f8ee;
+  }
+
+  .group-setup-landmark-icon {
+    @apply text-[18px] leading-none;
+  }
+
+  .group-setup-landmark-name {
+    @apply flex-1 truncate text-[13.5px] font-extrabold text-ink-700;
+  }
+
+  .ui-btn.group-setup-landmark-change {
+    @apply shrink-0 rounded-lg;
+  }
+
+  /* ---------- 랜드마크 선택 팝업 ---------- */
+  .group-landmark-dialog {
+    @apply relative flex w-[400px] flex-col rounded-[24px] bg-white px-7 py-6;
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.2);
+  }
+
+  .group-landmark-close {
+    @apply absolute right-5 top-5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[17px] font-bold leading-none text-ink-400 transition-colors duration-150;
+  }
+
+  .group-landmark-close:hover {
+    @apply bg-ink-100 text-ink-700;
+  }
+
+  .group-landmark-dialog-title {
+    @apply m-0 text-[18px] font-extrabold tracking-[-0.02em] text-ink-900;
+  }
+
+  .group-landmark-dialog-desc {
+    @apply m-0 mt-2 text-[12.5px] font-semibold leading-[1.6] text-ink-400;
+  }
+
+  /*
+   * 랜드마크가 늘어나면 이 목록 안에서만 스크롤한다.
+   * 높이는 4줄까지 보이는 값(줄 42px + 간격 6px 기준) — 5개째부터 스크롤이 생기고,
+   * 잘린 줄이 살짝 보여서 더 있다는 걸 알 수 있다.
+   * overscroll-contain: 목록 끝에서 계속 굴려도 뒤 페이지가 따라 움직이지 않는다.
+   */
+  .group-landmark-list {
+    @apply m-0 mt-4 flex max-h-[190px] list-none flex-col gap-1.5 overflow-y-auto overscroll-contain p-0;
+  }
+
+  .group-landmark-option {
+    @apply flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-white px-3 py-2.5 text-left transition-colors duration-150;
+    border-color: #e7eaee;
+  }
+
+  .group-landmark-option:hover {
+    background: #f6f8fa;
+  }
+
+  /* 고른 랜드마크 */
+  .group-landmark-option--picked {
+    border-color: #97cca1;
+    background: #f5fbf4;
+  }
+
+  .group-landmark-option-icon {
+    @apply text-[20px] leading-none;
+  }
+
+  .group-landmark-option-name {
+    @apply flex-1 truncate text-[13.5px] font-extrabold text-ink-900;
+  }
+
+  .group-landmark-option-check {
+    @apply shrink-0 text-[13px] font-extrabold;
+    color: #4f9d68;
+  }
+
+  .group-landmark-actions {
+    @apply mt-5 flex justify-center gap-3;
   }
 
   /* ---------- 고른 도메인 패널 ---------- */

@@ -27,6 +27,18 @@ export type GroupMemberContribution = {
   domains: GroupDomainSummary[]
 }
 
+/**
+ * 그룹 도시 가운데에 놓는 랜드마크.
+ *
+ * buildingId 는 그룹 생성 요청의 centerBuildingId(팀장이 보유한 랜드마크 인벤토리 아이디)다.
+ * icon 은 목업 편의용이다 — 실제 응답은 3D parts(또는 thumbnailUrl)를 주므로 그때 교체한다.
+ */
+export type GroupLandmark = {
+  buildingId: number
+  name: string
+  icon: string
+}
+
 /** 그룹 만다라트 한 장 */
 export type GroupDetail = {
   groupId: number

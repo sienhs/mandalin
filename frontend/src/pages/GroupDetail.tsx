@@ -29,13 +29,26 @@ export default function GroupDetail() {
   const navigate = useNavigate()
   const { groupId } = useParams()
   const { state } = useLocation()
-  /** 방금 만든 그룹이면 이름 · 어느 시트에서 도메인을 냈는지가 함께 넘어온다. */
-  const passed = state as { groupTitle?: string; sheetId?: number; justCreated?: boolean } | null
+  /**
+   * 방금 만든 그룹이면 이름 · 어느 시트에서 도메인을 냈는지 · 방장이 고른 랜드마크가 함께 넘어온다.
+   * (합류한 경우 랜드마크는 이미 그룹이 갖고 있으므로 넘어오지 않는다.)
+   */
+  const passed = state as {
+    groupTitle?: string
+    sheetId?: number
+    justCreated?: boolean
+    landmarkBuildingId?: number
+  } | null
 
   const id = Number(groupId) || 1
   const detail = useMemo(
-    () => loadGroupDetail(id, { title: passed?.groupTitle, justCreated: passed?.justCreated }),
-    [id, passed?.groupTitle, passed?.justCreated],
+    () =>
+      loadGroupDetail(id, {
+        title: passed?.groupTitle,
+        justCreated: passed?.justCreated,
+        landmarkBuildingId: passed?.landmarkBuildingId,
+      }),
+    [id, passed?.groupTitle, passed?.justCreated, passed?.landmarkBuildingId],
   )
 
   /**
