@@ -35,13 +35,19 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASS: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      # AI 음성봇 입장 티켓 서명 키. **AI 전용 EC2 의 ai/.env 에 있는 SFU_TICKET_SECRET 과
-      # 같은 값이어야 한다.** 두 호스트에 나뉘어 있어서 어긋나도 양쪽 다 기동은 되고,
-      # 사용자만 입장에서 튕긴다 — 한쪽을 바꾸면 반드시 같이 바꿀 것.
+      # AI 음성 코칭(LiveKit) 입장 토큰. **AI 전용 EC2 의 livekit.yaml 에 있는 keys:
+      # 항목, 그리고 ai_livekit/.env 의 같은 이름 두 개와 같은 값이어야 한다.**
+      # 두 호스트에 나뉘어 있어서 어긋나도 양쪽 다 기동은 되고, 사용자만 입장에서
+      # 튕긴다 — 한쪽을 바꾸면 반드시 같이 바꿀 것.
       #
-      # JWT_SECRET 을 재사용하면 안 된다(SFU 가 액세스 토큰까지 위조할 수 있게 된다).
-      # 비워두면 티켓 발급만 실패하고 나머지 API 는 정상 동작한다.
-      SFU_TICKET_SECRET: ${SFU_TICKET_SECRET:-}
+      # JWT_SECRET 을 재사용하면 안 된다(LiveKit 서버가 액세스 토큰까지 위조할 수
+      # 있게 된다). 비워두면 토큰 발급만 실패하고 나머지 API 는 정상 동작한다.
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      # 브라우저가 AI EC2 로 직접 붙을 주소. 응답에 실려 나가므로 컨테이너 내부 이름이
+      # 아니라 공개 주소여야 한다. **위 둘과 달리 ai_livekit/.env 의 같은 이름과 값이
+      # 다르다** — 저쪽은 worker 가 같은 호스트에 붙는 주소다.
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
       KAKAO_OAUTH_CLIENT_ID: ${KAKAO_OAUTH_CLIENT_ID}
       KAKAO_OAUTH_CLIENT_SECRET: ${KAKAO_OAUTH_CLIENT_SECRET}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
