@@ -31,8 +31,11 @@ const SHEET_TOPIC = 'mandarin.sheet'
 const TRANSCRIPT_TOPIC = 'mandarin.transcript'
 const HELLO_TOPIC = 'mandarin.hello'
 
-//: 도메인당 과제 상한. `../ai/static/js/board.js` 의 `DOMAIN_CAPACITY` 와,
-//: `prompts/system.md` 의 `domain_capacity` 와 같은 값입니다.
+//: 도메인당 과제 상한. 만다라트가 9x9 이중 3x3 이라 칸당 8개입니다.
+//:
+//: 같은 값이 세 곳에 있습니다 — `mandarin_goal/sheet.py` 의
+//: `MAX_SUBJECTS_PER_DOMAIN`(데이터 제약), `prompts/fragments/domain_capacity.md`
+//: (모델에게 주는 규칙), 그리고 여기(화면 표시). 하나를 고치면 셋 다 봐야 합니다.
 const DOMAIN_CAPACITY = 8
 
 const FREQUENCY_LABELS = {
