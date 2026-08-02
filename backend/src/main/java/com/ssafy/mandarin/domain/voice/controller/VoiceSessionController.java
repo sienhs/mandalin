@@ -39,8 +39,6 @@ public class VoiceSessionController {
 	public ResponseEntity<ApiResponse<VoiceSessionResponse>> issueToken(
 			@AuthenticationPrincipal CustomUserDetails customUserDetails
 	) {
-		// SecurityConfig 가 anyRequest().authenticated() 라 여기까지 익명으로 오지는
-		// 않지만, null 이면 userId 없이 토큰을 만들게 되므로 명시적으로 막는다.
 		if (customUserDetails == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED);
 		}

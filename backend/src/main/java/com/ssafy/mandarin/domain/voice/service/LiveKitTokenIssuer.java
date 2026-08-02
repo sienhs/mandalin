@@ -59,9 +59,6 @@ public class LiveKitTokenIssuer {
 		this.ttl = Duration.ofMillis(ttlMillis);
 		this.secretKey = buildKey(apiSecret, accessTokenSecret);
 
-		// 기동은 막지 않는다. 발급이 멈추면 음성 기능만 죽지만, 여기서 예외를 던지면
-		// 로그인까지 못 하게 된다. 대신 원인을 남긴다 — 안 그러면 증상이 "브라우저만
-		// 연결 실패" 로 나타나서 설정이 원인이라는 것을 알기 어렵다.
 		if (!StringUtils.hasText(apiKey)) {
 			log.warn("LIVEKIT_API_KEY 가 비어 있습니다 — AI 음성 토큰 발급이 비활성화됩니다. "
 					+ "LiveKit 서버의 livekit.yaml 에 있는 API key 를 넣으세요.");
@@ -91,13 +88,9 @@ public class LiveKitTokenIssuer {
 		String token = Jwts.builder()
 				.subject(String.valueOf(userId))
 				.claim(CLAIM_NAME, displayName)
-				// LiveKit 은 권한을 video 클레임 안에서 읽는다. 평면 room 클레임은
-				// 무시되므로, 서명이 맞아도 입장 권한이 없는 토큰이 된다.
 				.claim(CLAIM_VIDEO, Map.of(GRANT_ROOM, roomId, GRANT_ROOM_JOIN, true))
-				// aud 는 넣지 않는다. LiveKit 은 audience 를 검증하지 않는다.
 				.issuer(apiKey)
 				.issuedAt(Date.from(now))
-				// 수명 2분. 화면 진입 시가 아니라 연결 직전에 발급받아야 한다.
 				.expiration(Date.from(expiresAt))
 				.signWith(secretKey, Jwts.SIG.HS256)
 				.compact();
@@ -115,17 +108,12 @@ public class LiveKitTokenIssuer {
 
 		int length = apiSecret.getBytes(StandardCharsets.UTF_8).length;
 		if (length < MIN_SECRET_BYTES) {
-			// LiveKit 을 `--dev` 로 띄우면 시크릿이 `secret`(6바이트)으로 고정되는데,
-			// 그 값으로는 여기서 서명할 수 없다. 로컬에서도 livekit.yaml 로 32바이트
-			// 이상 키쌍을 주고 띄워야 한다.
 			log.warn("LIVEKIT_API_SECRET 이 {}바이트로 너무 짧습니다(HS256 은 {}바이트 이상) — "
 					+ "AI 음성 토큰 발급이 비활성화됩니다.", length, MIN_SECRET_BYTES);
 			return null;
 		}
 
 		if (apiSecret.equals(accessTokenSecret)) {
-			// 막지는 않는다. 발급이 멈추면 음성 기능 전체가 죽는데, 위험은 LiveKit
-			// 서버가 침해됐을 때만 현실이 되기 때문이다. 대신 눈에 띄게 남긴다.
 			log.warn("LIVEKIT_API_SECRET 이 JWT_SECRET 과 같습니다. HS256 은 검증 키 = 서명 키라 "
 					+ "LiveKit 서버가 액세스 토큰까지 위조할 수 있습니다. 다른 값으로 바꾸세요.");
 		}
