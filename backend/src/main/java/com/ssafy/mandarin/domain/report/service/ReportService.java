@@ -53,9 +53,6 @@ public class ReportService {
         LocalDate monday = lastWeekDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate sunday = lastWeekDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
-        /*
-            한 주 동안 실천한 과제 가져오기
-         */
         List<SubjectLog> logs = subjectLogRepository.findWeeklyLogsByUserId(
                 userId, monday.atStartOfDay(), sunday.atTime(LocalTime.MAX));
 
@@ -67,13 +64,11 @@ public class ReportService {
         int overallRate = toRate(completedCount, totalTargetCount);
         long earnedPoints = logs.stream().mapToLong(SubjectLog::getEarnedPoint).sum();
 
-        // gemini 호출
         String prompt = buildPrompt(monday, sunday, completedCount, earnedPoints, overallRate, sheets);
         JsonNode analysis = requestAnalysis(prompt);
 
         List<ReportMetricContent> metrics = List.of(
                 new ReportMetricContent("주간 달성률", overallRate + "%"),
-                // 과제 "개수" 가 아니라 체크한 횟수다. 매일 과제는 한 주에 최대 7 회 쌓인다
                 new ReportMetricContent("수행 횟수", completedCount + "회")
         );
 
@@ -120,9 +115,6 @@ public class ReportService {
         return Duration.between(now, nextMonday);
     }
 
-    /*
-        유저의 모든 시트를 최신 생성순으로 훑어 시트별 달성률을 만든다.
-     */
     private List<SheetAnalyzeContent> analyzeSheets(Long userId, List<SubjectLog> logs) {
         Map<Long, Long> completedByDomainId = logs.stream()
                 .collect(Collectors.groupingBy(
@@ -158,12 +150,6 @@ public class ReportService {
         return contents;
     }
 
-    /*
-        도메인별로 "지난주에 했어야 할 횟수" 를 모은다.
-        domain.subjectCount 는 과제 수가 아니라 **완료된 과제 수**(SubjectService 에서
-        tryCount 가 targetCount 에 닿을 때만 증가)라서 분모로 쓸 수 없다 — 새 시트는
-        전부 0 이라 달성률이 항상 0% 로 나온다
-     */
     private Map<Long, Double> weeklyTargetByDomainId(Sheet sheet) {
         int sheetWeeks = weeksOf(sheet);
         return subjectRepository.findBySheetIdWithDomain(sheet.getId()).stream()
@@ -172,26 +158,19 @@ public class ReportService {
                         Collectors.summingDouble(subject -> weeklyTargetOf(subject, sheetWeeks))));
     }
 
-    /*
-        targetCount 는 시트 전체 기간의 목표라 한 주치로 환산해서 쓴다.
-        (180일 시트의 매일 과제는 targetCount=180 -> 주당 약 7회)
-     */
     private double weeklyTargetOf(Subject subject, int sheetWeeks) {
         Integer target = subject.getTargetCount();
         if (sheetWeeks > 0 && target != null && target > 0) {
             return (double) target / sheetWeeks;
         }
 
-        // 기간이나 목표가 비어 있으면 주기로 대신 센다
         return switch (subject.getPeriod()) {
             case DAILY -> 7.0;
             case WEEKLY -> 1.0;
-            // 일회성 과제는 매주 기대할 몫이 없다
             default -> 0.0;
         };
     }
 
-    // 시트 기간이 몇 주인지. expiredAt 이 없으면 0 을 돌려 주기 기반으로 넘긴다
     private int weeksOf(Sheet sheet) {
         LocalDateTime start = sheet.getCreatedAt();
         LocalDateTime end = sheet.getExpiredAt();
@@ -202,8 +181,6 @@ public class ReportService {
         return (int) Math.max(1, Math.ceil(days / 7.0));
     }
 
-    // 매일 과제를 하루에 여러 번 누르거나, 주간 기대가 0 인 일회성 과제를 수행하면
-    // 분자가 분모를 넘을 수 있다. 100 에서 자른다
     private int toRate(long completed, double target) {
         if (target <= 0) {
             return 0;
