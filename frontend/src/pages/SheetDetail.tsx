@@ -42,6 +42,16 @@ export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
       */}
       <main className="mx-auto w-[1280px] px-6 pb-[70px] pt-6">
         <div className="card p-6">
+          {/*
+            불러오는 중에도 아래 그리드는 그대로 그린다(빈 칸으로) — 화면을 통째로 감췄다가
+            띄우면 레이아웃이 튄다. 실패했을 때만 이유를 알려준다.
+          */}
+          {detail.error && (
+            <p className="m-0 mb-3 text-[12.5px] font-bold text-[#dc3424]" role="alert">
+              {detail.error}
+            </p>
+          )}
+
           <SheetDetailHeader
             sheet={detail.sheet}
             achievementRate={detail.achievementRate}

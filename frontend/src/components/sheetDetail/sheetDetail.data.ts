@@ -98,6 +98,8 @@ export function loadSheetDetail(sheetId: number): SheetDetail {
       // 다르게 움직이는 걸 화면에서 확인할 수 있게 한다.
       const tryCount = isDone ? targetCount : Math.floor((targetCount * (s % 3)) / 4)
       return {
+        // 목업이라 아이디를 세어서 만든다. 도메인 8개 × 과제 8개가 1부터 겹치지 않게 붙는다.
+        subjectId: d * DOMAIN_SEEDS.length + s + 1,
         domainId: d + 1,
         userId: 1,
         title,
@@ -119,5 +121,6 @@ export function loadSheetDetail(sheetId: number): SheetDetail {
   )
 
   // 달성률은 담지 않는다 — 화면이 이 과제 상태에서 직접 계산한다.
-  return { sheet, domains, subjects }
+  // liked 는 보는 사람에 따라 갈리는 값이라 목업이 정할 수 없다. 안 누른 것으로 둔다.
+  return { sheet, domains, subjects, liked: false }
 }
