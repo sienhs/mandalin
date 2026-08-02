@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,13 +17,16 @@ import org.springframework.stereotype.Service;
 
 import com.ssafy.mandarin.domain.report.dto.DomainAnalyzeContent;
 import com.ssafy.mandarin.domain.report.dto.ReportMetricContent;
+import com.ssafy.mandarin.domain.report.dto.SheetAnalyzeContent;
 import com.ssafy.mandarin.domain.report.dto.WeeklyReportResponse;
 import com.ssafy.mandarin.domain.sheet.entity.Domain;
 import com.ssafy.mandarin.domain.sheet.entity.Sheet;
 import com.ssafy.mandarin.domain.sheet.repository.DomainRepository;
 import com.ssafy.mandarin.domain.sheet.repository.SheetRepository;
+import com.ssafy.mandarin.domain.subject.entity.Subject;
 import com.ssafy.mandarin.domain.subject.entity.SubjectLog;
 import com.ssafy.mandarin.domain.subject.repository.SubjectLogRepository;
+import com.ssafy.mandarin.domain.subject.repository.SubjectRepository;
 import com.ssafy.mandarin.global.exception.BusinessException;
 import com.ssafy.mandarin.global.exception.ErrorCode;
 
@@ -37,6 +41,7 @@ public class ReportService {
     private static final String REPORT_KEY_PREFIX = "report:weekly:";
 
     private final SubjectLogRepository subjectLogRepository;
+    private final SubjectRepository subjectRepository;
     private final SheetRepository sheetRepository;
     private final DomainRepository domainRepository;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -48,34 +53,28 @@ public class ReportService {
         LocalDate monday = lastWeekDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate sunday = lastWeekDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
-        // 한 주 실천 과제 가져오기
+        /*
+            한 주 동안 실천한 과제 가져오기
+         */
         List<SubjectLog> logs = subjectLogRepository.findWeeklyLogsByUserId(
                 userId, monday.atStartOfDay(), sunday.atTime(LocalTime.MAX));
 
-        List<Domain> domains = findLatestSheetDomains(userId);
+        List<SheetAnalyzeContent> sheets = analyzeSheets(userId, logs);
 
-        Map<Long, Long> completedByDomainId = logs.stream()
-                .collect(Collectors.groupingBy(
-                        log -> log.getSubject().getDomain().getId(),
-                        Collectors.counting()));
-
-        List<DomainAnalyzeContent> categories = domains.stream()
-                .map(domain -> new DomainAnalyzeContent(
-                        domain.getTitle(),
-                        toRate(completedByDomainId.getOrDefault(domain.getId(), 0L), subjectCountOf(domain))))
-                .toList();
-
-        long totalSubjectCount = domains.stream().mapToLong(this::subjectCountOf).sum();
-        int overallRate = toRate(logs.size(), totalSubjectCount);
+        // 분자·분모 모두 시트 집계에서 뽑아서 사용
+        int completedCount = sheets.stream().mapToInt(SheetAnalyzeContent::completedCount).sum();
+        long totalTargetCount = sheets.stream().mapToLong(SheetAnalyzeContent::targetCount).sum();
+        int overallRate = toRate(completedCount, totalTargetCount);
         long earnedPoints = logs.stream().mapToLong(SubjectLog::getEarnedPoint).sum();
 
         // gemini 호출
-        String prompt = buildPrompt(monday, sunday, logs.size(), earnedPoints, overallRate, categories);
+        String prompt = buildPrompt(monday, sunday, completedCount, earnedPoints, overallRate, sheets);
         JsonNode analysis = requestAnalysis(prompt);
 
         List<ReportMetricContent> metrics = List.of(
                 new ReportMetricContent("주간 달성률", overallRate + "%"),
-                new ReportMetricContent("완료 과제", String.valueOf(logs.size()))
+                // 과제 "개수" 가 아니라 체크한 횟수다. 매일 과제는 한 주에 최대 7 회 쌓인다
+                new ReportMetricContent("수행 횟수", completedCount + "회")
         );
 
         WeeklyReportResponse report = new WeeklyReportResponse(
@@ -84,7 +83,7 @@ public class ReportService {
                 metrics,
                 toStringList(analysis.path("strength")),
                 toStringList(analysis.path("weakness")),
-                categories
+                sheets
         );
 
         redisTemplate.opsForValue().set(cacheKey(userId, monday), report, ttlUntilNextWeek());
@@ -121,23 +120,95 @@ public class ReportService {
         return Duration.between(now, nextMonday);
     }
 
-    private List<Domain> findLatestSheetDomains(Long userId) {
-        List<Sheet> sheets = sheetRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        if (sheets.isEmpty()) {
-            return List.of();
+    /*
+        유저의 모든 시트를 최신 생성순으로 훑어 시트별 달성률을 만든다.
+     */
+    private List<SheetAnalyzeContent> analyzeSheets(Long userId, List<SubjectLog> logs) {
+        Map<Long, Long> completedByDomainId = logs.stream()
+                .collect(Collectors.groupingBy(
+                        log -> log.getSubject().getDomain().getId(),
+                        Collectors.counting()));
+
+        List<SheetAnalyzeContent> contents = new ArrayList<>();
+        for (Sheet sheet : sheetRepository.findByUserIdOrderByCreatedAtDesc(userId)) {
+            List<Domain> domains = domainRepository.findBySheetIdOrderByPositionAsc(sheet.getId());
+            Map<Long, Double> weeklyTargetByDomainId = weeklyTargetByDomainId(sheet);
+
+            long completed = 0L;
+            double target = 0.0;
+            List<DomainAnalyzeContent> domainContents = new ArrayList<>();
+            for (Domain domain : domains) {
+                long domainCompleted = completedByDomainId.getOrDefault(domain.getId(), 0L);
+                double domainTarget = weeklyTargetByDomainId.getOrDefault(domain.getId(), 0.0);
+
+                completed += domainCompleted;
+                target += domainTarget;
+                domainContents.add(new DomainAnalyzeContent(
+                        domain.getTitle(), toRate(domainCompleted, domainTarget)));
+            }
+
+            contents.add(new SheetAnalyzeContent(
+                    sheet.getId(),
+                    sheet.getTitle(),
+                    (int) completed,
+                    (int) Math.round(target),
+                    toRate(completed, target),
+                    domainContents));
         }
-        return domainRepository.findBySheetIdOrderByPositionAsc(sheets.get(0).getId());
+        return contents;
     }
 
-    private long subjectCountOf(Domain domain) {
-        return domain.getSubjectCount() == null ? 0L : domain.getSubjectCount();
+    /*
+        도메인별로 "지난주에 했어야 할 횟수" 를 모은다.
+        domain.subjectCount 는 과제 수가 아니라 **완료된 과제 수**(SubjectService 에서
+        tryCount 가 targetCount 에 닿을 때만 증가)라서 분모로 쓸 수 없다 — 새 시트는
+        전부 0 이라 달성률이 항상 0% 로 나온다
+     */
+    private Map<Long, Double> weeklyTargetByDomainId(Sheet sheet) {
+        int sheetWeeks = weeksOf(sheet);
+        return subjectRepository.findBySheetIdWithDomain(sheet.getId()).stream()
+                .collect(Collectors.groupingBy(
+                        subject -> subject.getDomain().getId(),
+                        Collectors.summingDouble(subject -> weeklyTargetOf(subject, sheetWeeks))));
     }
 
-    private int toRate(long completed, long total) {
-        if (total <= 0) {
+    /*
+        targetCount 는 시트 전체 기간의 목표라 한 주치로 환산해서 쓴다.
+        (180일 시트의 매일 과제는 targetCount=180 -> 주당 약 7회)
+     */
+    private double weeklyTargetOf(Subject subject, int sheetWeeks) {
+        Integer target = subject.getTargetCount();
+        if (sheetWeeks > 0 && target != null && target > 0) {
+            return (double) target / sheetWeeks;
+        }
+
+        // 기간이나 목표가 비어 있으면 주기로 대신 센다
+        return switch (subject.getPeriod()) {
+            case DAILY -> 7.0;
+            case WEEKLY -> 1.0;
+            // 일회성 과제는 매주 기대할 몫이 없다
+            default -> 0.0;
+        };
+    }
+
+    // 시트 기간이 몇 주인지. expiredAt 이 없으면 0 을 돌려 주기 기반으로 넘긴다
+    private int weeksOf(Sheet sheet) {
+        LocalDateTime start = sheet.getCreatedAt();
+        LocalDateTime end = sheet.getExpiredAt();
+        if (start == null || end == null || !end.isAfter(start)) {
             return 0;
         }
-        return (int) Math.min(100, Math.round(completed * 100.0 / total));
+        long days = ChronoUnit.DAYS.between(start.toLocalDate(), end.toLocalDate()) + 1;
+        return (int) Math.max(1, Math.ceil(days / 7.0));
+    }
+
+    // 매일 과제를 하루에 여러 번 누르거나, 주간 기대가 0 인 일회성 과제를 수행하면
+    // 분자가 분모를 넘을 수 있다. 100 에서 자른다
+    private int toRate(long completed, double target) {
+        if (target <= 0) {
+            return 0;
+        }
+        return (int) Math.min(100, Math.round(completed * 100.0 / target));
     }
 
     private JsonNode requestAnalysis(String prompt) {
@@ -159,21 +230,21 @@ public class ReportService {
     }
 
     private String buildPrompt(LocalDate monday, LocalDate sunday, int completedCount,
-                               long earnedPoints, int overallRate, List<DomainAnalyzeContent> domainRate) {
-        String domainLines = domainRate.isEmpty()
-                ? "- 등록된 도메인 없음"
-                : domainRate.stream()
-                        .map(d -> "- %s: 달성률 %d%%".formatted(d.label(), d.value()))
+                               long earnedPoints, int overallRate, List<SheetAnalyzeContent> sheets) {
+        String sheetLines = sheets.isEmpty()
+                ? "- 등록된 시트 없음"
+                : sheets.stream()
+                        .map(this::toPromptLine)
                         .collect(Collectors.joining("\n"));
 
         return """
                 너는 만다라트 목표 관리 서비스의 코치다. 아래 사용자의 지난주 수행 데이터를 보고 주간 리포트를 작성해라.
 
                 [기간] %s ~ %s
-                [완료 과제 수] %d건
+                [수행 횟수] %d회
                 [획득 포인트] %d점
-                [전체 달성률] %d%%
-                [도메인별 달성률]
+                [전체 달성률] %d%% (지난주에 했어야 할 횟수 대비 실제 수행 횟수)
+                [시트별 달성률] (시트 아래 들여쓴 항목은 그 시트의 도메인이다)
                 %s
 
                 다음 JSON 형식으로만 응답해라. 모든 문장은 한국어 존댓말로 쓴다.
@@ -183,6 +254,15 @@ public class ReportService {
                   "strength": ["잘한 점 2~3개, 각 40자 이내"],
                   "weakness": ["보완할 점 2~3개, 각 40자 이내"]
                 }
-                """.formatted(monday, sunday, completedCount, earnedPoints, overallRate, domainLines);
+                """.formatted(monday, sunday, completedCount, earnedPoints, overallRate, sheetLines);
+    }
+
+    private String toPromptLine(SheetAnalyzeContent sheet) {
+        StringBuilder line = new StringBuilder("- %s: 달성률 %d%% (수행 %d회 / 목표 %d회)".formatted(
+                sheet.title(), sheet.achievementRate(), sheet.completedCount(), sheet.targetCount()));
+        for (DomainAnalyzeContent domain : sheet.domains()) {
+            line.append("\n  - %s: 달성률 %d%%".formatted(domain.label(), domain.value()));
+        }
+        return line.toString();
     }
 }

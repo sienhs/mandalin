@@ -36,6 +36,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import com.ssafy.mandarin.domain.report.dto.WeeklyReportResponse;
 import com.ssafy.mandarin.domain.sheet.repository.DomainRepository;
 import com.ssafy.mandarin.domain.subject.repository.SubjectLogRepository;
+import com.ssafy.mandarin.domain.subject.repository.SubjectRepository;
 import com.ssafy.mandarin.domain.sheet.repository.SheetRepository;
 import com.ssafy.mandarin.global.config.RedisConfig;
 
@@ -88,6 +89,7 @@ class ReportCacheIntegrationTest {
 	@BeforeEach
 	void setUp() {
 		SubjectLogRepository subjectLogRepository = mock(SubjectLogRepository.class);
+		SubjectRepository subjectRepository = mock(SubjectRepository.class);
 		SheetRepository sheetRepository = mock(SheetRepository.class);
 		DomainRepository domainRepository = mock(DomainRepository.class);
 		GeminiService geminiService = mock(GeminiService.class);
@@ -98,6 +100,7 @@ class ReportCacheIntegrationTest {
 
 		reportService = new ReportService(
 				subjectLogRepository,
+				subjectRepository,
 				sheetRepository,
 				domainRepository,
 				redisTemplate,
@@ -130,8 +133,8 @@ class ReportCacheIntegrationTest {
 		assertThat(cached.strengths()).containsExactly("매일 기록을 남겼습니다", "포인트를 꾸준히 모았습니다");
 		assertThat(cached.improvements()).containsExactly("독서 도메인이 비어 있습니다");
 		assertThat(cached.metrics()).extracting("label", "value")
-				.containsExactly(tuple("주간 달성률", "0%"), tuple("완료 과제", "0"));
-		assertThat(cached.categories()).isEmpty();
+				.containsExactly(tuple("주간 달성률", "0%"), tuple("수행 횟수", "0회"));
+		assertThat(cached.sheets()).isEmpty();
 	}
 
 	@Test

@@ -28,27 +28,20 @@ public class GeminiService {
     private final RestTemplate restTemplate = createRestTemplate();
     private final ObjectMapper objectMapper;
 
-    @Value("${GEMINI_API_KEY}")
+    @Value("${GEMINI_API_KEY:cant_find_api_key}")
     private String apiKey;
 
-    // 게이트웨이 주소만 받는다. 경로와 키는 아래에서 붙인다
     @Value("${GEMINI_URL:https://generativelanguage.googleapis.com}")
     private String baseUrl;
 
     @Value("${GEMINI_MODEL:gemini-2.5-flash}")
     private String model;
 
-    // 게이트웨이는 공식 엔드포인트보다 느리다. 기본 RestTemplate 은 타임아웃이 없어
-    // 응답이 없으면 요청 스레드가 영원히 묶인다
     private static RestTemplate createRestTemplate() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(10));
         factory.setReadTimeout(Duration.ofSeconds(45));
         return new RestTemplate(factory);
-    }
-
-    public String callGemini(String prompt) {
-        return call(prompt, false);
     }
 
     public String generateJson(String prompt) {
@@ -70,6 +63,7 @@ public class GeminiService {
             HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(body), headers);
             return restTemplate.postForObject(generateContentUrl(), entity, String.class);
         } catch (Exception e) {
+            // 직렬화 실패는 거의 실패X => AI 요청 실패만 감지
             throw new BusinessException(ErrorCode.AI_REQUEST_FAILED);
         }
     }
