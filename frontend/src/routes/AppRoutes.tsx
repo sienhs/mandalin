@@ -1,7 +1,6 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import LoadingFallback from '../components/common/LoadingFallback'
-import AiCoachPage from '../pages/AiCoachPage'
 import FriendSheetList from '../pages/FriendSheetList'
 import GroupDetail from '../pages/GroupDetail'
 import GroupSetup from '../pages/GroupSetup'
@@ -31,6 +30,8 @@ const GalleryPage = lazy(() => import('../pages/GalleryPage'))
 const PremiumGalleryPage = lazy(() => import('../pages/PremiumGalleryPage'))
 const ThumbnailStudioPage = lazy(() => import('../pages/ThumbnailStudioPage'))
 const InspectPage = lazy(() => import('../pages/InspectPage'))
+// AI 코치도 같은 이유다 — livekit-client 가 메인 번들을 gzip 240KB 로 불린다(끊으면 104KB).
+const AiCoachPage = lazy(() => import('../pages/AiCoachPage'))
 
 function Lazy({ children }: { children: ReactNode }) {
   return <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
@@ -41,7 +42,6 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/ai-coach" element={<AiCoachPage />} />
       <Route path="/sheet/create" element={<SheetCreate />} />
       {/* 고정 경로(/sheet/create)가 :sheetId 보다 먼저 잡히므로 순서와 무관하게 안전하다. */}
       <Route path="/sheet/:sheetId" element={<SheetDetail />} />
@@ -63,6 +63,15 @@ export default function AppRoutes() {
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/test" element={<TestHubPage />} />
       <Route element={<ProtectedRoute />}>
+        {/* 입장 토큰 발급에 로그인이 필요하다. 밖에 두면 연결 버튼이 401 로만 끝난다. */}
+        <Route
+          path="/ai-coach"
+          element={
+            <Lazy>
+              <AiCoachPage />
+            </Lazy>
+          }
+        />
         <Route path="/home" element={<HomePage />} />
         <Route path="/friends" element={<FriendsPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Room, RoomEvent } from 'livekit-client'
+import { apiFetch, ApiError } from '../../api'
 import type { Period } from '../sheet/sheet.types'
 
 /*
@@ -43,6 +44,14 @@ export type GoalPayload = {
 
 export type ConnectionState = 'off' | 'busy' | 'on'
 
+/** `POST /api/v1/voice-sessions` 응답. 방과 표시 이름은 서버가 정한다. */
+type VoiceSession = {
+  roomId: string
+  url: string
+  token: string
+  expiresInSeconds: number
+}
+
 type UseCoachRoomOptions = {
   /** 접속 직후 에이전트에 넘길 시트. 중복 검사에 쓰인다. */
   getSheet: () => unknown
@@ -54,7 +63,7 @@ type UseCoachRoomOptions = {
  * LiveKit 방 하나를 들고 있는 훅.
  *
  * **토큰을 직접 만들지 않는다.** `API_SECRET` 이 브라우저에 있으면 누구나 토큰을
- * 위조할 수 있으므로 `/api/token`(= dev_server.py, 나중에 Spring)에서 받아온다.
+ * 위조할 수 있으므로 백엔드에서 받아온다.
  */
 export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
   const [connection, setConnection] = useState<ConnectionState>('off')
@@ -107,16 +116,19 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     setConnection('busy')
     setStatus('연결 중…')
 
-    let info: { url: string; token: string; room: string; identity: string; sheet?: unknown }
+    // 토큰 수명이 2분이라 화면 진입 시가 아니라 여기서 받는다.
+    let info: VoiceSession
     try {
-      const res = await fetch('/api/token?room=dev-room')
-      if (!res.ok) throw new Error(`토큰 발급 실패 (${res.status})`)
-      info = await res.json()
+      info = await apiFetch<VoiceSession>('/api/v1/voice-sessions', { method: 'POST' })
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause)
       setConnection('off')
       setStatus('토큰 실패')
-      push('warn', `${message} — dev_server.py 가 떠 있나요? (8000 포트)`)
+      push(
+        'warn',
+        cause instanceof ApiError && cause.status === 401
+          ? '로그인이 필요합니다.'
+          : `입장 토큰을 받지 못했습니다: ${cause instanceof Error ? cause.message : cause}`,
+      )
       return
     }
 
@@ -250,7 +262,7 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
 
     setConnection('busy')
     setStatus('방 접속됨 · 에이전트 대기')
-    push('sys', `방 "${info.room}" 에 ${info.identity} 로 접속했습니다`)
+    push('sys', `방 "${info.roomId}" 에 접속했습니다`)
 
     // 에이전트가 이미 들어와 있을 수도 있다(재접속 등). 그때는 입장 이벤트가 안 오므로
     // 시트도 여기서 보낸다.
