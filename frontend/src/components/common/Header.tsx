@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEventHandler } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../../data/store'
 import { cn } from '../../utils/cn'
+import Logo from './Logo'
 import '../../styles/header.css'
 
 type HeaderProps = {
@@ -105,9 +106,7 @@ export default function Header({
             aria-label="만다린 홈"
             className="app-header-brand"
           >
-            <span className="brand-mark size-9 rounded-[11px] text-base shadow-sm">
-              만
-            </span>
+            <Logo className="size-9 shrink-0 text-brand-500" />
             <span className="brand-wordmark hidden text-xl sm:inline">만다린</span>
           </NavLink>
 

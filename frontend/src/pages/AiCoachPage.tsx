@@ -193,8 +193,19 @@ export default function Coach() {
     })
   }
 
+  /** 세부 목표 하나에 담을 수 있는 과제 수. 서버 규칙(8 x 8)과 같다. */
+  const SLOTS = 8
+
   return (
-    <div className="flex flex-col gap-5">
+    /*
+      화면 높이를 꽉 채운다. 예전에는 대화 카드만 680px 로 고정해 둬서, 세로가 긴 모니터에서는
+      아래로 200px 넘게 빈 채 남고 오른쪽 패널은 짧아 담은 과제가 몇 개만 보였다.
+      152px = 상단 바(64) + 본문 위쪽 여백(24) + 아래쪽 여백(64).
+
+      좁은 화면에서는 높이를 묶지 않는다 — 주소창이 들락거리는 모바일에서 100dvh 를 기준으로
+      잡으면 스크롤이 튀고, 어차피 두 칸이 위아래로 쌓인다.
+    */
+    <div className="flex flex-col gap-5 lg:h-[calc(100dvh-152px)] lg:min-h-[560px]">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="page-title">AI 코치</h1>
@@ -202,16 +213,10 @@ export default function Coach() {
         </div>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+      <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,clamp(360px,26vw,460px))]">
         {/* ───────── 대화 ───────── */}
         <section
-          className="card flex flex-col overflow-hidden"
-          /*
-            높이를 고정한다. min-height 로 두면 대화가 쌓일수록 카드가 아래로 끝없이 자라
-            입력창이 화면 밖으로 밀려나고, 옆 패널과 높이도 어긋났다.
-            고정하면 넘치는 만큼만 안쪽에서 스크롤된다 — 지난 대화는 위로 올려 볼 수 있다.
-          */
-          style={{ height: 'min(72vh, 680px)', minHeight: 480 }}
+          className="card flex min-h-0 flex-col overflow-hidden max-lg:h-[min(72vh,680px)]"
         >
           <div
             className="flex items-center gap-3 border-b px-5 py-4"
@@ -251,7 +256,9 @@ export default function Coach() {
           </div>
 
           <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-6">
-            <div className="mx-auto flex max-w-[680px] flex-col gap-5">
+            {/* 말풍선은 너무 넓으면 눈이 줄을 놓친다. 다만 예전 680px 은 카드 안에 빈 띠를
+                크게 남겼다 — 제안 카드가 두 장 나란히 들어갈 만큼만 넓힌다. */}
+            <div className="mx-auto flex max-w-[860px] flex-col gap-5">
               {messages.map((m) =>
                 m.role === 'user' ? (
                   <div key={m.id} className="flex justify-end">
@@ -394,79 +401,27 @@ export default function Coach() {
         </section>
 
         {/* ───────── 담은 과제 → 만다라트 ───────── */}
-        <aside className="flex flex-col gap-5">
-          <section className="card p-6">
+        {/*
+          예전에는 "담은 과제"와 "만다라트로 옮기기"가 카드 두 장으로 갈라져 있었다. 둘은
+          한 가지 일(초안 만들기)의 앞뒤인데 상자가 나뉘어, 목표를 적는 칸과 그 목표에 담긴
+          과제가 서로 다른 상자에 있었다. 하나로 합치고 위에서 아래로 <b>목표 → 진행 → 과제
+          → 가져가기</b> 순서로 세운다.
+
+          가운데 목록만 스크롤되고 머리와 발은 붙어 있다 — 과제를 20개 담아도 "가져가기"
+          버튼을 찾아 스크롤할 일이 없다.
+        */}
+        <aside className="card flex min-h-0 flex-col overflow-hidden p-0">
+          {/* ── 머리: 핵심 목표 + 진행 ── */}
+          <div
+            className="shrink-0 border-b px-5 py-4"
+            style={{ borderColor: 'var(--border-hairline)' }}
+          >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="section-title m-0">담은 과제</h2>
-              <Badge tone={totalItems > 0 ? 'brand' : 'neutral'}>{totalItems}개</Badge>
+              <h2 className="section-title m-0">새 만다라트 초안</h2>
+              <Badge tone={totalItems > 0 ? 'brand' : 'neutral'}>과제 {totalItems}/64</Badge>
             </div>
 
-            {basket.length === 0 ? (
-              <p className="muted m-0 mt-4 text-[12.5px] font-medium leading-relaxed">
-                코치가 제안한 과제 중 마음에 드는 것을 담아보세요. 담은 과제로 새 만다라트를 한 번에
-                만들 수 있어요.
-              </p>
-            ) : (
-              <div className="mt-4 flex flex-col gap-4">
-                {basket.map((b, i) => (
-                  <div key={b.domain}>
-                    <div className="mb-2 flex items-center gap-2">
-                      <span
-                        className="size-2.5 rounded-full"
-                        style={{ background: domainColor(i) }}
-                        aria-hidden="true"
-                      />
-                      <strong className="text-[12.5px] font-extrabold">{b.domain}</strong>
-                      <span className="muted ml-auto text-[11px] font-bold">
-                        {b.items.length}/8
-                      </span>
-                    </div>
-                    <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-                      {b.items.map((item) => (
-                        <li
-                          key={item.title}
-                          className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-[12.5px] font-bold"
-                          style={{ background: 'var(--surface-sunken)' }}
-                        >
-                          <IconCheck className="size-4 shrink-0 text-emerald-500" />
-                          <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                          <button
-                            type="button"
-                            aria-label={`${item.title} 빼기`}
-                            onClick={() =>
-                              setBasket((prev) =>
-                                prev
-                                  .map((x) =>
-                                    x.domain === b.domain
-                                      ? {
-                                          ...x,
-                                          items: x.items.filter((y) => y.title !== item.title),
-                                        }
-                                      : x,
-                                  )
-                                  .filter((x) => x.items.length > 0),
-                              )
-                            }
-                            className="shrink-0 text-[var(--text-muted)] transition-colors hover:text-red-500"
-                          >
-                            <IconTrash className="size-4" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="card p-6">
-            <h2 className="section-title m-0">만다라트로 옮기기</h2>
-            <p className="muted m-0 mt-1 text-[12.5px] font-semibold">
-              담은 과제가 세부 목표별로 배치된 상태로 편집기가 열립니다.
-            </p>
-
-            <div className="mt-4 flex flex-col gap-3">
+            <div className="mt-3">
               <Field label="핵심 목표">
                 <Input
                   value={goal}
@@ -475,28 +430,161 @@ export default function Coach() {
                   maxLength={30}
                 />
               </Field>
+            </div>
 
-              {/* 남은 칸을 미리 알려준다 — 편집기에서 처음 알게 하면 늦다 */}
-              <div
-                className="rounded-xl px-3.5 py-3"
+            {/* 세부 목표가 몇 칸 찼는지 — 숫자보다 막대가 먼저 읽힌다. */}
+            <div className="mt-3.5 flex items-center gap-2.5">
+              <span
+                className="h-1.5 flex-1 overflow-hidden rounded-full"
                 style={{ background: 'var(--surface-sunken)' }}
+                aria-hidden="true"
               >
-                <p className="m-0 text-[12px] font-bold">
-                  현재 {basket.length}/8 세부 목표 · 과제 {totalItems}/64
-                </p>
-                <p className="muted m-0 mt-1.5 text-[11.5px] font-medium leading-relaxed">
-                  만다라트는 81칸을 모두 채워야 저장됩니다. 부족한 칸은 편집기에서 이어 채우면 돼요.
+                <span
+                  className="block h-full rounded-full transition-[width] duration-500"
+                  style={{
+                    width: `${(basket.length / SLOTS) * 100}%`,
+                    background: 'var(--color-brand-500)',
+                  }}
+                />
+              </span>
+              <span className="muted shrink-0 text-[11.5px] font-bold tabular-nums">
+                세부 목표 {basket.length}/{SLOTS}
+              </span>
+            </div>
+          </div>
+
+          {/* ── 몸통: 담은 과제 (여기만 스크롤) ── */}
+          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {basket.length === 0 ? (
+              <div className="flex h-full min-h-[180px] flex-col items-center justify-center text-center">
+                <span
+                  className="grid size-12 place-items-center rounded-2xl text-[var(--text-muted)]"
+                  style={{ background: 'var(--surface-sunken)' }}
+                  aria-hidden="true"
+                >
+                  <IconCoach className="size-6" />
+                </span>
+                <p className="m-0 mt-3.5 text-[13px] font-bold">아직 담은 과제가 없어요</p>
+                <p className="muted m-0 mt-1.5 max-w-[240px] text-[12px] font-medium leading-relaxed">
+                  왼쪽에서 코치에게 목표를 말하고, 마음에 드는 과제를 <b>담기</b>로 모아 보세요.
                 </p>
               </div>
+            ) : (
+              <div className="flex flex-col gap-5">
+                {basket.map((b, i) => {
+                  const color = domainColor(i)
+                  return (
+                    <div key={b.domain}>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{ background: color }}
+                          aria-hidden="true"
+                        />
+                        <strong className="min-w-0 flex-1 truncate text-[12.5px] font-extrabold">
+                          {b.domain}
+                        </strong>
+                        <span className="muted shrink-0 text-[11px] font-bold tabular-nums">
+                          {b.items.length}/{SLOTS}
+                        </span>
+                      </div>
 
-              <Button full disabled={basket.length === 0 || !goal.trim()} onClick={handoff}>
-                편집기로 가져가기
-              </Button>
-              <Button variant="quiet" full size="sm" to="/app/sheets/new">
-                처음부터 직접 채우기
-              </Button>
-            </div>
-          </section>
+                      {/*
+                        8칸이 얼마나 찼는지 눈금으로. 숫자만 있으면 "3/8"을 읽고 머릿속에서
+                        환산해야 하는데, 눈금은 훑기만 해도 어느 목표가 비었는지 보인다.
+                      */}
+                      <div
+                        className="mt-2 flex gap-1"
+                        aria-hidden="true"
+                        title={`${b.items.length}/${SLOTS} 칸`}
+                      >
+                        {Array.from({ length: SLOTS }, (_, slot) => (
+                          <span
+                            key={slot}
+                            className="h-1 flex-1 rounded-full transition-colors duration-300"
+                            style={{
+                              background: slot < b.items.length ? color : 'var(--surface-sunken)',
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      <ul className="m-0 mt-2.5 flex list-none flex-col gap-1.5 p-0">
+                        {b.items.map((item) => (
+                          <li
+                            key={item.title}
+                            className="group flex items-center gap-2 rounded-xl border px-3 py-2.5"
+                            style={{
+                              borderColor: 'var(--border-hairline)',
+                              background: 'var(--surface-card)',
+                            }}
+                          >
+                            <IconCheck className="size-4 shrink-0 text-emerald-500" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[12.5px] font-bold">
+                                {item.title}
+                              </span>
+                              <span className="muted block text-[10.5px] font-semibold">
+                                {PERIOD_LABEL[item.period]}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`${item.title} 빼기`}
+                              onClick={() =>
+                                setBasket((prev) =>
+                                  prev
+                                    .map((x) =>
+                                      x.domain === b.domain
+                                        ? {
+                                            ...x,
+                                            items: x.items.filter((y) => y.title !== item.title),
+                                          }
+                                        : x,
+                                    )
+                                    .filter((x) => x.items.length > 0),
+                                )
+                              }
+                              /*
+                                평소엔 흐리게 두고 마우스를 얹거나 키보드 초점이 오면 또렷해진다.
+                                삭제 버튼이 목록마다 진하게 박혀 있으면 눈이 그리로 끌린다.
+                                항상 자리는 차지하므로(투명도만 변한다) 줄이 흔들리지 않는다.
+                              */
+                              className="shrink-0 text-[var(--text-muted)] opacity-45 transition-[opacity,color] hover:text-red-500 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                            >
+                              <IconTrash className="size-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── 발: 가져가기 ── */}
+          <div
+            className="shrink-0 border-t px-5 py-4"
+            style={{ borderColor: 'var(--border-hairline)' }}
+          >
+            {/*
+              만다라트는 81칸을 모두 채워야 저장된다(서버가 8 x 8 을 강제한다). 편집기에 가서야
+              알게 되면 늦으므로 여기서 미리 말해 둔다.
+            */}
+            <p className="muted m-0 mb-3 text-[11.5px] font-medium leading-relaxed">
+              {basket.length === 0
+                ? '과제를 담으면 세부 목표별로 배치된 채 편집기가 열려요.'
+                : `남은 ${64 - totalItems}칸은 편집기에서 이어 채우면 돼요. 81칸을 다 채워야 저장됩니다.`}
+            </p>
+            <Button full disabled={basket.length === 0 || !goal.trim()} onClick={handoff}>
+              편집기로 가져가기
+            </Button>
+            <Button variant="quiet" full size="sm" className="mt-2" to="/app/sheets/new">
+              처음부터 직접 채우기
+            </Button>
+          </div>
         </aside>
       </div>
     </div>
