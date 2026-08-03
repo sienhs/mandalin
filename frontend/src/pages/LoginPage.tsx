@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { showcaseSheet } from '../data/showcaseSheet'
 import Button from '../components/common/ActionButton'
+import Logo from '../components/common/Logo'
 import IsoVillage from '../features/village/IsoVillage'
 
 export default function Login() {
@@ -17,11 +18,18 @@ export default function Login() {
     */
     <div className="grid min-h-dvh lg:grid-cols-[7fr_3fr]">
       {/* 왼쪽 — 서비스가 무엇인지 */}
+      {/*
+        브랜드 원색(brand-600 → 800)을 그대로 깔면 화면 절반이 고채도 빨강이라 눈이 아프다.
+        같은 색상각(hue)은 유지한 채 채도만 내리고 조금 어둡게 눌렀다 — 큰 면적은 밝히는
+        것보다 낮추는 쪽이 편하다. 다만 너무 빼면 갈색이 되어 브랜드색으로 읽히지 않으므로,
+        원색(S90/79)과 완전히 죽인 값(S48/45) 사이인 S62/58 로 잡았다.
+
+        ⚠️ 여기서만 바꾼다. `--color-brand-*` 토큰을 건드리면 버튼·강조 텍스트까지 같이
+        흐려져 앱 전체의 대비가 무너진다.
+      */}
       <section
         className="relative hidden flex-col justify-between overflow-hidden p-12 lg:flex"
-        style={{
-          background: 'linear-gradient(150deg, var(--color-brand-600), var(--color-brand-800))',
-        }}
+        style={{ background: 'linear-gradient(150deg, #ba482c, #71291e)' }}
       >
         <div
           aria-hidden="true"
@@ -29,31 +37,49 @@ export default function Login() {
         />
 
         <div className="relative pt-6">
-          <h1 className="m-0 text-[44px] font-black leading-[1.14] tracking-[-0.05em] text-white">
+          {/* currentColor 를 타는 인라인 심볼이라 붉은 패널 위에서는 흰색으로 나온다. */}
+          <span className="flex items-center gap-2.5 text-white">
+            <Logo flat className="size-9 shrink-0" />
+            <strong className="text-[19px] font-black tracking-[-0.04em]">만다린</strong>
+          </span>
+
+          <h1 className="m-0 mt-9 text-[44px] font-black leading-[1.14] tracking-[-0.05em] text-white">
             목표를 세우면,
             <br />
             도시가 자랍니다.
           </h1>
-          <p className="mt-5 max-w-[440px] text-[15px] font-semibold leading-[1.7] text-white/75">
+          {/* 배경을 어둡게 눌렀으니 흐린 흰색은 한 단계 올려 준다 — 대비가 같이 떨어진다. */}
+          <p className="mt-5 max-w-[440px] text-[15px] font-semibold leading-[1.7] text-white/85">
             81칸 만다라트에 매일의 과제를 채우면 3D 도시의 건물이 한 층씩 완성돼요.
           </p>
         </div>
 
         {/*
-          남은 아래 공간을 마을로 채운다. 그라데이션 위에 그대로 얹으면 파스텔 마을이
-          붉은 배경과 부딪히므로, 마을 자신의 하늘색 배경을 그대로 살리되 아래쪽으로
-          갈수록 그라데이션에 잠기도록 마스크를 씌운다 — 배경 위에 떠 있는 판이 아니라
-          거기서 솟아난 것처럼 보인다.
+          남은 아래 공간을 마을로 채운다. 마을이 자기 하늘을 칠하면 붉은 그라데이션 위에
+          밝은 사각형 판이 떠 버리므로(경계가 그대로 보인다) `transparent` 로 하늘을 끄고
+          배경이 그대로 비치게 한다. 아래쪽은 마스크로 그라데이션에 잠기게 해서, 얹어 둔
+          그림이 아니라 배경에서 솟아난 것처럼 보이게 한다.
         */}
         <div
           aria-hidden="true"
           className="pointer-events-none relative -mx-12 -mb-12 mt-8"
           style={{
-            maskImage: 'linear-gradient(to bottom, #000 58%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, #000 58%, transparent 100%)',
+            maskImage: 'linear-gradient(to bottom, #000 66%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, #000 66%, transparent 100%)',
+            /*
+              건물 8색도 이 화면에서만 눌러 준다. 도메인 색은 만다라트 칸·리포트 막대가
+              함께 쓰는 공용 팔레트라 값을 고치면 앱 전체가 흐려지므로, 팔레트는 그대로 두고
+              여기서 필터로만 낮춘다.
+            */
+            filter: 'saturate(0.8) brightness(0.98)',
           }}
         >
-          <IsoVillage sheet={showcase} compact className="h-[clamp(260px,42vh,460px)] w-full" />
+          <IsoVillage
+            sheet={showcase}
+            compact
+            transparent
+            className="h-[clamp(260px,42vh,460px)] w-full"
+          />
         </div>
       </section>
 

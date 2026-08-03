@@ -4,6 +4,50 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /**
+ * 본문 서체 — Spoqa Han Sans Neo (SIL OFL 1.1, 상업적 이용 무료).
+ *
+ * <p><b>자체 호스팅한다.</b> CDN 을 링크로 걸면 렌더가 남의 서버 응답에 묶이고, 그쪽이
+ * 느리거나 막히면 글자가 늦게 뜬다. 파일은 `public/fonts` 에 두고 같은 출처에서 받는다.
+ *
+ * <p>굵기는 Light·Regular·Medium·Bold 네 벌만 받았다. 이 서체에는 800·900 이 아예 없어서,
+ * 화면 곳곳의 `font-black`(900)·`font-extrabold`(800) 이 갈 곳을 잃는다. 그래서 Bold 에
+ * <b>700–900 구간</b>을 물려 두고 Medium 에 500–600 을 물렸다 — 이렇게 두지 않으면
+ * 브라우저마다 가짜 굵게(synthetic bold)를 넣거나 말거나 해서 같은 화면이 달라 보인다.
+ *   500·600 → Medium   /   700·800·900 → Bold
+ *
+ * <p>font-display: swap — 폰트가 늦어도 글자는 먼저 보여 준다. 빈 화면을 보여 주는 것보다
+ * 시스템 글꼴로라도 읽히게 하는 편이 낫다.
+ */
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Medium.woff2') format('woff2');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Bold.woff2') format('woff2');
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/**
  * 디자인 토큰.
  *
  * 색을 바꿀 땐 여기만 수정한다. **토큰 이름은 그대로 두고 값만 바꿨다** —
@@ -15,9 +59,14 @@
  * 놓았을 때 탁해지지 않게 했다.
  */
 @theme {
+  /*
+    Pretendard 가 적혀 있었지만 @font-face 도 CDN 링크도 없어 실제로는 한 번도 불린 적이
+    없었다 — 기기마다 맑은 고딕/애플 SD 고딕으로 갈라져 보이던 이유다. 이제 위에서
+    자체 호스팅하는 Spoqa Han Sans Neo 를 첫 자리에 둔다.
+  */
   --font-sans:
-    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+    'Spoqa Han Sans Neo', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic',
+    'Apple SD Gothic Neo', system-ui, sans-serif;
 
   /* ── 브랜드: 만다린 오렌지 ── */
   --color-brand-50: #fff4ed;
@@ -180,9 +229,8 @@
   }
 
   /* "만" 로고 사각 배지 */
-  .brand-mark {
-    @apply grid place-items-center bg-gradient-to-br from-brand-500 to-brand-700 font-black text-white;
-  }
+  /* .brand-mark(글자 "만"을 넣던 그라데이션 배지)는 심볼 로고로 교체돼 사라졌다 —
+     components/common/Logo.tsx 를 쓴다. */
 
   .brand-wordmark {
     @apply font-black tracking-[-0.04em];

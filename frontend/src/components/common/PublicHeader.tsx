@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { cn } from '../../utils/cn'
+import Logo from './Logo'
 
 type PublicHeaderProps = {
   showLoginButton?: boolean
@@ -15,9 +16,7 @@ export default function PublicHeader({ showLoginButton = true }: PublicHeaderPro
           aria-label="만다린 홈"
           className="flex items-center gap-2.5 text-slate-950 no-underline"
         >
-          <span className="brand-mark size-9 rounded-[10px] text-base shadow-sm">
-            만
-          </span>
+          <Logo className="size-9 shrink-0 text-brand-500" />
           <span className="brand-wordmark text-xl">만다린</span>
         </Link>
 

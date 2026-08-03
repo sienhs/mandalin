@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import type { Sheet, Subject, Terrain } from '../../data/types'
 import { stageOf } from '../../data/store'
 import { domainColor } from '../../components/common/Primitives'
@@ -185,6 +185,14 @@ type Props = {
   onSelectSubject?: (subject: Subject, domainPosition: number) => void
   selectedSubjectId?: number | null
   compact?: boolean
+  /**
+   * 하늘 배경을 그리지 않고 마을만 얹는다.
+   *
+   * <p>기본값은 자기 하늘을 칠하는 것이다 — 카드(흰 배경) 안에서는 그래야 마을이
+   * 하나의 그림으로 읽힌다. 반대로 <b>색이 있는 배경</b> 위에 올릴 때는 그 하늘색
+   * 사각형이 밝은 판처럼 떠서 배경과 부딪힌다. 그럴 때 이걸 켠다.
+   */
+  transparent?: boolean
   className?: string
 }
 
@@ -193,10 +201,20 @@ export default function IsoVillage({
   onSelectSubject,
   selectedSubjectId,
   compact = false,
+  transparent = false,
   className,
 }: Props) {
   const [hover, setHover] = useState<string | null>(null)
   const terrain = TERRAIN_STYLE[sheet.terrain ?? 'GRASS_PATH'] ?? TERRAIN_STYLE.GRASS_PATH
+
+  /*
+    그라데이션 id 는 인스턴스마다 달라야 한다. SVG 의 url(#...) 은 문서 전체에서 찾으므로
+    고정 id 를 쓰면 한 화면에 마을이 여러 개일 때(소개 페이지) 전부 첫 번째 것의 하늘을
+    쓰게 되고, 지형을 다르게 줘도 색이 따라오지 않는다.
+  */
+  const uid = useId().replace(/:/g, '')
+  const skyId = `sky-${uid}`
+  const glowId = `glow-${uid}`
 
   const progress = sheet.achievementRate
 
@@ -270,19 +288,33 @@ export default function IsoVillage({
         aria-label={`${sheet.title} 마을. 전체 달성률 ${progress}퍼센트`}
       >
         <defs>
-          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={terrain.sky[0]} />
-            <stop offset="100%" stopColor={terrain.sky[1]} />
-          </linearGradient>
-          <radialGradient id="glow" cx="50%" cy="46%" r="52%">
-            <stop offset="0%" stopColor="rgba(255,255,255,.85)" />
+          {!transparent && (
+            <linearGradient id={skyId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={terrain.sky[0]} />
+              <stop offset="100%" stopColor={terrain.sky[1]} />
+            </linearGradient>
+          )}
+          <radialGradient id={glowId} cx="50%" cy="46%" r="52%">
+            {/*
+              배경을 깔지 않을 때는 빛무리를 옅게 준다. 진하게 두면 색 있는 배경 위에
+              뿌연 흰 얼룩이 남아, 없애려던 "떠 있는 판"이 경계만 흐려진 채 그대로다.
+            */}
+            <stop offset="0%" stopColor={`rgba(255,255,255,${transparent ? '.22' : '.85'})`} />
             <stop offset="100%" stopColor="rgba(255,255,255,0)" />
           </radialGradient>
         </defs>
 
-        <rect x="-320" y="-150" width="640" height="480" fill="url(#sky)" />
-        <ellipse cx="0" cy="128" rx="300" ry="180" fill="url(#glow)" />
-        <ellipse cx="0" cy="140" rx="278" ry="146" fill="rgba(35,50,60,.10)" />
+        {!transparent && (
+          <rect x="-320" y="-150" width="640" height="480" fill={`url(#${skyId})`} />
+        )}
+        <ellipse cx="0" cy="128" rx="300" ry="180" fill={`url(#${glowId})`} />
+        <ellipse
+          cx="0"
+          cy="140"
+          rx="278"
+          ry="146"
+          fill={transparent ? 'rgba(20,10,5,.13)' : 'rgba(35,50,60,.10)'}
+        />
 
         {cells.map((cell) => {
           const { x, y } = iso(cell.gx, cell.gy)
