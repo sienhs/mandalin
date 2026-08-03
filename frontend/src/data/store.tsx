@@ -107,7 +107,7 @@ type Ctx = {
   sendFriendRequest: (uuid: string) => Promise<boolean>
   acceptRequest: (requestId: number) => Promise<boolean>
   rejectRequest: (requestId: number) => Promise<boolean>
-  removeFriend: (friendUserId: number) => Promise<boolean>
+  removeFriend: (friendRelationId: number) => Promise<boolean>
 
   resetMockData: () => void
 }
@@ -531,9 +531,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      removeFriend: async (friendUserId) => {
+      removeFriend: async (friendRelationId) => {
         try {
-          await gatewayRef.current.removeFriend(friendUserId)
+          await gatewayRef.current.removeFriend(friendRelationId)
           await reloadFriends()
           return true
         } catch (cause) {

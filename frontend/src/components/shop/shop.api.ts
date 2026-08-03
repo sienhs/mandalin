@@ -1,4 +1,4 @@
-import { apiFetch } from '../../api'
+import { apiFetch } from '../../api/client'
 import { themeStyleOf } from './shop.data'
 import type { ShopItem, ShopThemeGroup } from './shop.types'
 

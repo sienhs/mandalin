@@ -1,10 +1,18 @@
 import type { ApiEnvelope } from './types'
 
 /**
- * 모든 요청은 같은 출처로 나간다(`/api/...`). 실제 백엔드로는 Vite 프록시가 넘긴다.
- * 배포 백엔드의 CORS 허용 목록에 localhost 가 없어서 직접 호출은 막히기 때문이다.
+ * 백엔드 주소.
+ *
+ * <p>비워 두면 같은 출처로 나가고(`/api/...`) Vite 프록시가 실제 백엔드로 넘긴다 —
+ * 개발 중에는 이쪽이다. 배포 백엔드의 CORS 허용 목록에 localhost 가 없어서
+ * 로컬에서 직접 호출은 막히기 때문이다.
+ *
+ * <p><b>배포에서는 반드시 값이 있어야 한다.</b> 프론트는 Vercel, 백엔드는 EC2 로 출처가
+ * 다르고 Vercel 에는 백엔드로 넘기는 rewrite 가 없다(vercel.json 은 SPA 폴백뿐). 빈 값이면
+ * `/api/...` 도 `/oauth2/authorization/kakao` 도 index.html 이 돌아와, 카카오 로그인 버튼이
+ * 404 화면으로 떨어진다.
  */
-const BASE = ''
+export const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export class ApiError extends Error {
   readonly status: number
@@ -82,7 +90,7 @@ async function unwrap<T>(response: Response): Promise<T> {
     throw new ApiError(
       response.status,
       response.ok
-        ? '서버 응답을 이해하지 못했습니다. 백엔드 주소(VITE_API_TARGET)를 확인해 주세요.'
+        ? '서버 응답을 이해하지 못했습니다. 백엔드 주소(VITE_API_BASE_URL·VITE_API_TARGET)를 확인해 주세요.'
         : `요청이 실패했습니다 (${response.status})`,
     )
   }

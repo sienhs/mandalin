@@ -134,10 +134,11 @@ export default function Friends() {
                       <Button size="sm" variant="secondary" to="/app/sheets">
                         공개 만다라트 보기
                       </Button>
+                      {/* 삭제 API 는 유저 ID 가 아니라 친구 관계 ID 를 받는다. */}
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setRemoveTarget(friend.userId)}
+                        onClick={() => setRemoveTarget(friend.relationId)}
                       >
                         삭제
                       </Button>
