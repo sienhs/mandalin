@@ -39,7 +39,14 @@ CREATE TABLE subject (
     title VARCHAR(255) NOT NULL,
     period_type VARCHAR(20) NOT NULL,
     point BIGINT NOT NULL DEFAULT 0,
+    -- 전체 기간 누적 목표 횟수. 진행률과 완료 판정의 분모다.
     target_count INTEGER,
+    -- 한 주기 안에서 몇 번 수행하는가(예: "주 3회" 의 3). target_count 와 단위가 다르다 —
+    -- 이쪽은 한 주기, 저쪽은 전체 기간이다.
+    --   6개월 시트에 "주 3회" → count_per_period = 3, target_count = 3 x 26주 = 78
+    -- 이 값이 없으면 "이번 주에 이미 3번 했는가"를 판단할 수 없어 주 1회까지만 체크된다.
+    -- 주기별 상한(daily 1 / weekly 7 / monthly 30 / none 1)은 화면이 건다.
+    count_per_period INTEGER NOT NULL DEFAULT 1,
     try_count INTEGER DEFAULT 0,
     position INTEGER NOT NULL,
     is_done BOOLEAN NOT NULL DEFAULT FALSE,
@@ -49,7 +56,8 @@ CREATE TABLE subject (
         REFERENCES domain (id) ON DELETE CASCADE,
     CONSTRAINT fk_subject_user FOREIGN KEY (user_id)
         REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT ck_subject_period_type CHECK (period_type IN ('DAILY', 'WEEKLY', 'NONE'))
+    CONSTRAINT ck_subject_period_type CHECK (period_type IN ('DAILY', 'WEEKLY', 'MONTHLY', 'NONE')),
+    CONSTRAINT ck_subject_count_per_period CHECK (count_per_period >= 1)
 );
 
 CREATE INDEX idx_subject_domain ON subject (domain_id);

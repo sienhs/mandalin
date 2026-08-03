@@ -1,4 +1,5 @@
 import type { DomainDetail, SheetDetail } from '../components/sheet/sheet.api'
+import type { Sheet as ModelSheet } from '../data/types'
 import type { Domain, Mandalart, Task } from './types'
 
 /**
@@ -74,5 +75,53 @@ export function toMandalart(detail: SheetDetail): Mandalart {
     domains: blocks.map((block, index) =>
       block ?? { id: `empty-${index}`, title: '', tasks: [] },
     ),
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   화면 모델(data/types.ts) → 3D 모델
+   ───────────────────────────────────────────────────────────── */
+
+/**
+ * 스토어의 시트를 3D 마을이 읽는 형태로 바꾼다.
+ *
+ * <p>`toMandalart` 와 같은 일을 하지만 입력이 다르다 — 이쪽은 gateway 를 거친 화면 모델이라
+ * 목업 모드에서도 동작한다. 서버 응답(`SheetDetail`)만 받으면 백엔드가 꺼진 상태에서
+ * 마을을 볼 수 없었다.
+ */
+export function toMandalartFromModel(sheet: ModelSheet): Mandalart {
+  const blocks: (Domain | null)[] = Array.from({ length: 9 }, () => null)
+  const summaries: Task[] = []
+
+  for (const domain of sheet.domains ?? []) {
+    const tasks: Task[] = [...domain.subjects]
+      .sort((a, b) => a.position - b.position)
+      .map((subject) => ({
+        id: String(subject.id),
+        title: subject.title,
+        // 서버가 확정한 값을 그대로 쓴다. 횟수로 다시 계산하면 주기 규칙이 프론트에 복제된다.
+        progress: subject.progress,
+      }))
+
+    const index = blockIndexOf(domain.position)
+    if (index < 0 || index > 8 || index === 4) continue
+
+    blocks[index] = { id: String(domain.id), title: domain.title, tasks }
+    summaries.push({
+      id: `domain-${domain.id}`,
+      title: domain.title,
+      progress: averageProgress(tasks),
+    })
+  }
+
+  blocks[4] = {
+    id: `sheet-${sheet.id}`,
+    title: sheet.title,
+    tasks: summaries.slice(0, DOMAIN_COUNT),
+  }
+
+  return {
+    center: sheet.title,
+    domains: blocks.map((block, index) => block ?? { id: `empty-${index}`, title: '', tasks: [] }),
   }
 }

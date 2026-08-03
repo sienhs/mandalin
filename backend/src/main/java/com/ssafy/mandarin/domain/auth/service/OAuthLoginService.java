@@ -37,11 +37,22 @@ public class OAuthLoginService {
 				.orElseGet(() -> connectNewIdentity(provider, profile));
 	}
 
+	/**
+	 * 가입 축하 포인트.
+	 *
+	 * <p>가입 직후 포인트가 0 이면 상점에 200종이 넘는 건물이 있어도 아무것도 살 수 없고,
+	 * 과제를 수십 번 완료해야 첫 건물이 손에 들어온다. 그때까지는 "포인트를 모아 도시를
+	 * 짓는다"는 서비스의 핵심 루프를 경험할 수 없다. 일반 건물이 300P 이므로
+	 * 30채 남짓 지어 볼 수 있는 양을 처음에 준다.
+	 */
+	private static final int WELCOME_POINT = 10_000;
+
 	// 신원 재등록
 	private User connectNewIdentity(OAuthProvider provider, OAuthUserProfile profile) {
 		User user = userRepository.save(User.builder()
 				.uuid(UUID.randomUUID().toString())
 				.name(profile.name())
+				.point(WELCOME_POINT)
 				.build());
 
 

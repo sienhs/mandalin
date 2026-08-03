@@ -54,6 +54,13 @@ public class Sheet extends BaseEntity {
         this.title = title;
     }
 
+    /**
+     * 공개 여부 변경.
+     *
+     * <p>만다라트 내용(제목·세부 목표·과제)과 달리 이건 언제든 바꿀 수 있다 —
+     * 목표가 아니라 누구에게 보일지에 대한 설정이기 때문이다.
+     * {@code updateTitle} 은 생성 흐름에서만 쓰고 수정 API 로는 열지 않는다.
+     */
     public void updateIsOpen(Boolean isOpen) {
         this.isOpen = isOpen;
     }

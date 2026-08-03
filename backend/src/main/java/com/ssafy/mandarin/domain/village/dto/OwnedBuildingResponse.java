@@ -14,7 +14,16 @@ import tools.jackson.databind.JsonNode;
  */
 @Schema(description = "보유 건물 (모델링 데이터 포함)")
 public record OwnedBuildingResponse(
-		@Schema(example = "12") Long itemId,
+		/**
+		 * 인벤토리 아이디({@code user_building.id}).
+		 *
+		 * <p>건물 배치 API 가 이 값을 받는다({@code item_spot.inven_id} 가 참조하는 것이 이것이다).
+		 * 이 필드가 없으면 "보유 건물 목록"과 "배치 요청" 사이에 연결 고리가 없어서,
+		 * 사용자가 고른 건물을 어느 칸에 놓으라고 서버에 말할 수 없다.
+		 */
+		@Schema(description = "인벤토리 아이디. 배치 API 에 이 값을 보낸다", example = "34") Long invenId,
+
+		@Schema(description = "카탈로그 아이디", example = "12") Long itemId,
 		@Schema(example = "medieval_clocktower") String itemKey,
 		@Schema(example = "시계탑") String name,
 		@Schema(example = "MEDIEVAL") String theme,

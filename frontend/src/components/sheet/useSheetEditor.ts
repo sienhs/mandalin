@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { INITIAL_MAIN_GOAL, PLACEHOLDER } from './sheet.data'
+import { PLACEHOLDER } from './sheet.data'
 import type { CellPos, Domain, Period, Sheet, Subject, TaskDraft } from './sheet.types'
 import {
   buildGrid,
@@ -22,7 +22,8 @@ const DEFAULT_PERIOD = defaultPeriod()
 export function useSheetEditor() {
   const [sheetData, setSheetData] = useState<Sheet>({
     userId: 1,
-    title: INITIAL_MAIN_GOAL,
+    // 핵심 목표는 비어 있는 채로 시작한다 — 안내 문구가 그리드 가운데에 남는다.
+    title: PLACEHOLDER.sheet,
     isOpen: true,
     like: 0,
     createdAt: DEFAULT_PERIOD.start,

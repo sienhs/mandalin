@@ -2,14 +2,17 @@ package com.ssafy.mandarin.domain.sheet.service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import com.ssafy.mandarin.domain.auth.repository.UserRepository;
 import com.ssafy.mandarin.domain.sheet.dto.SheetCreateRequest;
@@ -25,6 +28,7 @@ import com.ssafy.mandarin.domain.sheet.repository.LikesRepository;
 import com.ssafy.mandarin.domain.sheet.repository.SheetRepository;
 import com.ssafy.mandarin.domain.subject.entity.Subject;
 import com.ssafy.mandarin.domain.subject.entity.SubjectPeriod;
+import com.ssafy.mandarin.domain.subject.repository.SubjectLogRepository;
 import com.ssafy.mandarin.domain.subject.repository.SubjectRepository;
 import com.ssafy.mandarin.domain.user.entity.User;
 import com.ssafy.mandarin.domain.village.entity.ItemDir;
@@ -48,6 +52,7 @@ public class SheetService {
     private final SheetRepository sheetRepository;
     private final DomainRepository domainRepository;
     private final SubjectRepository subjectRepository;
+    private final SubjectLogRepository subjectLogRepository;
     private final LikesRepository likesRepository;
     private final ItemSpotRepository itemSpotRepository;
     private final UserRepository userRepository;
@@ -62,6 +67,10 @@ public class SheetService {
      */
     @Transactional
     public Long createSheet(Long userId, SheetCreateRequest request) {
+        // 0. 81칸이 온전히 채워졌는지. 생성 이후에는 고칠 수 없으므로 여기서 막지 않으면
+        //    빈 칸이 영구히 남는다. 개수는 DTO 제약이 보고, 여기서는 위치 중복을 본다.
+        validatePositions(request);
+
         // 1. 작성자 유저 존재 검증
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
@@ -103,12 +112,15 @@ public class SheetService {
 
                 if (domainReq.subjects() != null) {
                     for (SheetCreateRequest.SubjectCreateRequest subjectReq : domainReq.subjects()) {
-                        // 과제 주기(daily, weekly, none) 확인 및 미지정 시 NONE 적용
+                        // 과제 주기(daily, weekly, monthly, none) 확인 및 미지정 시 NONE 적용
                         SubjectPeriod period = subjectReq.period() != null ? subjectReq.period()
                                 : SubjectPeriod.NONE;
 
-                        // period별 target_count 자동 산정
-                        // daily -> total_days / 1 | weekly -> total_days / 7 | none -> 1
+                        // 주당/월당 목표 횟수 (기본값 1)
+                        int countPerPeriod = (subjectReq.countPerPeriod() != null && subjectReq.countPerPeriod() > 0)
+                                ? subjectReq.countPerPeriod() : 1;
+
+                        // period별 target_count 자동 산정 공식
                         int calculatedTargetCount;
                         if (subjectReq.targetCount() != null && subjectReq.targetCount() > 0) {
                             calculatedTargetCount = subjectReq.targetCount();
@@ -116,10 +128,11 @@ public class SheetService {
                             if (period == SubjectPeriod.DAILY) {
                                 calculatedTargetCount = (int) totalDays;
                             } else if (period == SubjectPeriod.WEEKLY) {
-                                calculatedTargetCount = (int) (totalDays / 7);
-                                if (calculatedTargetCount < 1) {
-                                    calculatedTargetCount = 1;
-                                }
+                                int weeks = (int) (totalDays / 7);
+                                calculatedTargetCount = Math.max(1, weeks) * countPerPeriod;
+                            } else if (period == SubjectPeriod.MONTHLY) {
+                                int months = (int) (totalDays / 30);
+                                calculatedTargetCount = Math.max(1, months) * countPerPeriod;
                             } else {
                                 calculatedTargetCount = 1;
                             }
@@ -133,6 +146,7 @@ public class SheetService {
                                 .period(period)
                                 .point(subjectReq.point() != null ? subjectReq.point() : 100L)
                                 .targetCount(calculatedTargetCount)
+                                .countPerPeriod(countPerPeriod)
                                 .tryCount(0)
                                 .isDone(false)
                                 .build();
@@ -190,12 +204,39 @@ public class SheetService {
     }
 
     /**
+     * 세부 목표 8칸·과제 8칸의 위치가 겹치지 않는지.
+     *
+     * <p>개수(8개)는 {@code SheetCreateRequest} 의 {@code @Size} 가 본다. 하지만 개수만
+     * 맞고 위치가 {@code [0,0,1,2,3,4,5,6]} 처럼 겹치면 한 칸이 비고 다른 칸이 덮인다.
+     * 생성 이후에 고칠 수 없으니 이 상태로 저장되면 되돌릴 방법이 없다.
+     */
+    private void validatePositions(SheetCreateRequest request) {
+        Set<Integer> domainPositions = new HashSet<>();
+
+        for (SheetCreateRequest.DomainCreateRequest domain : request.domains()) {
+            if (!domainPositions.add(domain.position())) {
+                throw new BusinessException(ErrorCode.DUPLICATE_POSITION);
+            }
+
+            Set<Integer> subjectPositions = new HashSet<>();
+            for (SheetCreateRequest.SubjectCreateRequest subject : domain.subjects()) {
+                if (!subjectPositions.add(subject.position())) {
+                    throw new BusinessException(ErrorCode.DUPLICATE_POSITION);
+                }
+            }
+        }
+    }
+
+    /**
      * 내 만다라트 목록 조회
      * 작성자의 모든 만다라트 시트를 최신순으로 조회하며, 64개 과제 대비 달성률(%)을 연산하여 반환
      */
     public List<SheetListResponse> getMySheets(Long userId) {
         List<Sheet> sheets = sheetRepository.findByUserIdOrderByCreatedAtDesc(userId);
         List<SheetListResponse> responses = new ArrayList<>();
+
+        // 좋아요 여부는 한 번에 받아 대조한다. 시트마다 exists 를 부르면 N+1 이다.
+        Set<Long> likedSheetIds = likesRepository.findLikedSheetIdsByUserId(userId);
 
         for (Sheet sheet : sheets) {
             long doneSubjects = subjectRepository.countByDomainSheetIdAndIsDoneTrue(sheet.getId());
@@ -206,6 +247,7 @@ public class SheetService {
                     .title(sheet.getTitle())
                     .isOpen(sheet.getIsOpen())
                     .likeCount(sheet.getLikeCount() != null ? sheet.getLikeCount() : 0L)
+                    .isLiked(likedSheetIds.contains(sheet.getId()))
                     .achievementRate(Math.round(achievementRate * 10.0) / 10.0) // 소수점 버림
                     .createdAt(sheet.getCreatedAt())
                     .expiredAt(sheet.getExpiredAt())
@@ -213,6 +255,29 @@ public class SheetService {
         }
 
         return responses;
+    }
+
+    /**
+     * 공개 여부 변경.
+     *
+     * <p><b>만다라트 내용은 고칠 수 없다.</b> 핵심 목표·세부 목표·실천 과제는 생성 시점에
+     * 확정되고 그 뒤로는 수행만 한다 — 목표를 쉽게 바꿀 수 있으면 채우기 어려운 칸을 지워
+     * 버리게 되고, 그러면 81칸으로 나눠 놓은 의미가 사라진다.
+     *
+     * <p>공개 여부만 예외로 둔다. 이건 목표의 내용이 아니라 누구에게 보일지에 대한 설정이라
+     * 언제든 되돌릴 수 있어야 한다.
+     */
+    @Transactional
+    public SheetDetailResponse updateVisibility(Long userId, Long sheetId, Boolean isOpen) {
+        Sheet sheet = sheetRepository.findById(sheetId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SHEET_NOT_FOUND));
+
+        if (!sheet.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.SHEET_NOT_OWNED);
+        }
+
+        sheet.updateIsOpen(isOpen);
+        return getSheetDetail(userId, sheetId);
     }
 
     /**
@@ -271,26 +336,52 @@ public class SheetService {
             List<SheetDetailResponse.SubjectDetailResponse> subjectResponses = new ArrayList<>();
 
             LocalDate today = LocalDate.now();
-            LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-            LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+            LocalDateTime mondayStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
+            LocalDateTime sundayEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).atTime(23, 59, 59);
+            LocalDateTime monthStart = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
+            LocalDateTime monthEnd = today.with(TemporalAdjusters.lastDayOfMonth()).atTime(23, 59, 59);
 
             for (Subject subject : subjects) {
                 if (Boolean.TRUE.equals(subject.getIsDone())) {
                     doneSubjects++;
                 }
 
-                // daily/weekly 수행 체크 클릭 완료 여부 연산
+                boolean isDoneToday = (subject.getUpdatedAt() != null)
+                        && subject.getUpdatedAt().toLocalDate().isEqual(today);
+
+                /*
+                  이번 주기에 몇 번 했는지.
+
+                  updatedAt(마지막 수행 시각) 하나로는 셀 수 없어서 수행 이력을 센다.
+                  "주 3회" 같은 과제는 같은 주에 여러 번 체크되므로 횟수가 필요하다.
+                */
+                long currentPeriodCount;
+                if (subject.getPeriod() == SubjectPeriod.WEEKLY) {
+                    currentPeriodCount = subjectLogRepository.countBySubjectIdAndCreatedAtBetween(
+                            subject.getId(), mondayStart, sundayEnd);
+                } else if (subject.getPeriod() == SubjectPeriod.MONTHLY) {
+                    currentPeriodCount = subjectLogRepository.countBySubjectIdAndCreatedAtBetween(
+                            subject.getId(), monthStart, monthEnd);
+                } else {
+                    currentPeriodCount = isDoneToday ? 1 : 0;
+                }
+
+                boolean canExecute = !Boolean.TRUE.equals(subject.getIsDone())
+                        && !isDoneToday
+                        && (currentPeriodCount < subject.getCountPerPeriod());
+
+                // 주기(일/주/월)별 목표 완료 여부 연산
                 boolean isDonePeriod = false;
                 if (Boolean.TRUE.equals(subject.getIsDone())) {
+                    // 1. 과제 자체가 최종 완수된 경우 -> 항상 완료(true)
                     isDonePeriod = true;
-                } else if (subject.getUpdatedAt() != null) {
-                    if (subject.getPeriod() == SubjectPeriod.DAILY) {
-                        isDonePeriod = subject.getUpdatedAt().toLocalDate().isEqual(today);
-                    } else if (subject.getPeriod() == SubjectPeriod.WEEKLY) {
-                        LocalDate updatedDate = subject.getUpdatedAt().toLocalDate();
-                        // 월 ~ 일 사이에 체크했는지 검사
-                        isDonePeriod = !updatedDate.isBefore(monday) && !updatedDate.isAfter(sunday);
-                    }
+                } else if (subject.getPeriod() == SubjectPeriod.DAILY) {
+                    // 2. 일간 과제 -> 오늘 완료 체크 여부(isDoneToday)와 동일
+                    isDonePeriod = isDoneToday;
+                } else if (subject.getPeriod() == SubjectPeriod.WEEKLY
+                        || subject.getPeriod() == SubjectPeriod.MONTHLY) {
+                    // 3. 주간/월간 -> 이번 주/달 수행 횟수가 목표 횟수 이상인가
+                    isDonePeriod = (currentPeriodCount >= subject.getCountPerPeriod());
                 }
 
                 subjectResponses.add(SheetDetailResponse.SubjectDetailResponse.builder()
@@ -298,10 +389,14 @@ public class SheetService {
                         .position(subject.getPosition())
                         .title(subject.getTitle())
                         .period(subject.getPeriod())
+                        .countPerPeriod(subject.getCountPerPeriod())
+                        .currentPeriodCount(currentPeriodCount)
                         .point(subject.getPoint())
                         .targetCount(subject.getTargetCount())
                         .tryCount(subject.getTryCount())
                         .isDone(subject.getIsDone())
+                        .isDoneToday(isDoneToday)
+                        .canExecute(canExecute)
                         .isDonePeriod(isDonePeriod)
                         .progress(progressOf(subject))
                         .build());

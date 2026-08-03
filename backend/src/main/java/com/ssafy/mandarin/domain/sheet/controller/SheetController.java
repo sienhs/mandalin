@@ -7,6 +7,7 @@ import com.ssafy.mandarin.domain.sheet.dto.SheetCreateRequest;
 import com.ssafy.mandarin.domain.sheet.dto.SheetDetailResponse;
 import com.ssafy.mandarin.domain.sheet.dto.SheetLikeResponse;
 import com.ssafy.mandarin.domain.sheet.dto.SheetListResponse;
+import com.ssafy.mandarin.domain.sheet.dto.SheetVisibilityRequest;
 import com.ssafy.mandarin.domain.sheet.service.SheetService;
 import com.ssafy.mandarin.global.response.ApiResponse;
 
@@ -19,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -68,6 +70,25 @@ public class SheetController {
         Long userId = customUserDetails != null ? customUserDetails.getUserId() : null;
         SheetDetailResponse response = sheetService.getSheetDetail(userId, sheetId);
         return ResponseEntity.ok(ApiResponse.success("만다라트 상세 정보 조회 성공", response));
+    }
+
+    @PatchMapping("/{sheetId}/visibility")
+    @Operation(
+            summary = "만다라트 공개 여부 변경",
+            description = "공개/비공개만 바꿉니다. "
+                    + "핵심 목표·세부 목표·실천 과제는 생성 시점에 확정되고 이후 수정할 수 없습니다 — "
+                    + "목표를 쉽게 고칠 수 있으면 채우기 어려운 칸을 지워 버리게 되어 "
+                    + "81칸으로 나눠 놓은 의미가 사라지기 때문입니다. "
+                    + "내용을 바꾸려면 새 만다라트를 만드세요."
+    )
+    public ResponseEntity<ApiResponse<SheetDetailResponse>> updateVisibility(
+            @AuthenticationPrincipal CustomUserDetails customUserDetails,
+            @PathVariable Long sheetId,
+            @RequestBody @Valid SheetVisibilityRequest request
+    ) {
+        Long userId = customUserDetails != null ? customUserDetails.getUserId() : null;
+        SheetDetailResponse response = sheetService.updateVisibility(userId, sheetId, request.isOpen());
+        return ResponseEntity.ok(ApiResponse.success("공개 여부가 변경되었습니다.", response));
     }
 
     @DeleteMapping("/{sheetId}")

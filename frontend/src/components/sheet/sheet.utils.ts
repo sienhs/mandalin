@@ -125,7 +125,6 @@ export const calcTargetCount = (period: Period, startDate: string, endDate: stri
 /** 아직 값이 없는 도메인 칸을 처음 저장할 때 쓰는 기본값. */
 export const createDomain = (domainIndex: number): Domain => ({
   sheetId: 1,
-  domainTemplateId: 1, // dummy
   title: '',
   position: domainIndex,
   createdAt: formatDate(new Date()),
