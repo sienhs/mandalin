@@ -1,10 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/brand/logo-512.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>만다린 로그인</title>
+    <meta name="theme-color" content="#f75316" />
+
+    <!--
+      본문에서 가장 많이 쓰는 두 굵기만 미리 받는다. CSS 를 파싱해 @font-face 를 만나기
+      전에 시작되므로 첫 글자가 시스템 글꼴로 스쳤다 바뀌는 깜빡임이 줄어든다.
+      Light·Medium 은 쓰임이 적어 굳이 앞당기지 않는다.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/SpoqaHanSansNeo-Regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/SpoqaHanSansNeo-Bold.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <meta
+      name="description"
+      content="81칸 만다라트에 매일의 과제를 채우면 3D 도시의 건물이 한 층씩 완성돼요."
+    />
+
+    <!-- 링크를 공유했을 때 보이는 카드. og:image 는 상대경로가 통하지 않아 배포 주소를 적는다. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="만다린 — 목표를 도시로 짓다" />
+    <meta
+      property="og:description"
+      content="81칸 만다라트에 매일의 과제를 채우면 3D 도시의 건물이 한 층씩 완성돼요."
+    />
+    <meta property="og:image" content="https://d106manda.vercel.app/brand/logo-1024.png" />
+
+    <title>만다린 — 목표를 도시로 짓다</title>
   </head>
   <body>
     <div id="root"></div>

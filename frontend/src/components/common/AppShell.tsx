@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../../data/store'
 import { cn } from '../../utils/cn'
 import { fromNow, num } from '../../utils/format'
+import Logo from './Logo'
 import { Avatar, Skeleton } from './Primitives'
 import {
   IconArrowLeft,
@@ -112,9 +113,7 @@ export default function AppShell() {
       >
         <div className="mb-8 flex items-start justify-between gap-2">
           <NavLink to="/app" className="flex items-center gap-2.5 px-2 no-underline">
-            <span className="grid size-10 place-items-center rounded-[13px] bg-gradient-to-br from-brand-500 to-brand-700 text-lg font-black text-white shadow-[0_6px_16px_-6px_rgba(232,57,12,.7)]">
-              만
-            </span>
+            <Logo className="size-9 shrink-0 text-brand-500" />
             <span className="flex flex-col leading-none">
               <strong className="text-[17px] font-black tracking-[-0.04em]">만다린</strong>
               <span className="muted mt-1 text-[11px] font-bold">목표를 도시로 짓다</span>
@@ -213,9 +212,7 @@ export default function AppShell() {
               navOpen ? 'lg:hidden' : 'lg:flex',
             )}
           >
-            <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-base font-black text-white">
-              만
-            </span>
+            <Logo className="size-8 shrink-0 text-brand-500" />
             <strong className="text-base font-black tracking-[-0.04em]">만다린</strong>
           </NavLink>
 
