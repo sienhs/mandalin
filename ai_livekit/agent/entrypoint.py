@@ -138,7 +138,22 @@ async def entrypoint(ctx: JobContext) -> None:
             "BOT_MODE=%s 입니다 — goal 이 아니면 과제를 만들지 않습니다", settings.bot_mode
         )
 
-    pipeline = GoalPipeline(settings, build_backend(settings))
+    # **job 하나가 방 하나이므로 파이프라인도 방마다 새로 만들어집니다.** 각 백엔드가
+    # `httpx.AsyncClient` 를 들고 있어서 닫지 않으면 방마다 연결이 남습니다.
+    #
+    # **둘 다 닫아야 합니다.** `GoalPipeline.aclose()` 는 자기가 만든 것(`_owned`)만
+    # 닫습니다 — 단계 모델이 기본값과 다를 때 새로 만드는 백엔드입니다. 여기서 주입한
+    # 이것은 `_stage_backend` 의 독스트링대로 **만든 쪽이 닫습니다**(이중 종료 방지).
+    # 하나만 등록하면 `BOT_CLASSIFY_MODEL == BOT_DEFAULT_MODEL` 인 지금 구성에서
+    # 분류 단계가 쓰는 연결이 그대로 남습니다.
+    #
+    # 리눅스에서는 job 이 프로세스라 종료 시 FD 가 회수되어 누적되지 않지만, 윈도우는
+    # THREAD executor 라 worker 프로세스 안에 쌓입니다
+    # (`livekit.agents.worker` 의 `_default_job_executor_type`).
+    backend = build_backend(settings)
+    pipeline = GoalPipeline(settings, backend)
+    ctx.add_shutdown_callback(pipeline.aclose)
+    ctx.add_shutdown_callback(backend.aclose)
 
     participant = await ctx.wait_for_participant()
     logger.info("참가자 입장 identity=%s name=%s", participant.identity, participant.name)
