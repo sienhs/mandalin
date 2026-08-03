@@ -5,9 +5,6 @@ export const PLACEHOLDER = {
   subject: '+과제 추가',
 } as const
 
-/** 초기 핵심 목표 */
-export const INITIAL_MAIN_GOAL = '건강한 몸 만들기'
-
 /** 각 도메인의 색. light = 일반 과제 칸, dark = 도메인(라벨) 칸 */
 export const DOMAIN_COLORS: Record<number, { light: string; dark: string }> = {
   0: { light: 'bg-emerald-200 text-ink-900', dark: 'bg-emerald-500 text-white' },

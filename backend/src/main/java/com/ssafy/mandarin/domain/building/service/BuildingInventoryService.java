@@ -57,4 +57,17 @@ public class BuildingInventoryService {
 				.map(UserBuilding::getBuildingItem)
 				.toList();
 	}
+
+	/**
+	 * 인벤토리 행 자체를 돌려준다.
+	 *
+	 * <p>건물 배치 API 는 {@code user_building.id}(invenId)로 대상을 지정한다. 카탈로그
+	 * 아이디(itemId)만으로는 어느 인벤토리 행인지 알 수 없어서, 배치 화면에 건물 목록을
+	 * 내려줄 때는 이쪽을 쓴다.
+	 */
+	@Transactional
+	public List<UserBuilding> findOwnedInventory(Long userId) {
+		grantDefaultBuildings(userId);
+		return userBuildingRepository.findAllWithItemByUserId(userId);
+	}
 }

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Header from '../components/common/Header'
-import { MOCK_FRIENDS } from '../components/friends/friends.data'
 import SheetListCard from '../components/sheetList/SheetListCard'
 import { fetchAchievementRates, fetchFriendSheets } from '../components/sheetList/sheetList.api'
 import type { SheetSummary } from '../components/sheetList/sheetList.types'
@@ -20,12 +19,13 @@ export default function FriendSheetList() {
   const id = Number(friendId)
 
   /**
-   * 친구 이름. 친구 목록에서 넘어올 때 함께 받고(FriendResponse.name),
-   * 주소를 직접 열거나 새로고침해서 그 값이 없으면 친구 목록에서 찾는다.
+   * 친구 이름. 친구 목록에서 넘어올 때 함께 받는다(FriendResponse.name).
+   * 주소를 직접 열거나 새로고침하면 그 값이 없어 '친구' 로 보인다 —
+   * 연동 시 `GET /api/v1/users/{uuid}` 로 이름을 되찾는다.
    */
   const { state } = useLocation()
   const passedName = (state as { friendName?: string } | null)?.friendName
-  const friendName = passedName ?? MOCK_FRIENDS.find((friend) => friend.id === id)?.name ?? '친구'
+  const friendName = passedName ?? '친구'
 
   const [sheets, setSheets] = useState<SheetSummary[] | null>(null)
   /** 시트별 달성률. 목록 응답에 없어서 따로 받아온다. 도착 전에는 카드가 '—%' 로 보인다. */

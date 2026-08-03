@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Button from '../components/common/Button'
-import Header from '../components/common/Header'
 import SheetGrid from '../components/sheet/SheetGrid'
 import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
-import { buildGrid } from '../components/sheet/sheet.utils'
+import { PLACEHOLDER } from '../components/sheet/sheet.data'
+import { buildGrid, emptyDomains, emptySubjects } from '../components/sheet/sheet.utils'
 import GroupLandmarkDialog from '../components/group/GroupLandmarkDialog'
-import { loadGroupDetail, MOCK_LANDMARKS } from '../components/group/group.data'
-import { loadSheetDetail } from '../components/sheetDetail/sheetDetail.data'
-import { MY_SHEETS } from '../components/sheetList/sheetList.data'
+import type { GroupLandmark } from '../components/group/group.types'
+import type { SheetSummary } from '../components/sheetList/sheetList.types'
 import { cn } from '../utils/cn'
 // 카드(.card) · 9x9 칸(.Sheet) · 3x3 확대 그리드(.mgrid) 는 생성 화면과 공유한다.
 import '../styles/sheet-create.css'
@@ -45,30 +44,40 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
 
   /** 도메인을 고르는 2D 뷰와 건물을 보는 3D 뷰를 오간다. */
   const [view, setView] = useState<'2d' | '3d'>('2d')
+
+  /**
+   * 고를 수 있는 랜드마크 · 내 만다라트 목록.
+   *
+   * **아직 서버에 붙어 있지 않다.** 화면 확인용 목업을 걷어냈고, 연동 전까지는 둘 다 비어 있어
+   * 랜드마크 자리와 만다라트 선택이 빈 채로 보인다.
+   *
+   * 연동:
+   *   랜드마크 → 보유 랜드마크 조회 API (아직 없다. 상점 목록은 판매용이라 보유 여부를 모른다)
+   *   만다라트 → `GET /api/v1/sheets`
+   */
+  const [landmarks] = useState<GroupLandmark[]>([])
+  const [mySheets] = useState<SheetSummary[]>([])
+
   /**
    * 그룹 도시 가운데에 놓을 랜드마크. 생성 요청의 centerBuildingId 로 보낼 값이다.
    *
-   * 합류하는 그룹은 방장이 이미 정해 뒀으므로 그 값을 읽어 와 보여주기만 한다 —
-   * 연동하면 loadGroupDetail 이 GET /api/v1/groups/{id} 가 되고 이 코드는 그대로 간다.
+   * 합류하는 그룹은 방장이 이미 정해 뒀으므로 `GET /api/v1/groups/{id}` 의
+   * landmarkBuildingId 를 읽어 와 보여주기만 한다.
    */
-  const [landmarkId, setLandmarkId] = useState(() =>
-    mode === 'join'
-      ? (loadGroupDetail(Number(groupId) || 1).landmarkBuildingId ?? MOCK_LANDMARKS[0].buildingId)
-      : MOCK_LANDMARKS[0].buildingId,
-  )
+  const [landmarkId, setLandmarkId] = useState<number | null>(null)
   const [landmarkOpen, setLandmarkOpen] = useState(false)
   /** 만들 그룹 이름. create 모드에서만 쓴다. */
   const [title, setTitle] = useState('')
   /** 어떤 내 만다라트에서 도메인을 낼지 */
-  const [sheetId, setSheetId] = useState(MY_SHEETS[0]?.sheetId ?? 1)
+  const [sheetId, setSheetId] = useState<number | null>(null)
   /** 고른 블록 번호(0~8, 4 제외). 고른 순서를 유지한다. */
   const [picked, setPicked] = useState<number[]>([])
 
-  const detail = useMemo(() => loadSheetDetail(sheetId), [sheetId])
-  const grid = useMemo(
-    () => buildGrid(detail.sheet.title, detail.domains, detail.subjects),
-    [detail],
-  )
+  /**
+   * 고른 만다라트의 9x9 그리드.
+   * 연동: `GET /api/v1/sheets/{sheetId}` 로 도메인 · 과제를 받아 buildGrid 에 넘긴다.
+   */
+  const grid = useMemo(() => buildGrid(PLACEHOLDER.sheet, emptyDomains(), emptySubjects()), [])
 
   /** 3x3 확대 그리드에 보여줄 블록. 마지막으로 고른 것, 없으면 첫 블록. */
   const shownBlock = picked.at(-1) ?? 0
@@ -90,8 +99,8 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
   /** 고른 블록의 도메인 이름. 블록 가운데 칸(c=4)이 도메인 라벨이다. */
   const pickedTitles = picked.map((b) => grid[b][4].task)
 
-  const landmark =
-    MOCK_LANDMARKS.find((item) => item.buildingId === landmarkId) ?? MOCK_LANDMARKS[0]
+  /** 고른 랜드마크. 목록이 비어 있으면 null 이고, 가운데 자리는 빈 칸으로 보인다. */
+  const landmark = landmarks.find((item) => item.buildingId === landmarkId) ?? landmarks[0] ?? null
 
   const changeSheet = (nextSheetId: number) => {
     setSheetId(nextSheetId)
@@ -99,9 +108,10 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
     setPicked([])
   }
 
-  /** 도메인 2개는 필수, 그룹 이름은 만들 때만 필수다. */
+  /** 도메인 2개는 필수, 그룹 이름은 만들 때만 필수다. 낼 만다라트도 골라야 한다. */
   const canSubmit =
     picked.length === PICK_COUNT &&
+    sheetId !== null &&
     (mode === 'create' ? title.trim().length > 0 : Boolean(groupId))
 
   /**
@@ -118,9 +128,8 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
    */
   const submit = () => {
     if (!canSubmit) return
-    // 만든(또는 합류한) 그룹 화면으로 간다. 목업이라 새 그룹 아이디가 없어 1번으로 보낸다 —
-    // 연동하면 create 는 응답으로 받은 groupId 를 쓴다.
-    navigate(`/group/${groupId ?? 1}`, {
+    // 만든(또는 합류한) 그룹 화면으로 간다. create 는 연동 시 응답으로 받은 groupId 를 쓴다.
+    navigate(`/group/${groupId ?? ''}`, {
       state: {
         groupTitle: mode === 'create' ? title.trim() : invitedTitle,
         sheetId,
@@ -134,7 +143,6 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
 
   return (
     <div className="group-setup-page">
-      <Header />
 
       <main className="group-setup-main">
         <section className="group-setup-banner">
@@ -186,11 +194,15 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
               </label>
               <select
                 id="group-setup-sheet"
-                value={sheetId}
+                value={sheetId ?? ''}
                 onChange={(event) => changeSheet(Number(event.target.value))}
                 className="group-setup-select"
               >
-                {MY_SHEETS.map((sheet) => (
+                {/* 목록이 비어 있으면 고를 것이 없다는 안내만 남는다. */}
+                <option value="" disabled>
+                  {mySheets.length > 0 ? '만다라트를 고르세요' : '만다라트가 없어요'}
+                </option>
+                {mySheets.map((sheet) => (
                   <option key={sheet.sheetId} value={sheet.sheetId}>
                     {sheet.title}
                   </option>
@@ -296,7 +308,9 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
                       */
                       <span
                         role="img"
-                        aria-label={`${landmark.name} 랜드마크 자리`}
+                        aria-label={
+                          landmark ? `${landmark.name} 랜드마크 자리` : '랜드마크 자리 (비어 있음)'
+                        }
                         className="group-setup-blandmark"
                       >
                         {/*
@@ -304,7 +318,7 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
                           <img className="group-setup-blandmark-img" src={...} alt="" /> 로 바꾼다
                           (표시 161 × 161px, 파일은 2배).
                         */}
-                        {landmark.icon}
+                        {landmark?.icon}
                       </span>
                     ) : (
                       /*
@@ -359,9 +373,11 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
 
                   <div className="group-setup-landmark-row">
                     <span className="group-setup-landmark-icon" aria-hidden="true">
-                      {landmark.icon}
+                      {landmark?.icon}
                     </span>
-                    <span className="group-setup-landmark-name">{landmark.name}</span>
+                    <span className="group-setup-landmark-name">
+                      {landmark?.name ?? '고를 수 있는 랜드마크가 없어요'}
+                    </span>
                     {/* 방장(그룹을 만드는 사람)만 바꿀 수 있다 — 합류하는 쪽에는 버튼이 없다. */}
                     {mode === 'create' && (
                       <Button
@@ -383,8 +399,8 @@ export default function GroupSetup({ mode }: GroupSetupProps) {
 
       {landmarkOpen && (
         <GroupLandmarkDialog
-          landmarks={MOCK_LANDMARKS}
-          currentId={landmarkId}
+          landmarks={landmarks}
+          currentId={landmarkId ?? 0}
           onApply={(buildingId) => {
             setLandmarkId(buildingId)
             setLandmarkOpen(false)
