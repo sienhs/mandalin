@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Room, RoomEvent } from 'livekit-client'
-import { apiFetch, ApiError } from '../../api'
+import { apiFetch, ApiError } from '../../api/client'
 import type { Period } from '../sheet/sheet.types'
 
 /*

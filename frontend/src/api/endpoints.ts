@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { BASE, apiFetch } from './client'
 import type {
   FriendDto,
   FriendRequestDto,
@@ -27,8 +27,14 @@ import type {
 /* ─────────────────────────  인증  ───────────────────────── */
 
 export const auth = {
-  /** 카카오 로그인 시작. 브라우저를 백엔드로 넘긴다(프록시 경유). */
-  kakaoLoginUrl: () => '/oauth2/authorization/kakao',
+  /**
+   * 카카오 로그인 시작. 브라우저 자체를 백엔드로 넘긴다.
+   *
+   * <p>fetch 가 아니라 주소창을 옮기는 것이라 <b>BASE 를 반드시 붙여야 한다</b>.
+   * 상대경로면 프론트 도메인(Vercel)으로 가는데, 거기엔 이 경로가 없어서 SPA 폴백이
+   * index.html 을 돌려주고 404 화면이 뜬다. 로컬은 BASE 가 비어 있어 프록시를 탄다.
+   */
+  kakaoLoginUrl: () => `${BASE}/oauth2/authorization/kakao`,
 
   exchange: (code: string) =>
     apiFetch<LoginDto>('/api/auth/oauth/exchange', {
@@ -185,8 +191,15 @@ export const friends = {
   reject: (requestId: number) =>
     apiFetch<void>(`/api/v1/friends/requests/${requestId}/reject`, { method: 'PATCH' }),
 
-  remove: (friendUserId: number) =>
-    apiFetch<void>(`/api/v1/friends/${friendUserId}`, { method: 'DELETE' }),
+  /**
+   * 친구 삭제.
+   *
+   * <p>경로 변수 이름이 `friendId` 지만 <b>유저 ID 가 아니라 친구 관계 ID</b>(`friendRelationId`)
+   * 다. 바로 위 `publicSheets` 의 같은 자리는 유저 ID 라서 헷갈리기 쉽다 —
+   * 유저 ID 를 보내면 보통 FRIEND_NOT_FOUND 이고, 값이 겹치면 엉뚱한 친구가 지워진다.
+   */
+  remove: (friendRelationId: number) =>
+    apiFetch<void>(`/api/v1/friends/${friendRelationId}`, { method: 'DELETE' }),
 }
 
 /* ─────────────────────────  리더보드 · 리포트  ───────────────────────── */

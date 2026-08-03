@@ -1,4 +1,4 @@
-import { apiFetch } from '../../api'
+import { apiFetch } from '../../api/client'
 import { toAiReport } from './report.mapper'
 import type { AiReport, ReportApiResponse } from './report.types'
 

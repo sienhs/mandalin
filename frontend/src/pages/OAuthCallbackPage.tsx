@@ -7,8 +7,9 @@ import Button from '../components/common/ActionButton'
 /**
  * 카카오 로그인 뒤 백엔드가 1회용 code 를 달고 되돌려 보내는 자리.
  *
- * ⚠️ 배포 백엔드는 `FRONTEND_BASE_URL` 이 vercel 도메인으로 고정돼 있어서 이 화면까지
- * 돌아오지 않는다. 로컬 백엔드를 띄우고 그 값을 localhost 로 두면 정상 동작한다.
+ * <p>돌아올 주소는 백엔드의 `FRONTEND_BASE_URL` 이 정한다(`OAuth2LoginSuccessHandler`).
+ * 배포는 vercel 도메인, 로컬은 http://localhost:5173 이라 각자 자기 화면으로 돌아온다 —
+ * 로컬에서 붙이려면 백엔드도 같이 띄워야 한다.
  */
 export default function OAuthCallback() {
   const [params] = useSearchParams()

@@ -111,7 +111,7 @@ export type Gateway = {
   sendFriendRequest(uuid: string): Promise<void>
   acceptRequest(requestId: number): Promise<void>
   rejectRequest(requestId: number): Promise<void>
-  removeFriend(friendUserId: number): Promise<void>
+  removeFriend(friendRelationId: number): Promise<void>
 
   leaderboard(page: number): Promise<{ entries: LeaderboardEntry[]; totalPages: number }>
 
@@ -263,7 +263,7 @@ export const apiGateway: Gateway = {
   sendFriendRequest: (uuid) => api.friends.sendRequest(uuid),
   acceptRequest: (requestId) => api.friends.accept(requestId),
   rejectRequest: (requestId) => api.friends.reject(requestId),
-  removeFriend: (friendUserId) => api.friends.remove(friendUserId),
+  removeFriend: (friendRelationId) => api.friends.remove(friendRelationId),
 
   leaderboard: async (page) => toLeaderboard(await api.leaderboard.page(page, 10)),
 

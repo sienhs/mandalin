@@ -842,8 +842,8 @@ export const mockGateway: Gateway = {
     await delay(null)
   },
 
-  removeFriend: async (friendUserId) => {
-    state.friends = state.friends.filter((f) => f.userId !== friendUserId)
+  removeFriend: async (friendRelationId) => {
+    state.friends = state.friends.filter((f) => f.relationId !== friendRelationId)
     save()
     await delay(null)
   },
