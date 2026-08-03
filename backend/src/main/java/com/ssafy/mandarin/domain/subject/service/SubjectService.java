@@ -59,6 +59,7 @@ public class SubjectService {
             boolean isDoneToday = (updatedAt != null) && updatedAt.toLocalDate().isEqual(today);
 
             responses.add(TodoListResponse.builder()
+                    .sheetId(subject.getDomain().getSheet().getId())
                     .subjectId(subject.getId())
                     .domainId(subject.getDomain().getId())
                     .domainTitle(subject.getDomain().getTitle())
