@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { DOMAIN_COUNT, PLACEHOLDER } from '../sheet/sheet.data'
 import type { CellPos, GridCell } from '../sheet/sheet.types'
-import { buildGrid, formatDate } from '../sheet/sheet.utils'
-import { loadSheetDetail } from './sheetDetail.data'
+import { buildGrid, defaultPeriod, emptyDomains, formatDate } from '../sheet/sheet.utils'
+import type { DetailSubject, SheetDetail } from './sheetDetail.types'
 import type { SelectedTask } from './sheetDetail.types'
 import {
   countDoneSubjects,
@@ -14,12 +15,36 @@ import {
 const FIRST_CELL: CellPos = { b: 0, c: 0 }
 
 /**
+ * 빈 상세.
+ *
+ * **아직 서버에 붙어 있지 않다.** 화면 확인용 목업을 걷어냈고, 연동 전까지는 빈 만다라트를
+ * 그린다. `GET /api/v1/sheets/{sheetId}` 응답을 SheetDetail 로 옮겨 담으면 그대로 대체된다.
+ */
+function emptySheetDetail(): SheetDetail {
+  const period = defaultPeriod()
+  return {
+    sheet: {
+      userId: 0,
+      title: PLACEHOLDER.sheet,
+      isOpen: false,
+      like: 0,
+      createdAt: period.start,
+      expiredAt: period.end,
+    },
+    domains: emptyDomains(),
+    subjects: Array.from({ length: DOMAIN_COUNT }, () =>
+      Array<DetailSubject | null>(DOMAIN_COUNT).fill(null),
+    ),
+  }
+}
+
+/**
  * 만다라트 상세 화면의 상태를 한곳에서 관리한다.
  * 생성 화면(useSheetEditor)과 마찬가지로 Sheet · Domain · Subject 세 상태에서
  * 파생된 9x9 그리드만 화면에 그린다. 다른 점은 칸을 편집하지 않고, 과제를 완료 처리한다는 것.
  */
 export function useSheetDetail(sheetId: number) {
-  const [detail, setDetail] = useState(() => loadSheetDetail(sheetId))
+  const [detail, setDetail] = useState(emptySheetDetail)
   const [selectedCell, setSelectedCell] = useState<CellPos>(FIRST_CELL)
   /**
    * 좋아요 상태. 표시할 값을 그대로 들고 있고, 여기에 무엇도 더하지 않는다.
@@ -31,7 +56,7 @@ export function useSheetDetail(sheetId: number) {
 
   // 목록에서 다른 시트로 바로 이동하면(주소만 바뀌고 화면은 그대로) 내용을 다시 불러온다.
   useEffect(() => {
-    const next = loadSheetDetail(sheetId)
+    const next = emptySheetDetail()
     setDetail(next)
     setSelectedCell(FIRST_CELL)
     setLike({ liked: false, count: next.sheet.like })

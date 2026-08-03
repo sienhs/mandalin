@@ -1,159 +1,378 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import Header from '../components/common/Header'
-import MyPageStatCard from '../components/mypage/MyPageStatCard'
-import NicknameEditModal from '../components/mypage/NicknameEditModal'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useStore } from '../data/store'
+import Button from '../components/common/ActionButton'
+import { UuidChip } from '../components/common/UuidChip'
+import Modal from '../components/common/Modal'
 import {
-  EMPTY_MY_PAGE_DATA,
-  toMyPageStats,
-} from '../components/mypage/mypage.data'
-import type { MyPageData } from '../components/mypage/mypage.types'
-import { useAuth } from '../contexts/auth'
-import '../styles/mypage.css'
+  Avatar,
+  Badge,
+  Field,
+  Input,
+  ProgressBar,
+  Segmented,
+  Skeleton,
+} from '../components/common/Primitives'
+import { IconGrid, IconShop, IconVillage } from '../components/common/Icons'
+import { formatDate, fromNow, num } from '../utils/format'
+import type { PointLog } from '../data/types'
+import { cn } from '../utils/cn'
 
-type MyPageProps = {
-  initialData?: MyPageData
-}
+export default function Profile() {
+  const {
+    user,
+    details,
+    shop,
+    sheets,
+    theme,
+    toggleTheme,
+    logout,
+    updateName,
+    mode,
+    setMode,
+    resetMockData,
+    gateway,
+  } = useStore()
+  const navigate = useNavigate()
 
-/** 사용자 프로필, ERD 기반 누적 통계, 주요 보유 항목 이동을 제공하는 마이페이지. */
-export default function MyPage({ initialData }: MyPageProps) {
-  const { user } = useAuth()
-  const myPageData = initialData ?? EMPTY_MY_PAGE_DATA
-  const receivedNickname =
-    user?.name ?? initialData?.user.name ?? EMPTY_MY_PAGE_DATA.user.name
-  const [nickname, setNickname] = useState(
-    receivedNickname,
-  )
-  const [nicknameDraft, setNicknameDraft] = useState(nickname)
-  const [isEditing, setIsEditing] = useState(false)
-  const [profileImageFailed, setProfileImageFailed] = useState(false)
-  const stats = toMyPageStats(myPageData.statistics)
-  const point = user?.point ?? myPageData.user.point
-  const profileImageUrl =
-    user?.profileImageUrl ?? myPageData.user.profileImageUrl
+  const [nickOpen, setNickOpen] = useState(false)
+  const [draft, setDraft] = useState(user?.name ?? '')
+  const [busy, setBusy] = useState(false)
+
+  /** 포인트 적립 내역. 페이지 단위라 이 화면에서만 따로 받는다. */
+  const [page, setPage] = useState(0)
+  const [history, setHistory] = useState<{
+    logs: PointLog[]
+    totalPages: number
+    currentPoint: number
+  }>({ logs: [], totalPages: 1, currentPoint: 0 })
+  const [historyLoading, setHistoryLoading] = useState(true)
 
   useEffect(() => {
-    setProfileImageFailed(false)
-  }, [profileImageUrl])
+    let alive = true
+    setHistoryLoading(true)
+    gateway
+      .pointHistory(page)
+      .then((res) => {
+        if (alive) setHistory(res)
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) setHistoryLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [gateway, page])
 
-  useEffect(() => {
-    setNickname(receivedNickname)
-    setNicknameDraft(receivedNickname)
-  }, [receivedNickname])
-
-  const saveNickname = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const nextNickname = nicknameDraft.trim()
-    if (!nextNickname) return
-    setNickname(nextNickname)
-    setIsEditing(false)
-  }
-
-  const cancelNicknameEdit = () => {
-    setNicknameDraft(nickname)
-    setIsEditing(false)
-  }
+  const stats = useMemo(() => {
+    const subjects = Object.values(details.data).flatMap(
+      (s) => s.domains?.flatMap((d) => d.subjects) ?? [],
+    )
+    const tried = subjects.reduce((acc, s) => acc + s.tryCount, 0)
+    const completed = subjects.filter((s) => s.isDone).length
+    const owned = shop.data.filter((i) => i.owned).length
+    const rate =
+      subjects.length === 0
+        ? 0
+        : Math.round(subjects.reduce((acc, s) => acc + s.progress, 0) / subjects.length)
+    return { tried, completed, owned, rate, total: subjects.length }
+  }, [details.data, shop.data])
 
   return (
-    <div className="page-shell">
-      <Header
-        fallbackPoint={point}
-        fallbackProfileName={nickname}
-      />
+    <div className="flex flex-col gap-5">
+      <header>
+        <h1 className="page-title">마이페이지</h1>
+        <p className="page-caption">누적 기록과 계정 설정을 확인할 수 있어요.</p>
+      </header>
 
-      <main className="mx-auto w-full max-w-[1440px] px-5 py-9 sm:px-8 lg:py-10">
-        <h1 className="text-2xl font-extrabold tracking-[-0.04em]">마이페이지</h1>
-        <p className="mt-3 text-sm font-semibold text-slate-400">전체 통계, 수집품</p>
-
-        <section
-          className="mt-11 flex min-h-28 items-center gap-4 rounded-[22px] bg-white px-7 py-6 sm:gap-5 sm:px-9"
-          aria-label="프로필"
+      <section className="card flex flex-wrap items-center gap-5 p-6">
+        <Avatar name={user?.name} imageUrl={user?.profileImageUrl ?? null} size={64} ring />
+        <div className="min-w-[180px] flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-lg font-extrabold tracking-[-0.03em]">
+              {user?.name ?? '—'}님
+            </strong>
+            {mode === 'mock' && <Badge tone="brand">목업 계정</Badge>}
+          </div>
+          <p className="muted m-0 mt-1.5 text-[12.5px] font-semibold">
+            {user?.createdAt ? `${formatDate(user.createdAt)}부터 함께하고 있어요` : ''}
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            setDraft(user?.name ?? '')
+            setNickOpen(true)
+          }}
         >
-          <div
-            className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-full bg-alert text-xl font-extrabold text-white"
-            aria-hidden="true"
-          >
-            {profileImageUrl && !profileImageFailed ? (
-              <img
-                src={profileImageUrl}
-                alt=""
-                className="size-full object-cover"
-                onError={() => setProfileImageFailed(true)}
-              />
-            ) : (
-              nickname.slice(0, 1)
+          닉네임 변경
+        </Button>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: '누적 실천 횟수', value: num(stats.tried), suffix: '회', brand: true },
+          { label: '완료한 과제', value: num(stats.completed), suffix: `/ ${stats.total}개` },
+          { label: '보유 건물', value: num(stats.owned), suffix: `/ ${shop.data.length}종` },
+          { label: '전체 달성률', value: `${stats.rate}`, suffix: '%' },
+        ].map((card, i) => (
+          <article key={card.label} className="card p-5">
+            <p className="muted m-0 text-[12px] font-bold">{card.label}</p>
+            <p className="m-0 mt-2 flex items-baseline gap-1">
+              <strong
+                className={cn(
+                  'text-2xl font-black tracking-[-0.04em]',
+                  card.brand && 'text-brand-600 dark:text-brand-400',
+                )}
+              >
+                {card.value}
+              </strong>
+              <span className="muted text-[12.5px] font-bold">{card.suffix}</span>
+            </p>
+            {i === 3 && (
+              <div className="mt-3">
+                <ProgressBar value={stats.rate} label="전체 달성률" size="sm" />
+              </div>
             )}
+          </article>
+        ))}
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+        <section className="card p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="section-title m-0">내 만다라트</h2>
+            <strong className="text-lg font-black text-brand-600 dark:text-brand-400">
+              {num(user?.point ?? 0)}P
+            </strong>
           </div>
 
-          <strong className="min-w-0 flex-1 truncate text-lg font-extrabold">
-            {nickname}님
-          </strong>
-          <button
-            type="button"
-            className="mypage-outline-button"
-            onClick={() => setIsEditing(true)}
-          >
-            닉네임 변경
-          </button>
+          {sheets.data.length === 0 ? (
+            <p className="muted m-0 mt-4 text-[12.5px] font-semibold">아직 만든 표가 없어요.</p>
+          ) : (
+            <ul className="m-0 mt-5 flex list-none flex-col gap-4 p-0">
+              {sheets.data.map((s) => (
+                <li key={s.id}>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                    <Link
+                      to={`/app/sheets/${s.id}`}
+                      className="truncate text-[13.5px] font-bold no-underline hover:text-brand-600"
+                    >
+                      {s.title}
+                    </Link>
+                    <span className="shrink-0 text-[12px] font-black tabular-nums">
+                      {s.achievementRate}%
+                    </span>
+                  </div>
+                  <ProgressBar value={s.achievementRate} size="sm" label={`${s.title} 달성률`} />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* ───────── 포인트 적립 내역 ───────── */}
+          <div className="mt-7 border-t pt-6" style={{ borderColor: 'var(--border-hairline)' }}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="section-title m-0 text-[14px]">포인트 적립 내역</h3>
+              {history.totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={page === 0 || historyLoading}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="muted grid size-7 place-items-center rounded-lg text-[12px] font-bold disabled:opacity-40"
+                    style={{ background: 'var(--surface-sunken)' }}
+                    aria-label="이전 페이지"
+                  >
+                    ‹
+                  </button>
+                  <span className="muted px-1 text-[11.5px] font-bold tabular-nums">
+                    {page + 1}/{history.totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={page >= history.totalPages - 1 || historyLoading}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="muted grid size-7 place-items-center rounded-lg text-[12px] font-bold disabled:opacity-40"
+                    style={{ background: 'var(--surface-sunken)' }}
+                    aria-label="다음 페이지"
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {historyLoading && history.logs.length === 0 ? (
+              <div className="mt-3 flex flex-col gap-2">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : history.logs.length === 0 ? (
+              <p className="muted m-0 mt-3 text-[12.5px] font-semibold">
+                아직 적립 내역이 없어요. 과제를 하나 완료하면 여기에 남습니다.
+              </p>
+            ) : (
+              <ul className="m-0 mt-3 flex list-none flex-col gap-1.5 p-0">
+                {history.logs.map((log) => (
+                  <li
+                    key={log.logId}
+                    className="flex items-center gap-3 rounded-xl px-3.5 py-2.5"
+                    style={{ background: 'var(--surface-sunken)' }}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-bold">
+                        {log.subjectTitle}
+                      </span>
+                      <span className="muted mt-0.5 block text-[11px] font-semibold">
+                        {log.domainTitle} · {fromNow(log.createdAt)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[13px] font-black tabular-nums text-brand-600 dark:text-brand-400">
+                      +{num(log.earnedPoint)}P
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
-        <section className="mt-11 grid gap-5 md:grid-cols-3" aria-label="전체 통계">
-          <MyPageStatCard
-            label="총 수행한 과제"
-            value={stats.completedTasks.toLocaleString('ko-KR')}
-            suffix="개"
-            tone="brand"
-          />
-          <MyPageStatCard
-            label="보유한 건물"
-            value={String(stats.ownedBuildings)}
-            suffix={`/ ${stats.totalBuildings}개`}
-            tone="blue"
-            progress={
-              stats.totalBuildings > 0
-                ? (stats.ownedBuildings / stats.totalBuildings) * 100
-                : 0
-            }
-          />
-          <MyPageStatCard
-            label="과제 달성률"
-            value={`${stats.achievementRate}%`}
-            tone="orange"
-          />
-        </section>
+        <div className="flex flex-col gap-5">
+          <section className="card p-6">
+            <h2 className="section-title m-0 mb-4">바로가기</h2>
+            <div className="flex flex-col gap-2">
+              {[
+                {
+                  to: '/app/sheets',
+                  icon: IconGrid,
+                  title: '내 만다라트 목록',
+                  body: `${sheets.data.length}개의 표`,
+                },
+                { to: '/app/village', icon: IconVillage, title: '내 마을', body: '도시 보기' },
+                {
+                  to: '/app/shop',
+                  icon: IconShop,
+                  title: '상점',
+                  body: `${stats.owned}/${shop.data.length}종 보유`,
+                },
+              ].map(({ to, icon: Icon, title, body }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="flex items-center gap-3 rounded-xl px-4 py-3.5 no-underline transition-colors hover:brightness-95"
+                  style={{ background: 'var(--surface-sunken)' }}
+                >
+                  <Icon className="size-5 shrink-0" />
+                  <span className="min-w-0 text-left">
+                    <span className="block text-[13.5px] font-extrabold">{title}</span>
+                    <span className="muted block text-[11.5px] font-semibold">{body}</span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
 
-        <nav className="mt-7 grid gap-6 md:grid-cols-2" aria-label="마이페이지 바로가기">
-          <Link
-            to="/village"
-            className="mypage-shortcut mypage-shortcut-mandalart"
-          >
-            <span className="text-2xl" aria-hidden="true">📁</span>
-            <p className="mb-0 mt-2 text-base font-extrabold">내 만다라트 보기</p>
-            <p className="mb-0 mt-2 text-sm font-semibold opacity-60">
-              만다라트 목록으로 이동
+          {/*
+            예전에는 점선 박스(p-4) + 전체폭 복사 버튼으로 세로 100px 넘게 썼다.
+            36자짜리 문자열 하나를 보여 주는 데 카드 하나를 통째로 쓸 이유가 없다 —
+            복사해 붙여넣는 값이라 눈으로 다 읽을 필요도 없다.
+          */}
+          <section className="card p-6">
+            <h2 className="section-title m-0 mb-3">내 UUID</h2>
+            <UuidChip size="md" />
+            <p className="muted m-0 mt-2.5 text-[11.5px] font-medium leading-relaxed">
+              친구에게 이 값을 알려 주면 친구 요청을 보낼 수 있어요.
             </p>
-          </Link>
-          <Link
-            to="/gallery"
-            className="mypage-shortcut mypage-shortcut-collection"
-          >
-            <span className="text-2xl" aria-hidden="true">🏆</span>
-            <p className="mb-0 mt-2 text-base font-extrabold">수집품 보기</p>
-            <p className="mb-0 mt-2 text-sm font-semibold opacity-60">
-              모든 건물 컬렉션
-            </p>
-          </Link>
-        </nav>
-      </main>
+          </section>
 
-      {isEditing && (
-        <NicknameEditModal
-          nickname={nicknameDraft}
-          onNicknameChange={setNicknameDraft}
-          onCancel={cancelNicknameEdit}
-          onSave={saveNickname}
-        />
-      )}
+          <section className="card p-6">
+            <h2 className="section-title m-0 mb-4">설정</h2>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-[13px] font-bold">화면 테마</span>
+                <Segmented
+                  size="sm"
+                  value={theme}
+                  onChange={(v) => {
+                    if (v !== theme) toggleTheme()
+                  }}
+                  options={[
+                    { value: 'light', label: '밝게' },
+                    { value: 'dark', label: '어둡게' },
+                  ]}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-[13px] font-bold">데이터 출처</span>
+                <Segmented
+                  size="sm"
+                  value={mode}
+                  onChange={setMode}
+                  options={[
+                    { value: 'api', label: '서버' },
+                    { value: 'mock', label: '목업' },
+                  ]}
+                />
+              </div>
+
+              <div className="border-t pt-4" style={{ borderColor: 'var(--border-hairline)' }}>
+                {mode === 'mock' && (
+                  <Button variant="secondary" size="sm" full onClick={resetMockData}>
+                    목업 데이터 초기화
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  full
+                  className="mt-2"
+                  onClick={async () => {
+                    await logout()
+                    navigate('/')
+                  }}
+                >
+                  로그아웃
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <Modal
+        open={nickOpen}
+        onClose={() => setNickOpen(false)}
+        title="닉네임 변경"
+        description="1~20자까지 쓸 수 있어요."
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setNickOpen(false)}>
+              취소
+            </Button>
+            <Button
+              size="sm"
+              disabled={!draft.trim() || busy}
+              onClick={async () => {
+                setBusy(true)
+                const ok = await updateName(draft.trim())
+                setBusy(false)
+                if (ok) setNickOpen(false)
+              }}
+            >
+              {busy ? '저장 중…' : '저장'}
+            </Button>
+          </>
+        }
+      >
+        <Field label="닉네임">
+          <Input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={20} />
+        </Field>
+      </Modal>
     </div>
   )
 }

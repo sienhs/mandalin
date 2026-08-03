@@ -1,84 +1,356 @@
-import { useNavigate, useParams } from 'react-router-dom'
-import Header from '../components/common/Header'
-import SheetGrid from '../components/sheet/SheetGrid'
-import SheetMiniGrid from '../components/sheet/SheetMiniGrid'
-import SelectedTaskPanel from '../components/sheetDetail/SelectedTaskPanel'
-import SheetDetailHeader from '../components/sheetDetail/SheetDetailHeader'
-import { useSheetDetail } from '../components/sheetDetail/useSheetDetail'
-// 카드(.card) · 9x9 칸(.Sheet) · 3x3 확대 그리드(.mgrid) · 배지(.pill) 는 생성 화면과 공유한다.
-import '../styles/sheet-create.css'
-import '../styles/sheet-detail.css'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { domainProgress, filledCells, useSheetDetail, useStore } from '../data/store'
+import { PERIOD_LABEL } from '../data/types'
+import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
+import Button from '../components/common/ActionButton'
+import { IconCheck, IconHeart, IconVillage } from '../components/common/Icons'
+import {
+  Badge,
+  EmptyState,
+  ErrorState,
+  ProgressBar,
+  ProgressRing,
+  Segmented,
+  Skeleton,
+  domainColor,
+} from '../components/common/Primitives'
+import { formatDate } from '../utils/format'
+import { cn } from '../utils/cn'
 
-type SheetDetailProps = {
-  /**
-   * 남의 만다라트를 보는 중(친구 목록에서 들어온 경우). 수행 완료를 감춘다.
-   * 시트 데이터로 소유자를 판별하지 않고 라우트로 구분한다 — 세션 복원 중에는
-   * 로그인 사용자 아이디가 아직 없어서, 내 시트를 남의 것으로 오판하는 창이 생긴다.
-   */
-  readOnly?: boolean
-}
+type Props = { readOnly?: boolean }
 
-/**
- * 만다라트 상세 화면. 목록 화면의 카드를 눌러 들어온다.
- *
- * 생성 화면과 같은 2D 뷰 + 3x3 확대 그리드를 쓰지만, 칸을 편집하는 대신
- * 선택한 과제를 수행 완료 처리하고 그만큼 달성률이 올라간다.
- */
-export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
-  const navigate = useNavigate()
-  // 주소에 숫자가 아닌 값이 들어오면 첫 번째 시트를 보여준다.
+export default function SheetDetail({ readOnly = false }: Props) {
   const { sheetId } = useParams()
-  const detail = useSheetDetail(Number(sheetId) || 1)
+  const navigate = useNavigate()
+  const { completeSubjects, toggleLike, setVisibility } = useStore()
+  const { sheet, loading, error, reload, setSheet } = useSheetDetail(Number(sheetId))
 
-  // min-w: 가로 스크롤이 생겼을 때 오른쪽에 배경 없는 흰 띠가 보이지 않게 한다.
-  return (
-    <div className="min-h-screen min-w-[1280px] bg-[#F6F7F8]">
-      <Header />
+  const [selected, setSelected] = useState<CellRef | null>(null)
+  const [pending, setPending] = useState<number | null>(null)
 
-      {/*
-        폭을 고정한다(반응형 아님) — max-w 로 두면 브라우저를 확대할 때 CSS 뷰포트가 좁아지면서
-        컨테이너가 같이 줄고, 9x9 칸이 눌려 글자와 칸 비율이 깨진다.
-        좁은 창에서는 화면이 줄어드는 대신 가로 스크롤이 생긴다.
-      */}
-      <main className="mx-auto w-[1280px] px-6 pb-[70px] pt-6">
-        <div className="card p-6">
-          <SheetDetailHeader
-            sheet={detail.sheet}
-            achievementRate={detail.achievementRate}
-            // 친구 만다라트에서도 지금은 내 마을로 간다. 친구 마을 화면이 생기면 그때 갈린다.
-            onOpenVillage={() => navigate('/village')}
-            readOnly={readOnly}
-            liked={detail.liked}
-            likeCount={detail.likeCount}
-            onToggleLike={detail.toggleLike}
-          />
+  useEffect(() => {
+    if (sheet && !selected) setSelected({ kind: 'domain', domainIndex: 0 })
+  }, [sheet, selected])
 
-          {/* 좌: 9x9 2D 뷰 · 우: 3x3 확대 그리드와 선택한 과제 */}
-          <div className="sheet-detail-body">
-            <SheetGrid
-              grid={detail.grid}
-              selectedCell={detail.selectedCell}
-              onSelect={detail.setSelectedCell}
-              heading={null}
-              isChecked={detail.isChecked}
-              className=""
-            />
-
-            <div className="sheet-detail-side">
-              <SheetMiniGrid
-                blockIndex={detail.selectedBlockIndex}
-                cells={detail.miniGrid}
-                isChecked={detail.isChecked}
-              />
-              <SelectedTaskPanel
-                task={detail.selectedTask}
-                onComplete={detail.completeTask}
-                readOnly={readOnly}
-              />
-            </div>
-          </div>
+  if (loading && !sheet) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-[124px] w-full" />
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)]">
+          <Skeleton className="aspect-square w-full" />
+          <Skeleton className="h-[420px] w-full" />
         </div>
-      </main>
+      </div>
+    )
+  }
+
+  if (error || !sheet) {
+    return (
+      <ErrorState
+        message={error ?? '만다라트를 찾을 수 없습니다.'}
+        onRetry={() => void reload()}
+        hint={
+          <>
+            비공개 시트는 소유자만 볼 수 있습니다.{' '}
+            <Link to="/app/sheets" className="font-bold text-brand-600">
+              목록으로 돌아가기
+            </Link>
+          </>
+        }
+      />
+    )
+  }
+
+  const domains = sheet.domains ?? []
+  const byPosition = new Map(domains.map((d) => [d.position, d]))
+  const selectedDomain =
+    selected && selected.kind !== 'core' ? byPosition.get(selected.domainIndex) : undefined
+
+  const complete = async (subjectId: number) => {
+    setPending(subjectId)
+    const ok = await completeSubjects(sheet.id, [subjectId])
+    if (ok) await reload()
+    setPending(null)
+  }
+
+  const like = async () => {
+    const res = await toggleLike(sheet.id)
+    if (res) setSheet({ ...sheet, isLiked: res.isLiked, likeCount: res.likeCount })
+  }
+
+  const changeVisibility = async (isOpen: boolean) => {
+    if (isOpen === sheet.isOpen) return
+    // 눈에 먼저 반영하고, 실패하면 되돌린다.
+    setSheet({ ...sheet, isOpen })
+    const ok = await setVisibility(sheet.id, isOpen)
+    if (!ok) setSheet({ ...sheet, isOpen: !isOpen })
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* ───────── 헤더 ───────── */}
+      <header className="card flex flex-wrap items-center gap-5 p-6">
+        <ProgressRing value={sheet.achievementRate} size={84}>
+          <strong className="text-lg font-black tracking-[-0.04em]">
+            {sheet.achievementRate}%
+          </strong>
+        </ProgressRing>
+
+        <div className="min-w-[200px] flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {readOnly ? (
+              <Badge>읽기 전용 · 친구의 만다라트</Badge>
+            ) : (
+              <Badge tone={sheet.isOpen ? 'brand' : 'neutral'}>
+                {sheet.isOpen ? '공개' : '비공개'}
+              </Badge>
+            )}
+            <Badge>{filledCells(sheet)}/81칸</Badge>
+          </div>
+
+          <h1 className="page-title mt-2">{sheet.title}</h1>
+          <p className="page-caption">
+            {formatDate(sheet.createdAt)} – {formatDate(sheet.expiredAt)}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void like()}
+            className={cn(
+              'flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-bold transition-colors',
+              sheet.isLiked && 'border-rose-400/40 bg-rose-500/10 text-rose-500',
+            )}
+            style={sheet.isLiked ? undefined : { borderColor: 'var(--border-hairline)' }}
+            aria-pressed={sheet.isLiked}
+          >
+            <IconHeart className="size-[16px]" />
+            {sheet.likeCount}
+          </button>
+
+          {readOnly ? (
+            <Button variant="secondary" size="sm" onClick={() => navigate(-1)}>
+              돌아가기
+            </Button>
+          ) : (
+            <>
+              {/* 내용은 못 고쳐도 공개 여부는 바꿀 수 있다 — 목표가 아니라 노출 설정이라서 */}
+              <Segmented
+                size="sm"
+                value={sheet.isOpen ? 'public' : 'private'}
+                onChange={(v) => void changeVisibility(v === 'public')}
+                options={[
+                  { value: 'public', label: '공개' },
+                  { value: 'private', label: '비공개' },
+                ]}
+              />
+              <Button
+                size="sm"
+                to={`/app/village?sheet=${sheet.id}`}
+                state={{ from: `/app/sheets/${sheet.id}` }}
+              >
+                <IconVillage className="size-[18px]" /> 마을에서 보기
+              </Button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)]">
+        {/* ───────── 9x9 ───────── */}
+        <section className="card p-4 sm:p-6">
+          <MandalartGrid sheet={sheet} selected={selected} onSelect={setSelected} />
+
+          <div
+            className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4 text-[11.5px] font-bold"
+            style={{ borderColor: 'var(--border-hairline)' }}
+          >
+            <span className="muted">칸 색이 아래에서 차오르면 그만큼 진행된 것입니다</span>
+            <span className="ml-auto flex flex-wrap items-center gap-3">
+              {domains.slice(0, 4).map((d) => (
+                <span key={d.id} className="flex items-center gap-1.5">
+                  <span
+                    className="size-2.5 rounded-sm"
+                    style={{ background: domainColor(d.position) }}
+                    aria-hidden="true"
+                  />
+                  {domainProgress(d.subjects)}%
+                </span>
+              ))}
+            </span>
+          </div>
+        </section>
+
+        {/* ───────── 선택 패널 ───────── */}
+        <aside className="flex flex-col gap-5">
+          {selected?.kind === 'core' && (
+            <section className="card p-6">
+              <Badge tone="brand">핵심 목표</Badge>
+              <h2 className="m-0 mt-3 text-xl font-extrabold tracking-[-0.03em]">{sheet.title}</h2>
+              <p className="muted m-0 mt-2 text-[13px] font-medium leading-relaxed">
+                이 목표를 8개의 세부 목표로 나눴고, 각 세부 목표마다 실천 과제를 두었습니다.
+              </p>
+
+              <div className="mt-5 flex flex-col gap-2.5">
+                {domains.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSelected({ kind: 'domain', domainIndex: d.position })}
+                    className="flex items-center gap-3 rounded-xl p-3 text-left transition-colors hover:brightness-[.98]"
+                    style={{ background: 'var(--surface-sunken)' }}
+                  >
+                    <span
+                      className="size-3 shrink-0 rounded-full"
+                      style={{ background: domainColor(d.position) }}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold">
+                      {d.title || `세부 목표 ${d.position + 1}`}
+                    </span>
+                    <span className="shrink-0 text-[12px] font-black tabular-nums">
+                      {domainProgress(d.subjects)}%
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {selected && selected.kind !== 'core' && selectedDomain && (
+            <section className="card p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold text-white"
+                    style={{ background: domainColor(selectedDomain.position) }}
+                  >
+                    세부 목표 {selectedDomain.position + 1}
+                  </span>
+                  <h2 className="m-0 mt-2.5 text-[17px] font-extrabold tracking-[-0.03em]">
+                    {selectedDomain.title || '(제목 없음)'}
+                  </h2>
+                </div>
+                <strong className="shrink-0 text-lg font-black tabular-nums">
+                  {domainProgress(selectedDomain.subjects)}%
+                </strong>
+              </div>
+
+              <div className="mt-3">
+                <ProgressBar
+                  value={domainProgress(selectedDomain.subjects)}
+                  color={domainColor(selectedDomain.position)}
+                  label={`${selectedDomain.title} 진행률`}
+                />
+              </div>
+
+              <div className="mt-5">
+                <p className="muted m-0 mb-2.5 text-[12.5px] font-bold">
+                  실천 과제 {selectedDomain.subjects.length}/8
+                </p>
+
+                {selectedDomain.subjects.length === 0 ? (
+                  <div
+                    className="rounded-xl px-4 py-6 text-center"
+                    style={{ background: 'var(--surface-sunken)' }}
+                  >
+                    <p className="muted m-0 text-[12.5px] font-semibold">
+                      이 세부 목표에는 과제가 없어요.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    {selectedDomain.subjects.map((sub, j) => {
+                      const active = selected.kind === 'subject' && selected.subjectIndex === j
+                      const busy = pending === sub.id
+
+                      return (
+                        <li key={sub.id}>
+                          <div
+                            className={cn(
+                              'rounded-2xl p-3 transition-all',
+                              active && 'ring-2 ring-brand-400/60',
+                            )}
+                            style={{ background: 'var(--surface-sunken)' }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelected({
+                                  kind: 'subject',
+                                  domainIndex: selectedDomain.position,
+                                  subjectIndex: j,
+                                })
+                              }
+                              className="flex w-full items-start gap-2.5 text-left"
+                            >
+                              <span className="min-w-0 flex-1">
+                                <span
+                                  className={cn(
+                                    'block text-[13.5px] font-bold',
+                                    sub.isDone && 'line-through opacity-60',
+                                  )}
+                                >
+                                  {sub.title}
+                                </span>
+                                <span className="muted mt-1 block text-[11.5px] font-semibold">
+                                  {PERIOD_LABEL[sub.period]} · {sub.tryCount}/{sub.targetCount}회
+                                  {sub.isDone && ' · 완료'}
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-[12px] font-black tabular-nums">
+                                {sub.progress}%
+                              </span>
+                            </button>
+
+                            <div className="mt-2.5">
+                              <ProgressBar
+                                value={sub.progress}
+                                size="sm"
+                                color={domainColor(selectedDomain.position)}
+                                label={`${sub.title} 진행률`}
+                              />
+                            </div>
+
+                            {!readOnly && active && (
+                              <Button
+                                size="sm"
+                                full
+                                className="mt-3"
+                                disabled={sub.isDone || busy}
+                                onClick={() => void complete(sub.id)}
+                              >
+                                <IconCheck className="size-4" />
+                                {sub.isDone
+                                  ? '목표를 다 채웠어요'
+                                  : busy
+                                    ? '저장 중…'
+                                    : `한 번 완료 +${sub.point}P`}
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            </section>
+          )}
+        </aside>
+      </div>
+
+      {domains.length === 0 && (
+        <div className="card">
+          <EmptyState
+            icon="📄"
+            title="이 만다라트에는 아직 내용이 없어요"
+            body="세부 목표와 과제가 비어 있습니다."
+          />
+        </div>
+      )}
     </div>
   )
 }

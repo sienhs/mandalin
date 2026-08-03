@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.mandarin.domain.building.dto.BuildingSizeResponse;
 import com.ssafy.mandarin.domain.building.entity.BuildingItem;
+import com.ssafy.mandarin.domain.building.entity.UserBuilding;
 import com.ssafy.mandarin.domain.building.service.BuildingInventoryService;
 import com.ssafy.mandarin.domain.building.service.BuildingPartsReader;
 import com.ssafy.mandarin.domain.village.dto.OwnedBuildingResponse;
@@ -28,7 +29,8 @@ public class VillageService {
 	/** 마을 화면 한 방 조회 — 해당 시트의 지형 + 배치 가능한(=보유한) 건물 전체. */
 	@Transactional
 	public VillageResponse getMyVillage(Long userId, Long sheetId) {
-		List<OwnedBuildingResponse> buildings = buildingInventoryService.findOwnedBuildings(userId).stream()
+		// 인벤토리 행으로 받는다 — 배치 API 가 user_building.id 를 요구하기 때문이다.
+		List<OwnedBuildingResponse> buildings = buildingInventoryService.findOwnedInventory(userId).stream()
 				.map(this::toResponse)
 				.toList();
 
@@ -56,8 +58,10 @@ public class VillageService {
 				.orElse(Terrain.DEFAULT);
 	}
 
-	private OwnedBuildingResponse toResponse(BuildingItem item) {
+	private OwnedBuildingResponse toResponse(UserBuilding owned) {
+		BuildingItem item = owned.getBuildingItem();
 		return new OwnedBuildingResponse(
+				owned.getId(),
 				item.getId(),
 				item.getItemKey(),
 				item.getName(),

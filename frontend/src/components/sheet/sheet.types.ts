@@ -20,7 +20,6 @@ export type Sheet = {
 
 export type Domain = {
   sheetId: number //시트 아이디
-  domainTemplateId: number //참고 도메인 아이디
   title: string //도메인 명
   position: number //위치
   createdAt: string //생성 날짜

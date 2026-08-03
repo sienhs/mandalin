@@ -1,250 +1,459 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import Header from '../components/common/Header'
-import { fetchTodoSubjects, type TodoSubject } from '../components/home/home.api'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { domainProgress, useStore } from '../data/store'
+import { PERIOD_LABEL, type TodoItem } from '../data/types'
+import { VillagePreview } from '../village/VillagePreview'
+import Button from '../components/common/ActionButton'
+import { IconArrowLeft, IconArrowRight, IconCheck, IconSparkle } from '../components/common/Icons'
+import {
+  Badge,
+  EmptyState,
+  ErrorState,
+  ProgressRing,
+  Skeleton,
+  domainColor,
+} from '../components/common/Primitives'
 import { cn } from '../utils/cn'
+import { num } from '../utils/format'
 
-function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="size-5 fill-none stroke-current"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d={direction === 'left' ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'} />
-    </svg>
-  )
+/** 오늘의 할 일 한 줄. todo 응답 + 도메인 색을 정할 순서. */
+type Row = {
+  todo: TodoItem
+  domainPosition: number
 }
 
-/** 로그인 후 홈 화면 (`/home`) — 오늘의 할 일 체크리스트 + 내 마을 도시 미리보기. */
-export default function HomePage() {
+export default function Home() {
+  const { user, details, todos, sheets, shop, completeSubjects, reloadDetails } = useStore()
   const navigate = useNavigate()
-  const [tasks, setTasks] = useState<TodoSubject[]>([])
-  const [isTasksLoading, setIsTasksLoading] = useState(true)
-  const [tasksError, setTasksError] = useState<string | null>(null)
-  // TODO: 마을 3D 씬을 구운 썸네일 URL로 채울 자리. 아직 연동 전이라 항상 null →
-  // 아래에서 폴백 이미지(image-load-error.png)를 보여준다.
-  const [cityImageUrl] = useState<string | null>(null)
-  const [imageLoadFailed, setImageLoadFailed] = useState(false)
-  const hasCityImage = Boolean(cityImageUrl) && !imageLoadFailed
-  const previewImageSrc = hasCityImage
-    ? cityImageUrl!
-    : '/images/image-load-error.png'
+  const [villageIndex, setVillageIndex] = useState(0)
+  const [pending, setPending] = useState<number | null>(null)
 
-  const loadTasks = useCallback(async () => {
-    setIsTasksLoading(true)
-    setTasksError(null)
+  const detailList = useMemo(
+    () => Object.values(details.data).sort((a, b) => b.id - a.id),
+    [details.data],
+  )
 
-    try {
-      const todos = await fetchTodoSubjects()
-      setTasks([...(todos ?? [])].sort((a, b) => a.position - b.position))
-    } catch (cause: unknown) {
-      setTasks([])
-      setTasksError(
-        cause instanceof Error ? cause.message : '오늘의 할 일을 불러오지 못했습니다.',
-      )
-    } finally {
-      setIsTasksLoading(false)
+  /**
+   * 오늘의 할 일.
+   *
+   * 서버가 `sheetId` 를 함께 내려주므로 이 응답만으로 완료 API 를 부를 수 있다.
+   * 예전에는 시트 상세를 전부 받아 subjectId → sheetId 표를 직접 만들어야 했다.
+   *
+   * 도메인 색은 상세 캐시에서 찾는다 — todo 응답에 도메인 순서(position)가 없어서다.
+   */
+  const rows = useMemo<Row[]>(() => {
+    const positionOf = new Map<number, number>()
+    for (const sheet of detailList) {
+      for (const domain of sheet.domains ?? []) positionOf.set(domain.id, domain.position)
     }
-  }, [])
 
-  useEffect(() => {
-    void loadTasks()
-  }, [loadTasks])
+    return todos.data
+      .filter((t) => !t.isDone)
+      .map((t) => ({
+        todo: t,
+        domainPosition: positionOf.get(t.domainId) ?? 0,
+      }))
+      .sort((a, b) => {
+        if (a.todo.isDoneToday !== b.todo.isDoneToday) {
+          return Number(a.todo.isDoneToday) - Number(b.todo.isDoneToday)
+        }
+        return a.todo.progress - b.todo.progress
+      })
+  }, [todos.data, detailList])
 
-  const toggleTask = (subjectId: number) => {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.subjectId === subjectId
-          ? { ...task, isDoneToday: !task.isDoneToday }
-          : task,
-      ),
+  const doneToday = todos.data.filter((t) => t.isDoneToday).length
+
+  const overall = useMemo(() => {
+    const all = detailList.flatMap((s) => s.domains?.flatMap((d) => d.subjects) ?? [])
+    return domainProgress(all)
+  }, [detailList])
+
+  const sheet = detailList[Math.min(villageIndex, Math.max(0, detailList.length - 1))]
+
+  /** 다음으로 살 수 있는 가장 싼 건물까지 몇 개를 더 해야 하는지. */
+  const nextBuilding = useMemo(() => {
+    const target = shop.data
+      .filter((i) => !i.owned && i.price > 0)
+      .sort((a, b) => a.price - b.price)[0]
+    if (!target || !user) return null
+    const remain = Math.max(0, target.price - user.point)
+    // 과제마다 포인트가 달라 평균으로 잡는다.
+    const avg =
+      rows.length > 0
+        ? Math.max(1, Math.round(rows.reduce((a, r) => a + r.todo.point, 0) / rows.length))
+        : 10
+    return { name: target.name, remain, count: Math.ceil(remain / avg) }
+  }, [shop.data, user, rows])
+
+  const complete = async (row: Row) => {
+    setPending(row.todo.subjectId)
+    await completeSubjects(row.todo.sheetId, [row.todo.subjectId])
+    setPending(null)
+  }
+
+  /* ───────── 로딩 · 에러 ───────── */
+
+  if (details.loading && detailList.length === 0) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-[132px] w-full" />
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+          <Skeleton className="h-[470px] w-full" />
+          <Skeleton className="h-[520px] w-full" />
+        </div>
+      </div>
     )
   }
 
-  const resetTasks = () => {
-    void loadTasks()
+  if (details.error && detailList.length === 0) {
+    return <ErrorState message={details.error} onRetry={() => void reloadDetails()} />
+  }
+
+  if (detailList.length === 0) {
+    return (
+      <div className="card mt-4">
+        <EmptyState
+          icon="🧩"
+          title="먼저 만다라트를 하나 만들어 볼까요?"
+          body="큰 목표 하나를 81칸으로 나누면, 오늘 할 일이 자동으로 생기고 마을에 건물이 세워집니다."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button to="/app/sheets/new">만다라트 만들기</Button>
+              <Button to="/app/coach" variant="secondary">
+                <IconSparkle className="size-[18px]" /> AI 코치와 만들기
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    )
   }
 
   return (
-    <div className="page-shell">
-      <Header />
+    <div className="flex flex-col gap-5">
+      {/* ───────── 요약 ───────── */}
+      <section className="card animate-rise flex flex-wrap items-center gap-6 p-6 sm:p-7">
+        <ProgressRing value={overall} size={96}>
+          <div className="text-center leading-none">
+            <strong className="block text-xl font-black tracking-[-0.04em]">{overall}%</strong>
+            <span className="muted mt-1 block text-[10.5px] font-bold">전체</span>
+          </div>
+        </ProgressRing>
 
-      <main
-        className={cn(
-          'mx-auto grid w-full max-w-[1440px] gap-3 px-5 py-7',
-          'sm:px-8',
-          'lg:grid-cols-[330px_minmax(0,1fr)] lg:gap-4',
-        )}
-      >
-        <aside className="flex min-h-[620px] flex-col rounded-2xl bg-white p-6 sm:p-7">
-          <div>
-            <h1 className="text-lg font-extrabold tracking-[-0.035em]">오늘의 할 일</h1>
-            <p className="subtitle">
-              매일 반복, 오늘 마감 과제
-            </p>
+        <div className="min-w-[220px] flex-1">
+          <h1 className="page-title">
+            {user?.name ?? '만다린'}님, 오늘 {doneToday}개 완료했어요
+          </h1>
+          <p className="page-caption">
+            {nextBuilding && nextBuilding.remain > 0 ? (
+              <>
+                과제{' '}
+                <strong className="text-brand-600 dark:text-brand-400">
+                  {nextBuilding.count}개
+                </strong>
+                만 더 하면 <strong>{nextBuilding.name}</strong>({num(nextBuilding.remain)}P 남음)을
+                살 수 있어요.
+              </>
+            ) : (
+              <>지금 포인트로 상점에서 새 건물을 살 수 있어요.</>
+            )}
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Button to="/app/village" state={{ from: '/app' }} variant="secondary" size="sm">
+            내 마을 보기
+          </Button>
+          <Button to="/app/shop" size="sm">
+            상점 가기
+          </Button>
+        </div>
+      </section>
+
+      {/*
+        두 카드는 높이를 맞춘다(그리드 기본 stretch). 대신 <b>할 일 목록이 남는 공간을
+        직접 채우게</b> 해서 여백이 생기지 않도록 한다 — 목록 높이를 고정해 두면 카드만
+        늘어나고 아래가 텅 비는데, 앞서 그 문제로 items-start 를 썼다가 이번엔 두 카드
+        높이가 어긋났다. 늘어나는 쪽을 목록으로 바꾸면 둘 다 해결된다.
+      */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        {/* ───────── 오늘의 할 일 ───────── */}
+        <section className="card animate-rise flex flex-col p-6" style={{ animationDelay: '.06s' }}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="section-title m-0">오늘의 할 일</h2>
+              <p className="muted m-0 mt-1 text-[12.5px] font-semibold">
+                체크하면 서버에 바로 저장되고 포인트가 쌓여요
+              </p>
+            </div>
+            <Badge tone="brand">{rows.length}개</Badge>
           </div>
 
-          <ul
-            className="mt-8 space-y-2.5 p-0"
-            aria-busy={isTasksLoading}
-          >
-            {isTasksLoading && (
-              <li
-                className="h-[54px] list-none animate-pulse rounded-xl bg-slate-200"
-                role="status"
-                aria-label="오늘의 할 일 불러오는 중"
-              />
-            )}
-            {!isTasksLoading && tasksError && (
-              <li
-                className="list-none rounded-xl bg-red-50 px-5 py-4 text-sm font-bold text-red-500"
-                role="alert"
-              >
-                {tasksError}
-              </li>
-            )}
-            {!isTasksLoading && !tasksError && tasks.length === 0 && (
-              <li className="list-none rounded-xl bg-[#F1F4F8] px-5 py-4 text-sm font-bold text-slate-400">
-                오늘 등록된 할 일이 없습니다.
-              </li>
-            )}
-            {!isTasksLoading && !tasksError && tasks.map((task) => (
-              <li key={task.subjectId} className="list-none">
-                <label
-                  className={cn(
-                    'flex min-h-[54px] cursor-pointer items-center gap-4 rounded-xl px-5 transition-colors',
-                    task.isDoneToday
-                      ? 'bg-[#FAECD3] text-slate-400'
-                      : 'bg-[#F1F4F8] text-slate-950 hover:bg-[#EAEFF4]',
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={task.isDoneToday}
-                    onChange={() => toggleTask(task.subjectId)}
-                    className="peer sr-only"
-                  />
-                  <span
-                    className={cn(
-                      'grid size-5 shrink-0 place-items-center rounded-full border-2',
-                    task.isDoneToday
-                        ? 'border-warning bg-warning text-white'
-                        : 'border-slate-300 bg-white',
-                    )}
-                    aria-hidden="true"
-                  >
-                    {task.isDoneToday && (
-                      <svg
-                        viewBox="0 0 16 16"
-                        className="size-3 fill-none stroke-current"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+          {rows.length === 0 ? (
+            <EmptyState
+              icon="🎉"
+              title="오늘 할 일을 모두 끝냈어요"
+              body="매일·주간 과제를 전부 채웠습니다. 마을에서 자란 건물을 확인해 보세요."
+              action={
+                <Button to="/app/village" state={{ from: '/app' }} variant="secondary" size="sm">
+                  마을 보러 가기
+                </Button>
+              }
+            />
+          ) : (
+            /*
+              <b>마을 카드가 높이의 기준이고, 이 목록이 거기에 맞춘다.</b>
+
+              앞서 `flex-1 + minHeight` 로 뒀더니 반대가 됐다 — 할 일이 많으면 목록이
+              길어지고, 그리드는 더 큰 쪽에 맞추므로 마을 카드가 따라 늘어났다.
+              flex-1 만으로는 못 막는다. 그리드 행 높이는 각 칸의 <i>내용</i> 높이로
+              정해지는데, flex 자식은 flex-basis 가 0 이어도 내용 높이를 그대로 보태기
+              때문이다.
+
+              그래서 목록을 <b>absolute</b> 로 띄운다. 절대 위치는 부모 높이 계산에서
+              아예 빠지므로, 이 카드의 내용 높이는 '머리말 + 버튼'뿐이 된다.
+              늘 마을 카드가 더 커서 행 높이를 정하고, 목록은 남는 만큼만 차지한 뒤
+              넘치면 안에서 스크롤한다.
+
+              창을 1024px 아래로 좁히면 한 컬럼이 되어 옆에 기준이 될 카드가 없어진다.
+              그때는 342px(5줄)로 고정한다 — 절대 위치라 그냥 두면 높이가 0이 되어
+              할 일이 통째로 사라진다.
+            */
+            <div className="relative mt-5 h-[342px] lg:h-auto lg:min-h-0 lg:flex-1">
+              <ul className="no-scrollbar absolute inset-0 m-0 flex list-none flex-col gap-2 overflow-y-auto p-0">
+                {rows.map((row) => {
+                  const color = domainColor(row.domainPosition)
+                  const busy = pending === row.todo.subjectId
+                  const done = row.todo.isDoneToday
+
+                  return (
+                    <li key={row.todo.subjectId}>
+                      <button
+                        type="button"
+                        onClick={() => void complete(row)}
+                        disabled={busy || done}
+                        className={cn(
+                          'group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-all duration-200',
+                          'hover:-translate-y-px disabled:cursor-not-allowed',
+                          done && 'opacity-65',
+                        )}
+                        style={{ background: 'var(--surface-sunken)' }}
+                        title={done ? '이번 주기에는 이미 완료했어요' : undefined}
                       >
-                        <path d="m3 8 3 3 7-7" />
-                      </svg>
-                    )}
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            'grid size-7 shrink-0 place-items-center rounded-full border-2 transition-all',
+                            done
+                              ? 'border-transparent text-white'
+                              : 'border-[var(--border-hairline)] text-transparent group-hover:border-brand-400',
+                          )}
+                          style={done ? { background: color } : undefined}
+                        >
+                          {busy ? (
+                            <span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent text-brand-500" />
+                          ) : (
+                            <IconCheck className="size-4" />
+                          )}
+                        </span>
+
+                        <span className="min-w-0 flex-1">
+                          {/*
+                          truncate(한 줄 말줄임)를 쓰면 "영어 단어 30개 외우기" 가
+                          "영어 단어 30개…" 로 잘려 무슨 과제인지 알 수 없었다.
+                          두 줄까지 접어 보여 주면 대부분의 제목이 온전히 읽힌다.
+                        */}
+                          <span
+                            className={cn(
+                              'line-clamp-2 block text-[13.5px] font-bold leading-snug',
+                              done && 'line-through',
+                            )}
+                          >
+                            {row.todo.title}
+                          </span>
+
+                          {/*
+                          부제는 한 줄로 고정한다. min-w-0 이 없으면 flex 자식이 내용 폭만큼
+                          버텨서 truncate 가 걸리지 않고, 대신 옆의 주기 배지가 아래로 밀려나
+                          줄이 두 겹으로 어긋났다.
+
+                          배지를 Badge 컴포넌트로 두지 않은 이유: 여기서만 더 작아야 하는데
+                          `!px-1.5` 같은 접두 important 는 Tailwind v4 에서 없어진 문법이라
+                          아무 효과가 없었다(그래서 배지가 커진 채로 줄을 밀어냈다).
+                        */}
+                          <span className="muted mt-1 flex items-center gap-1.5 text-[11.5px] font-semibold">
+                            <span
+                              className="size-2 shrink-0 rounded-full"
+                              style={{ background: color }}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0 flex-1 truncate">
+                              {row.todo.domainTitle} · {row.todo.sheetTitle}
+                            </span>
+                            <span
+                              className="shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-bold"
+                              style={{ background: 'var(--surface-card)' }}
+                            >
+                              {PERIOD_LABEL[row.todo.period]}
+                            </span>
+                          </span>
+                        </span>
+
+                        <span className="shrink-0 text-right">
+                          <span className="block text-[11.5px] font-black tabular-nums">
+                            {row.todo.tryCount}/{row.todo.targetCount}
+                          </span>
+                          <span className="muted block text-[10.5px] font-bold">
+                            +{row.todo.point}P
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+
+          <div className="mt-5 grid shrink-0 gap-2">
+            <Button to="/app/coach" variant="secondary" full>
+              <IconSparkle className="size-[18px]" /> AI 코치에게 과제 받기
+            </Button>
+            <Button to="/app/sheets/new" variant="quiet" full>
+              새 만다라트 만들기
+            </Button>
+          </div>
+        </section>
+
+        {/* ───────── 내 마을 ───────── */}
+        <section className="card animate-rise flex flex-col p-6" style={{ animationDelay: '.12s' }}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="section-title m-0">내 마을</h2>
+              <p className="muted m-0 mt-1 truncate text-[12.5px] font-semibold">
+                {sheet.title} · 달성률 {sheet.achievementRate}%
+              </p>
+            </div>
+
+            {detailList.length > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="이전 만다라트"
+                  onClick={() =>
+                    setVillageIndex((i) => (i - 1 + detailList.length) % detailList.length)
+                  }
+                  className="grid size-9 place-items-center rounded-full border text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+                  style={{ borderColor: 'var(--border-hairline)' }}
+                >
+                  <IconArrowLeft className="size-[18px]" />
+                </button>
+                <span className="muted min-w-[42px] text-center text-[12px] font-bold tabular-nums">
+                  {Math.min(villageIndex, detailList.length - 1) + 1}/{detailList.length}
+                </span>
+                <button
+                  type="button"
+                  aria-label="다음 만다라트"
+                  onClick={() => setVillageIndex((i) => (i + 1) % detailList.length)}
+                  className="grid size-9 place-items-center rounded-full border text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+                  style={{ borderColor: 'var(--border-hairline)' }}
+                >
+                  <IconArrowRight className="size-[18px]" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/*
+            SVG 로 흉내 낸 마을이 아니라 마을 화면과 <b>같은 3D</b>를 그린다. 예전 그림은
+            건물 종류도, 배치도, 성장 단계도 실제와 달라서 크게 보기를 누르면 다른 마을이
+            나왔다 — 미리보기가 본문과 다르면 미리보기가 아니다.
+
+            카드 전체를 누르면 마을로 간다. 3D 자체는 조작을 막아 뒀으므로(pointer-events)
+            안쪽 아무 데나 눌러도 이 버튼이 받는다.
+          */}
+          <button
+            type="button"
+            onClick={() => navigate(`/app/village?sheet=${sheet.id}`, { state: { from: '/app' } })}
+            aria-label={`${sheet.title} 마을 크게 보기`}
+            className="mt-4 block w-full overflow-hidden rounded-2xl border-0 p-0 text-left"
+            style={{ background: 'var(--surface-sunken)' }}
+          >
+            {/*
+              높이를 종횡비가 아니라 <b>뷰포트</b>가 정하게 한다.
+
+              16/10 종횡비로 두면 화면이 넓을수록 미리보기가 세로로 길어져서, 정작
+              아래 '마을 크게 보기' 버튼이 첫 화면 밖으로 밀려났다. 넓은 모니터일수록
+              더 안 보이는 셈이라 앞뒤가 맞지 않는다.
+
+              빼는 520px 의 내역: 헤더 64 + 본문 위 여백 24 + 요약 카드 약 160 +
+              카드 사이 간격 20 + 마을 카드의 머리말·버튼·안쪽 여백 약 162,
+              그리고 아래 여백 몫 약 90(본문 아래 여백 64 + 잘리지 않을 만큼의 완충).
+
+              완충을 둔 이유는 요약 카드가 이름 길이나 문구 줄바꿈에 따라 조금씩
+              높아지기 때문이다. 딱 맞게 계산하면 그때마다 버튼이 잘린다.
+
+              이 카드가 행 높이를 정하므로, 옆 할 일 카드도 같은 높이로 따라온다.
+            */}
+            <VillagePreview
+              sheet={sheet}
+              className="h-[clamp(220px,calc(100dvh-520px),480px)] w-full"
+            />
+          </button>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button to={`/app/village?sheet=${sheet.id}`} state={{ from: '/app' }} size="sm">
+              마을 크게 보기
+            </Button>
+            <Button to={`/app/sheets/${sheet.id}`} size="sm" variant="secondary">
+              만다라트 열기
+            </Button>
+            <Link
+              to="/app/report"
+              className="muted ml-auto text-[12.5px] font-bold no-underline hover:text-brand-600"
+            >
+              이번 주 리포트 →
+            </Link>
+          </div>
+        </section>
+      </div>
+
+      {/* ───────── 만다라트 요약 ───────── */}
+      {sheets.data.length > 0 && (
+        <section className="card animate-rise p-6" style={{ animationDelay: '.18s' }}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="section-title m-0">내 만다라트</h2>
+            <Link
+              to="/app/sheets"
+              className="muted text-[12.5px] font-bold no-underline hover:text-brand-600"
+            >
+              전체 보기 →
+            </Link>
+          </div>
+
+          <ul className="m-0 mt-4 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
+            {sheets.data.slice(0, 3).map((s) => (
+              <li key={s.id}>
+                <Link
+                  to={`/app/sheets/${s.id}`}
+                  className="flex items-center gap-3 rounded-2xl p-4 no-underline transition-transform hover:-translate-y-0.5"
+                  style={{ background: 'var(--surface-sunken)' }}
+                >
+                  <ProgressRing value={s.achievementRate} size={44} stroke={5}>
+                    <span className="text-[10px] font-black tabular-nums">{s.achievementRate}</span>
+                  </ProgressRing>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-extrabold">{s.title}</span>
+                    <span className="muted block text-[11.5px] font-semibold">
+                      좋아요 {s.likeCount} · {s.isOpen ? '공개' : '비공개'}
+                    </span>
                   </span>
-                  <span
-                    className={cn(
-                      'text-sm font-bold tracking-[-0.02em]',
-                      task.isDoneToday && 'line-through decoration-slate-400',
-                    )}
-                  >
-                    {task.title}
-                  </span>
-                </label>
+                </Link>
               </li>
             ))}
           </ul>
-
-          <div className="mt-auto pt-8">
-            {/* TODO: 체크 상태 저장 API 연동 후 적용하기에 onClick 연결 */}
-            <div className="grid grid-cols-[1fr_88px] gap-2.5">
-              <button
-                type="button"
-                className="btn-primary"
-              >
-                적용하기
-              </button>
-              <button
-                type="button"
-                onClick={resetTasks}
-                className="btn-secondary"
-              >
-                취소
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/sheet/create')}
-              className="btn-primary mt-6 w-full"
-            >
-              새 만다라트 만들기
-            </button>
-          </div>
-        </aside>
-
-        <section className="min-h-[620px] rounded-[22px] bg-white p-6 sm:p-8">
-          <div>
-            <h2 className="text-xl font-extrabold tracking-[-0.035em]">내 만다라트 도시</h2>
-            <p className="subtitle">
-              화살표로 내 다른 만다라트 미리 보기
-            </p>
-          </div>
-
-          <div
-            aria-label="사용자의 만다라트 도시 미리보기 영역"
-            className={cn(
-              'relative mt-5 grid min-h-[440px] place-items-center',
-              'overflow-hidden rounded-[22px] bg-[#E4ECFF]',
-              'sm:min-h-[500px]',
-            )}
-          >
-            <img
-              src={previewImageSrc}
-              alt={hasCityImage ? '내 만다라트 도시' : '만다라트 도시 이미지를 불러오지 못했습니다'}
-              onError={() => setImageLoadFailed(true)}
-              className={cn(
-                'max-h-[78%] object-contain',
-                hasCityImage ? 'w-[78%]' : 'w-56 max-w-[55%] rounded-xl',
-              )}
-            />
-            <button
-              type="button"
-              aria-label="이전 만다라트 보기"
-              className={cn(
-                'icon-btn',
-                'absolute left-4 top-1/2',
-                'size-11 -translate-y-1/2',
-                'bg-white text-slate-400 shadow-sm',
-                'hover:text-slate-700',
-                'sm:left-5',
-              )}
-            >
-              <ChevronIcon direction="left" />
-            </button>
-            <button
-              type="button"
-              aria-label="다음 만다라트 보기"
-              className={cn(
-                'icon-btn',
-                'absolute right-4 top-1/2',
-                'size-11 -translate-y-1/2',
-                'bg-white text-slate-400 shadow-sm',
-                'hover:text-slate-700',
-                'sm:right-5',
-              )}
-            >
-              <ChevronIcon direction="right" />
-            </button>
-          </div>
         </section>
-      </main>
+      )}
     </div>
   )
 }
