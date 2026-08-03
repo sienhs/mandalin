@@ -44,9 +44,7 @@ SECRET_ENV_VARS = (
     "LIVEKIT_API_KEY",
 )
 
-#: HS256 최소 키 길이. 백엔드 `LiveKitTokenIssuer.MIN_SECRET_BYTES` 와 같은 값이고,
-#: 그쪽은 이보다 짧으면 **토큰 발급을 거부**합니다 — 즉 여기서 걸리는 배포는 음성이
-#: 아예 안 됩니다.
+#: HS256 최소 키 길이.
 MIN_SECRET_BYTES = 32
 
 #: `livekit-server --dev` 가 하드코딩한 키 쌍. 공개된 값이라 이걸로 운영에 올라가면

@@ -1,7 +1,7 @@
 # ai_livekit
 
-`../ai` 의 자체 SFU(FastAPI + aiortc)를 LiveKit 으로 옮긴 목표 설계 에이전트입니다.
-목표 설계 파이프라인은 `mandarin_goal/` 로 들여왔고, `../ai` 없이 이 폴더만으로 돌아갑니다.
+LiveKit 위에서 도는 목표 설계 에이전트입니다. 목표 설계 파이프라인은
+`mandarin_goal/` 에 있고, 이 폴더만으로 돌아갑니다.
 
 입력은 텍스트와 음성(Deepgram STT), 출력은 텍스트뿐입니다. TTS 는 넣지 않았습니다.
 `AgentSession` 대신 프로그램적 참가자로 구현했고, 프레임워크에서는 job 수명주기와
@@ -9,7 +9,7 @@
 
 기준 버전은 `livekit-agents` 1.6.7, LiveKit 서버 1.13.5, `livekit-client` 2.21.0 입니다.
 
-이 문서는 사용법입니다. 진행 상황, 확정된 결정의 근거, 이미 잡은 버그 목록은
+이 문서는 사용법입니다. 확정된 결정의 근거와 이미 잡은 버그 목록은
 [HANDOFF.md](HANDOFF.md) 에 있습니다.
 
 ## 구조
@@ -42,8 +42,8 @@ LiveKit 이 필요한 파일은 `entrypoint.py` 하나입니다. 나머지에 �
 
 ### 고칠 때 지킬 것
 
-`mandarin_goal/` 에서 `livekit` 을 import 하지 마세요. 이 경계 덕분에 SFU 를 갈아치우면서
-파이프라인을 한 줄도 고치지 않았습니다.
+`mandarin_goal/` 에서 `livekit` 을 import 하지 마세요. 이 경계가 있으면 전송 계층을
+통째로 갈아도 파이프라인을 고칠 일이 없습니다.
 
 `mandarin_goal.` 을 직접 import 하지 마세요. `agent/reuse.py` 를 통합니다.
 
@@ -72,7 +72,7 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 `pip install -e .` 는 필요 없습니다. 서드파티는 `livekit-agents`,
 `livekit-plugins-deepgram`, `pydantic`, `pydantic-settings`, `httpx` 뿐입니다.
 
-예전 절차대로 `pip install -e ../ai --no-deps` 를 실행한 venv 라면 지우세요.
+venv 에 `webrtc-sfu`(`app` 패키지)가 설치돼 있으면 지우세요.
 
 ```powershell
 .venv\Scripts\python.exe -m pip uninstall webrtc-sfu
@@ -109,7 +109,7 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 ## 확인
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q                                    # 72 tests
+.venv\Scripts\python.exe -m pytest -q                                    # 82 tests
 .venv\Scripts\python.exe -m ruff check agent mandarin_goal tests scripts
 .venv\Scripts\python.exe scripts\smoke_client.py "화 안 내는 사람이 되고 싶어"
 ```
@@ -128,9 +128,12 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `test_event_signatures.py` | 8 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
 | `test_hello.py` | 8 | 세션 능력 알림. `voice:false` 필수 |
 | `test_transcription_registry.py` | 6 | mute/unmute 경합, 중복 시작, 누수 |
+| `test_domain_authority.py` | 6 | 도메인 정본이 시트인지, 없는 칸을 만들지 않는지 |
+| `test_prompts_are_one_folder.py` | 4 | 모델에게 가는 텍스트가 `prompts/` 에만 있는지 |
 
-뒤 네 파일은 예외 없이 조용히 실패하던 버그에서 나왔습니다(HANDOFF 5절). 그래서
-문구가 아니라 구조를 검사합니다.
+`test_event_signatures.py` 부터 `test_transcription_registry.py` 까지는 예외 없이
+조용히 실패하던 버그에서 나왔습니다(HANDOFF 2절). 그래서 문구가 아니라 구조를
+검사합니다.
 
 ## 환경변수
 
@@ -144,7 +147,7 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `STT_LANGUAGE` | `ko` | `multi` 로 바꾸지 마세요. 아래 참고 |
 | `STT_MODEL` | `nova-3` | `nova-2` 도 한국어를 지원합니다 |
 | `BOT_PROVIDER` | `gemini` | `echo` 는 키 없이 도는 데모. 답이 고정 문구입니다 |
-| `BOT_API_KEY` | | `../ai/.env` 의 `BOT_*` 를 그대로 가져오면 됩니다 |
+| `BOT_API_KEY` | | Gemini API 키. `BOT_PROVIDER=gemini` 면 필수 |
 | `BOT_BASE_URL` | | 게이트웨이를 쓰면 필수. 빠뜨리면 공식 엔드포인트로 나갑니다 |
 | `BOT_STEP_TIMEOUT_SECONDS` | `25` | 게이트웨이는 느립니다. 기본값 15 면 정상 응답이 잘립니다 |
 | `BOT_TIMEOUT_SECONDS` | `45` | 위와 같음(기본값 20) |
@@ -212,7 +215,7 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 
 필드 이름은 Spring 응답 그대로 써야 합니다. 빈도는 `frequency` 가 아니라 `period`
 입니다. fixture 나 `dev_server` 가 실제 모양을 안 흉내내면 테스트와 실서버가 다 초록불인
-채로 버그가 숨습니다(HANDOFF 5절).
+채로 버그가 숨습니다(HANDOFF 2절).
 
 ### 중복 방지
 
@@ -348,8 +351,6 @@ Google 플러그인은 대안이 아닙니다. Google Cloud STT 는 GCP 서비�
 목록에 Gemini 기반 STT 는 없습니다.
 
 ## 포트
-
-`../ai` 는 8080 이었지만 여기에는 8080 을 쓰는 게 없습니다.
 
 | 포트 | 무엇 | 브라우저로 열까 |
 |---|---|---|

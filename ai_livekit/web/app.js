@@ -7,7 +7,7 @@
  *
  * ## 빌드 도구가 없습니다
  *
- * `livekit-client` 를 CDN 에서 ESM 으로 가져옵니다. `../ai/static/` 이 그냥 서빙되던
+ * `livekit-client` 를 CDN 에서 ESM 으로 가져옵니다. 정적 파일을 그냥 서빙하는
  * 구조를 유지하려는 것입니다 — npm + vite 를 들이면 파이썬 저장소에 노드 툴체인이
  * 하나 더 붙습니다. 대신 **페이지를 열 때 네트워크가 필요합니다.** 오프라인에서
  * 작업할 일이 생기면 이 파일을 내려받아 `web/vendor/` 에 두세요.
@@ -110,7 +110,7 @@ function renderSheet() {
       // `keep()` 이 방금 담은 과제는 모델 payload 의 이름(`frequency`)입니다. 위
       // `nextLocalSubjectId()` 가 `id ?? subjectId` 를 보는 것과 같은 이유이고,
       // 한쪽만 읽으면 빈도 칩만 조용히 사라집니다(서버도 양쪽을 받습니다 —
-      // `../ai/app/sheet.py`).
+      // `mandarin_goal/sheet.py`).
       const freq = FREQUENCY_LABELS[subject.period ?? subject.frequency]
       li.innerHTML = `${escapeHtml(subject.title)}${freq ? ` <em>${freq}</em>` : ''}`
       list.appendChild(li)
@@ -134,7 +134,7 @@ function log(who, text, kind = '') {
  *
  * `recommend`/`generate` 일 때만 담기 버튼이 붙습니다. 자동으로 담지 않는 이유는
  * 프롬프트의 `no_autocomplete` 규칙입니다 — 추천과 초안까지만 하고 최종 확정은
- * 사용자가 합니다(→ `../ai/README.md`).
+ * 사용자가 합니다.
  */
 function renderGoal(data) {
   const box = document.createElement('div')
@@ -233,8 +233,8 @@ async function keep(data, btn) {
   // 버리기 때문에(모델이 지목할 방법이 없어서), `null` 로 두면 **방금 담은 과제가 다음
   // 턴의 중복 검사에 안 들어갑니다.**
   //
-  // 진짜 PK 는 Spring 담기 API 가 정하는 값인데 아직 없으므로, `../ai/static/js/board.js`
-  // 처럼 **로컬 일련번호**를 씁니다 — 모델이 후보를 지목하고 서버가 같은 요청 안에서
+  // 진짜 PK 는 Spring 담기 API 가 정하는 값인데 아직 없으므로 **로컬 일련번호**를
+  // 씁니다 — 모델이 후보를 지목하고 서버가 같은 요청 안에서
   // 되짚어 보는 데에만 쓰이므로 이 범위에서 유일하면 충분합니다.
   domain.subjects.push({ id: nextLocalSubjectId(), title, frequency })
   domain.subjectCount = domain.subjects.length
@@ -391,9 +391,8 @@ function showCaption(text) {
 /**
  * 푸시투토크 — 누르면 듣고, 다시 누르거나 10초가 지나면 멈춥니다.
  *
- * **`../ai` 의 방식으로 돌아온 것입니다.** 저쪽은 버튼을 누르는 동안만 오디오를 보냈고,
- * 시작·끝을 사람이 명시하니 발화 감지가 필요 없었습니다. 마이크를 계속 켜두는 방식으로
- * 바꿨더니 두 문제가 생겼습니다 —
+ * **버튼을 누르는 동안만 오디오를 보냅니다.** 시작·끝을 사람이 명시하므로 발화
+ * 감지가 필요 없습니다. 마이크를 계속 켜두면 두 문제가 생깁니다 —
  *
  *   ① 무음 구간도 오디오 시간으로 과금됩니다 (스트리밍 STT 의 특성)
  *   ② 잡음과 무음을 구분할 장치가 없습니다 (silero VAD 가 필요해짐)
@@ -408,9 +407,8 @@ const TALK_WINDOW_MS = 10_000
 
 //: 오조작 가드. 이 시간 안의 두 번째 누름은 무시합니다.
 //:
-//: `../ai` 의 `MIN_SECONDS = 0.3`("버튼을 스치듯 눌렀을 때 무시")과 같은 자리입니다.
-//: 저쪽은 캡처된 오디오 길이로 걸렀지만, 여기서는 **켜자마자 끄는 것을 막습니다** —
-//: 그러면 STT 연결을 열자마자 닫아 전사도 못 얻고 요금만 냅니다.
+//: 버튼을 스치듯 눌렀을 때를 걸러 **켜자마자 끄는 것을 막습니다** — 그러면 STT
+//: 연결을 열자마자 닫아 전사도 못 얻고 요금만 냅니다.
 const MISCLICK_GUARD_MS = 300
 
 let talkTimer = null
@@ -499,7 +497,7 @@ $('composer').addEventListener('submit', async (event) => {
 
 function escapeHtml(value) {
   // `&` 를 먼저 바꿔야 합니다. 나중에 바꾸면 앞서 만든 `&lt;` 가 이중 이스케이프됩니다
-  // (→ `../ai/LEARNING.md` 10절, `escape_slot_value` 와 같은 함정).
+  // (서버의 `escape_slot_value` 와 같은 함정).
   return String(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

@@ -3,8 +3,8 @@
 목표 설계 파이프라인은 전송 계층을 모릅니다. `mandarin_goal.bot.goal` 이 끌어오는
 것은 `mandarin_goal.bot.{llm,prompt,subjects}` · `mandarin_goal.config` ·
 `mandarin_goal.sheet` 여섯 개뿐이고, livekit 도 fastapi 도 없습니다 (아래
-`TRANSPORT_ONLY` 를 `tests/test_reuse.py` 가 검증합니다). SFU 를 LiveKit 으로
-갈아치우면서도 이 여섯 개를 그대로 쓸 수 있었던 이유입니다.
+`TRANSPORT_ONLY` 를 `tests/test_reuse.py` 가 검증합니다). 전송 계층을 갈아도 이
+여섯 개는 그대로 쓸 수 있습니다.
 
     from agent.reuse import GoalPipeline, DomainRef          # ← 이렇게
     from mandarin_goal.bot.goal import GoalPipeline          # ← 이렇게 하지 마세요
