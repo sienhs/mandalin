@@ -465,11 +465,6 @@ asyncio.run(main())
 
 ## 남은 일
 
-스캐폴딩, STT, worker, 실서버, 프론트, 푸시투토크, 중복 방지, 빈도 검색, `../ai` 의존
-끊기까지는 끝났습니다. 검증 수단별 근거는 HANDOFF 1절에 있습니다.
-
-- 새로고침 후 시트 유지(localStorage). `../ai/static/js/board.js` 의 `#load`/`#save`
-- 과제 삭제와 담은 과제 인계(`postMessage`). 둘 다 `board.js` 에 있습니다
 - React 프론트(`../frontend/src/components/aiCoach/`) 이식. `signaling.ts` 와
   `sfuClient.ts` 를 버리고 `livekit-client` 로 갑니다. `taskBoard.ts` 와 패널은 그대로입니다
 - 인증. Spring 이 LiveKit access token 을 서명하면 검증은 LiveKit 서버가 하므로

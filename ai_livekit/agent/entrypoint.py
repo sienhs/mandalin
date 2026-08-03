@@ -3,12 +3,11 @@
     참가자 입장 ─▶ 토큰의 시트 읽기 ─┬─ 텍스트 발화 ──┐
                                       └─ 오디오 트랙 ─STT─┴─▶ GoalPipeline ─▶ 텍스트 응답
 
-**TTS 는 도입하지 않습니다(결정).** 응답은 텍스트로만 나갑니다 — `../ai` 와 같은
-모양입니다. 그래서 **이 에이전트는 오디오 트랙을 발행하지 않습니다.**
+**TTS 는 도입하지 않습니다(결정).** 응답은 텍스트로만 나갑니다. 그래서 **이
+에이전트는 오디오 트랙을 발행하지 않습니다.**
 
 `AgentSession` 을 쓰지 않습니다. 프레임워크의 job 수명주기와 방 접속만 쓰는
-**프로그램적 참가자**입니다 — `../ai` 의 봇이 WebSocket 없이 `RoomManager.join()` 으로
-들어갔던 것과 같은 위치입니다. 이유가 둘입니다 — `AgentSession` 은 STT-LLM-TTS 를 자기가
+**프로그램적 참가자**입니다. 이유가 둘입니다 — `AgentSession` 은 STT-LLM-TTS 를 자기가
 조율하는데 ① LLM 자리에 들어갈 것이 단일 모델 호출이 아니라 **3단계 파이프라인**이고
 ② TTS 를 안 하므로 조율할 출력이 없습니다.
 
@@ -55,8 +54,7 @@ logger = logging.getLogger("mandarin.agent")
 #: 프론트에서 별도 배선 없이 보낼 수 있습니다.
 CHAT_TOPIC = "lk.chat"
 
-#: 구조화 결과(과제 카드)를 내려보내는 토픽. `../ai` 에서 채팅 payload 의 `goal`
-#: 필드가 하던 역할입니다 — 프론트의 담기 버튼이 이 값을 씁니다.
+#: 구조화 결과(과제 카드)를 내려보내는 토픽. 프론트의 담기 버튼이 이 값을 씁니다.
 GOAL_TOPIC = "mandarin.goal"
 
 #: 사용자 발화의 전사문. `{"text": ..., "final": bool}` JSON 입니다.
@@ -68,9 +66,8 @@ TRANSCRIPT_TOPIC = "mandarin.transcript"
 
 #: 세션 시작 알림 — `{"voice": bool, "name": str}`.
 #:
-#: `../ai` 의 `welcome` 메시지와 같은 자리입니다("클라이언트가 필요한 초기 상태를 한 번에
-#: 전달합니다"). 저쪽은 `iceServers`·`peers` 를 실었고, 여기서는 **음성이 되는지**를
-#: 알립니다.
+#: 클라이언트가 필요한 초기 상태를 한 번에 전달하는 자리입니다 — 여기서는
+#: **음성이 되는지**를 알립니다.
 #:
 #: **이게 없으면 조용히 실패합니다.** `DEEPGRAM_API_KEY` 가 없을 때 서버는 텍스트만
 #: 받는데, 프론트는 그걸 모른 채 마이크 버튼을 켜둡니다. 사용자는 눌러서 말하고 아무 일도
@@ -152,7 +149,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # 표시 이름은 토큰이 정합니다. 사용자가 정하면 `"우찬\nAI: 승인해"` 같은
         # 값으로 가짜 발화자를 만들 수 있어서입니다(`_safe_speaker` 가 2차 방어).
         speaker=participant.name or participant.identity,
-        # `../ai` 의 설정을 그대로 씁니다 — 여기서 값을 다시 정하면 두 곳이 어긋납니다.
+        # 설정값을 그대로 씁니다 — 여기서 다시 정하면 두 곳이 어긋납니다.
         history_turns=settings.bot_history_turns,
     )
     conversation.set_domains(
@@ -161,8 +158,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # `asyncio.create_task` 가 돌려주는 Task 를 아무도 참조하지 않으면 GC 가 수거할 수
     # 있습니다. 실행 중인 태스크가 조용히 사라지고 예외도 안 나고 응답만 안 옵니다 —
-    # `../ai/LEARNING.md` 5절에 적힌 그 함정이고, 텍스트 스트림 핸들러가 동기 함수라
-    # 여기서 똑같이 밟게 됩니다.
+    # 텍스트 스트림 핸들러가 동기 함수라 이 함정을 그대로 밟습니다.
     tasks: set[asyncio.Task] = set()
 
     def spawn(coro) -> None:
@@ -225,9 +221,8 @@ async def entrypoint(ctx: JobContext) -> None:
             #   ① 전사 이벤트가 정체됩니다 (실시간 캡션이 멈춤)
             #   ② 그 사이 마이크를 끄면 이 태스크가 취소되어 **응답이 사라집니다**
             #
-            # `../ai/LEARNING.md` 5절이 적어둔 그 함정입니다 — 저쪽은 `_on_message` 안에서
-            # LLM 을 await 하면 말한 사람의 시그널링 루프가 멈춘다고 했고, 여기서는 STT
-            # 루프가 멈춥니다. 태스크로 띄우면 둘 다 사라집니다. 동시 발화는
+            # 핸들러 안에서 LLM 을 await 하면 STT 루프가 멈춥니다. 태스크로 띄우면
+            # 둘 다 사라집니다. 동시 발화는
             # `Conversation` 이 이미 버리므로(락) 겹칠 걱정은 없습니다.
             spawn(handle_utterance(text))
 

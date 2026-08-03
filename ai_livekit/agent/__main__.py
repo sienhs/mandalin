@@ -6,8 +6,8 @@
 
     ValueError: ws_url is required, or set LIVEKIT_URL environment variable
 
-`../ai` 의 `BOT_*` 설정은 사정이 다릅니다. `pydantic-settings` 가 `env_file=".env"` 로
-파일을 직접 읽으므로 이것과 무관하게 동작합니다. **같은 `.env` 를 두 계층이 서로 다른
+`BOT_*` 설정은 사정이 다릅니다. `pydantic-settings` 가 `env_file=".env"` 로 파일을
+직접 읽으므로 이것과 무관하게 동작합니다. **같은 `.env` 를 두 계층이 서로 다른
 방법으로 읽습니다** — 헷갈리는 지점이라 적어 둡니다.
 
 `load_dotenv()` 를 라이브러리 모듈(`entrypoint.py`)이 아니라 여기 두는 이유는 import
@@ -22,16 +22,26 @@ worker 쪽 traceback 은 그 터미널에만 있어서, "에이전트가 안 들
 필요한 절반이 안 보입니다.
 
 `encoding="utf-8"` 이 필수입니다. 이 PC 로케일이 CP949 라서 빼면 한글 로그에서
-`UnicodeEncodeError` 가 납니다(→ `../ai/LEARNING.md` 13절).
+`UnicodeEncodeError` 가 납니다.
 """
 from __future__ import annotations
 
 import logging
+import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+#: 로그에 남으면 안 되는 환경변수. `load_dotenv()` 뒤라 `.env` 값이 이미 올라와 있습니다.
+SECRET_ENV_VARS = (
+    "BOT_API_KEY",
+    "DEEPGRAM_API_KEY",
+    "LIVEKIT_API_SECRET",
+    "LIVEKIT_API_KEY",
+)
 
 #: 저장소 루트의 `worker.log`. CWD 기준이 아니라 이 파일 기준으로 잡습니다 — 다른
 #: 디렉터리에서 `python -m agent` 를 띄웠을 때 로그가 엉뚱한 곳에 생기지 않게.
@@ -62,9 +72,8 @@ def _silence_httpx() -> None:
     """`httpx` 를 WARNING 으로 올립니다. **키가 로그에 쌓이는 것을 막습니다.**
 
     `httpx` 는 INFO 에서 요청 URL 을 통째로 찍고, `BOT_API_KEY_IN_QUERY=true` 면 거기에
-    **API 키가 그대로 들어갑니다** — 요청마다 한 벌씩 쌓입니다. `../ai` 는 `main.py` 에서
-    이걸 올렸는데(→ `../ai/LEARNING.md` 16절, 관측성을 켜다가 발견한 사고), 여기서는
-    `create_app()` 을 부르지 않으므로 **그 설정이 실행되지 않습니다.**
+    **API 키가 그대로 들어갑니다** — 요청마다 한 벌씩 쌓입니다. worker 는 웹 앱
+    팩토리를 거치지 않으므로 **그 설정을 여기서 해야 합니다.**
 
     **`worker.log` 때문에 더 심각합니다.** 콘솔이면 스크롤에 묻히지만 파일에는 남습니다.
 
@@ -73,8 +82,61 @@ def _silence_httpx() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
+def _redact_secrets() -> None:
+    """모든 로그 레코드에서 비밀값을 `***` 로 가립니다.
+
+    `_silence_httpx()` 의 보완층입니다. 저쪽은 로거 하나·레벨 하나만 막으므로,
+    누가 진단하려고 `httpx` 를 DEBUG 로 올리거나 다른 라이브러리가 URL 을 찍으면
+    다시 뚫립니다. 여기는 **레코드가 만들어지는 시점**에 걸어 출처를 가리지 않습니다.
+
+    **핸들러 필터가 아니라 레코드 팩토리인 이유**는 `livekit-agents` CLI 가 자기
+    콘솔 핸들러를 **이 함수보다 나중에** 붙이기 때문입니다. 필터는 붙일 때 있던
+    핸들러만 덮고, 로거에 붙인 필터는 자식 로거에서 전파된 레코드를 보지 못합니다.
+
+    8자 미만은 건너뜁니다. 로컬 `LIVEKIT_API_KEY=devkey` 처럼 짧고 흔한 값을 지우면
+    로그가 온통 `***` 이 됩니다.
+    """
+    secrets = [
+        value
+        for name in SECRET_ENV_VARS
+        if (value := os.environ.get(name, "").strip()) and len(value) >= 8
+    ]
+    if not secrets:
+        return
+    pattern = re.compile("|".join(map(re.escape, secrets)))
+
+    def scrub(value: object) -> object:
+        if isinstance(value, str):
+            return pattern.sub("***", value)
+        # httpx 는 URL 을 `httpx.URL` 객체로 넘깁니다. 값이 실제로 들어 있을 때만
+        # 문자열로 바꿔치기해서, `%d` 를 쓰는 숫자 인자는 그대로 둡니다 — 전부
+        # `str()` 하면 "%d format: a real number is required" 로 로깅이 깨집니다.
+        text = str(value)
+        return pattern.sub("***", text) if pattern.search(text) else value
+
+    base = logging.getLogRecordFactory()
+
+    def factory(*args, **kwargs) -> logging.LogRecord:
+        record = base(*args, **kwargs)
+        if isinstance(record.msg, str):
+            record.msg = pattern.sub("***", record.msg)
+        if record.args:
+            record.args = (
+                {key: scrub(v) for key, v in record.args.items()}
+                if isinstance(record.args, dict)
+                else tuple(scrub(a) for a in record.args)
+            )
+        return record
+
+    logging.setLogRecordFactory(factory)
+    logging.getLogger("mandarin.agent").info(
+        "로그 마스킹 활성 — 환경변수 %d개", len(secrets)
+    )
+
+
 _add_file_logging()
 _silence_httpx()
+_redact_secrets()
 
 from livekit.agents import cli  # noqa: E402
 

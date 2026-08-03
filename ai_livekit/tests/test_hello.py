@@ -4,8 +4,8 @@
 않으면 프론트는 마이크 버튼을 켜둔 채로 두고, 사용자는 눌러서 말하고 **아무 일도 일어나지
 않는 것**을 봅니다 — 에러도, 로그도, 응답도 없습니다.
 
-`../ai` 의 `welcome` 메시지와 같은 자리입니다("클라이언트가 필요한 초기 상태를 한 번에
-전달합니다"). 저쪽은 `iceServers`·`peers` 를 실었고 여기서는 음성 가능 여부를 싣습니다.
+클라이언트가 필요한 초기 상태를 한 번에 전달하는 자리이고, 여기서는 음성 가능
+여부를 싣습니다.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def test_voice_on_is_announced():
 
 
 def test_the_name_is_carried_so_the_chat_log_can_label_replies():
-    """이름은 `../ai` 의 `BOT_DISPLAY_NAME` 에서 옵니다 — 프론트에 박아두지 않습니다."""
+    """이름은 `BOT_DISPLAY_NAME` 설정에서 옵니다 — 프론트에 박아두지 않습니다."""
     payload = json.loads(hello_payload("만다린", voice=True))
     assert payload["name"] == "만다린"
 
@@ -48,7 +48,7 @@ def test_the_mode_is_a_suffix_not_a_separate_name():
 
 
 def test_the_payload_keeps_korean_readable():
-    """`ensure_ascii=False` 없이 보내면 한 글자가 6바이트가 됩니다(→ `../ai/LEARNING.md` 13절)."""
+    """`ensure_ascii=False` 없이 보내면 한 글자가 6바이트가 됩니다."""
     raw = hello_payload("만다린", voice=False)
     assert "만다린" in raw
     assert "\\u" not in raw

@@ -2,18 +2,8 @@
 
 pydantic-settings 는 필드명을 대문자로 바꿔 환경변수를 찾습니다
 (`bot_api_key` -> `BOT_API_KEY`).
-
-**`../ai` 에서 옮겨오면서 전송 계층 설정을 덜어냈습니다.** 저쪽의 `Settings` 에는
-`HOST`/`PORT`/`CORS_ORIGINS`(FastAPI) · `AUTH_*`(입장 티켓) · `STUN_URLS`/`TURN_*`
-(ICE) · `MAX_PARTICIPANTS_PER_ROOM`(방 정책) · `BOT_VOICE_*`(aiortc 푸시투토크
-캡처)가 함께 있는데, 여기서는 **하나도 쓰이지 않습니다** — 방·ICE·토큰은 LiveKit
-서버가, 음성 캡처는 Deepgram 이 합니다. 읽는 코드가 없는 설정을 남겨두면 `.env` 에
-적어놓고 왜 안 먹는지 찾게 됩니다.
-
-`extra="ignore"` 라서 **`../ai/.env` 를 그대로 가져와도 기동은 됩니다** — 덜어낸
-키들은 조용히 무시됩니다. 되살릴 일이 생기면 `../ai/app/config.py` 에 원문이
-그대로 있습니다.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -35,9 +25,9 @@ class Settings(BaseSettings):
     # --- AI 챗봇 ---------------------------------------------------------------
     #: 채팅에 붙는 이름. 입장 직후 `mandarin.hello` 로 프론트에 전달됩니다.
     bot_display_name: str = "AI"
-    bot_provider: str = "echo"          # echo | gemini | openai
+    bot_provider: str = "echo"          # echo | gemini
     # 폴백 기본값입니다. 단계별 모델(`bot_classify_model`/`bot_decide_model`)을
-    # 비웠을 때 그 자리를 대신하고, `BOT_MODE=chat` 경로에서 직접 쓰입니다.
+    # 비웠을 때 그 자리를 대신합니다.
     #
     # **구 이름 `BOT_MODEL` 도 계속 받습니다.** 이름만 바꾸고 별칭을 안 두면,
     # 예전 `.env` 를 쓰는 사람은 값이 조용히 코드 기본값으로 돌아갑니다 —
@@ -59,9 +49,9 @@ class Settings(BaseSettings):
     # 저장하면 **재시작 없이** 다음 응답부터 반영됩니다. 상대 경로는 저장소 루트
     # 기준입니다(`bot/prompt.py` 의 `PROJECT_ROOT`).
     #
-    # **기본값이 저장소의 정본을 가리킵니다.** 예전에는 `None` 이라 환경변수를
-    # 빠뜨리면 조용히 코드 내장 프롬프트로 떨어졌습니다 — 인젝션 차단 규칙이 빠진
-    # 채로 도는데 로그에는 아무 표시도 안 났습니다.
+    # **기본값을 비우지 마세요.** 비어 있으면 환경변수를 빠뜨렸을 때 조용히 코드
+    # 내장 프롬프트로 떨어집니다 — 인젝션 차단 규칙이 빠진 채로 도는데 로그에는
+    # 아무 표시도 안 납니다.
     bot_system_prompt_file: str = "./prompts/system.md"
     # 실수로 큰 파일을 가리켰을 때 매 요청에 그대로 실려 나가지 않게 하는 상한.
     bot_system_prompt_max_chars: int = 8000
@@ -75,10 +65,9 @@ class Settings(BaseSettings):
     bot_mode: str = "chat"
     bot_classify_prompt_file: str = "./prompts/classify.md"
     # 프롬프트에 넣을 중복 후보 개수. 후보는 클라이언트(Spring 이 서명한 토큰의
-    # metadata)가 실어 보낸 **사용자 시트의 과제**입니다 — 서버가 들고 있던 예시
-    # 과제 카탈로그(`BOT_TEMPLATE_FILE`)는 없어졌습니다. 카탈로그의 고정 8칸이
-    # 사용자의 자유 도메인과 어긋나 없는 칸을 만들어내던 문제 때문입니다
-    # (`bot/subjects.py` 모듈 주석).
+    # metadata)가 실어 보낸 **사용자 시트의 과제**입니다 — 서버가 예시 목록을 들고
+    # 있으면 그 목록의 고정 칸이 사용자의 자유 도메인과 어긋나 없는 칸을 만들어
+    # 냅니다(`bot/subjects.py` 모듈 주석).
     bot_candidate_count: int = 5
     # 단계별 모델. 비우면 BOT_DEFAULT_MODEL 을 씁니다.
     #
@@ -87,9 +76,8 @@ class Settings(BaseSettings):
     # 일인데 입력이 무겁습니다(~4,100 토큰). 그래서 3단계를 싼 티어로 내리면 품질
     # 손실 대비 절감이 가장 큽니다.
     #
-    # **`../ai` 와 달리 1단계 모델이 멀티모달일 필요는 없습니다.** 저쪽은 푸시투토크
-    # 오디오가 1단계로 들어가 받아쓰기까지 거기서 일어났지만, 여기서는 Deepgram 이
-    # 전사를 끝낸 뒤 텍스트만 파이프라인에 닿습니다(`agent/listen.py`).
+    # **1단계 모델이 멀티모달일 필요는 없습니다.** Deepgram 이 전사를 끝낸 뒤
+    # 텍스트만 파이프라인에 닿습니다(`agent/listen.py`).
     bot_classify_model: str | None = None
     bot_decide_model: str | None = None
     # 단계마다 따로 겁니다. bot_timeout_seconds 는 체인 전체를 덮는 값이라,
@@ -132,7 +120,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """설정은 한 번만 읽고 캐시합니다.
-
     그래서 `.env` 를 고쳤다면 **worker 프로세스를 완전히 재시작**해야 반영됩니다.
     자주 걸리는 함정입니다 — 특히 worker 를 두 개 띄워놓고 한쪽만 재시작하면
     증상이 간헐적이 됩니다(README "안 될 때").

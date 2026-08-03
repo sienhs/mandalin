@@ -100,9 +100,9 @@ class FakeEvent:
 def test_no_key_disables_voice_instead_of_crashing(monkeypatch):
     """키가 없으면 `None` 을 돌려주고 텍스트 대화는 그대로 동작해야 합니다.
 
-    fail-open 입니다. 인증(`../ai/app/auth`)은 반대로 fail-closed 인데, 기준이
-    다릅니다 — 인증은 판단할 수 없으면 **막아야** 하고, 음성은 못 쓰더라도 서비스가
-    돌아가는 편이 낫습니다.
+    fail-open 입니다. 인증은 반대로 fail-closed 인데, 기준이 다릅니다 — 인증은
+    판단할 수 없으면 **막아야** 하고, 음성은 못 쓰더라도 서비스가 돌아가는 편이
+    낫습니다.
     """
     monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
     assert build_stt() is None

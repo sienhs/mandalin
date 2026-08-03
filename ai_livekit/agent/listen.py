@@ -1,11 +1,7 @@
 """오디오 트랙 → 텍스트. Deepgram 스트리밍 STT.
 
-`../ai` 에서 이 자리는 **푸시투토크**였습니다 — 사용자가 버튼을 누르는 동안의 PCM 을
-모아 Gemini 에 넣었고, 시작·끝을 사람이 명시하니 발화 감지가 필요 없었습니다
-(`app/bot/voice.py`).
-
-LiveKit 으로 오면서 버튼이 사라졌으므로 **"언제 말이 끝났는가" 를 정할 장치가
-필요해졌습니다.** Deepgram 은 스트리밍이라 그 판단을 자기가 합니다(`endpointing_ms`)
+푸시투토크 버튼이 없으므로 **"언제 말이 끝났는가" 를 정할 장치가 필요합니다.**
+Deepgram 은 스트리밍이라 그 판단을 자기가 합니다(`endpointing_ms`)
 — 그래서 silero VAD 를 따로 붙이지 않습니다. 배치 STT(Whisper 계열)를 골랐다면 VAD 가
 필수였을 자리입니다.
 
@@ -19,8 +15,8 @@ LiveKit 으로 오면서 버튼이 사라졌으므로 **"언제 말이 끝났는
 
 `DEEPGRAM_API_KEY` 가 없으면 **음성만 조용히 빠지고 텍스트 대화는 그대로 됩니다.**
 fail-open 인 이유는 키 하나 때문에 세션 전체가 죽으면 안 되기 때문입니다 — 다만
-**경고를 크게 남깁니다.** `../ai` 의 프롬프트 로더와 같은 판단입니다(파일이 없으면
-기본값으로 내려가되 조용히 넘어가지 않음).
+**경고를 크게 남깁니다.** 프롬프트 로더와 같은 판단입니다 — 기본값으로 내려가되
+조용히 넘어가지 않습니다.
 
 ## 왜 `Conversation` 을 고치지 않았는가
 
@@ -88,7 +84,7 @@ MULTI_LANGUAGES = (
 )
 
 #: 스트리밍 STT 에 넘길 샘플레이트. Deepgram 플러그인 기본값과 같습니다.
-#: `../ai/LEARNING.md` 7절 — 사람 음성의 주요 성분이 4kHz 아래라 16kHz 면 충분합니다.
+#: 사람 음성의 주요 성분이 4kHz 아래라 16kHz 면 충분합니다.
 SAMPLE_RATE = 16_000
 
 
@@ -159,7 +155,7 @@ class TranscriptionRegistry:
         task = asyncio.create_task(make_coro())
         self._tasks[sid] = task
         # 강한 참조를 여기 보관합니다. 안 하면 GC 가 실행 중인 태스크를 수거해 전사가
-        # 조용히 멈춥니다(→ `../ai/LEARNING.md` 5절).
+        # 조용히 멈춥니다.
         task.add_done_callback(lambda finished: self._forget(sid, finished))
         return True
 
@@ -195,8 +191,7 @@ class TranscriptionRegistry:
 class TrackListener:
     """오디오 트랙 하나를 받아 전사문을 콜백으로 흘려보냅니다.
 
-    트랙마다 인스턴스 하나입니다. `../ai` 의 `VoiceCapture` 가 발화마다 새로 만들어야
-    했던 것과 달리(리샘플러가 상태를 가져서) 여기서는 스트림이 계속 살아 있습니다 —
+    트랙마다 인스턴스 하나이고, 스트림은 발화가 끝나도 계속 살아 있습니다 —
     Deepgram 이 발화 경계를 알아서 나눕니다.
     """
 
@@ -254,7 +249,7 @@ class TrackListener:
             # **취소 중에도 반드시 닫습니다.** `finally` 안의 `await` 는 이미 취소된
             # 태스크에서 즉시 `CancelledError` 를 다시 낼 수 있는데, 그러면 뒤쪽 정리가
             # 건너뛰어져 STT 연결이 새어 나갑니다 — mute/unmute 를 반복하면 연결이
-            # 쌓입니다. `../ai` 의 `cleanup()` 이 멱등해야 했던 것과 같은 종류입니다.
+            # 쌓입니다. 정리 경로는 멱등해야 합니다.
             #
             # `BaseException` 을 삼키지는 않습니다. `KeyboardInterrupt`·`SystemExit` 까지
             # 먹으면 Ctrl+C 가 안 듣습니다 — 필요한 것은 `CancelledError` 뿐입니다.
@@ -276,8 +271,8 @@ class TrackListener:
                 await self._on_interim(text)
         elif event.type == stt_api.SpeechEventType.RECOGNITION_USAGE:
             # STT 는 LLM 토큰이 아니라 **오디오 시간**으로 과금됩니다. 그 값이
-            # `gemini usage` 로그에 안 나오므로 여기서 따로 남깁니다
-            # (→ `../ai/LEARNING.md` 16절: 합계는 "어디가" 를 알려주지 않습니다).
+            # `gemini usage` 로그에 안 나오므로 여기서 따로 남깁니다 — 합계만으로는
+            # "어디가" 를 알 수 없습니다.
             usage = event.recognition_usage
             if usage is not None:
                 logger.info("stt usage %s", usage)

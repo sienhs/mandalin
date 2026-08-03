@@ -1,18 +1,17 @@
-"""챗봇용 LLM 백엔드.
+"""목표 설계 파이프라인용 LLM 백엔드.
 
-바깥에서 쓰는 건 `LlmBackend.reply()` 하나뿐입니다. 제공자를 바꾸는 것은
-코드 수정이 아니라 `BOT_PROVIDER` 설정 변경입니다.
+바깥에서 쓰는 건 `reply_json()` 하나뿐입니다. 제공자를 바꾸는 것은 코드 수정이
+아니라 `BOT_PROVIDER` 설정 변경입니다.
 
 - `echo`   : 네트워크도 키도 없이 동작. 배선 확인과 테스트용
-- `gemini` : Google `generateContent`. **음성 입력을 지원하는 유일한 백엔드**
-- `openai` : `/chat/completions`. 같은 형식을 쓰는 서드파티 서버도 여기로
+- `gemini` : Google `generateContent`
 
-`bot_base_url` 로 엔드포인트를 갈아끼울 수 있어 사내 게이트웨이를 거치는
-구성도 설정만으로 가능합니다.
+`openai` 는 `responseSchema` 에 해당하는 것이 없어 빠졌습니다. 입력은 텍스트뿐입니다
+— 음성은 Deepgram STT 가 전사를 끝낸 뒤 텍스트 턴으로 들어옵니다.
 """
+
 from __future__ import annotations
 
-import base64
 import json
 import logging
 from dataclasses import dataclass
@@ -25,12 +24,10 @@ from mandarin_goal.config import Settings
 logger = logging.getLogger(__name__)
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
-OPENAI_BASE_URL = "https://api.openai.com/v1"
 
 
 class LlmError(Exception):
     """방에 그대로 노출해도 되는 실패.
-
     키 오류·할당량 초과·안전 필터 차단 등은 사용자가 봐야 원인을 알 수
     있으므로 삼키지 않고 채팅 메시지로 띄웁니다.
     """
@@ -38,7 +35,6 @@ class LlmError(Exception):
 
 class LlmTruncatedError(LlmError):
     """`maxOutputTokens` 에서 잘린 응답.
-
     별도 타입으로 두는 이유는 **호출부가 재시도할 수 있어야** 하기 때문입니다.
     잘림은 대개 결정적 실패가 아니라 디코딩이 무너진 것이고(같은 문장 반복),
     같은 입력으로 다시 부르면 성공하는 경우가 많습니다.
@@ -47,7 +43,6 @@ class LlmTruncatedError(LlmError):
 
 def _safe_speaker(name: str) -> str:
     """화자 이름에서 턴 경계를 위조할 수 있는 문자를 없앱니다.
-
     공백류는 전부 한 칸으로 접고 콜론은 버립니다. 이름은 라벨일 뿐이라
     잃을 정보가 없고, 남겨두면 `"우찬: 끝\\n사회자"` 같은 값으로 대화 구조를
     흉내 낼 수 있습니다.
@@ -58,17 +53,12 @@ def _safe_speaker(name: str) -> str:
 @dataclass
 class Turn:
     """대화 한 턴. 제공자 중립적인 중간 표현입니다."""
-
     role: str  # "user" | "assistant"
     text: str = ""
     speaker: str = ""
-    #: 푸시투토크로 캡처한 WAV. 있으면 STT 없이 모델에 그대로 넣습니다.
-    audio: bytes | None = None
-    audio_mime: str = "audio/wav"
 
     def as_prompt_text(self) -> str:
         """화자 이름을 텍스트 앞에 붙입니다.
-
         1:1 챗봇과 달리 방에는 사람이 여럿입니다. 이름이 없으면 모델이 누가
         한 말인지 구분하지 못해 엉뚱한 사람에게 답하게 됩니다.
 
@@ -84,88 +74,25 @@ class Turn:
 def _describe(payload: dict) -> str:
     """요청 구조 요약. 400 이 났을 때 원인을 좁히기 위한 것입니다.
 
-    base64 본문은 절대 로그에 남기지 않고 구조와 크기만 남깁니다. 크기가
-    수 MB 면 게이트웨이 본문 제한, `contents=0` 이면 서버 쪽 버그입니다.
+    `contents=0` 이면 서버 쪽 버그, 크기가 수 MB 면 게이트웨이 본문 제한입니다.
     """
-    import json as _json
-
     contents = payload.get("contents") or []
-    shape = []
-    for content in contents:
-        parts = []
-        for part in content.get("parts", []):
-            if "inlineData" in part:
-                blob = part["inlineData"]
-                parts.append(f"inlineData({blob.get('mimeType')},{len(blob.get('data', ''))}B)")
-            else:
-                parts.append(f"text({len(part.get('text', ''))}자)")
-        shape.append(f"{content.get('role')}:[{', '.join(parts)}]")
-    total = len(_json.dumps(payload, ensure_ascii=False))
+    shape = [
+        "{}:[{}]".format(
+            content.get("role"),
+            ", ".join(f"text({len(part.get('text', ''))}자)" for part in content.get("parts", [])),
+        )
+        for content in contents
+    ]
+    total = len(json.dumps(payload, ensure_ascii=False))
     return (
         f"top-level keys={sorted(payload)}, contents={len(contents)} "
         f"[{' | '.join(shape)}], 전체 {total:,}B"
     )
 
 
-def _modality_breakdown(usage: dict) -> str:
-    """`promptTokensDetails` 를 `audio=1840 text=612` 로 접습니다.
-
-    합계(`promptTokenCount`)만으로는 **프롬프트를 줄여야 할지 오디오를 줄여야
-    할지 결정할 수 없습니다.** 오디오는 토큰당 단가가 텍스트보다 높고 발화
-    1건이 곧 요청 1건이라, 이 비율이 비용 판단의 입력값입니다.
-
-    modality 항목은 **없을 수도 있습니다** — 모델이 오디오를 처리했는데도 AUDIO
-    항목이 빠지는 사례가 보고돼 있습니다. 그래서 없으면 `-` 를 돌려주고 합계
-    로그는 그대로 남깁니다. 즉 `prompt=2452(-)` 는 "오디오가 없었다" 가 아니라
-    "분해 정보가 오지 않았다" 는 뜻입니다.
-    """
-    parts = [
-        f"{(entry.get('modality') or '?').lower()}={entry.get('tokenCount', 0)}"
-        for entry in usage.get("promptTokensDetails") or []
-    ]
-    return " ".join(parts) or "-"
-
-
-def _gemini_parts(turn: Turn) -> list[dict]:
-    """한 턴을 Gemini `parts` 배열로 변환합니다.
-
-    오디오가 있으면 `inlineData` 로 싣습니다. 텍스트 파트도 함께 보내는데,
-    거기에 "이 오디오를 들어라" 는 지시가 들어갑니다. 자리표시자 같은
-    무의미한 텍스트를 넣으면 모델이 오디오 대신 그 텍스트에 반응합니다.
-    """
-    parts: list[dict] = []
-    if turn.audio is not None:
-        parts.append(
-            {
-                "inlineData": {
-                    "mimeType": turn.audio_mime,
-                    "data": base64.b64encode(turn.audio).decode("ascii"),
-                }
-            }
-        )
-    text = turn.as_prompt_text()
-    if text or not parts:
-        parts.append({"text": text})
-    return parts
-
-
 class LlmBackend(Protocol):
     name: str
-
-    async def reply(self, system: str, history: list[Turn]) -> str: ...
-
-    async def aclose(self) -> None: ...
-
-
-class StructuredBackend(Protocol):
-    """JSON 스키마를 **강제**할 수 있는 백엔드.
-
-    별도 Protocol 로 둔 이유는 모든 제공자가 되지 않기 때문입니다. 필요한 쪽에서
-    `supports_json(backend)` 로 확인하고, 안 되면 명확한 에러를 냅니다.
-
-    프롬프트로 "JSON 만 출력해" 라고 부탁하는 것과는 다릅니다. 모델이 문장을
-    덧붙이거나 코드펜스로 감싸는 사고가 구조적으로 일어나지 않습니다.
-    """
 
     async def reply_json(
         self,
@@ -176,8 +103,11 @@ class StructuredBackend(Protocol):
         max_output_tokens: int | None = None,
     ) -> dict: ...
 
+    async def aclose(self) -> None: ...
+
 
 def supports_json(backend: object) -> bool:
+    """주입된 백엔드가 스키마 강제 출력을 하는가. 안 되면 호출부가 에러를 냅니다."""
     return callable(getattr(backend, "reply_json", None))
 
 
@@ -189,14 +119,6 @@ class EchoBackend:
     """
 
     name = "echo"
-
-    async def reply(self, system: str, history: list[Turn]) -> str:
-        last = next((t for t in reversed(history) if t.role == "user"), None)
-        if last is None:
-            return "무슨 말씀이신지 다시 알려주시겠어요?"
-        if last.audio is not None:
-            return f"({self.name}) 음성 {len(last.audio)} bytes 를 받았습니다"
-        return f"({self.name}) 방금 이렇게 말씀하셨네요: {last.text}"
 
     async def reply_json(
         self,
@@ -267,17 +189,9 @@ class _HttpBackend:
 
 
 class GeminiBackend(_HttpBackend):
-    """Google `generateContent`.
-
-    **오디오를 네이티브로 받습니다.** 음성을 `inlineData` 파트로 넣으면
-    Whisper 같은 별도 STT 단계 없이 모델이 직접 알아듣습니다. 이 프로젝트에서
-    음성 기능이 간단하게 붙은 이유가 이것입니다.
-    """
+    """Google `generateContent`. 스키마를 강제해 JSON 을 받습니다."""
 
     name = "gemini"
-
-    async def reply(self, system: str, history: list[Turn]) -> str:
-        return await self._generate(system, history)
 
     async def reply_json(
         self,
@@ -347,7 +261,7 @@ class GeminiBackend(_HttpBackend):
             "contents": [
                 {
                     "role": "model" if turn.role == "assistant" else "user",
-                    "parts": _gemini_parts(turn),
+                    "parts": [{"text": turn.as_prompt_text()}],
                 }
                 for turn in history
             ],
@@ -366,8 +280,7 @@ class GeminiBackend(_HttpBackend):
                 json=payload,
             )
         except LlmError:
-            # 무엇을 보냈는지 모르면 400 을 고칠 수 없습니다. base64 본문은 빼고
-            # 구조와 크기만 남깁니다.
+            # 무엇을 보냈는지 모르면 400 을 고칠 수 없습니다. 구조와 크기만 남깁니다.
             logger.warning("gemini 요청 거부됨 — %s", _describe(payload))
             raise
 
@@ -398,12 +311,11 @@ class GeminiBackend(_HttpBackend):
         # 전에는 항상 0 이고, **붙인 뒤에도 0 이면 캐시가 안 걸린 것입니다** —
         # 프롬프트 접두사가 매 호출 달라졌다는 뜻이라 이 값이 유일한 검증 수단입니다.
         logger.info(
-            "gemini usage model=%s finish=%s prompt=%s(%s) cached=%s "
+            "gemini usage model=%s finish=%s prompt=%s cached=%s "
             "output=%s thoughts=%s total=%s",
             settings.bot_default_model,
             finish,
             usage.get("promptTokenCount"),
-            _modality_breakdown(usage),
             usage.get("cachedContentTokenCount", 0),
             usage.get("candidatesTokenCount"),
             usage.get("thoughtsTokenCount", 0),
@@ -431,75 +343,11 @@ class GeminiBackend(_HttpBackend):
         return text
 
 
-class OpenAIBackend(_HttpBackend):
-    """OpenAI `/chat/completions` 및 같은 형식을 쓰는 서버 전부.
-
-    이 경로는 텍스트 전용입니다. 음성이 섞여 들어오면 조용히 무시하지 않고
-    명시적으로 에러를 냅니다.
-    """
-
-    name = "openai"
-
-    async def reply_json(
-        self,
-        system: str,
-        history: list[Turn],
-        schema: dict,
-        *,
-        max_output_tokens: int | None = None,
-    ) -> dict:
-        # 조용히 프롬프트로만 부탁하는 대신 명시적으로 막습니다. 음성 입력과
-        # 같은 판단입니다 — 반쯤 되는 상태로 두면 실패가 더 늦게, 더 애매하게
-        # 드러납니다.
-        raise LlmError(
-            "openai 백엔드는 스키마 강제 출력을 지원하지 않습니다 (BOT_PROVIDER=gemini 사용)"
-        )
-
-    async def reply(self, system: str, history: list[Turn]) -> str:
-        settings = self._settings
-        if not settings.bot_api_key:
-            raise LlmError("BOT_API_KEY 가 비어 있습니다")
-        if any(turn.audio is not None for turn in history):
-            raise LlmError(
-                "openai 백엔드는 음성 입력을 지원하지 않습니다 (BOT_PROVIDER=gemini 사용)"
-            )
-
-        base = (settings.bot_base_url or OPENAI_BASE_URL).rstrip("/")
-        messages = [{"role": "system", "content": system}]
-        messages += [
-            {"role": turn.role, "content": turn.as_prompt_text()} for turn in history
-        ]
-
-        payload: dict = {"model": settings.bot_default_model, "messages": messages}
-        # 최신 OpenAI 모델은 max_tokens 를 거부하고, 서드파티 호환 서버는
-        # 반대로 max_completion_tokens 를 모르는 경우가 많습니다.
-        limit_key = (
-            "max_completion_tokens" if "api.openai.com" in base else "max_tokens"
-        )
-        payload[limit_key] = settings.bot_max_output_tokens
-
-        data = await self._post(
-            f"{base}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.bot_api_key}"},
-            json=payload,
-        )
-
-        choices = data.get("choices") or []
-        if not choices:
-            raise LlmError("응답에 choices 가 없습니다")
-        text = ((choices[0].get("message") or {}).get("content") or "").strip()
-        if not text:
-            raise LlmError(f"본문이 비었습니다 (finish_reason={choices[0].get('finish_reason')})")
-        return text
-
-
 def build_backend(settings: Settings) -> LlmBackend:
     """`BOT_PROVIDER` 값으로 백엔드를 고릅니다."""
     provider = (settings.bot_provider or "echo").lower()
     if provider == "gemini":
         return GeminiBackend(settings)
-    if provider in ("openai", "openai-compatible"):
-        return OpenAIBackend(settings)
     if provider == "echo":
         return EchoBackend()
     raise ValueError(f"알 수 없는 BOT_PROVIDER: {settings.bot_provider}")

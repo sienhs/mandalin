@@ -46,9 +46,6 @@ class FakeBackend:
     def __init__(self, decided: dict) -> None:
         self._decided = decided
 
-    async def reply(self, system: str, history: list[Turn]) -> str:  # pragma: no cover
-        raise AssertionError("goal 모드는 reply_json 만 씁니다")
-
     async def reply_json(
         self,
         system: str,

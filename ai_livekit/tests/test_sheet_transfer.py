@@ -1,4 +1,4 @@
-"""시트 전달 — `../ai` 의 `join.domains` 를 대체하는 경로.
+"""시트 전달 — 사용자 시트가 파이프라인까지 들어오는 경로.
 
 **여기가 3단계의 실제 로직입니다.** `entrypoint.py` 는 이 함수들을 LiveKit 이벤트에
 연결하는 배선일 뿐이고, 버그는 파싱과 폴백에서 납니다. `livekit.agents` 를 import
@@ -10,7 +10,12 @@ import json
 import re
 from pathlib import Path
 
-from agent.sheet_transfer import SHEET_ATTRIBUTE, parse_sheet, sheet_from_participant
+from agent.sheet_transfer import (
+    MAX_DOMAINS,
+    SHEET_ATTRIBUTE,
+    parse_sheet,
+    sheet_from_participant,
+)
 
 #: **`GET /api/v1/sheets/{sheetId}` 응답 그대로입니다** — 이름을 손대지 마세요.
 #:
@@ -54,8 +59,8 @@ SPRING_SHAPE = {
     ],
 }
 
-#: 브라우저가 보내는 모양. `../ai/static/js` 와 `ai_livekit/web` 은 시트를 자기 상태로
-#: 들고 있어서 `id`/`frequency` 로 보냅니다 — 양쪽을 다 받아야 하는 이유입니다.
+#: 브라우저가 보내는 모양. `web/` 은 시트를 자기 상태로 들고 있어서
+#: `id`/`frequency` 로 보냅니다 — 양쪽을 다 받아야 하는 이유입니다.
 BROWSER_SHAPE = {
     "domains": [
         {
@@ -76,7 +81,7 @@ def test_a_spring_sheet_response_parses_unchanged():
     """`GET /api/v1/sheets/{sheetId}` 응답을 그대로 실어 보낼 수 있어야 합니다.
 
     필드 이름을 Spring 에 맞춰 둔 이유가 이것입니다 — 매핑 코드가 한 겹 줄어듭니다.
-    **주기가 `period` 로 온다는 것이 이 테스트의 핵심입니다**(→ `../ai/app/sheet.py`
+    **주기가 `period` 로 온다는 것이 이 테스트의 핵심입니다**(→ `mandarin_goal/sheet.py`
     의 `frequency` 주석). 못 읽으면 에러 없이 빈도 표시와 검색 가점이 같이 죽습니다.
     """
     domains = parse_sheet(json.dumps(SPRING_SHAPE), source="test")
@@ -95,7 +100,6 @@ def test_the_browser_renders_both_frequency_names():
     **빈도 칩만 조용히 사라집니다** — 에러도 없고 대화도 정상입니다.
 
     `web/` 에는 빌드 도구가 없어 JS 러너를 들일 수 없으므로 파일을 읽어 확인합니다.
-    `../ai/tests/test_bot_frequency.py` 가 `board.js` 를 보는 방식과 같습니다.
     """
     source = (Path(__file__).resolve().parents[1] / "web" / "app.js").read_text(
         encoding="utf-8"
@@ -124,8 +128,8 @@ def test_a_bare_array_is_accepted_too():
 def test_malformed_json_fails_open_with_an_empty_sheet():
     """파싱 실패가 입장을 막지 않습니다.
 
-    시트가 없으면 AI 는 모든 도메인을 새 칸으로 제안합니다 — `../ai` 가 이미 지원하는
-    경로입니다. 여기서 예외를 올리면 시트 하나 때문에 AI 를 아예 못 쓰게 됩니다.
+    시트가 없으면 AI 는 모든 도메인을 새 칸으로 제안합니다. 여기서 예외를 올리면
+    시트 하나 때문에 AI 를 아예 못 쓰게 됩니다.
     """
     assert parse_sheet("{이건 JSON 이 아닙니다", source="test") == []
     assert parse_sheet("null", source="test") == []
@@ -141,12 +145,12 @@ def test_an_empty_sheet_is_not_an_error():
 
 
 def test_too_many_domains_is_rejected_not_truncated():
-    """도메인 상한(16) 초과는 **거부**합니다.
+    """`MAX_DOMAINS` 초과는 **거부**합니다.
 
-    조용히 16칸만 쓰면 17번째 칸의 과제가 중복 검사에서 빠져 "가끔 중복 과제를
-    만든다" 로만 드러납니다. 개수가 상한을 넘는 건 시트 자체가 이상하다는 신호입니다.
+    조용히 앞쪽만 쓰면 잘린 칸의 과제가 중복 검사에서 빠져 "가끔 중복 과제를 만든다"
+    로만 드러납니다. 개수가 상한을 넘는 건 시트 자체가 이상하다는 신호입니다.
     """
-    payload = {"domains": [{"title": f"칸{i}"} for i in range(17)]}
+    payload = {"domains": [{"title": f"칸{i}"} for i in range(MAX_DOMAINS + 1)]}
     assert parse_sheet(json.dumps(payload), source="test") == []
 
 
@@ -154,7 +158,7 @@ def test_subjects_beyond_eight_are_truncated_not_rejected():
     """과제 개수는 반대로 잘라냅니다.
 
     9번째 과제 하나 때문에 입장 전체를 실패시키면 사용자는 AI 를 못 씁니다. 판단
-    근거는 `../ai/app/sheet.py` 의 상수 주석에 있습니다.
+    근거는 `mandarin_goal/sheet.py` 의 상수 주석에 있습니다.
     """
     payload = {
         "domains": [

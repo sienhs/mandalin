@@ -18,12 +18,9 @@
 알아야 검색할 수 있고, 검색 결과가 있어야 3단계 프롬프트를 완성할 수 있습니다.
 데이터 의존성이 있는 곳에서만 갈랐습니다.
 
-**`Turn.audio` 경로는 여기서 죽은 코드입니다.** `../ai` 는 푸시투토크 WAV 를
-1단계에 그대로 넣어 받아쓰기까지 시켰고(그래서 `transcript` 필드가 있습니다),
-`ai_livekit` 은 Deepgram 이 전사를 끝낸 뒤 **텍스트 턴만** 넣습니다. 1단계는
-텍스트로 주어진 발화를 `transcript` 에 그대로 옮겨 적고, 3단계가 그 값을 씁니다 —
-경로가 바뀌었는데도 파이프라인을 한 줄도 고치지 않아도 됐던 이유입니다
-(`tests/test_reuse.py` 의 `test_a_text_only_turn_runs_the_whole_pipeline`).
+**입력은 텍스트뿐입니다.** Deepgram 이 전사를 끝낸 뒤 텍스트 턴만 들어옵니다.
+1단계 스키마의 `transcript` 는 주어진 발화를 그대로 옮겨 적는 필드이고, 3단계가
+그 값을 씁니다.
 """
 from __future__ import annotations
 
@@ -52,20 +49,13 @@ from mandarin_goal.sheet import DomainRef
 logger = logging.getLogger(__name__)
 
 #: 파이프라인을 더 진행하지 않고 끊는 경우와 그때 돌려줄 문구.
-#:
-#: 공통점은 **모델을 다시 부르지 않는다**는 것입니다. 일반 대화로 폴백하면
-#: 방어 규칙이 없는 프롬프트로 같은 입력을 한 번 더 태우게 되고, 그 응답은
-#: 통제할 수 없습니다.
 BLOCKED_REPLIES: dict[str, str] = {
-    # 무엇을 탐지했는지 알려주지 않습니다. 알려주면 우회 문구를 다듬는 데 쓰입니다.
+    # 프롬프트 공격
     "injection": (
         "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 "
         "실천과제로 정리해 드릴게요."
     ),
-    # 판단하거나 훈계하지 않습니다. 과제로 만들지 않는다는 것만 분명히 하고,
-    # 사람에게 이야기해 보라고 권하는 선에서 멈춥니다. 상담전화 같은 구체
-    # 자원은 넣지 않았습니다 — 번호가 틀리거나 국가가 다르면 오히려 해롭고,
-    # 그건 코드가 아니라 운영 정책으로 정할 일입니다.
+    # 사용자 내용에 다른 사람에 해를 끼치는 내용이 있는 경우
     "harmful": (
         "그런 내용은 실천과제로 만들어 드릴 수 없어요. 힘든 마음이 있으시다면 "
         "가까운 사람과 이야기해 보시길 권합니다. 세우고 싶은 목표가 있으시면 "
@@ -77,16 +67,6 @@ BLOCKED_REPLIES: dict[str, str] = {
 INJECTION_REPLY = BLOCKED_REPLIES["injection"]
 
 #: 목표와 무관하다고 판단했을 때 돌려줄 고정 문구. **모델을 다시 부르지 않습니다.**
-#:
-#: 예전에는 잡담 페르소나로 한 번 더 호출해 평범하게 대화했습니다. 두 가지가 문제였습니다.
-#:
-#: 1. **비용** — 무관한 발화 하나에 호출이 2회 나갑니다. 이 서비스에서 잡담은
-#:    부가 기능인데, 과제를 만드는 발화와 같은 값을 치릅니다.
-#: 2. **경계가 흐려짐** — 서비스 밖 이야기에 자연스럽게 답해 주면 사용자는 계속
-#:    물어봅니다. "여기서는 그건 안 한다" 를 처음부터 분명히 하는 편이 낫습니다.
-#:
-#: 대신 무엇을 할 수 있는지는 반드시 함께 알려줍니다. 거절만 하면 사용자는
-#: 다음에 무엇을 말해야 할지 모릅니다.
 OFF_TOPIC_REPLY = (
     "저는 목표와 실천과제를 정리하는 일만 도와드릴 수 있어요. "
     "만들고 싶은 습관이나 이루고 싶은 목표를 말씀해 주세요."
@@ -98,11 +78,7 @@ UNCLEAR_REPLY = (
     "한 문장으로 알려주시면 과제로 정리해 드릴게요."
 )
 
-#: 담을 칸을 정하지 못한 경우. **모델을 다시 부르지 않습니다** — `OFF_TOPIC_REPLY`
-#: 와 같은 고정 문구 경로입니다.
-#:
-#: 시트에 없는 칸으로 담으면 사용자가 만들지 않은 칸이 만다라트에 생깁니다.
-#: 담을 곳이 없는 과제를 담은 척하는 것보다 한 번 묻는 편이 낫습니다.
+#: 담을 칸을 정하지 못한 경우
 DOMAIN_UNKNOWN_REPLY = (
     "어느 칸에 담을지 정하지 못했어요. "
     "어느 칸에 넣고 싶은지 알려주시면 정리해 드릴게요."
@@ -111,12 +87,6 @@ DOMAIN_UNKNOWN_REPLY = (
 
 def domain_unknown_reply(domains: Sequence[DomainRef] = ()) -> str:
     """어느 칸에 담을지 사용자에게 묻습니다. **칸 이름을 실제로 열거합니다.**
-
-    예전에는 열거하지 않았습니다 — 목록이 시트마다 달라서 상수에 박아두면 남의
-    시트 기준으로 안내하게 되기 때문입니다. 이제 `join` 이 실어 보낸 목록을 호출
-    시점에 받으므로 **그 사용자의 칸만** 정확히 보여줄 수 있습니다. 이름을 안
-    보여주면 사용자는 자기 칸 이름을 기억해 내서 타이핑해야 합니다.
-
     칸이 하나도 없으면 묻지 않고 먼저 만들라고 안내합니다. 없는 칸 중에서 고르라고
     할 수는 없습니다.
     """
@@ -132,11 +102,7 @@ def domain_unknown_reply(domains: Sequence[DomainRef] = ()) -> str:
     )
 
 
-#: 1단계 스키마.
-#:
-#: `injection` 을 `chitchat` 과 분리한 이유는 처리가 다르기 때문입니다.
-#: 잡담은 일반 대화로 답해주는 게 맞지만, 인젝션 시도를 일반 대화 모델에
-#: 넘기면 **방어되지 않은 프롬프트로 한 번 더 태우는 셈**입니다.
+#: 1단계 구별 스키마.
 CLASSIFY_SCHEMA: dict = {
     "type": "object",
     "properties": {
@@ -144,30 +110,19 @@ CLASSIFY_SCHEMA: dict = {
             "type": "string",
             "enum": ["goal", "chitchat", "injection", "harmful", "unclear"],
         },
-        # **enum 을 걸 수 없습니다.** 도메인이 시트마다 다르고 사용자가 직접 만들
-        # 수 있어서 고정 집합이 존재하지 않습니다.
-        #
-        # 예전에는 enum 이 있었고, 없앴을 때 모델이 `학습` 대신 `"learning"` 을
-        # 돌려주는 일이 있었습니다. 그 사고는 지금도 가능하지만 피해가 작습니다 —
-        # 이 값은 후보 검색의 **가점**(`DOMAIN_BONUS`)에만 쓰이고 필터가 아니라서,
-        # 틀리면 순서가 조금 나빠질 뿐 후보가 사라지지는 않습니다. 대신 프롬프트에
-        # 사용자의 실제 칸 목록을 넣어 그 중에서 고르도록 유도합니다.
+        # 이 값은 후보 검색의 **가점**(`DOMAIN_BONUS`)에만 쓰임.
+        # 필터가 아니라서 틀리면 순서가 조금 나빠질 뿐 후보가 사라지지는 않습니다.
+        # 대신 프롬프트에 사용자의 실제 칸 목록을 넣어 그 중에서 고르도록 유도합니다.
         "domain": {"type": "string", "nullable": True},
+
+        # `transcript` = 원문
         "transcript": {"type": "string"},
-        # ── 2단계 검색 품질을 위한 정규화 ──────────────────────────────
-        # `transcript` 는 원문이라 조사·어미·군말이 섞여 있고, 후보 검색이 **글자
-        # 바이그램**이라 그게 유사도를 희석합니다 —
-        #
-        #   "매일 알고리즘 문제 좀 풀어보고 싶은데" vs "매일 알고리즘 1문제 풀기"
-        #
-        # `what` 은 그 발화의 **실천 내용만** 남긴 형태입니다. 질의로 쓰면 후보 제목과
-        # 직접 비교됩니다. 없으면 `transcript` 로 폴백하므로 모델이 비워도 안전합니다.
+
+        # `what` 은 그 발화의 **실천 내용만 남김
         "what": {"type": "string", "nullable": True},
-        # 발화가 **명시한** 주기. 추측하지 않고 없으면 비웁니다(프롬프트에 못 박음).
-        #
-        # 이 값은 **가점일 뿐 필터가 아닙니다.** `domain` 이 같은 교훈을 갖고
-        # 있습니다 — 예전에 필터였을 때 1단계 판단이 틀리면 정답이 후보에서 아예
-        # 사라졌습니다. 추측한 주기로 걸러내면 같은 사고가 반복됩니다.
+
+        # 'frequency' = 발화가 명시한 주기. 필터가 아니라 가점으로만 씁니다 —
+        # 필터로 쓰면 1단계 판단이 틀렸을 때 정답이 후보에서 아예 사라집니다.
         "frequency": {
             "type": "string",
             "enum": list(FREQUENCY_LABELS),
@@ -194,8 +149,7 @@ GOAL_SCHEMA: dict = {
                 "generate",
             ],
         },
-        # **여기도 enum 이 없습니다.** AI 는 사용자 시트에 없는 도메인을 새로 제안할
-        # 수 있고(기획 결정), 그게 이 필드의 주된 쓸모 중 하나입니다.
+        # AI 는 사용자 시트에 없는 도메인을 새로 제안할 수 있다(기획 결정), 그게 이 필드의 주된 쓸모 중 하나입니다.
         #
         # 대신 "새 칸인가" 를 모델에게 묻지 않습니다. `join` 으로 받은 목록과
         # 비교하면 서버가 확실히 알 수 있어서 `_mark_new_domain()` 이 판단해
@@ -217,7 +171,7 @@ GOAL_SCHEMA: dict = {
         # 잘렸습니다. 필드를 없애면 그 발판 자체가 사라집니다.
         #
         # 정수인 이유는 `subject` 테이블의 PK 라서입니다. 문자열로 두면 모델이
-        # `"tpl_010"` 같은 옛 카탈로그 id 를 흉내내 만들어낼 여지가 생깁니다.
+        # `"tpl_010"` 같은 그럴듯한 id 를 지어낼 여지가 생깁니다.
         "matched_task": {
             "type": "object",
             "nullable": True,
@@ -346,9 +300,8 @@ def render(result: dict) -> str:
     JSON 을 그대로 말풍선에 띄우면 안 됩니다. 특히 `reasoning` 은 프롬프트에
     "내부 로깅용, 사용자에게 노출하지 않음" 이라고 적혀 있는 필드입니다.
 
-    **도메인 설명을 붙이지 않습니다.** 예전에는 `prompts/domains.json` 의 8칸
-    설명을 한 줄 덧붙였는데, 도메인이 사용자 시트마다 다른 자유 이름이 되면서
-    설명을 가진 고정 목록이 사라졌습니다. 대신 아래에서 **새 칸인지**를 알려줍니다 —
+    **도메인 설명을 붙이지 않습니다.** 도메인은 사용자 시트마다 다른 자유 이름이라
+    설명을 가진 고정 목록이 없습니다. 대신 아래에서 **새 칸인지**를 알려줍니다 —
     사용자가 알아야 하는 건 "왜 이 칸인가" 가 아니라 "칸이 새로 생기는가" 입니다.
     """
     action = result.get("action")
@@ -424,8 +377,8 @@ def render(result: dict) -> str:
 class GoalPipeline:
     """분류 → 검색 → 판단.
 
-    `agent/conversation.py` 의 `Conversation` 이 발화마다 `run()` 을 부릅니다
-    (`../ai` 에서는 `BotManager` 자리였습니다). `BOT_MODE=goal` 전용입니다.
+    `agent/conversation.py` 의 `Conversation` 이 발화마다 `run()` 을 부릅니다.
+    `BOT_MODE=goal` 전용입니다.
     """
 
     def __init__(
@@ -489,15 +442,6 @@ class GoalPipeline:
             await backend.aclose()
         self._owned.clear()
 
-    @property
-    def stage_models(self) -> tuple[str, str]:
-        """(classify, decide) 에 실제로 쓰이는 모델 이름. 로깅·테스트용입니다."""
-        s = self._settings
-        return (
-            s.bot_classify_model or s.bot_default_model,
-            s.bot_decide_model or s.bot_default_model,
-        )
-
     # -- 실행 ---------------------------------------------------------------
     async def run(
         self, history: list[Turn], domains: Sequence[DomainRef] = ()
@@ -550,7 +494,9 @@ class GoalPipeline:
             ),
         )
 
-        transcript = (classified.get("transcript") or "").strip() or self._last_text(history)
+        last_user = next((t for t in reversed(history) if t.role == "user"), None)
+        last_text = (last_user.text if last_user else "") or ""
+        transcript = (classified.get("transcript") or "").strip() or last_text
         intent = classified.get("intent")
         # 값을 검증하지 않습니다. **고정 집합이 없어서 무엇이 "틀린" 값인지 정의할
         # 수 없습니다.** 이 값은 후보 검색의 가점에만 쓰이므로, 모델이 엉뚱한 이름을
@@ -585,7 +531,7 @@ class GoalPipeline:
 
         stages.append("retrieve")
         # 후보는 **사용자 시트에 이미 담긴 과제**입니다(`join` 의 `domains[].subjects`).
-        # 서버가 들고 있는 예시 카탈로그가 아닙니다 — `subjects.py` 의 모듈 주석 참고.
+        # 서버가 들고 있는 예시 목록이 아닙니다 — `subjects.py` 의 모듈 주석 참고.
         # 질의는 1단계가 정규화한 `what` 을 씁니다. 없으면 원문으로 폴백합니다 —
         # 모델이 비워도 검색이 멈추면 안 됩니다.
         what = (classified.get("what") or "").strip()
@@ -621,7 +567,7 @@ class GoalPipeline:
             "decide",
             lambda: self._decide_backend.reply_json(
                 prompt,
-                self._text_only(history, transcript),
+                history,
                 GOAL_SCHEMA,
                 max_output_tokens=self._settings.bot_goal_max_output_tokens,
             ),
@@ -689,10 +635,6 @@ class GoalPipeline:
     ) -> str | None:
         """캐시 키. 캐시를 쓰지 않아야 하는 경우 `None` 을 돌려줍니다.
 
-        **음성 발화는 캐시하지 않습니다.** 받아쓰기가 1단계에서 일어나므로 호출
-        전에는 무슨 말인지 알 수 없고, 오디오 바이트를 키로 쓰면 같은 말을 해도
-        파형이 달라 매번 빗나갑니다.
-
         **도메인 목록도 키에 넣습니다.** 파이프라인은 worker 하나가 만들어 job(=방)
         마다 공유하므로, 목록을 빼면 A 사용자의 결과가 도메인 칸이 다른 B 사용자에게
         나갑니다. 같은 발화라도 칸 목록이 다르면 답이 달라야 합니다.
@@ -700,7 +642,7 @@ class GoalPipeline:
         if self._settings.bot_cache_size <= 0 or not history:
             return None
         last = history[-1]
-        if last.audio is not None or not last.text.strip():
+        if not last.text.strip():
             return None
         titles = "|".join(d.title for d in domains if d.title)
         return f"{titles}\x00{' '.join(last.text.split())}"
@@ -732,19 +674,16 @@ class GoalPipeline:
         # **도메인도 시트가 정본입니다.** 3단계는 1단계의 도메인을 받지 않고 스스로
         # 다시 분류하므로, 검색은 도메인 A 로 하고 라벨은 B 로 붙는 일이 생깁니다.
         #
-        # 카탈로그 시절에는 이 덮어쓰기가 **없는 칸을 만들어냈습니다** — 후보의
-        # 도메인이 서버 카탈로그의 고정 8칸(`건강` 등)이라, `운동하기` 칸을 가진
-        # 사용자에게 `건강` 칸을 새로 만들어 담으라고 했습니다. 지금 후보는 사용자
-        # 시트에서 나오므로 이 값은 **이미 사용자가 가진 칸 이름**이고, 덮어써도
-        # 새 칸이 생기지 않습니다.
+        # 덮어써도 안전한 것은 **후보가 사용자 시트에서 나오기 때문입니다** — 이 값은
+        # 이미 사용자가 가진 칸 이름이라 새 칸이 생기지 않습니다. 후보를 서버가 들고
+        # 있는 고정 목록에서 뽑으면 이 덮어쓰기가 없는 칸을 만들어냅니다.
         decided["domain"] = found.domain
 
     #: 사용자가 실제로 보드에 담을 수 있는 action. 브라우저의 `proposalFrom` 이
     #: 담기 버튼을 그리는 조건과 같습니다.
     #:
-    #: **`recommend` 는 빠져 있습니다.** 후보가 서버 카탈로그이던 시절에는 "시트에
-    #: 없는 좋은 과제" 를 추천하는 것이라 담을 대상이었지만, 지금 후보는 **이미
-    #: 시트에 담긴 과제**입니다. 담으면 중복이 됩니다.
+    #: **`recommend` 는 빠져 있습니다.** 후보는 **이미 시트에 담긴 과제**라
+    #: 담으면 중복이 됩니다.
     _STORABLE_ACTIONS = ("generate",)
 
     @classmethod
@@ -787,7 +726,7 @@ class GoalPipeline:
         메모리에 있습니다 — 2단계 후보 검색에 쓰고 버려지던 값입니다.
         **모델을 다시 부르지 않고 채우므로 토큰이 들지 않습니다.**
 
-        `recommend` 는 `_resolve_match` 가 카탈로그 값으로 이미 덮었으므로 여기
+        `recommend` 는 `_resolve_match` 가 후보의 도메인으로 이미 덮었으므로 여기
         올 때는 비어 있지 않습니다. 실질적으로 `generate`/`clarify` 를 위한 것입니다.
 
         후보 1위의 도메인을 쓰지는 않습니다. 유사도가 전부 0 인 흔한 경우에 1위는
@@ -805,9 +744,8 @@ class GoalPipeline:
     def _domain_list(self, domains: Sequence[DomainRef]) -> str:
         """`<domain_list>` 슬롯 — 사용자 시트의 칸 이름들.
 
-        **고정 목록이 아니라 주입값입니다.** 예전에는 프롬프트 파일에 8개가 박혀
-        있었는데, 도메인이 시트마다 다르고 사용자가 만들 수 있게 되면서 파일에 둘
-        근거가 없어졌습니다.
+        **고정 목록이 아니라 주입값입니다.** 도메인은 시트마다 다르고 사용자가
+        만들 수 있어서 프롬프트 파일에 박아 둘 수 없습니다.
 
         값은 `fill_slots` 가 `escape_slot_value` 로 무해화합니다 — 사용자가 만든
         이름이라 꺾쇠가 들어올 수 있습니다. 개수·길이는 `sheet.py` 와
@@ -916,34 +854,3 @@ class GoalPipeline:
                 f"{name} 단계가 {self._settings.bot_step_timeout_seconds:.0f}초를 넘겼습니다"
             ) from exc
 
-    @staticmethod
-    def _last_text(history: list[Turn]) -> str:
-        last = next((t for t in reversed(history) if t.role == "user"), None)
-        return (last.text if last else "") or ""
-
-    @staticmethod
-    def _text_only(history: list[Turn], transcript: str = "") -> list[Turn]:
-        """오디오를 뺀 히스토리. 음성 턴의 텍스트는 전사문으로 갈아끼웁니다.
-
-        오디오는 1단계에서 이미 소비했습니다. 3단계에 다시 실으면 같은 음성을
-        두 번 업로드하게 되어 비용과 지연이 두 배가 됩니다.
-
-        **오디오만 빼면 안 됩니다.** 음성 턴의 `text` 는 `manager` 가 넣은
-        "다음 오디오가 내 발언입니다. 내용을 듣고 답해 주세요." 라는 안내문입니다.
-        오디오를 벗기고 이 문장만 남기면 3단계는 **오디오를 넘겨준다고 말하면서
-        아무것도 첨부하지 않은 사용자**를 보게 됩니다. 실측 로그에서 이 조합이
-        `action=out_of_scope` / `reasoning='오디오 파일 처리 기능 없음'` 으로 끝나,
-        전사가 정상이었던 목표 발화("매일 한 시간 알고리즘 문제")가 버려졌습니다.
-
-        `ai_livekit` 에서는 오디오가 파이프라인에 닿지 않으므로 이 함수는 히스토리를
-        그대로 통과시킵니다 — `../ai` 에서 옮겨온 방어층이고, `Turn.audio` 를 쓰는
-        경로가 되살아나면 그대로 일합니다.
-        """
-        return [
-            Turn(
-                role=t.role,
-                text=transcript if (t.audio is not None and transcript) else t.text,
-                speaker=t.speaker,
-            )
-            for t in history
-        ]

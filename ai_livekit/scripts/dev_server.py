@@ -7,18 +7,15 @@
 
 두 번째가 핵심입니다. 실제 서비스에서는 Spring 이 하는 일입니다 — 사용자를 확인하고,
 방을 정하고, 토큰에 서명하면서 그 사용자의 시트를 metadata 로 실어 보냅니다.
-`../ai` 의 `POST /api/voice-sessions` → `{ roomId, ticket }` 흐름과 같은 자리이고,
-차이는 발급하는 토큰이 SFU 티켓이 아니라 **LiveKit access token** 이라는 것뿐입니다.
+발급하는 것은 **LiveKit access token** 입니다.
 
 ## 절대 배포하지 마세요
 
 **인증이 없습니다.** 주소만 알면 누구나 아무 방에 들어가는 토큰을 받아 갑니다.
-`../ai` 의 진단 API 를 `DEBUG_API_ENABLED` 로 잠근 것과 같은 이유이고, 여기는 그
-스위치조차 없습니다 — 로컬 전용이라는 전제로 만든 파일입니다.
+잠글 스위치조차 없습니다 — 로컬 전용이라는 전제로 만든 파일입니다.
 
 `API_SECRET` 이 이 프로세스에만 있고 브라우저로 가지 않는 것이 요점입니다. 시크릿을
-프론트에 두면 누구나 토큰을 위조할 수 있습니다(`../ai/LEARNING.md` 1절의 TURN
-자격증명 이야기와 같은 종류).
+프론트에 두면 누구나 토큰을 위조할 수 있습니다.
 
 ## 실행
 
@@ -54,10 +51,9 @@ WEB_DIR = ROOT / "web"
 #: 브라우저에 심어 보낼 사용자 시트. **실제로는 Spring 이 DB 에서 읽어 넣습니다.**
 #:
 #: 그래서 **모양도 Spring 의 `GET /api/v1/sheets/{sheetId}` 응답을 따릅니다** —
-#: `domainId`/`subjectId`/`period`. 예전에는 `id`/`frequency`(브라우저 어휘)로 적어
-#: 두었는데, 이 파일이 Spring 대역이라 그러면 **로컬 개발 경로가 실제 모양을 한 번도
-#: 타지 않습니다.** `period` 를 못 읽던 버그가 그렇게 숨어 있었습니다
-#: (→ `../ai/app/sheet.py` 의 `frequency` 주석). 양쪽 이름을 다 받는 것은
+#: `domainId`/`subjectId`/`period`. **`id`/`frequency`(브라우저 어휘)로 적지 마세요** —
+#: 이 파일이 Spring 대역이라 그러면 로컬 개발 경로가 실제 모양을 한 번도 타지 않고,
+#: `period` 를 못 읽는 버그가 그 밑에 숨습니다. 양쪽 이름을 다 받는 것은
 #: `tests/test_sheet_transfer.py` 가 지키고, 여기서는 정본 모양만 씁니다.
 #:
 #: `sheet.json` 이 있으면 그 파일을 대신 씁니다 — 다른 시트로 시험해 보고 싶을 때
@@ -87,7 +83,7 @@ def load_sheet() -> dict:
             return json.loads(override.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             # 조용히 기본값으로 떨어지면 "왜 내 시트가 안 보이지" 를 브라우저에서
-            # 찾게 됩니다. `../ai` 의 프롬프트 로더와 같은 판단입니다.
+            # 찾게 됩니다. 프롬프트 로더와 같은 판단입니다.
             logger.warning("sheet.json 을 읽지 못해 기본 시트를 씁니다: %s", exc)
     return DEFAULT_SHEET
 

@@ -2,27 +2,12 @@
 
 목표 설계 파이프라인은 전송 계층을 모릅니다. `mandarin_goal.bot.goal` 이 끌어오는
 것은 `mandarin_goal.bot.{llm,prompt,subjects}` · `mandarin_goal.config` ·
-`mandarin_goal.sheet` 여섯 개뿐이고, aiortc 도 fastapi 도 livekit 도 없습니다
-(`tests/test_reuse.py` 가 확인합니다). SFU 를 LiveKit 으로 갈아치우면서도 이 여섯
-개를 그대로 쓸 수 있었던 이유입니다.
-
-**`../ai` 의존은 끝났습니다.** 예전에는 `pip install -e ../ai --no-deps` 로 옆
-폴더의 `app` 패키지를 참조했습니다. 지금은 여섯 파일이 `mandarin_goal/` 로,
-프롬프트가 `prompts/` 로 들어와 **이 저장소만으로 돕니다.** 옆 폴더가 없어도,
-이름이 바뀌어도, 통째로 사라져도 worker 는 뜹니다.
-
-**왜 통로를 그대로 두는가.** 승격 전에도 후에도 이유는 같습니다 — 파이프라인
-패키지를 다시 옮기거나(공용 라이브러리로 배포, 이름 변경) 다른 구현으로 갈아끼울
-때 고칠 곳이 **이 파일 하나**여야 합니다. 새 코드에서 `mandarin_goal.` 을 직접
-import 하지 마세요.
+`mandarin_goal.sheet` 여섯 개뿐이고, livekit 도 fastapi 도 없습니다 (아래
+`TRANSPORT_ONLY` 를 `tests/test_reuse.py` 가 검증합니다). SFU 를 LiveKit 으로
+갈아치우면서도 이 여섯 개를 그대로 쓸 수 있었던 이유입니다.
 
     from agent.reuse import GoalPipeline, DomainRef          # ← 이렇게
     from mandarin_goal.bot.goal import GoalPipeline          # ← 이렇게 하지 마세요
-
-**프롬프트는 `ai_livekit/prompts/` 입니다.** `mandarin_goal.bot.prompt` 의
-`PROJECT_ROOT` 가 `Path(__file__).parents[2]` 라서 상대 경로가 이 저장소 루트
-기준으로 풀립니다 — `.env` 의 `BOT_SYSTEM_PROMPT_FILE=./prompts/system.md` 는
-`ai_livekit/prompts/system.md` 입니다(예전에는 `../ai/prompts/` 였습니다).
 """
 from __future__ import annotations
 
@@ -62,6 +47,11 @@ REUSED_MODULES = (
     "mandarin_goal.sheet",
 )
 
+#: 위 목록의 반대편 — 파이프라인에 **없어야** 하는 전송 계층입니다.
+#: `tests/test_reuse.py` 가 import 를 막아 검증하고, `scripts/check_reuse.py` 가
+#: 진단에 씁니다. 두 곳이 갈라지지 않게 여기서 한 번만 정합니다.
+TRANSPORT_ONLY = ("livekit", "fastapi", "starlette", "uvicorn", "av")
+
 __all__ = [
     "BLOCKED_REPLIES",
     "DOMAIN_UNKNOWN_REPLY",
@@ -69,6 +59,7 @@ __all__ = [
     "MAX_DOMAINS",
     "OFF_TOPIC_REPLY",
     "REUSED_MODULES",
+    "TRANSPORT_ONLY",
     "PROJECT_ROOT",
     "DomainRef",
     "EchoBackend",

@@ -46,8 +46,8 @@ livekit-plugins-deepgram~=1.6
 # --- Needed by mandarin_goal/ (the goal-design pipeline) --------------------
 # The pipeline was promoted out of ../ai into mandarin_goal/ in this repo, so
 # there is no `pip install -e ../ai` step any more. Those six files need exactly
-# these three third-party packages -- no aiortc, no fastapi, no livekit.
-# tests/test_reuse.py fails if that stops being true.
+# these three third-party packages -- no livekit, no fastapi.
+# tests/test_reuse.py fails if that stops being true (see TRANSPORT_ONLY).
 pydantic>=2.9
 pydantic-settings>=2.6
 httpx>=0.27

@@ -1,19 +1,15 @@
 """LiveKit 방에 붙어 텍스트 왕복을 실제로 확인합니다 — 4단계 스모크 테스트.
 
-`agent/entrypoint.py` 는 LiveKit API 를 호출하는 유일한 파일이라 단위 테스트로 덮을
-수 없습니다. 이 스크립트가 그 자리를 메웁니다 — **사용자 역할로 방에 들어가** 발화를
-보내고 응답이 돌아오는지 봅니다.
-
+`agent/entrypoint.py` 는 LiveKit API 를 호출하는 유일한 파일이라 단위 테스트로 덮을 수 없습니다.
+이 스크립트가 그 자리를 메웁니다. 사용자 역할로 방에 들어가 발화를 보내고 응답이 돌아오는지 봅니다.
     python scripts/smoke_client.py
-
 전제:
   1. LiveKit 서버가 떠 있어야 합니다 (`--dev` 면 devkey/secret)
   2. worker 가 떠 있어야 합니다 (`python -m agent dev`)
   3. `.env` 의 `LIVEKIT_*` 3개
-
-`BOT_PROVIDER=echo` 면 LLM 호출이 0회입니다. **배선을 확인하는 것이 목적이므로 그게
-맞습니다** — 응답 문구가 아니라 왕복이 되는지를 봅니다.
+`BOT_PROVIDER=echo` 면 LLM 호출이 0회=> 배선을 확인하는 것이 목적,
 """
+
 from __future__ import annotations
 
 import argparse
@@ -53,11 +49,17 @@ SHEET = {
                 {"id": 4, "title": "주 1회 블로그에 정리하기", "frequency": "weekly"},
             ],
         },
-        {"id": 9, "title": "커리어", "subjectCount": 0, "subjects": []},
+        {
+            "id": 9,
+            "title": "커리어",
+            "subjectCount": 0,
+            "subjects": []
+        },
     ]
 }
 
 
+# 토큰 생성
 def build_token() -> tuple[str, str]:
     url = os.environ.get("LIVEKIT_URL", "ws://localhost:7880")
     key = os.environ.get("LIVEKIT_API_KEY", "devkey")
@@ -66,7 +68,7 @@ def build_token() -> tuple[str, str]:
         api.AccessToken(key, secret)
         .with_identity(IDENTITY)
         .with_name(DISPLAY_NAME)
-        # **시트는 토큰에 실립니다.** 실제로는 Spring 이 이 토큰을 서명하면서 넣습니다.
+        # 시트는 토큰에 실립니다. (시트 + 토큰)
         .with_metadata(json.dumps(SHEET, ensure_ascii=False))
         .with_grants(api.VideoGrants(room_join=True, room=ROOM))
         .to_jwt()
@@ -119,7 +121,7 @@ async def main(utterance: str, timeout: float) -> int:
         await room.disconnect()
         return 1
 
-    # 시트 갱신 경로도 같이 확인합니다 (담기·삭제 시 클라이언트가 보내는 것).
+    # 시트 갱신 경로도 확인
     await room.local_participant.send_text(
         json.dumps(SHEET, ensure_ascii=False), topic=SHEET_TOPIC
     )
