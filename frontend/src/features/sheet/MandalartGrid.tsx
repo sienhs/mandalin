@@ -27,6 +27,14 @@ type Props = {
   onSelect?: (ref: CellRef) => void
   /** 목록 카드용 초소형 뷰 — 글자 없이 색만 */
   mini?: boolean
+  /**
+   * 핵심 목표와 세부 목표 이름만 남기고 과제 64칸의 글자는 지운다.
+   *
+   * <p>격자를 작게 줄여 보여 주는 자리(소개 페이지)에서는 81칸에 글자가 다 들어가면
+   * 4~5px 짜리 글씨가 빼곡해 읽히지도 않고 구조만 가린다. 색과 채움 높이는 그대로 두므로
+   * "무엇이 얼마나 찼는지"는 여전히 보인다.
+   */
+  headingsOnly?: boolean
   className?: string
 }
 
@@ -34,7 +42,14 @@ type Props = {
  * 만다라트 9x9. 어느 화면에서든 정사각형을 유지하고 폭에 맞춰 글자가 줄어든다.
  * 칸의 채움 높이는 서버가 준 `progress`(0~100)를 그대로 쓴다.
  */
-export default function MandalartGrid({ sheet, selected, onSelect, mini, className }: Props) {
+export default function MandalartGrid({
+  sheet,
+  selected,
+  onSelect,
+  mini,
+  headingsOnly,
+  className,
+}: Props) {
   const cells = useMemo(() => {
     const domains = sheet.domains ?? []
     const byPosition = new Map(domains.map((d) => [d.position, d]))
@@ -140,6 +155,12 @@ export default function MandalartGrid({ sheet, selected, onSelect, mini, classNa
     <div
       className={cn(
         'grid aspect-square w-full select-none grid-cols-9 grid-rows-9',
+        /*
+          글자 크기를 격자 자신의 폭에 맞춘다(아래 cqw). 예전에는 vw 를 썼는데, 그건
+          격자가 화면 폭을 거의 다 쓸 때만 맞는 가정이다 — 소개 페이지처럼 격자를 작게
+          줄여 놓으면 칸은 작아지는데 글자만 그대로라 칸 밖으로 넘친다.
+        */
+        '[container-type:inline-size]',
         mini ? 'gap-px' : 'gap-[2px] sm:gap-[3px]',
         className,
       )}
@@ -193,15 +214,16 @@ export default function MandalartGrid({ sheet, selected, onSelect, mini, classNa
               />
             )}
 
-            {!mini && (
+            {!mini && (!headingsOnly || cell.isCore || cell.isBlockCenter) && (
               <span
                 className="relative z-10 line-clamp-3 break-keep font-bold leading-[1.15]"
                 style={{
+                  /* 격자 폭 기준. 데스크톱 앱(격자 ≈ 730px)에서 예전 값과 같은 크기가 나오도록 환산했다. */
                   fontSize: cell.isCore
-                    ? 'clamp(7px, 1.35vw, 15px)'
+                    ? 'clamp(6px, 2.05cqw, 15px)'
                     : cell.isBlockCenter
-                      ? 'clamp(6px, 1.05vw, 12px)'
-                      : 'clamp(5px, 0.92vw, 11px)',
+                      ? 'clamp(5px, 1.64cqw, 12px)'
+                      : 'clamp(4px, 1.5cqw, 11px)',
                   color:
                     cell.isCore || cell.isBlockCenter
                       ? '#fff'
