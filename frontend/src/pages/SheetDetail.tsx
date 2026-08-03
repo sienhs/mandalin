@@ -26,14 +26,15 @@ type SheetDetailProps = {
  */
 export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
   const navigate = useNavigate()
-  // 주소에 숫자가 아닌 값이 들어오면 첫 번째 시트를 보여준다.
+  // 주소에 숫자가 아닌 값이 들어오면 1번 시트를 부른다. 그런 시트가 없으면 아래 에러 문구가 뜬다.
   const { sheetId } = useParams()
   const detail = useSheetDetail(Number(sheetId) || 1)
 
   // min-w: 가로 스크롤이 생겼을 때 오른쪽에 배경 없는 흰 띠가 보이지 않게 한다.
   return (
     <div className="min-h-screen min-w-[1280px] bg-[#F6F7F8]">
-      <Header />
+      {/* 과제를 수행하면 포인트가 늘어난다. 서버가 준 잔액을 머리말에 바로 반영한다. */}
+      <Header fallbackPoint={detail.userPoint ?? undefined} />
 
       {/*
         폭을 고정한다(반응형 아님) — max-w 로 두면 브라우저를 확대할 때 CSS 뷰포트가 좁아지면서
@@ -42,6 +43,16 @@ export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
       */}
       <main className="mx-auto w-[1280px] px-6 pb-[70px] pt-6">
         <div className="card p-6">
+          {/*
+            불러오는 중에도 아래 그리드는 그대로 그린다(빈 칸으로) — 화면을 통째로 감췄다가
+            띄우면 레이아웃이 튄다. 실패했을 때만 이유를 알려준다.
+          */}
+          {detail.error && (
+            <p className="m-0 mb-3 text-[12.5px] font-bold text-[#dc3424]" role="alert">
+              {detail.error}
+            </p>
+          )}
+
           <SheetDetailHeader
             sheet={detail.sheet}
             achievementRate={detail.achievementRate}

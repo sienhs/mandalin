@@ -17,6 +17,11 @@ import type { Domain, Sheet, Subject } from '../sheet/sheet.types'
  */
 export type DetailSubject = Subject & {
   /**
+   * 과제의 실제 아이디. 수행 완료를 보낼 때 필요하다 —
+   * 생성 화면과 공유하는 Subject 는 저장 전 상태라 아이디가 없어서 여기서 얹는다.
+   */
+  subjectId: number
+  /**
    * 이번 기간(매일 = 오늘, 매주 = 이번 주)에 이미 수행했는지.
    * true 면 이 기간 안에는 다시 수행할 수 없다. 완료된 과제(isDone)도 항상 true 다.
    */
@@ -37,6 +42,8 @@ export type SheetDetail = {
   sheet: Sheet
   domains: (Domain | null)[]
   subjects: (DetailSubject | null)[][]
+  /** 보는 사람이 좋아요를 눌러 뒀는지. 시트가 아니라 '나와 시트의 관계'라 Sheet 밖에 둔다. */
+  liked: boolean
 }
 
 /** 사이드 패널이 그리는, 2D 뷰에서 선택한 칸 하나. */

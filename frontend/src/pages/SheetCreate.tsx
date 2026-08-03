@@ -24,7 +24,7 @@ export default function SheetCreate() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   /**
-   * 만다라트를 서버에 저장하고 마을로 넘어간다.
+   * 만다라트를 서버에 저장하고 방금 만든 시트의 상세 화면으로 넘어간다.
    *
    * 실패하면 다이얼로그를 닫지 않는다 — 닫아버리면 저장된 줄 알고 화면을 떠나 편집 내용을
    * 전부 잃는다(이 화면은 로컬 상태만 들고 있다).
@@ -36,9 +36,10 @@ export default function SheetCreate() {
     setSaveError(null)
     try {
       const payload = buildCreatePayload(editor.sheetData, editor.domains, editor.subjects)
-      await createSheet(payload)
+      // 생성 응답은 새 sheetId 하나다. 목록을 거치지 않고 방금 만든 시트로 바로 간다.
+      const sheetId = await createSheet(payload)
       setSaveOpen(false)
-      navigate('/village')
+      navigate(`/sheet/${sheetId}`)
     } catch (cause: unknown) {
       setSaveError(cause instanceof Error ? cause.message : '만다라트를 저장하지 못했습니다.')
     } finally {
