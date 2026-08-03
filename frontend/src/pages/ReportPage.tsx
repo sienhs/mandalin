@@ -1,32 +1,22 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import Header from '../components/common/Header'
 import ProgressBar from '../components/common/ProgressBar'
-import { fetchAiReport } from '../components/report/report.api'
+import { createAiReport, fetchAiReport } from '../components/report/report.api'
 import type {
   AiReport,
-  ReportPeriod,
   ReportProgress,
+  ReportSheet,
 } from '../components/report/report.types'
-import { cn } from '../utils/cn'
 import '../styles/report.css'
-
-const PERIOD_LABELS: Record<ReportPeriod, string> = {
-  weekly: '주간',
-  monthly: '월간',
-}
 
 function ReportProgressList({ rows }: { rows: ReportProgress[] }) {
   return (
     <div className="report-progress-list">
       {rows.map((row) => (
-        <div
-          key={row.label}
-          className="report-progress-row"
-          style={{ '--progress-accent': row.color } as CSSProperties}
-        >
+        <div key={row.label} className="report-progress-row">
           <div className="report-progress-label">
             <span>{row.label}</span>
-            <strong style={{ color: row.color }}>{row.value}%</strong>
+            <strong>{row.value}%</strong>
           </div>
           <ProgressBar
             value={row.value}
@@ -35,6 +25,38 @@ function ReportProgressList({ rows }: { rows: ReportProgress[] }) {
             animated
           />
         </div>
+      ))}
+    </div>
+  )
+}
+
+/** 시트 한 장의 달성률과, 그 아래 도메인별 달성률. */
+function ReportSheetList({ sheets }: { sheets: ReportSheet[] }) {
+  if (sheets.length === 0) {
+    return <p className="report-sheet-empty">아직 집계할 시트가 없어요.</p>
+  }
+
+  return (
+    <div className="report-sheet-list">
+      {sheets.map((sheet) => (
+        <article key={sheet.id} className="report-sheet">
+          <div className="report-sheet-head">
+            <strong>{sheet.title}</strong>
+            {sheet.caption && <span>{sheet.caption}</span>}
+            <b>{sheet.value}%</b>
+          </div>
+          <ProgressBar
+            value={sheet.value}
+            label={`${sheet.title} ${sheet.value}%`}
+            className="report-progress"
+            animated
+          />
+          {sheet.domains.length > 0 && (
+            <div className="report-sheet-domains">
+              <ReportProgressList rows={sheet.domains} />
+            </div>
+          )}
+        </article>
       ))}
     </div>
   )
@@ -75,10 +97,10 @@ function ReportLoading() {
   )
 }
 
-/** 주간·월간 AI 성과 리포트 화면. */
+/** 주간 AI 성과 리포트 화면. */
 export default function ReportPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('weekly')
   const [isLoading, setIsLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
   const [report, setReport] = useState<AiReport | null>(null)
   const [reportError, setReportError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -90,7 +112,7 @@ export default function ReportPage() {
     setReport(null)
     setReportError(null)
 
-    fetchAiReport(period, controller.signal)
+    fetchAiReport(controller.signal)
       .then(setReport)
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
@@ -103,17 +125,27 @@ export default function ReportPage() {
       })
 
     return () => controller.abort()
-  }, [period, reloadKey])
+  }, [reloadKey])
 
-  const changePeriod = (nextPeriod: ReportPeriod) => {
-    if (nextPeriod === period) return
-    setPeriod(nextPeriod)
+  /** 사용자가 직접 누른 생성이라 조회와 달리 화면을 떠나도 중단하지 않는다. */
+  const generateReport = () => {
+    setIsCreating(true)
+    setReportError(null)
+
+    createAiReport()
+      .then(setReport)
+      .catch((cause: unknown) => {
+        setReportError(
+          cause instanceof Error ? cause.message : 'AI 리포트를 만들지 못했습니다.',
+        )
+      })
+      .finally(() => setIsCreating(false))
   }
 
   return (
     <div className="report-page">
       <Header />
-      <main className="report-main" data-period={period}>
+      <main className="report-main">
         <header className="report-heading">
           <div className="report-title">
             <div>
@@ -121,23 +153,9 @@ export default function ReportPage() {
               <h1>AI 리포트</h1>
             </div>
           </div>
-          <div className="report-period-tabs" role="tablist" aria-label="리포트 기간">
-            {(Object.keys(PERIOD_LABELS) as ReportPeriod[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                role="tab"
-                aria-selected={period === item}
-                onClick={() => changePeriod(item)}
-                className={cn(period === item && 'is-active')}
-              >
-                {PERIOD_LABELS[item]}
-              </button>
-            ))}
-          </div>
         </header>
 
-        {isLoading ? (
+        {isLoading || isCreating ? (
           <ReportLoading />
         ) : reportError ? (
           <section className="report-error" role="alert">
@@ -149,7 +167,7 @@ export default function ReportPage() {
           </section>
         ) : report ? (
           <div className="report-content">
-            <section className={cn('report-summary', `is-${period}`)}>
+            <section className="report-summary">
               <div className="report-summary-copy">
                 <span>{report.eyebrow}</span>
                 <h2>{report.title}</h2>
@@ -186,21 +204,18 @@ export default function ReportPage() {
               </section>
             </div>
 
-            {report.trends && report.trendTitle && (
-              <section className="report-chart">
-                <h2>{report.trendTitle}</h2>
-                <ReportProgressList rows={report.trends} />
-              </section>
-            )}
-
             <section className="report-chart">
-              <h2>{report.categoryTitle}</h2>
-              <ReportProgressList rows={report.categories} />
+              <h2>{report.sheetTitle}</h2>
+              <ReportSheetList sheets={report.sheets} />
             </section>
           </div>
         ) : (
-          <section className="report-error">
-            <strong>표시할 리포트가 없습니다.</strong>
+          <section className="report-empty">
+            <strong>아직 이번 주 리포트가 없어요</strong>
+            <p>지난주 실천 기록을 모아 AI가 리포트를 만들어 드릴게요.</p>
+            <button type="button" onClick={generateReport}>
+              리포트 생성
+            </button>
           </section>
         )}
       </main>

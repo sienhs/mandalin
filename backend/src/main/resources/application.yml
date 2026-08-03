@@ -5,6 +5,11 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/mandarin}
     username: ${DB_USER:mandarin_user}
@@ -93,6 +98,11 @@ livekit:
   api-secret: ${LIVEKIT_API_SECRET:}
   room-prefix: ${LIVEKIT_ROOM_PREFIX:u_}
   token-expiration: ${LIVEKIT_TOKEN_EXP:120000}
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  url: ${GEMINI_URL}
+
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
