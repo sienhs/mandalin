@@ -5,8 +5,13 @@ import type { DetailSubject, SheetDetail } from './sheetDetail.types'
 import { rateOf } from './sheetDetail.utils'
 
 /**
- * 상세 화면 목업.
- * 도메인 · 과제는 아직 목록에 없는 정보라 아래 표에서 만들어 채운다.
+ * 시트 상세 목업.
+ *
+ * 상세 화면은 이제 서버에서 받아 쓴다(sheetDetail.api). 여기 남은 것은 아직 연동하지 않은
+ * 두 곳 몫이다 — 목록 화면의 달성률 계산(sheetList.api)과 그룹 도메인 선택(GroupSetup).
+ * 그 둘을 옮기면 이 파일은 통째로 지운다.
+ *
+ * 도메인 · 과제는 목록 응답에 없는 정보라 아래 표에서 만들어 채운다.
  */
 
 /** 도메인 하나와 그 안의 과제 8개. doneCount = 앞에서부터 몇 개를 완료 처리할지. */

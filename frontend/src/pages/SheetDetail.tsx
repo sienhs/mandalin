@@ -26,7 +26,7 @@ type SheetDetailProps = {
  */
 export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
   const navigate = useNavigate()
-  // 주소에 숫자가 아닌 값이 들어오면 첫 번째 시트를 보여준다.
+  // 주소에 숫자가 아닌 값이 들어오면 1번 시트를 부른다. 그런 시트가 없으면 아래 에러 문구가 뜬다.
   const { sheetId } = useParams()
   const detail = useSheetDetail(Number(sheetId) || 1)
 
