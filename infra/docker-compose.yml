@@ -48,6 +48,14 @@ services:
       # 아니라 공개 주소여야 한다. **위 둘과 달리 ai_livekit/.env 의 같은 이름과 값이
       # 다르다** — 저쪽은 worker 가 같은 호스트에 붙는 주소다.
       LIVEKIT_URL: ${LIVEKIT_URL:-}
+      # 리포트 생성용 Gemini. 로컬은 backend/.env 를 spring.config.import 로 읽지만
+      # 그 파일은 gitignore 라 EC2 에 없다 — 여기로 넘겨주지 않으면 컨테이너 안에는
+      # 값이 아예 없고, 리포트 API 만 AI_REQUEST_FAILED 로 죽는다.
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # SSAFY GMS 게이트웨이. 비워두면 구글 공식 엔드포인트로 가는데 GMS 키로는
+      # 인증이 안 되므로, 빈 값이 들어가지 않도록 기본값을 여기서 박아 둔다.
+      GEMINI_URL: ${GEMINI_URL:-https://gms.ssafy.io/gmsapi/generativelanguage.googleapis.com}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       KAKAO_OAUTH_CLIENT_ID: ${KAKAO_OAUTH_CLIENT_ID}
       KAKAO_OAUTH_CLIENT_SECRET: ${KAKAO_OAUTH_CLIENT_SECRET}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
@@ -55,6 +63,7 @@ services:
       REFRESH_COOKIE_SECURE: "true"
     depends_on:
       - postgres
+      - redis
     networks:
       - app-net
     # 외부에 직접 노출하지 않음 — nginx를 통해서만 접근

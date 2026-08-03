@@ -22,13 +22,6 @@
   padding: 56px 0 80px;
 }
 
-.report-main[data-period='monthly'] {
-  --report-primary: #eb7a32;
-  --report-primary-dark: #c95b20;
-  --report-primary-soft: #fff2e8;
-  --report-accent: #f2a31b;
-}
-
 .report-heading {
   display: flex;
   align-items: center;
@@ -56,41 +49,14 @@
   letter-spacing: -0.04em;
 }
 
-.report-period-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid #e3e9ed;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 5px 14px rgba(51, 65, 85, 0.07);
-}
-
-.report-period-tabs button {
-  cursor: pointer;
-  border: 0;
-  border-radius: 999px;
-  padding: 8px 18px;
-  background: transparent;
-  color: #7d8999;
-  font-size: 12px;
-  font-weight: 700;
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.report-period-tabs button.is-active {
-  background: var(--report-primary);
-  color: #fff;
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--report-primary) 30%, transparent);
-}
-
 .report-content,
 .report-loading {
   display: grid;
   gap: 18px;
 }
 
-.report-error {
+.report-error,
+.report-empty {
   display: grid;
   min-height: 260px;
   place-content: center;
@@ -103,14 +69,16 @@
   box-shadow: 0 10px 24px rgba(51, 65, 85, 0.1);
 }
 
-.report-error p {
+.report-error p,
+.report-empty p {
   max-width: 520px;
   margin: 10px 24px 18px;
   color: #94a3b8;
   font-size: 12px;
 }
 
-.report-error button {
+.report-error button,
+.report-empty button {
   cursor: pointer;
   border: 0;
   border-radius: 10px;
@@ -118,6 +86,17 @@
   background: var(--report-primary);
   color: #fff;
   font-weight: 800;
+}
+
+/* 리포트가 없을 때는 이 카드가 화면의 전부라, 본문 한가운데에 오도록 키운다 */
+.report-empty {
+  min-height: min(58vh, 460px);
+}
+
+.report-empty button {
+  padding: 12px 26px;
+  font-size: 13px;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--report-primary) 32%, transparent);
 }
 
 .report-summary,
@@ -153,12 +132,8 @@
   pointer-events: none;
 }
 
-.report-summary.is-weekly {
+.report-summary {
   background: linear-gradient(118deg, #effcf8 0%, #f1f8ff 100%);
-}
-
-.report-summary.is-monthly {
-  background: linear-gradient(118deg, #fff8ef 0%, #fff2ee 100%);
 }
 
 .report-summary-copy > span {
@@ -169,10 +144,6 @@
   color: var(--report-primary-dark);
   font-size: 12px;
   font-weight: 800;
-}
-
-.report-summary.is-monthly .report-summary-copy > span {
-  color: var(--report-primary-dark);
 }
 
 .report-summary h2 {
@@ -295,6 +266,15 @@
   box-shadow: 0 14px 28px rgba(51, 65, 85, 0.13);
 }
 
+/*
+ * 달성률 막대는 전부 한 색이다. 라벨마다 다른 색을 주면 75% 가 빨강으로 나오는 식이라
+ * 색이 값의 신호처럼 읽힌다 — 값은 숫자와 길이로만 말하게 둔다
+ */
+.report-progress-list,
+.report-sheet {
+  --progress-accent: var(--report-primary);
+}
+
 .report-progress-list {
   display: grid;
   gap: 13px;
@@ -305,6 +285,66 @@
   justify-content: space-between;
   margin-bottom: 7px;
   font-size: 11px;
+}
+
+.report-progress-label strong {
+  color: var(--report-primary-dark);
+}
+
+.report-sheet-list {
+  display: grid;
+  gap: 18px;
+}
+
+.report-sheet + .report-sheet {
+  padding-top: 18px;
+  border-top: 1px solid #eef2f6;
+}
+
+.report-sheet-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+/* 완료 건수는 보조 정보라 제목과 달성률 사이에서 밀려나도 된다 */
+.report-sheet-head span {
+  flex: 1;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.report-sheet-head b {
+  color: var(--report-primary-dark);
+  font-size: 13px;
+}
+
+/* 시트 합계 막대. 아래 도메인 막대보다 굵어야 어느 쪽이 합계인지 바로 보인다 */
+.report-sheet > .ui-progress {
+  height: 10px;
+}
+
+/* 시트에 딸린 도메인 목록임이 들여쓰기로 드러나야 한다 */
+.report-sheet-domains {
+  margin-top: 12px;
+  padding-left: 12px;
+  border-left: 2px solid #eef2f6;
+}
+
+.report-sheet-domains .ui-progress {
+  height: 5px;
+}
+
+.report-sheet-domains .report-progress-label strong {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.report-sheet-empty {
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 .report-loading-card {
@@ -423,10 +463,6 @@
 
   .report-title p {
     display: none;
-  }
-
-  .report-period-tabs button {
-    padding-inline: 13px;
   }
 
   .report-metrics {
