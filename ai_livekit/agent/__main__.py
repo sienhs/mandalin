@@ -29,6 +29,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -42,6 +43,15 @@ SECRET_ENV_VARS = (
     "LIVEKIT_API_SECRET",
     "LIVEKIT_API_KEY",
 )
+
+#: HS256 최소 키 길이. 백엔드 `LiveKitTokenIssuer.MIN_SECRET_BYTES` 와 같은 값이고,
+#: 그쪽은 이보다 짧으면 **토큰 발급을 거부**합니다 — 즉 여기서 걸리는 배포는 음성이
+#: 아예 안 됩니다.
+MIN_SECRET_BYTES = 32
+
+#: `livekit-server --dev` 가 하드코딩한 키 쌍. 공개된 값이라 이걸로 운영에 올라가면
+#: 누구나 유효한 입장 토큰을 서명할 수 있습니다.
+DEV_CREDENTIALS = frozenset({"devkey", "secret"})
 
 #: 저장소 루트의 `worker.log`. CWD 기준이 아니라 이 파일 기준으로 잡습니다 — 다른
 #: 디렉터리에서 `python -m agent` 를 띄웠을 때 로그가 엉뚱한 곳에 생기지 않게.
@@ -134,9 +144,57 @@ def _redact_secrets() -> None:
     )
 
 
+def _check_production_credentials() -> None:
+    """`start` 로 뜰 때만 LiveKit 자격증명을 점검합니다. **막지 않고 알립니다.**
+
+    worker 는 토큰을 발급하지 않고 자기를 등록할 뿐이라, 약한 시크릿으로도 서버가
+    받아주는 한 정상 동작합니다 — 그래서 증상이 없습니다. 문제는 그 서버가 같은
+    약한 값을 쓰고 있다는 뜻이고, 그러면 **누구나 유효한 입장 토큰을 서명**할 수
+    있습니다. 여기서 기동을 막으면 AI 가 통째로 죽으므로 경고만 남깁니다(발급을
+    실제로 거부하는 것은 백엔드 `LiveKitTokenIssuer.buildKey()` 입니다).
+
+    `dev`·`console`·`connect` 에서는 아무것도 하지 않습니다. 로컬은 `--dev` 서버의
+    `devkey`/`secret` 을 쓰는 것이 정상이라(README "실행"), 그때 경고하면 매 기동마다
+    무시해야 하는 잡음이 되고 정작 운영에서 눈에 안 띄게 됩니다.
+
+    **stderr 에도 직접 씁니다.** 이 함수는 `cli.run_app()` 보다 먼저 돌고, CLI 가
+    콘솔 핸들러를 그 뒤에 붙이므로 로거로만 내면 `worker.log` 에만 남습니다 —
+    운영에서 `docker logs` 로 보는 것은 stdout/stderr 이라 정작 안 보입니다.
+    """
+    if "start" not in sys.argv[1:]:
+        return
+
+    problems: list[str] = []
+    for name in ("LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"):
+        value = os.environ.get(name, "").strip()
+        if not value:
+            problems.append(f"{name} 가 비어 있습니다 — worker 가 기동하지 못합니다")
+        elif value in DEV_CREDENTIALS:
+            problems.append(
+                f"{name} 가 `livekit-server --dev` 의 공개 기본값입니다 — 운영에 쓰면 "
+                "누구나 유효한 입장 토큰을 서명할 수 있습니다. "
+                "서버의 livekit.yaml 과 함께 새 값으로 바꾸세요"
+            )
+
+    secret = os.environ.get("LIVEKIT_API_SECRET", "").strip()
+    length = len(secret.encode("utf-8"))
+    if secret and secret not in DEV_CREDENTIALS and length < MIN_SECRET_BYTES:
+        problems.append(
+            f"LIVEKIT_API_SECRET 이 {length}바이트로 짧습니다"
+            f"(HS256 은 {MIN_SECRET_BYTES}바이트 이상) — "
+            "백엔드가 토큰 발급을 거부하므로 음성이 동작하지 않습니다"
+        )
+
+    logger = logging.getLogger("mandarin.agent")
+    for problem in problems:
+        logger.error(problem)
+        print(f"[설정 경고] {problem}", file=sys.stderr, flush=True)
+
+
 _add_file_logging()
 _silence_httpx()
 _redact_secrets()
+_check_production_credentials()
 
 from livekit.agents import cli  # noqa: E402
 
