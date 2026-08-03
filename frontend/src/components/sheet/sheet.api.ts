@@ -1,4 +1,4 @@
-import { apiFetch } from '../../api'
+import { apiFetch } from '../../api/client'
 import { DOMAIN_COUNT } from './sheet.data'
 import type { Domain, Period, Sheet, Subject } from './sheet.types'
 
@@ -56,6 +56,8 @@ export type SheetDetail = {
   title: string
   isOpen: boolean
   likeCount: number
+  /** 보는 사람이 좋아요를 눌러 뒀는지. 서버가 요청자 기준으로 판단해 내려준다. */
+  isLiked: boolean
   achievementRate: number
   createdAt: string
   expiredAt: string | null
@@ -154,4 +156,45 @@ export function fetchMySheets(): Promise<SheetSummary[]> {
 /** 만다라트 상세. 비공개 시트는 소유자만 조회할 수 있다(403). */
 export function fetchSheetDetail(sheetId: number): Promise<SheetDetail> {
   return apiFetch<SheetDetail>(`/api/v1/sheets/${sheetId}`)
+}
+
+/** POST /api/v1/sheets/{id}/likes 응답 (백엔드 SheetLikeResponse). */
+export type SheetLikeResult = {
+  sheetId: number
+  isLiked: boolean
+  likeCount: number
+}
+
+/**
+ * 좋아요를 켜고 끈다. 같은 엔드포인트가 토글이라 누를 때마다 상태가 뒤집힌다.
+ * 바뀐 뒤의 상태와 총 개수를 서버가 확정해 내려주므로 화면은 그 값을 그대로 쓴다.
+ */
+export function toggleSheetLike(sheetId: number): Promise<SheetLikeResult> {
+  return apiFetch<SheetLikeResult>(`/api/v1/sheets/${sheetId}/likes`, { method: 'POST' })
+}
+
+/** PATCH .../subjects/complete 응답 (백엔드 SubjectCompleteResponse). */
+export type SubjectCompleteResult = {
+  completedSubjectIds: number[]
+  /** 이번 수행으로 받은 포인트 */
+  totalEarnedPoint: number
+  /** 적립 후 내 보유 포인트 */
+  totalUserPoint: number
+}
+
+/**
+ * 과제를 수행 완료 처리하고 포인트를 받는다. 여러 건을 한 번에 보낼 수 있어 배열로 받는다
+ * (상세 화면은 한 건, 오늘의 할 일은 체크한 만큼).
+ *
+ * 응답에는 수행 후의 과제 상태(tryCount · progress · isDonePeriod)가 없다.
+ * 그 값들은 서버가 정하므로, 호출한 쪽이 상세를 다시 받아 화면을 맞춘다.
+ */
+export function completeSubjects(
+  sheetId: number,
+  subjectIds: number[],
+): Promise<SubjectCompleteResult> {
+  return apiFetch<SubjectCompleteResult>(`/api/v1/sheets/${sheetId}/subjects/complete`, {
+    method: 'PATCH',
+    body: JSON.stringify({ subjectIds }),
+  })
 }

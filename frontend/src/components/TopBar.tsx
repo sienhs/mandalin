@@ -1,15 +1,18 @@
 import { NavLink } from 'react-router-dom'
 
 /**
- * 임시 테스트용 상단 네비게이션 (가운데 pill).
+ * **개발 전용** 상단 네비게이션 (가운데 pill).
+ *
+ * 사용자 화면은 AppShell 이 담당한다. 이 컴포넌트는 `/dev/*` 화면에서만 쓰인다 —
+ * 예전에는 마을 화면(사용자 화면)에도 붙어 있어서 개발 도구가 정식 메뉴처럼 보였다.
  * 마을 3D 캔버스 위에 떠도 좌상단 타이틀/우상단 패널과 안 겹치도록 top-center 배치.
  */
 const LINKS = [
-  { to: '/test', label: '홈' },
-  { to: '/village', label: '마을' },
-  { to: '/gallery', label: '모아보기' },
-  { to: '/premium', label: '프리미엄' },
-  { to: '/thumbnails', label: '스튜디오' },
+  { to: '/dev', label: '개발 허브' },
+  { to: '/app/village', label: '마을' },
+  { to: '/dev/gallery', label: '모아보기' },
+  { to: '/dev/premium', label: '프리미엄' },
+  { to: '/dev/thumbnails', label: '스튜디오' },
 ]
 
 export function TopBar() {

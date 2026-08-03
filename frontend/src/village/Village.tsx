@@ -31,7 +31,7 @@ interface Props {
  */
 export function Village({
   mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, landmark,
-  islandBase = true, details = true, onSelect, onSelectTask,
+  islandBase = false, details = true, onSelect, onSelectTask,
 }: Props) {
   return (
     <group>

@@ -1,130 +1,361 @@
 @import "tailwindcss";
 
+/* 다크 모드는 <html class="dark"> 로 켠다. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/**
+ * 본문 서체 — Spoqa Han Sans Neo (SIL OFL 1.1, 상업적 이용 무료).
+ *
+ * <p><b>자체 호스팅한다.</b> CDN 을 링크로 걸면 렌더가 남의 서버 응답에 묶이고, 그쪽이
+ * 느리거나 막히면 글자가 늦게 뜬다. 파일은 `public/fonts` 에 두고 같은 출처에서 받는다.
+ *
+ * <p>굵기는 Light·Regular·Medium·Bold 네 벌만 받았다. 이 서체에는 800·900 이 아예 없어서,
+ * 화면 곳곳의 `font-black`(900)·`font-extrabold`(800) 이 갈 곳을 잃는다. 그래서 Bold 에
+ * <b>700–900 구간</b>을 물려 두고 Medium 에 500–600 을 물렸다 — 이렇게 두지 않으면
+ * 브라우저마다 가짜 굵게(synthetic bold)를 넣거나 말거나 해서 같은 화면이 달라 보인다.
+ *   500·600 → Medium   /   700·800·900 → Bold
+ *
+ * <p>font-display: swap — 폰트가 늦어도 글자는 먼저 보여 준다. 빈 화면을 보여 주는 것보다
+ * 시스템 글꼴로라도 읽히게 하는 편이 낫다.
+ */
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Medium.woff2') format('woff2');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  src: url('/fonts/SpoqaHanSansNeo-Bold.woff2') format('woff2');
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /**
  * 디자인 토큰.
- * 여러 컴포넌트에서 반복되던 하드코딩 hex 값(bg-[#61B5A7] 등)을 여기로 모아
- * Tailwind 유틸(bg-brand, text-alert 등)로 쓸 수 있게 함. 색을 바꿀 땐 여기만 수정.
+ *
+ * 색을 바꿀 땐 여기만 수정한다. **토큰 이름은 그대로 두고 값만 바꿨다** —
+ * 이름을 지키면 이미 `bg-brand`, `text-alert` 를 쓰고 있는 화면들이 손대지 않아도
+ * 새 색을 입는다. 이름까지 바꾸면 수십 개 파일을 동시에 고쳐야 한다.
+ *
+ * 팔레트를 만다린(귤) 오렌지로 잡은 이유: 서비스 이름이 만다린인데 기존 민트+피치는
+ * 그것과 무관한 색이었다. 회색도 차가운 slate 대신 따뜻한 잉크로 바꿔 오렌지와 같이
+ * 놓았을 때 탁해지지 않게 했다.
  */
 @theme {
+  /*
+    Pretendard 가 적혀 있었지만 @font-face 도 CDN 링크도 없어 실제로는 한 번도 불린 적이
+    없었다 — 기기마다 맑은 고딕/애플 SD 고딕으로 갈라져 보이던 이유다. 이제 위에서
+    자체 호스팅하는 Spoqa Han Sans Neo 를 첫 자리에 둔다.
+  */
+  --font-sans:
+    'Spoqa Han Sans Neo', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic',
+    'Apple SD Gothic Neo', system-ui, sans-serif;
 
-  --color-bg-app: #f8fafc;
+  /* ── 브랜드: 만다린 오렌지 ── */
+  --color-brand-50: #fff4ed;
+  --color-brand-100: #ffe6d5;
+  --color-brand-200: #fec9aa;
+  --color-brand-300: #fda474;
+  --color-brand-400: #fb763c;
+  --color-brand-500: #f75316;
+  --color-brand-600: #e8390c;
+  --color-brand-700: #c1280c;
+  --color-brand-800: #992312;
+  --color-brand-900: #7b2012;
 
-  --color-ink-100: #f1f5f9;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
-  --color-ink-700: #334155;
-  --color-ink-900: #0f172a;
+  /* ── 뉴트럴: 따뜻한 잉크 ── */
+  --color-ink-50: #faf9f7;
+  --color-ink-100: #f2f0ec;
+  --color-ink-200: #e6e2db;
+  --color-ink-300: #d3cdc3;
+  --color-ink-400: #a8a096;
+  --color-ink-500: #7c746a;
+  --color-ink-600: #5d564e;
+  --color-ink-700: #45403a;
+  --color-ink-800: #2b2823;
+  --color-ink-900: #1a1815;
+  --color-ink-950: #100f0d;
 
-  --color-mint-100: #ccfbf1;
-  --color-mint-400: #2dd4bf;
-  --color-mint-500: #14b8a6;
-  --color-mint-600: #0d9488;
-  --color-mint-700: #0f766e;
+  /* ── 도메인 8색. 만다라트 칸·마을 건물·리포트 막대가 공유한다 ──
+     village/palette.ts 의 DOMAIN_COLOR_HEX 와 같은 값이어야 한다. */
+  --color-d1: #e8590c;
+  --color-d2: #d9480f;
+  --color-d3: #1971c2;
+  --color-d4: #0c8599;
+  --color-d5: #2f9e44;
+  --color-d6: #5f3dc4;
+  --color-d7: #c2255c;
+  --color-d8: #f08c00;
+
+  /* ── 기존 이름 유지, 값만 교체 ──
+     이 아래는 이미 화면들이 쓰고 있는 토큰이다. 지우면 그 화면들이 깨진다. */
+  --color-bg-app: #f2f0ec;
+  --color-brand: #f75316;          /* 로고 배지 / 포커스 링 */
+  --color-brand-active: #e8390c;   /* 내비게이션 active/hover */
+  --color-brand-soft: #fff4ed;     /* 모바일 내비게이션 active 배경 */
+  --color-page: #f2f0ec;           /* 페이지 배경 */
+  --color-alert: #e03131;          /* 알림 점 / 프로필 배지 */
+  --color-surface-muted: #f2f0ec;  /* 아이콘 버튼 배경 */
+  --color-accent-peach: #fff4ed;   /* 히어로/로그인 패널 배경 */
+  --color-success: #f75316;        /* 주요 버튼 배경 — 브랜드와 일치시킨다 */
+  --color-success-hover: #e8390c;
+  --color-warning: #f08c00;        /* 체크 완료 상태 */
+  --color-gold: #f59f00;           /* 알림 종 아이콘 */
+  --color-coin-bg: #ffd43b;
+  --color-coin-text: #b8860b;
+  --color-points-bg: #fff4ed;
+  --color-points-text: #c1280c;
+  --color-text-muted: #7c746a;     /* 비활성 내비게이션 텍스트 */
+
+  /* 민트 계열은 남겨 둔다 — 아직 쓰는 화면이 있고, 지우면 빌드가 아니라 색이 사라진다. */
+  --color-mint-100: #ffe6d5;
+  --color-mint-400: #fb763c;
+  --color-mint-500: #f75316;
+  --color-mint-600: #e8390c;
+  --color-mint-700: #c1280c;
 
   --spacing-shell: 1280px;
+  --radius-card: 1.125rem;
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
 
-  --color-brand: #61b5a7;
-  /* 로고 배지 / 포커스 링 */
-  --color-brand-active: #65aa9f;
-  /* 내비게이션 active/hover */
-  --color-brand-soft: #e8f5f1;
-  /* 모바일 내비게이션 active 배경 */
-  --color-page: #f4f7f9;
-  /* 페이지 배경 */
-  --color-alert: #d95569;
-  /* 알림 점 / 프로필 배지 */
-  --color-surface-muted: #f6f7f8;
-  /* 아이콘 버튼 배경 */
-  --color-accent-peach: #fff1ec;
-  /* 히어로/로그인 패널 배경 */
-  --color-success: #72cea1;
-  /* 주요 버튼 배경 */
-  --color-success-hover: #5ec492;
-  /* 주요 버튼 hover */
-  --color-warning: #de8433;
-  /* 체크 완료 상태 */
-  --color-gold: #e8b744;
-  /* 알림 종 아이콘 */
-  --color-coin-bg: #f7c85c;
-  /* 코인 아이콘 배경 */
-  --color-coin-text: #d69327;
-  /* 코인 아이콘 글자 */
-  --color-points-bg: #fff6de;
-  /* 포인트 배지 배경 */
-  --color-points-text: #a96028;
-  /* 포인트 배지 글자 */
-  --color-text-muted: #667085;
-  /* 비활성 내비게이션 텍스트 */
+@layer base {
+  /**
+   * 표면 토큰. 라이트/다크에서 값만 갈리고 사용처는 그대로 둔다.
+   * @theme 이 아니라 :root 에 두는 이유 — Tailwind 유틸이 아니라
+   * `style={{ background: 'var(--surface-card)' }}` 로도 써야 하기 때문이다.
+   */
+  :root {
+    --surface-page: #f2f0ec;
+    --surface-card: #ffffff;
+    --surface-sunken: #f2f0ec;
+    --surface-raised: #ffffff;
+    --border-hairline: #e6e2db;
+    --text-strong: #1a1815;
+    --text-muted: #7c746a;
+    --shadow-card: 0 1px 2px rgb(26 24 21 / 0.04), 0 8px 24px -12px rgb(26 24 21 / 0.12);
+    --shadow-pop: 0 4px 12px -2px rgb(26 24 21 / 0.08), 0 20px 40px -16px rgb(26 24 21 / 0.24);
+
+    color-scheme: light;
+    font: 16px/145% var(--font-sans);
+  }
+
+  .dark {
+    --surface-page: #100f0d;
+    --surface-card: #1c1a17;
+    --surface-sunken: #141210;
+    --surface-raised: #24211d;
+    --border-hairline: #322e29;
+    --text-strong: #faf9f7;
+    --text-muted: #a8a096;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-pop: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 20px 40px -16px rgb(0 0 0 / 0.7);
+
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--surface-page);
+    color: var(--text-strong);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'tnum';
+    letter-spacing: -0.014em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    min-height: 100svh;
+  }
+
+  /* 키보드 사용자에게만 초점 링을 보인다. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--color-brand-200);
+    color: var(--color-ink-900);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 /**
  * 공통 컴포넌트 클래스.
  * 여러 파일에서 그대로 반복되던 긴 Tailwind 유틸 조합을 시맨틱 이름으로 묶음.
- * @layer components에 두는 이유: Tailwind 유틸 클래스(@layer utilities)가 항상 이보다
- * 우선하도록 하기 위함 — 그래야 `<div className="brand-mark size-8">`처럼 이 클래스와
- * 유틸을 같이 써서 크기/색 등 개별 값만 자유롭게 덮어쓸 수 있음.
+ * @layer components에 두는 이유: Tailwind 유틸 클래스가 항상 이보다 우선하도록 하기 위함.
  */
 @layer components {
 
   /* 페이지 최상위 배경(로그인 필요/불필요 화면 공통) */
   .page-shell {
-    @apply min-h-screen bg-page text-slate-950;
+    @apply min-h-screen;
+    background: var(--surface-page);
+    color: var(--text-strong);
   }
 
-  /* Header/PublicHeader 내부 가로 정렬 컨테이너. 좌우 padding은 인스턴스별 px-*로 덮어쓰기 */
+  /* Header/PublicHeader 내부 가로 정렬 컨테이너 */
   .header-row {
     @apply mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8;
   }
 
-  /* "만" 로고 사각 배지. 크기/둥근 정도/글자 크기는 인스턴스별로 함께 지정 */
-  .brand-mark {
-    @apply grid place-items-center bg-brand font-extrabold text-white;
-  }
+  /* "만" 로고 사각 배지 */
+  /* .brand-mark(글자 "만"을 넣던 그라데이션 배지)는 심볼 로고로 교체돼 사라졌다 —
+     components/common/Logo.tsx 를 쓴다. */
 
-  /* "만다린" 워드마크. 글자 크기는 인스턴스별로 함께 지정 */
   .brand-wordmark {
-    @apply font-extrabold tracking-[-0.04em];
+    @apply font-black tracking-[-0.04em];
   }
 
-  /* 키보드 포커스 링(폭/오프셋만). 색은 인스턴스별 focus-visible:outline-*로 함께 지정 */
   .focus-ring {
     @apply focus-visible:outline-2 focus-visible:outline-offset-2;
   }
 
-  /* 원형 아이콘/캐러셀 버튼 뼈대. 크기·배경·색은 인스턴스별로 함께 지정 */
   .icon-btn {
     @apply grid cursor-pointer place-items-center rounded-full border-0 transition;
   }
 
-  /* HomePage 주요 초록 CTA(적용하기 / 새 만다라트 만들기) */
   .btn-primary {
-    @apply h-12 cursor-pointer rounded-xl border-0 bg-success text-sm font-extrabold text-white transition hover:bg-success-hover;
+    @apply h-12 cursor-pointer rounded-xl border-0 bg-brand-600 text-sm font-extrabold text-white transition hover:bg-brand-500;
   }
 
-  /* 흰 배경의 보조/취소 동작 버튼. */
   .btn-secondary {
-    @apply h-12 cursor-pointer rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-400 transition hover:bg-slate-50;
+    @apply h-12 cursor-pointer rounded-xl border bg-[var(--surface-card)] text-sm font-bold text-[var(--text-strong)] transition;
+    border-color: var(--border-hairline);
   }
 
-  /* 카드 제목 아래 보조 설명 텍스트 */
   .subtitle {
-    @apply mt-2 text-sm font-semibold text-slate-400;
+    @apply mt-2 text-sm font-semibold;
+    color: var(--text-muted);
   }
 
+  /* ── 새 화면들이 쓰는 공통 클래스 ── */
+
+  .card {
+    @apply rounded-card;
+    background: var(--surface-card);
+    border: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-card);
+  }
+
+  .muted {
+    color: var(--text-muted);
+  }
+
+  .page-title {
+    @apply text-[26px] leading-tight font-extrabold tracking-[-0.03em] sm:text-3xl;
+  }
+
+  .page-caption {
+    @apply mt-1.5 text-sm font-medium;
+    color: var(--text-muted);
+  }
+
+  .section-title {
+    @apply text-base font-bold tracking-[-0.02em];
+  }
+
+  .hairline {
+    border-color: var(--border-hairline);
+  }
+
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
-:root {
-  color-scheme: light;
-  font: 18px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  /* 하단 탭바가 있는 모바일에서 마지막 요소가 가리지 않도록 */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
 }
 
-body {
-  margin: 0;
-  background: #ffffff;
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }
 
-#root {
-  min-height: 100svh;
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.94) translateY(8px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes toast-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.97); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes sheen {
+  0% { background-position: -220% 0; }
+  100% { background-position: 220% 0; }
+}
+
+.animate-rise { animation: rise 0.45s var(--ease-out-quint) both; }
+.animate-pop { animation: pop-in 0.3s var(--ease-out-quint) both; }
+.animate-toast { animation: toast-in 0.34s var(--ease-out-quint) both; }
+
+/* 로딩 스켈레톤 */
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--surface-sunken) 30%,
+    color-mix(in oklab, var(--surface-sunken), white 40%) 50%,
+    var(--surface-sunken) 70%
+  );
+  background-size: 220% 100%;
+  animation: sheen 1.4s linear infinite;
+}
+.dark .skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--surface-sunken) 30%,
+    color-mix(in oklab, var(--surface-sunken), white 8%) 50%,
+    var(--surface-sunken) 70%
+  );
+  background-size: 220% 100%;
 }

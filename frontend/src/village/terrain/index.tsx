@@ -1,4 +1,5 @@
 import { Color } from 'three'
+import { CardBase } from '../CardBase'
 import { PALETTE } from '../palette'
 import type { Terrain } from '../villageApi'
 import { CityRoad } from './CityRoad'
@@ -47,12 +48,19 @@ function TerrainSurface({ terrain }: { terrain: Terrain }) {
  *   이 장식만 인스턴스 1,296개 + 그림자라 마을에서 가장 무겁다. 프레임을 재거나 저사양
  *   환경을 볼 때 여기서 끈다. 끄면 지표면만 남아 평평한 판이 된다.
  */
+/**
+ * 지형 + 받침.
+ *
+ * <p>`islandBase` 를 켜면 예전처럼 매달린 암반(FloatingBase)이 서고, 끄면 얇은 카드형
+ * 받침(CardBase)이 대신한다. 기본은 카드 쪽이다 — 2D 화면과 톤을 맞추기 위해서다.
+ * 자세한 이유는 {@link ../CardBase.tsx} 주석에 적었다.
+ */
 export function TerrainGround({
-  terrain, islandBase = true,
+  terrain, islandBase = false,
 }: { terrain: Terrain; islandBase?: boolean }) {
   return (
     <group>
-      {islandBase && <FloatingBase {...BASE[terrain]} />}
+      {islandBase ? <FloatingBase {...BASE[terrain]} /> : <CardBase terrain={terrain} />}
       <TerrainSurface terrain={terrain} />
     </group>
   )

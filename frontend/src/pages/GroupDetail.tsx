@@ -1,13 +1,12 @@
-import { useMemo, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Button from '../components/common/Button'
-import Header from '../components/common/Header'
 import ProgressBar from '../components/common/ProgressBar'
-import { MOCK_FRIENDS } from '../components/friends/friends.data'
+import type { Friend } from '../components/friends/friends.types'
 import GroupInviteDialog from '../components/group/GroupInviteDialog'
 import GroupMoveDialog from '../components/group/GroupMoveDialog'
-import { GROUP_DOMAIN_SLOTS, loadGroupDetail } from '../components/group/group.data'
-import { MY_SHEETS } from '../components/sheetList/sheetList.data'
+import { GROUP_DOMAIN_SLOTS } from '../components/group/group.data'
+import type { GroupDetail as GroupDetailData } from '../components/group/group.types'
 import { cn } from '../utils/cn'
 // 카드(.card) 는 생성 화면과 공유한다.
 import '../styles/sheet-create.css'
@@ -27,7 +26,6 @@ const colorClassOf = (index: number): string =>
  */
 export default function GroupDetail() {
   const navigate = useNavigate()
-  const { groupId } = useParams()
   const { state } = useLocation()
   /**
    * 방금 만든 그룹이면 이름 · 어느 시트에서 도메인을 냈는지 · 방장이 고른 랜드마크가 함께 넘어온다.
@@ -40,35 +38,27 @@ export default function GroupDetail() {
     landmarkBuildingId?: number
   } | null
 
-  const id = Number(groupId) || 1
-  const detail = useMemo(
-    () =>
-      loadGroupDetail(id, {
-        title: passed?.groupTitle,
-        justCreated: passed?.justCreated,
-        landmarkBuildingId: passed?.landmarkBuildingId,
-      }),
-    [id, passed?.groupTitle, passed?.justCreated, passed?.landmarkBuildingId],
-  )
-
   /**
-   * '선택한 만다라트로 이동' 이 갈 내 만다라트.
+   * 그룹 상세.
    *
-   * 상세 응답(MemberContributionResponse)에는 멤버가 어느 시트에서 도메인을 냈는지가 없어서,
-   * 만든 직후에 넘겨받은 값을 쓰고 없으면 첫 시트로 보낸다.
+   * **아직 서버에 붙어 있지 않다.** 화면 확인용 목업을 걷어냈고, 연동 전까지는 비어 있어
+   * 아래 안내 문구만 보인다.
+   *
+   * 연동: `useParams()` 로 되찾은 groupId 로 `GET /api/v1/groups/{groupId}` 를 부르고
+   * 응답을 그대로 담는다 (GroupDetailResponse 와 GroupDetail 타입이 같은 모양이다).
    */
-  const mySheetId = passed?.sheetId ?? MY_SHEETS[0]?.sheetId ?? 1
-
-  /** 나 말고 다른 멤버가 아직 없는 상태인지 */
-  const isAlone = detail.members.length <= 1
-  /** 도메인 자리가 남아 있으면 아직 초대할 수 있다 */
-  const canInvite = detail.mappedDomainCount < GROUP_DOMAIN_SLOTS
+  const [detail] = useState<GroupDetailData | null>(null)
 
   /**
-   * 줄을 눌러 고른 멤버. 처음에는 팀장이 골라져 있다 — 이동 버튼이 항상 갈 곳을 갖도록.
-   * 멤버가 없는 응답(팀장이 빠진 그룹 등)에도 화면이 터지지 않게 옵셔널로 읽는다.
+   * 초대 팝업에 띄울 친구 목록.
+   * 연동: `GET /api/v1/friends`
    */
-  const [pickedUserId, setPickedUserId] = useState(detail.members[0]?.userId ?? 0)
+  const [friends] = useState<Friend[]>([])
+
+  /**
+   * 줄을 눌러 고른 멤버. 상세가 도착하면 팀장이 골라진다 — 이동 버튼이 항상 갈 곳을 갖도록.
+   */
+  const [pickedUserId, setPickedUserId] = useState(0)
   const [moveOpen, setMoveOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   /**
@@ -77,12 +67,38 @@ export default function GroupDetail() {
    */
   const [invitedIds, setInvitedIds] = useState<number[]>([])
 
+  if (!detail) {
+    return (
+      <div className="group-detail-page">
+          <main className="group-detail-main">
+          <div className="card group-detail-card">
+            <p className="m-0 py-20 text-center text-[13.5px] font-semibold text-ink-400">
+              그룹 만다라트를 불러올 수 없어요.
+            </p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  /**
+   * '선택한 만다라트로 이동' 이 갈 내 만다라트.
+   *
+   * 상세 응답(MemberContributionResponse)에는 멤버가 어느 시트에서 도메인을 냈는지가 없어서,
+   * 만든 직후에 넘겨받은 값을 쓴다.
+   */
+  const mySheetId = passed?.sheetId ?? 0
+
+  /** 나 말고 다른 멤버가 아직 없는 상태인지 */
+  const isAlone = detail.members.length <= 1
+  /** 도메인 자리가 남아 있으면 아직 초대할 수 있다 */
+  const canInvite = detail.mappedDomainCount < GROUP_DOMAIN_SLOTS
+
   const pickedIndex = detail.members.findIndex((member) => member.userId === pickedUserId)
   const pickedMember = detail.members[pickedIndex] ?? detail.members[0] ?? null
 
   return (
     <div className="group-detail-page">
-      <Header />
 
       <main className="group-detail-main">
         <div className="card group-detail-card">
@@ -190,7 +206,7 @@ export default function GroupDetail() {
 
       {inviteOpen && (
         <GroupInviteDialog
-          friends={MOCK_FRIENDS}
+          friends={friends}
           invitedIds={invitedIds}
           // 연동 시 POST /api/v1/groups/{groupId}/invites 로 초대를 보낸다.
           onInvite={(friendId) => setInvitedIds((prev) => [...prev, friendId])}

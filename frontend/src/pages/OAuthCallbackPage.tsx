@@ -1,60 +1,83 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { exchangeOAuthCode } from '../api'
-import { consumeIntendedPath } from '../auth/redirectTo'
-import { useAuth } from '../contexts/auth'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { auth } from '../api/endpoints'
+import { setAccessToken } from '../api/client'
+import Button from '../components/common/ActionButton'
 
-type Status = 'loading' | 'success' | 'error'
-
-/** 열려던 곳을 기억하지 못했을 때(로그인 버튼으로 직접 진입 등) 보낼 기본 경로. */
-const DEFAULT_LANDING = '/home'
-
-export default function OAuthCallbackPage() {
-  const [searchParams] = useSearchParams()
+/**
+ * 카카오 로그인 뒤 백엔드가 1회용 code 를 달고 되돌려 보내는 자리.
+ *
+ * <p>돌아올 주소는 백엔드의 `FRONTEND_BASE_URL` 이 정한다(`OAuth2LoginSuccessHandler`).
+ * 배포는 vercel 도메인, 로컬은 http://localhost:5173 이라 각자 자기 화면으로 돌아온다 —
+ * 로컬에서 붙이려면 백엔드도 같이 띄워야 한다.
+ */
+export default function OAuthCallback() {
+  const [params] = useSearchParams()
   const navigate = useNavigate()
-  const { setSession } = useAuth()
-  const [status, setStatus] = useState<Status>('loading')
-  // code 는 1회용(TTL 60초)이다. StrictMode 가 effect 를 두 번 돌리면 두 번째 교환이
-  // 반드시 실패해 방금 성공한 로그인을 에러로 덮어쓴다.
-  const hasRequestedExchange = useRef(false)
+  const [status, setStatus] = useState<'loading' | 'error'>('loading')
+  const [message, setMessage] = useState('')
+  const requested = useRef(false)
 
   useEffect(() => {
-    const code = searchParams.get('code')
-    const error = searchParams.get('error')
+    const code = params.get('code')
+    const error = params.get('error')
 
     if (error || !code) {
       setStatus('error')
+      setMessage(error ?? '인가 코드가 없습니다.')
       return
     }
+    // 개발 모드의 이중 마운트에서 code 를 두 번 쓰지 않게 한다(1회용이다).
+    if (requested.current) return
+    requested.current = true
 
-    if (hasRequestedExchange.current) return
-    hasRequestedExchange.current = true
-
-    exchangeOAuthCode(code)
+    auth
+      .exchange(code)
       .then((data) => {
-        setSession(data)
-        setStatus('success')
-        // replace — 뒤로 가기로 이 콜백 URL(이미 소진된 code)로 돌아오면 안 된다.
-        navigate(consumeIntendedPath() ?? DEFAULT_LANDING, { replace: true })
+        setAccessToken(data.accessToken)
+        // 세션 복원 로직이 토큰을 다시 읽도록 새로고침하며 들어간다.
+        window.location.replace('/app')
       })
-      .catch(() => setStatus('error'))
-  }, [navigate, searchParams, setSession])
+      .catch((cause: unknown) => {
+        setStatus('error')
+        setMessage(cause instanceof Error ? cause.message : '로그인에 실패했습니다.')
+      })
+  }, [params, navigate])
 
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        width: '100vw',
-        background: '#ffffff',
-        fontSize: '18px',
-      }}
+      className="grid min-h-dvh place-items-center px-6"
+      style={{ background: 'var(--surface-page)' }}
     >
-      {status === 'loading' && <p>로그인 처리 중...</p>}
-      {status === 'success' && <p>로그인 성공</p>}
-      {status === 'error' && <p>로그인 실패</p>}
+      <div className="w-full max-w-sm text-center">
+        {status === 'loading' ? (
+          <>
+            <span className="mx-auto block size-7 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            <p className="mt-5 text-sm font-bold">로그인 처리 중이에요…</p>
+          </>
+        ) : (
+          <>
+            <span
+              aria-hidden="true"
+              className="mx-auto grid size-14 place-items-center rounded-2xl text-2xl"
+              style={{ background: 'var(--surface-sunken)' }}
+            >
+              ⚠️
+            </span>
+            <h1 className="mt-5 text-lg font-extrabold">로그인하지 못했어요</h1>
+            <p className="muted mt-2 text-[13px] font-semibold leading-relaxed">{message}</p>
+            <div className="mt-6 flex justify-center gap-2">
+              <Button to="/login">로그인 화면으로</Button>
+              <Link
+                to="/"
+                className="muted grid h-11 place-items-center px-4 text-sm font-bold no-underline"
+              >
+                소개 페이지
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

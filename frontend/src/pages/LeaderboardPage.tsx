@@ -1,109 +1,165 @@
-import { useEffect, useMemo, useState } from 'react'
-import Header from '../components/common/Header'
-import { fetchLeaderboard } from '../components/leaderboard/leaderboard.api'
-import LeaderboardPagination from '../components/leaderboard/LeaderboardPagination'
-import LeaderboardRow from '../components/leaderboard/LeaderboardRow'
-import type { LeaderboardEntry } from '../components/leaderboard/leaderboard.types'
-import '../styles/leaderboard.css'
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useStore } from '../data/store'
+import type { LeaderboardEntry } from '../data/types'
+import Button from '../components/common/ActionButton'
+import { Avatar, Badge, EmptyState, ErrorState, Skeleton } from '../components/common/Primitives'
+import { IconHeart } from '../components/common/Icons'
+import { cn } from '../utils/cn'
+import { num } from '../utils/format'
 
-type LeaderboardPageProps = {
-  initialEntries?: LeaderboardEntry[]
-}
+const MEDALS = ['🥇', '🥈', '🥉'] as const
 
-const ITEMS_PER_PAGE = 10
+export default function Leaderboard() {
+  const { gateway, user, sheets } = useStore()
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-/** 공개 만다라트를 좋아요 수가 높은 순서대로 보여주는 페이지. */
-export default function LeaderboardPage({
-  initialEntries,
-}: LeaderboardPageProps) {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>(
-    initialEntries ?? [],
+  const load = useCallback(
+    async (targetPage: number) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await gateway.leaderboard(targetPage)
+        setEntries(res.entries)
+        setTotalPages(Math.max(1, res.totalPages))
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : '리더보드를 불러오지 못했습니다.')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [gateway],
   )
-  const [page, setPage] = useState(1)
-  const [isLoading, setIsLoading] = useState(initialEntries === undefined)
-  const [loadError, setLoadError] = useState(false)
-  const pageCount = Math.max(1, Math.ceil(entries.length / ITEMS_PER_PAGE))
-  const safePage = Math.min(page, pageCount)
-  const stateMessage = isLoading
-    ? '리더보드를 불러오는 중이에요.'
-    : loadError
-      ? '리더보드를 불러오지 못했어요.'
-      : entries.length === 0
-        ? '아직 공개된 만다라트가 없어요.'
-        : null
-
-  const visibleEntries = useMemo(() => {
-    const start = (safePage - 1) * ITEMS_PER_PAGE
-    return entries.slice(start, start + ITEMS_PER_PAGE)
-  }, [entries, safePage])
 
   useEffect(() => {
-    if (initialEntries !== undefined) {
-      setEntries(initialEntries)
-      setIsLoading(false)
-      return
-    }
+    void load(page)
+  }, [load, page])
 
-    let isActive = true
-    fetchLeaderboard()
-      .then((data) => {
-        if (isActive) setEntries(data)
-      })
-      .catch(() => {
-        if (isActive) setLoadError(true)
-      })
-      .finally(() => {
-        if (isActive) setIsLoading(false)
-      })
-
-    return () => {
-      isActive = false
-    }
-  }, [initialEntries])
-
-  useEffect(() => {
-    if (page !== safePage) setPage(safePage)
-  }, [page, safePage])
+  const mySheetIds = new Set(sheets.data.map((s) => s.id))
 
   return (
-    <div className="page-shell">
-      <Header />
+    <div className="flex flex-col gap-5">
+      <header>
+        <h1 className="page-title">리더보드</h1>
+        <p className="page-caption">
+          공개된 만다라트를 좋아요 순으로 줄 세웁니다. 비공개 표는 올라가지 않아요.
+        </p>
+      </header>
 
-      <main className="leaderboard-main">
-        <h1 className="text-2xl font-extrabold tracking-[-0.04em]">리더보드</h1>
+      {loading && entries.length === 0 ? (
+        <ul className="m-0 flex list-none flex-col gap-3 p-0">
+          {Array.from({ length: 5 }, (_, i) => (
+            <li key={i}>
+              <Skeleton className="h-[92px] w-full" />
+            </li>
+          ))}
+        </ul>
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => void load(page)} />
+      ) : entries.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon="🏆"
+            title="아직 공개된 만다라트가 없어요"
+            body="내 만다라트를 공개로 만들면 이 목록에 올라가고, 다른 사람들이 좋아요를 누를 수 있어요."
+            action={<Button to="/app/sheets">내 만다라트로 가기</Button>}
+          />
+        </div>
+      ) : (
+        <>
+          <ol className="m-0 flex list-none flex-col gap-3 p-0">
+            {entries.map((entry, i) => {
+              const isMine = mySheetIds.has(entry.sheetId) || entry.name === user?.name
+              return (
+                <li
+                  key={entry.sheetId}
+                  className="animate-rise"
+                  style={{ animationDelay: `${i * 0.04}s` }}
+                >
+                  <article
+                    className={cn(
+                      'card flex flex-wrap items-center gap-4 p-5',
+                      isMine && 'ring-2 ring-brand-400/40',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'grid size-11 shrink-0 place-items-center rounded-2xl text-[15px] font-black tabular-nums',
+                        entry.rank <= 3 ? 'text-xl' : 'muted',
+                      )}
+                      style={{ background: 'var(--surface-sunken)' }}
+                      aria-label={`${entry.rank}위`}
+                    >
+                      {entry.rank <= 3 ? MEDALS[entry.rank - 1] : entry.rank}
+                    </span>
 
-        <section className="leaderboard-panel">
-          <h2 className="text-xl font-extrabold tracking-[-0.035em]">
-            좋아요 랭킹
-          </h2>
+                    <Avatar name={entry.name} size={40} />
 
-          {stateMessage ? (
-            <p
-              className="leaderboard-state"
-              role={isLoading ? 'status' : undefined}
-            >
-              {stateMessage}
-            </p>
-          ) : (
-            <>
-              <ol className="leaderboard-list">
-                {visibleEntries.map((entry, index) => (
-                  <LeaderboardRow
-                    key={entry.sheetId}
-                    entry={entry}
-                    rank={(safePage - 1) * ITEMS_PER_PAGE + index + 1}
-                  />
-                ))}
-              </ol>
-              <LeaderboardPagination
-                page={safePage}
-                pageCount={pageCount}
-                onChange={setPage}
-              />
-            </>
+                    <div className="min-w-[180px] flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isMine ? (
+                          <Link
+                            to={`/app/sheets/${entry.sheetId}`}
+                            className="text-[14.5px] font-extrabold no-underline hover:text-brand-600"
+                          >
+                            {entry.title}
+                          </Link>
+                        ) : (
+                          <span className="text-[14.5px] font-extrabold">{entry.title}</span>
+                        )}
+                        {isMine && <Badge tone="brand">내 만다라트</Badge>}
+                      </div>
+                      <p className="muted m-0 mt-1 text-[11.5px] font-bold">{entry.name}</p>
+                    </div>
+
+                    <span
+                      className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-4 text-[13px] font-black text-[var(--text-muted)]"
+                      style={{ borderColor: 'var(--border-hairline)' }}
+                      aria-label={`좋아요 ${entry.likeCount}`}
+                    >
+                      <IconHeart className="size-[17px]" />
+                      {num(entry.likeCount)}
+                    </span>
+                  </article>
+                </li>
+              )
+            })}
+          </ol>
+
+          {totalPages > 1 && (
+            <nav className="flex items-center justify-center gap-2" aria-label="페이지">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={page === 0 || loading}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                이전
+              </Button>
+              <span className="muted px-2 text-[12.5px] font-bold tabular-nums">
+                {page + 1} / {totalPages}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={page >= totalPages - 1 || loading}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              >
+                다음
+              </Button>
+            </nav>
           )}
-        </section>
-      </main>
+
+          <p className="muted m-0 px-1 text-[12px] font-medium">
+            좋아요는 만다라트 상세 화면에서 누를 수 있습니다. 리더보드 응답에는 좋아요 여부가
+            없어서 여기서는 개수만 보여줘요.
+          </p>
+        </>
+      )}
     </div>
   )
 }

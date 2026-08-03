@@ -1,8 +1,9 @@
 import { Suspense, type ReactNode } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Sky } from '@react-three/drei'
 import { Village } from './Village'
 import { SKY } from './terrain'
+import { IsoCamera, type IsoCameraHandle, type ZoomLevel } from './IsoCamera'
+import { SkyBackdrop, skyClearColor } from './SkyBackdrop'
 import type { CellOverride } from './GrowableObject'
 import type { LandmarkOverride } from './Landmark'
 import type { ThemeKey } from './partTypes'
@@ -20,10 +21,11 @@ interface Props {
   selectedTaskId: string | null
   landmark: LandmarkOverride
   /**
-   * 섬 아랫부분(매달린 암반·종유석)을 그릴지. 기본 true.
+   * 섬 아랫부분(매달린 암반·종유석)을 그릴지. **기본 false.**
    *
-   * 1,296개 인스턴스가 그림자까지 드리우는 가장 무거운 장식이라, 프레임이 부족한 환경에서
-   * 가장 먼저 끄게 되는 부분이다. 끄면 지표면만 남아 평평한 판처럼 보인다.
+   * 1,296개 인스턴스가 그림자까지 드리우는 가장 무거운 장식이고, 판타지 톤이라
+   * 2D 화면의 담백한 카드와 어울리지 않는다. 기본은 얇은 받침(FloatingBase 없이)이고,
+   * 예전 모습이 필요한 화면(갤러리·썸네일 굽기)에서만 켠다.
    */
   islandBase?: boolean
   /** 그림자를 그릴지. 기본 true. 끄면 그림자맵 패스(2048²)가 사라진다. */
@@ -37,6 +39,15 @@ interface Props {
    */
   details?: boolean
   /**
+   * 카메라 조작 통로. 회전·줌 버튼을 Canvas 밖(HTML)에 그리려면 필요하다.
+   * `useIsoCamera()` 가 돌려주는 ref 를 그대로 넘긴다.
+   */
+  cameraRef?: React.Ref<IsoCameraHandle>
+  initialZoom?: ZoomLevel
+  onFacingChange?: (facing: number) => void
+  /** 카메라가 바라볼 지점. 생략하면 마을 중심. */
+  focus?: [number, number, number]
+  /**
    * 캔버스 안에 추가로 렌더할 것. 실서비스에서는 쓰지 않는다.
    *
    * 렌더 통계(draw call 수)는 `useThree` 로 renderer 에 닿아야 읽을 수 있는데, 그 훅은
@@ -48,10 +59,31 @@ interface Props {
   onSelectTask: (taskId: string) => void
 }
 
-/** R3F Canvas + 조명 + OrbitControls. isometric 느낌의 초기 시점. */
+/**
+ * R3F Canvas + 조명 + 아이소메트릭 카메라.
+ *
+ * <p>투영을 직교로 바꾸고 회전을 90° 스냅으로 묶었다. 2D 만다라트 격자와 같은 평행 투영을
+ * 쓰기 위해서다 — 자세한 이유는 {@link IsoCamera} 주석에 적었다.
+ */
 export function Scene({
-  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, landmark,
-  islandBase = true, shadows = true, details = true, children, onSelect, onSelectTask,
+  mandalart,
+  selected,
+  overrides,
+  themes,
+  terrain,
+  catalog,
+  selectedTaskId,
+  landmark,
+  islandBase = false,
+  shadows = true,
+  details = true,
+  cameraRef,
+  initialZoom = 1,
+  onFacingChange,
+  focus,
+  children,
+  onSelect,
+  onSelectTask,
 }: Props) {
   const sky = SKY[terrain]
 
@@ -59,27 +91,46 @@ export function Scene({
     <Canvas
       shadows={shadows}
       gl={{ preserveDrawingBuffer: true }}
-      // 섬이 "떠 있다"는 게 보이려면 눈높이가 낮아야 한다. 예전 [31,28,31] 은
-      // 거의 위에서 내려보는 각도라 측면 암반이 한 줄로만 보였다.
-      camera={{ position: [54, 25, 54], fov: 38 }}
       onPointerMissed={() => onSelect(-1)}
+      /*
+        끌어서 돌릴 수 있다는 걸 커서로 알린다. touchAction 을 끄지 않으면 모바일에서
+        가로로 끌 때 브라우저가 페이지 스크롤로 가로채 회전이 먹히지 않는다.
+      */
+      style={{ cursor: 'grab', touchAction: 'none' }}
     >
-      <color attach="background" args={[sky.bg]} />
-      <Sky sunPosition={sky.sun} turbidity={sky.turbidity} rayleigh={sky.rayleigh} />
+      <color attach="background" args={[skyClearColor(terrain)]} />
+      <SkyBackdrop terrain={terrain} />
 
-      <ambientLight intensity={0.6} />
+      <IsoCamera
+        handleRef={cameraRef}
+        initialZoom={initialZoom}
+        onFacingChange={onFacingChange}
+        focus={focus}
+      />
+
+      {/*
+        조명을 평평하게 간다.
+
+        예전 값(ambient 0.6 / directional 1.6)은 그림자가 진하고 대비가 커서 사진처럼 보였다.
+        2D 화면은 미세한 그림자와 얇은 테두리로 깊이를 표현하므로, 여기서도 대비를 낮추고
+        그림자를 흐리게 해 같은 톤을 만든다. 형태는 여전히 읽히되 덜 극적이다.
+      */}
+      <ambientLight intensity={0.75} />
+      <hemisphereLight args={['#ffffff', '#d8d2c6', 0.35]} />
       <directionalLight
         position={sky.sun}
-        intensity={1.6}
-        castShadow
+        intensity={1.1}
+        castShadow={shadows}
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-40}
-        shadow-camera-right={40}
-        shadow-camera-top={40}
-        shadow-camera-bottom={-40}
-        // 섬 아래 매달린 암반(최대 depth 28 + 늘어진 침)까지 그림자 범위에 넣는다.
-        shadow-camera-near={0.5}
-        shadow-camera-far={180}
+        shadow-camera-left={-46}
+        shadow-camera-right={46}
+        shadow-camera-top={46}
+        shadow-camera-bottom={-46}
+        shadow-camera-near={-120}
+        shadow-camera-far={260}
+        // 직교 카메라에서는 그림자 경계가 딱 떨어져 더 날카로워 보인다. 살짝 흐려 둔다.
+        shadow-radius={3}
+        shadow-bias={-0.0008}
       />
 
       {/*
@@ -113,18 +164,6 @@ export function Scene({
       </Suspense>
 
       {children}
-
-      <OrbitControls
-        makeDefault
-        enablePan
-        minDistance={10}
-        maxDistance={120}
-        // 수평보다 살짝 아래까지 허용해 섬 측면(암반)이 보이게 한다.
-        // 완전히 아래로는 못 가게 막아 바닥 면이 드러나지 않도록 한다.
-        maxPolarAngle={Math.PI / 1.92}
-        // 섬 아래쪽에 여유를 둬 회전할 때 매달린 암반 전체가 화면에 들어오게 한다.
-        target={[0, -10, 0]}
-      />
     </Canvas>
   )
 }

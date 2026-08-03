@@ -35,12 +35,12 @@ export function TerrainSwitcher({ current, onPreview, onPick, pending, error }: 
   }
 
   return (
-    <div style={{ position: 'absolute', left: 20, bottom: 24, fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ position: 'absolute', left: 16, bottom: 16, zIndex: 20 }}>
       {open && (
         <div
           onMouseLeave={() => onPreview(null)}
           style={{
-            width: 260, marginBottom: 10, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,0.97)',
+            width: 260, marginBottom: 10, padding: 14, borderRadius: 14, background: 'var(--surface-card)',
             boxShadow: '0 10px 34px rgba(0,0,0,0.22)', backdropFilter: 'blur(6px)',
           }}
         >

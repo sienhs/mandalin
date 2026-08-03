@@ -55,8 +55,23 @@ public class Subject extends BaseEntity {
     @Builder.Default
     private Long point = 0L;
 
+    /**
+     * 전체 기간 누적 목표 횟수. 진행률과 완료 판정의 분모다.
+     * {@code countPerPeriod x 시트 기간의 주기 수} 로 서버가 산정한다.
+     */
     @Column(name = "target_count")
     private Integer targetCount;
+
+    /**
+     * 한 주기 안에서 몇 번 수행하는가(예: "주 3회" 의 3).
+     *
+     * <p>{@link #targetCount} 와 헷갈리기 쉬운데 단위가 다르다 — 이쪽은 <b>한 주기</b>,
+     * 저쪽은 <b>전체 기간</b>이다. 중복 수행을 막을 때 "이번 주에 이미 3번 했는가"를
+     * 판단하려면 주기당 상한이 필요해서 따로 둔다.
+     */
+    @Column(name = "count_per_period", nullable = false)
+    @Builder.Default
+    private Integer countPerPeriod = 1;
 
     @Column(name = "try_count")
     @Builder.Default

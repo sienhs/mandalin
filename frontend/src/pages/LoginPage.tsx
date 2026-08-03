@@ -1,115 +1,123 @@
-import { API_BASE_URL } from '../api'
-import PublicHeader from '../components/common/PublicHeader'
-import { useAuth } from '../contexts/auth'
-import { cn } from '../utils/cn'
+import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useStore } from '../data/store'
+import { showcaseSheet } from '../data/showcaseSheet'
+import Button from '../components/common/ActionButton'
+import Logo from '../components/common/Logo'
+import IsoVillage from '../features/village/IsoVillage'
 
-/** 왼쪽 패널 하단의 막대 그래프 일러스트(장식용, 데이터 아님). */
-const CITY_BARS = [
-  { height: 58, color: '#59E1CB' },
-  { height: 77, color: '#FFBC24' },
-  { height: 49, color: '#70B8FF' },
-  { height: 103, color: '#FF7085' },
-  { height: 70, color: '#B5A1FF' },
-  { height: 88, color: '#59DFC9' },
-  { height: 39, color: '#F49BCC' },
-  { height: 75, color: '#FFBC24' },
-  { height: 64, color: '#B5A1FF' },
-  { height: 54, color: '#70B8FF' },
-] as const
-
-/** 카카오 OAuth 로그인 페이지 (`/login`). 성공 시 콜백은 OAuthCallbackPage에서 처리. */
-export default function LoginPage() {
-  const { clearSession } = useAuth()
-
-  const handleKakaoLogin = () => {
-    // 이전 유저의 남은 세션이 있으면 리다이렉트 전에 정리(계정 전환 시 잔여 세션 방지).
-    clearSession()
-    window.location.href = `${API_BASE_URL}/oauth2/authorization/kakao`
-  }
+export default function Login() {
+  const { startKakaoLogin, enterMockSession } = useStore()
+  const navigate = useNavigate()
+  const showcase = useMemo(showcaseSheet, [])
 
   return (
-    <div className="page-shell">
-      <PublicHeader />
+    /*
+      7:3. 로그인 자체는 버튼 하나라 넓은 자리가 필요 없다. 반씩 나누면 오른쪽 절반이
+      대부분 빈 여백이 되어, 정작 눈에 남는 건 텅 빈 화면이 된다.
+    */
+    <div className="grid min-h-dvh lg:grid-cols-[7fr_3fr]">
+      {/* 왼쪽 — 서비스가 무엇인지 */}
+      {/*
+        브랜드 원색(brand-600 → 800)을 그대로 깔면 화면 절반이 고채도 빨강이라 눈이 아프다.
+        같은 색상각(hue)은 유지한 채 채도만 내리고 조금 어둡게 눌렀다 — 큰 면적은 밝히는
+        것보다 낮추는 쪽이 편하다. 다만 너무 빼면 갈색이 되어 브랜드색으로 읽히지 않으므로,
+        원색(S90/79)과 완전히 죽인 값(S48/45) 사이인 S62/58 로 잡았다.
 
-      <main className="grid min-h-[calc(100vh-72px)] place-items-center px-5 py-12 sm:px-8">
-        <section
-          className={cn(
-            'grid w-full max-w-[1040px] overflow-hidden',
-            'shadow-[0_12px_35px_rgba(57,72,86,0.04)]',
-            'md:grid-cols-[0.9fr_1.1fr]',
-          )}
+        ⚠️ 여기서만 바꾼다. `--color-brand-*` 토큰을 건드리면 버튼·강조 텍스트까지 같이
+        흐려져 앱 전체의 대비가 무너진다.
+      */}
+      <section
+        className="relative hidden flex-col justify-between overflow-hidden p-12 lg:flex"
+        style={{ background: 'linear-gradient(150deg, #ba482c, #71291e)' }}
+      >
+        <div
+          aria-hidden="true"
+          className="absolute -right-24 top-10 size-80 rounded-full bg-white/[.08]"
+        />
+
+        <div className="relative pt-6">
+          {/* currentColor 를 타는 인라인 심볼이라 붉은 패널 위에서는 흰색으로 나온다. */}
+          <span className="flex items-center gap-2.5 text-white">
+            <Logo flat className="size-9 shrink-0" />
+            <strong className="text-[19px] font-black tracking-[-0.04em]">만다린</strong>
+          </span>
+
+          <h1 className="m-0 mt-9 text-[44px] font-black leading-[1.14] tracking-[-0.05em] text-white">
+            목표를 세우면,
+            <br />
+            도시가 자랍니다.
+          </h1>
+          {/* 배경을 어둡게 눌렀으니 흐린 흰색은 한 단계 올려 준다 — 대비가 같이 떨어진다. */}
+          <p className="mt-5 max-w-[440px] text-[15px] font-semibold leading-[1.7] text-white/85">
+            81칸 만다라트에 매일의 과제를 채우면 3D 도시의 건물이 한 층씩 완성돼요.
+          </p>
+        </div>
+
+        {/*
+          남은 아래 공간을 마을로 채운다. 마을이 자기 하늘을 칠하면 붉은 그라데이션 위에
+          밝은 사각형 판이 떠 버리므로(경계가 그대로 보인다) `transparent` 로 하늘을 끄고
+          배경이 그대로 비치게 한다. 아래쪽은 마스크로 그라데이션에 잠기게 해서, 얹어 둔
+          그림이 아니라 배경에서 솟아난 것처럼 보이게 한다.
+        */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none relative -mx-12 -mb-12 mt-8"
+          style={{
+            maskImage: 'linear-gradient(to bottom, #000 66%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, #000 66%, transparent 100%)',
+            /*
+              건물 8색도 이 화면에서만 눌러 준다. 도메인 색은 만다라트 칸·리포트 막대가
+              함께 쓰는 공용 팔레트라 값을 고치면 앱 전체가 흐려지므로, 팔레트는 그대로 두고
+              여기서 필터로만 낮춘다.
+            */
+            filter: 'saturate(0.8) brightness(0.98)',
+          }}
         >
-          <div
-            className={cn(
-              'flex min-h-[450px] flex-col bg-accent-peach px-9 py-12',
-              'sm:px-12',
-              'md:min-h-[510px] md:px-14 md:py-16',
-            )}
+          <IsoVillage
+            sheet={showcase}
+            compact
+            transparent
+            className="h-[clamp(260px,42vh,460px)] w-full"
+          />
+        </div>
+      </section>
+
+      {/* 오른쪽 — 입장 방법 */}
+      <section
+        className="flex flex-col items-center justify-center px-8 py-14"
+        style={{ background: 'var(--surface-card)' }}
+      >
+        <div className="w-full max-w-[360px]">
+          <h2 className="m-0 text-2xl font-extrabold tracking-[-0.04em]">시작하기</h2>
+          <p className="muted m-0 mt-3 text-[13.5px] font-semibold leading-relaxed">
+            카카오 계정으로 로그인하면 자동으로 가입됩니다.
+          </p>
+
+          <button
+            type="button"
+            onClick={startKakaoLogin}
+            className="mt-7 flex h-[56px] w-full items-center justify-center gap-2.5 rounded-2xl border-0 bg-[#FEE500] text-[15.5px] font-extrabold text-[#181600] transition hover:-translate-y-0.5 hover:brightness-[.97]"
           >
-            <div className="flex items-center gap-2.5">
-              <span className="brand-mark size-8 rounded-[9px] text-sm">
-                만
-              </span>
-              <span className="brand-wordmark text-lg">만다린</span>
-            </div>
+            <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true" fill="currentColor">
+              <path d="M12 3C6.9 3 2.8 6.3 2.8 10.3c0 2.6 1.7 4.9 4.3 6.2l-1.1 4c-.1.4.3.7.6.5l4.7-3.1c.2 0 .5.1.7.1 5.1 0 9.2-3.3 9.2-7.7S17.1 3 12 3Z" />
+            </svg>
+            카카오로 로그인하기
+          </button>
 
-            <h1 className="mt-7 text-[35px] font-black leading-[1.18] tracking-[-0.055em] sm:text-[39px]">
-              목표를 세우면,
-              <br />
-              <span className="text-[#F05A17]">도시가 자랍니다.</span>
-            </h1>
-            <p className="mt-5 text-[15px] font-bold leading-6 tracking-[-0.02em] text-slate-400">
-              81칸 만다라트에 매일의 과제를 채우면
-              <br />
-              3D 도시의 건물이 한 층씩 완성돼요.
-            </p>
-
-            <div
-              aria-label="도시 성장 막대 일러스트"
-              role="img"
-              className="mt-auto flex h-28 items-end justify-between gap-2 px-1"
-            >
-              {CITY_BARS.map((bar, index) => (
-                <span
-                  key={`${bar.height}-${index}`}
-                  className="block w-full max-w-7 rounded-t-[7px]"
-                  style={{ height: bar.height, backgroundColor: bar.color }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              'flex min-h-[390px] flex-col items-center justify-center',
-              'bg-white px-8 py-14 text-center',
-              'sm:px-14 md:min-h-[510px]',
-            )}
+          <Button
+            variant="quiet"
+            full
+            className="mt-3"
+            onClick={() => {
+              enterMockSession()
+              navigate('/app', { replace: true })
+            }}
           >
-            <h2 className="text-xl font-extrabold tracking-[-0.035em] sm:text-[22px]">
-              카카오 계정으로 간편하게 로그인 하세요.
-            </h2>
-
-            <button
-              type="button"
-              onClick={handleKakaoLogin}
-              className={cn(
-                'focus-ring mt-10 flex h-16 w-full max-w-[450px]',
-                'cursor-pointer items-center justify-center rounded-2xl border-0',
-                'bg-[#FEE500] text-base font-extrabold text-[#181600]',
-                'transition hover:bg-[#F5DC00]',
-                'focus-visible:outline-[#E7C900]',
-              )}
-            >
-              카카오로 로그인하기
-            </button>
-
-            <p className="mt-6 text-xs font-semibold text-slate-400">
-              카카오 로그인 시 자동으로 가입돼요.
-            </p>
-          </div>
-        </section>
-      </main>
+            목업 데이터로 화면 보기
+          </Button>
+        </div>
+      </section>
     </div>
   )
 }

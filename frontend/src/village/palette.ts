@@ -66,15 +66,51 @@ export function resolveColor(c: string): Color {
   return (PALETTE as Record<string, Color>)[c] ?? PALETTE.wallCream
 }
 
-/** 9개 도메인을 시각적으로 구분하기 위한 지붕/포인트 색 (팔레트 안에서 고름). */
+/**
+ * 도메인 식별 색 8종. 2D 만다라트 칸·리포트 막대·마을 바닥 원반이 <b>같은 값</b>을 쓴다.
+ *
+ * <p>예전에는 팔레트 안의 건물색(테라코타·벽돌 등)에서 골라 썼는데, 그 색들은 재질을 위한
+ * 것이라 서로 구분이 잘 안 되고(크림 vs 모래) 2D 화면의 색과도 달랐다. 같은 세부 목표가
+ * 목록에서는 파랑, 마을에서는 갈색으로 보이면 둘을 같은 것으로 읽지 못한다.
+ *
+ * <p>지형·건물의 자연색은 그대로 둔다. 여기서 바꾸는 것은 <b>식별용 색</b>뿐이다.
+ * 값을 고치면 2D 쪽(`ui/Primitives.tsx` 의 DOMAIN_COLORS)도 같이 고쳐야 한다.
+ */
+export const DOMAIN_COLOR_HEX = [
+  '#e8590c',
+  '#d9480f',
+  '#1971c2',
+  '#0c8599',
+  '#2f9e44',
+  '#5f3dc4',
+  '#c2255c',
+  '#f08c00',
+] as const
+
+/** 중앙 랜드마크 색. 도메인 8색과 겹치지 않는 황금빛으로 둔다. */
+export const LANDMARK_ACCENT_HEX = '#f59f00'
+
+/**
+ * 블록 인덱스(0~8, 4=중앙)로 바로 뽑아 쓰는 색.
+ *
+ * <p>블록 인덱스와 도메인 번호가 어긋난다는 점에 주의 — 중앙(4)이 끼어 있어서
+ * 블록 5~8 은 도메인 4~7 이다({@link ../mandalart.ts} 의 `blockIndexOf`).
+ */
 export const DOMAIN_ACCENTS: Color[] = [
-  PALETTE.wallTerracotta,
-  PALETTE.wallBlue,
-  PALETTE.roof,
-  PALETTE.flowerOrange,
-  PALETTE.wallCream,
-  PALETTE.flowerPurple,
-  PALETTE.bush,
-  PALETTE.accent,
-  PALETTE.glass,
+  new Color(DOMAIN_COLOR_HEX[0]),
+  new Color(DOMAIN_COLOR_HEX[1]),
+  new Color(DOMAIN_COLOR_HEX[2]),
+  new Color(DOMAIN_COLOR_HEX[3]),
+  new Color(LANDMARK_ACCENT_HEX), // 4 = 중앙 랜드마크
+  new Color(DOMAIN_COLOR_HEX[4]),
+  new Color(DOMAIN_COLOR_HEX[5]),
+  new Color(DOMAIN_COLOR_HEX[6]),
+  new Color(DOMAIN_COLOR_HEX[7]),
 ]
+
+/** 브랜드 색. 선택 표시·강조에 쓴다(2D 의 --color-brand-500/600 과 같은 값). */
+export const BRAND = {
+  base: new Color('#f75316'),
+  deep: new Color('#e8390c'),
+  soft: new Color('#fda474'),
+} as const

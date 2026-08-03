@@ -2,24 +2,23 @@ import { useState } from 'react'
 import FriendAvatar from './FriendAvatar'
 import type { Friend } from './friends.types'
 
-const FALLBACK_USER_UID = '101213513'
-
 type FriendSearchTabProps = {
   userUid?: string
-  fallbackResult: Friend
   onAdd: (friend: Friend) => void
 }
 
 /** UID로 친구를 검색하고 결과를 친구 목록에 추가한다. */
-export default function FriendSearchTab({
-  userUid,
-  fallbackResult,
-  onAdd,
-}: FriendSearchTabProps) {
-  const [query, setQuery] = useState('110111511')
-  const [result, setResult] = useState<Friend | null>(fallbackResult)
+export default function FriendSearchTab({ userUid, onAdd }: FriendSearchTabProps) {
+  const [query, setQuery] = useState('')
+  /**
+   * 검색 결과.
+   *
+   * **아직 서버에 붙어 있지 않다.** 화면 확인용 목업을 걷어냈고, 연동 전까지는 눌러도
+   * 결과가 나오지 않는다. 연동: `GET /api/v1/users/{uuid}` 응답을 Friend 로 옮겨 담는다.
+   */
+  const [result, setResult] = useState<Friend | null>(null)
 
-  const search = () => setResult(query.trim() ? fallbackResult : null)
+  const search = () => setResult(null)
   const addFriend = () => {
     if (!result) return
     onAdd(result)
@@ -38,11 +37,11 @@ export default function FriendSearchTab({
           className="friends-uid"
           onClick={() =>
             navigator.clipboard
-              ?.writeText(userUid ?? FALLBACK_USER_UID)
+              ?.writeText(userUid ?? '')
               .catch(() => undefined)
           }
         >
-          UID: {userUid ?? FALLBACK_USER_UID}
+          UID: {userUid ?? ''}
         </button>
       </div>
 

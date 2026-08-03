@@ -1,0 +1,50 @@
+# 로컬 개발용 데이터 저장소만 띄운다.
+#
+# 접속 값은 **infra/.env 하나**에서 온다(POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB).
+# 백엔드도 같은 파일을 읽으므로 비밀번호를 두 곳에 적을 일이 없다.
+#
+#   docker compose -f infra/docker-compose.local.yml up -d
+#   docker compose -f infra/docker-compose.local.yml down       # 정리
+#   docker compose -f infra/docker-compose.local.yml down -v    # 데이터까지 삭제
+#
+# 배포용(docker-compose.yml)과 달리 nginx·jenkins·backend 컨테이너가 없다.
+# Spring 은 IDE 나 `./gradlew bootRun` 으로 띄우는 편이 로그를 보기 좋다.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: mandarin-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '5432:5432'
+    volumes:
+      - mandarin_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: mandarin-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - mandarin_redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mandarin_pg:
+  mandarin_redis:

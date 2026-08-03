@@ -37,30 +37,55 @@ public class SubjectService {
 
 
     /**
-     * '오늘의 할 일' DAILY 과제 전체 목록 조회
-     * 특정 유저가 보유한 모든 만다라트 시트의 period = DAILY인 과제 전체를 조회하며, 오늘 수행 완료 여부(isDoneToday)를 동적 연산
+     * '오늘의 할 일' 목록.
+     *
+     * <p>매일 과제와 <b>주간 과제</b>를 함께 내린다. 주간 과제도 "이번 주에 해야 하는 일"이라
+     * 오늘 목록에서 빠지면 사용자가 다른 화면을 찾아 들어가야 했다.
+     *
+     * <p>응답에 {@code sheetId} 를 함께 담는다. 수행 완료 API 가
+     * {@code PATCH /sheets/{sheetId}/subjects/complete} 라 이 값이 없으면 목록에서 바로
+     * 체크할 수 없었다. 시트까지 fetch join 해 추가 쿼리 없이 채운다.
      *
      * @param userId 요청 유저 ID
-     * @return DAILY 과제 전체 리스트
+     * @return 매일·주간 과제 목록. 이미 목표를 채운(isDone) 과제는 제외한다
      */
     public List<TodoListResponse> getDailyTodoList(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
 
-        // 유저가 작성한 모든 만다라트 시트 전체의 DAILY 과제 목록 조회
-        List<Subject> dailySubjects = subjectRepository.findByUserIdAndPeriod(user.getId(), SubjectPeriod.DAILY);
+        List<Subject> subjects = subjectRepository.findTodoCandidates(
+                user.getId(), List.of(SubjectPeriod.DAILY, SubjectPeriod.WEEKLY));
 
         List<TodoListResponse> responses = new ArrayList<>();
         LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
-        for (Subject subject : dailySubjects) {
+        for (Subject subject : subjects) {
+            // 목표를 다 채운 과제는 할 일이 아니다.
+            if (Boolean.TRUE.equals(subject.getIsDone())) {
+                continue;
+            }
+
+            Sheet sheet = subject.getDomain().getSheet();
             LocalDateTime updatedAt = subject.getUpdatedAt();
-            // 유저가 오늘 이미 수행 체크 버튼을 눌렀는지 여부(true : 오늘 이미 완료함)
-            boolean isDoneToday = (updatedAt != null) && updatedAt.toLocalDate().isEqual(today);
+
+            // 이번 주기(오늘 / 이번 주)에 이미 체크했는지. 완료 API 의 중복 방지 규칙과 같은 기준이다.
+            boolean donePeriod = false;
+            if (updatedAt != null) {
+                LocalDate updatedDate = updatedAt.toLocalDate();
+                if (subject.getPeriod() == SubjectPeriod.DAILY) {
+                    donePeriod = updatedDate.isEqual(today);
+                } else if (subject.getPeriod() == SubjectPeriod.WEEKLY) {
+                    donePeriod = !updatedDate.isBefore(monday) && !updatedDate.isAfter(sunday);
+                }
+            }
 
             responses.add(TodoListResponse.builder()
                     .sheetId(subject.getDomain().getSheet().getId())
                     .subjectId(subject.getId())
+                    .sheetId(sheet.getId())
+                    .sheetTitle(sheet.getTitle())
                     .domainId(subject.getDomain().getId())
                     .domainTitle(subject.getDomain().getTitle())
                     .title(subject.getTitle())
@@ -70,11 +95,25 @@ public class SubjectService {
                     .tryCount(subject.getTryCount())
                     .position(subject.getPosition())
                     .isDone(subject.getIsDone())
-                    .isDoneToday(isDoneToday)
+                    .isDoneToday(donePeriod)
+                    .progress(progressOf(subject))
                     .build());
         }
 
         return responses;
+    }
+
+    /** SheetService.progressOf 와 같은 규칙. 완료 표시된 과제는 횟수와 무관하게 100 이다. */
+    private Integer progressOf(Subject subject) {
+        if (Boolean.TRUE.equals(subject.getIsDone())) {
+            return 100;
+        }
+        Integer target = subject.getTargetCount();
+        Integer tries = subject.getTryCount();
+        if (target == null || target <= 0 || tries == null || tries <= 0) {
+            return 0;
+        }
+        return Math.min(100, (int) Math.round(tries * 100.0 / target));
     }
 
     /**
@@ -102,6 +141,11 @@ public class SubjectService {
         long totalEarnedPoint = 0L;
         LocalDate today = LocalDate.now();
 
+        LocalDateTime mondayStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
+        LocalDateTime sundayEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).atTime(23, 59, 59);
+        LocalDateTime monthStart = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
+        LocalDateTime monthEnd = today.with(TemporalAdjusters.lastDayOfMonth()).atTime(23, 59, 59);
+
         if (request.subjectIds() != null) {
             for (Long subjectId : request.subjectIds()) {
                 Subject subject = subjectRepository.findById(subjectId)
@@ -118,19 +162,33 @@ public class SubjectService {
                     continue;
                 }
 
+                /*
+                  하루 1회 제한. 주기와 무관하게 적용한다 —
+                  "주 3회" 라도 하루에 세 번 몰아서 누르면 실천이 아니라 클릭이 된다.
+                */
                 LocalDateTime updatedAt = subject.getUpdatedAt();
-                if (updatedAt != null) {
-                    if (subject.getPeriod() == SubjectPeriod.DAILY && updatedAt.toLocalDate().isEqual(today)) {
-                        // daily : 오늘 이미 클릭한 과제는 건너뜀
+                if (updatedAt != null && updatedAt.toLocalDate().isEqual(today)) {
+                    continue;
+                }
+
+                /*
+                  주기별 목표 횟수 초과 검증.
+
+                  예전에는 "이번 주에 한 번이라도 눌렀으면 건너뜀" 이었다. 그래서 주 3회짜리
+                  과제도 주 1회까지만 올라가 목표 횟수를 영영 못 채웠다. 수행 이력을 세어
+                  주기당 허용 횟수와 비교한다.
+                */
+                if (subject.getPeriod() == SubjectPeriod.WEEKLY) {
+                    long weeklyLogs = subjectLogRepository.countBySubjectIdAndCreatedAtBetween(
+                            subjectId, mondayStart, sundayEnd);
+                    if (weeklyLogs >= subject.getCountPerPeriod()) {
                         continue;
-                    } else if (subject.getPeriod() == SubjectPeriod.WEEKLY) {
-                        // weekly : 이번 주(월~일)에 이미 클릭한 과제는 건너뜀
-                        LocalDate updatedDate = updatedAt.toLocalDate();
-                        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-                        LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
-                        if (!updatedDate.isBefore(monday) && !updatedDate.isAfter(sunday)) {
-                            continue;
-                        }
+                    }
+                } else if (subject.getPeriod() == SubjectPeriod.MONTHLY) {
+                    long monthlyLogs = subjectLogRepository.countBySubjectIdAndCreatedAtBetween(
+                            subjectId, monthStart, monthEnd);
+                    if (monthlyLogs >= subject.getCountPerPeriod()) {
+                        continue;
                     }
                 }
 
@@ -139,7 +197,7 @@ public class SubjectService {
                 subject.incrementTryCount();
 
                 // 4. 목표 횟수 달성 시 최종 과제 완료 및 도메인 완료 과제 수 +1
-                if (subject.getTryCount() >= subject.getTargetCount()) {
+                if (subject.getTargetCount() != null && subject.getTryCount() >= subject.getTargetCount()) {
                     if (!Boolean.TRUE.equals(subject.getIsDone())) {
                         subject.updateIsDone(true);
                         subject.getDomain().incrementSubjectCount();

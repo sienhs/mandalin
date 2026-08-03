@@ -1,7 +1,8 @@
 import { useEffect, useState, type MouseEventHandler } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/auth'
+import { useStore } from '../../data/store'
 import { cn } from '../../utils/cn'
+import Logo from './Logo'
 import '../../styles/header.css'
 
 type HeaderProps = {
@@ -57,7 +58,7 @@ function BellIcon({ hasNotification }: { hasNotification: boolean }) {
 
 /**
  * 로그인 후 화면 공통 헤더 — 로고, 주 메뉴, 포인트, 알림, 프로필 아바타.
- * 유저 데이터는 AuthContext에서 가져오며, 세션 복원 중(isRestoringSession)에는
+ * 유저 데이터는 스토어에서 가져오며, 세션 복원 중(session === 'checking')에는
  * 아바타 자리에 로딩 표시를 보여준다.
  */
 export default function Header({
@@ -67,7 +68,8 @@ export default function Header({
   onNotificationClick,
   onProfileClick,
 }: HeaderProps) {
-  const { user, isRestoringSession, logout } = useAuth()
+  const { user, session, logout } = useStore()
+  const isRestoringSession = session === 'checking'
   const navigate = useNavigate()
   const location = useLocation()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -104,9 +106,7 @@ export default function Header({
             aria-label="만다린 홈"
             className="app-header-brand"
           >
-            <span className="brand-mark size-9 rounded-[11px] text-base shadow-sm">
-              만
-            </span>
+            <Logo className="size-9 shrink-0 text-brand-500" />
             <span className="brand-wordmark hidden text-xl sm:inline">만다린</span>
           </NavLink>
 

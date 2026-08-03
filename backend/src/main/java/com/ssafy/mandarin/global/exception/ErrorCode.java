@@ -55,10 +55,19 @@ public enum ErrorCode {
 	// Sheet
 	SHEET_NOT_FOUND(HttpStatus.NOT_FOUND, "Mandalart sheet not found."),
 	SHEET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "This mandalart sheet is private."),
+	DOMAIN_NOT_FOUND(HttpStatus.NOT_FOUND, "Sub-goal not found."),
+	DUPLICATE_POSITION(HttpStatus.BAD_REQUEST, "Two cells share the same position."),
+	SHEET_NOT_EDITABLE(HttpStatus.FORBIDDEN,
+			"A mandalart cannot be edited after creation. Create a new one instead."),
 
 	// Subject
 	SUBJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "Subject not found."),
 	SUBJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Not your subject."),
+
+	// Village · item spot
+	ITEM_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "Building slot not found."),
+	ITEM_SPOT_LANDMARK_ONLY(HttpStatus.BAD_REQUEST, "The center slot only accepts LANDMARK buildings."),
+	ITEM_SPOT_NORMAL_ONLY(HttpStatus.BAD_REQUEST, "LANDMARK buildings can only go in the center slot."),
 
 	// Report
 	AI_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "Failed to get a response from the AI service."),

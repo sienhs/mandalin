@@ -18,6 +18,7 @@ import com.ssafy.mandarin.domain.friend.entity.RequestProgress;
 import com.ssafy.mandarin.domain.friend.repository.FriendRequestRepository;
 import com.ssafy.mandarin.domain.friend.repository.FriendsRepository;
 import com.ssafy.mandarin.domain.sheet.repository.SheetRepository;
+import com.ssafy.mandarin.domain.subject.repository.SubjectRepository;
 import com.ssafy.mandarin.domain.user.entity.User;
 import com.ssafy.mandarin.global.exception.BusinessException;
 import com.ssafy.mandarin.global.exception.ErrorCode;
@@ -31,10 +32,14 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional
 public class FriendService {
 
+    /** 만다라트 한 장의 과제 수. SheetService 와 같은 기준으로 달성률을 낸다. */
+    private static final double TOTAL_SUBJECT_COUNT = 64.0;
+
     private final UserRepository userRepository;
     private final FriendRequestRepository friendRequestRepository;
     private final FriendsRepository friendsRepository;
     private final SheetRepository sheetRepository;
+    private final SubjectRepository subjectRepository;
 
     // ─── 유저 UUID 검색 ────────────────────────────────────────────────────
 
@@ -68,9 +73,13 @@ public class FriendService {
             throw new BusinessException(ErrorCode.FRIEND_NOT_FOUND);
         }
 
+        // 달성률은 시트별 완료 과제 수로 낸다 — SheetService 와 같은 기준(64개 기준)이다.
         return sheetRepository.findByUserIdAndIsOpenTrueOrderByCreatedAtDesc(friend.getId())
             .stream()
-            .map(FriendSheetResponse::from)
+            .map(sheet -> {
+                long done = subjectRepository.countByDomainSheetIdAndIsDoneTrue(sheet.getId());
+                return FriendSheetResponse.of(sheet, done / TOTAL_SUBJECT_COUNT * 100.0);
+            })
             .collect(Collectors.toList());
     }
 

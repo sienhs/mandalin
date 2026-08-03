@@ -4,7 +4,7 @@
  * 색은 팔레트 key 문자열('wallCream') 또는 '#hex' → 순수 데이터라 직렬화 가능.
  *
  * ⚠️ 이 모듈은 /gallery·/premium·/thumbnails·/inspect 같은 **개발용 페이지 전용**이다.
- * /village 는 보유 건물만 서버(GET /api/v1/village/me)에서 받아 그리므로 이 파일을
+ * /village 는 보유 건물만 서버(GET /api/v1/village/sheets/{sheetId})에서 받아 그리므로 이 파일을
  * import 하면 안 된다 — 번들에 전체 카탈로그가 실리면 미보유 건물도 렌더할 수 있게 된다.
  *
  * `npm run export:catalog` 로 이 카탈로그를 백엔드 시드 JSON 으로 덤프한다.
