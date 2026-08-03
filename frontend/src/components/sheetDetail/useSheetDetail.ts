@@ -43,6 +43,13 @@ export function useSheetDetail(sheetId: number) {
   /** 응답을 기다리는 중. 연타로 같은 요청이 두 번 나가지 않게 막는다(좋아요는 토글이라 되돌아간다). */
   const [liking, setLiking] = useState(false)
   const [completing, setCompleting] = useState(false)
+  /**
+   * 수행 보상을 받은 뒤의 보유 포인트. 아직 안 받았으면 null — 그때는 로그인 정보의 값을 쓴다.
+   *
+   * `기존 + 보상` 으로 더하지 않는다. 서버가 보상을 반영한 잔액(totalUserPoint)을 주므로
+   * 그 값만 믿는다 — 다른 탭에서 쓰거나 벌었을 수 있다(상점 화면도 같은 방식이다).
+   */
+  const [userPoint, setUserPoint] = useState<number | null>(null)
 
   // 목록에서 다른 시트로 바로 이동하면(주소만 바뀌고 화면은 그대로) 내용을 다시 불러온다.
   useEffect(() => {
@@ -158,7 +165,8 @@ export function useSheetDetail(sheetId: number) {
 
     setCompleting(true)
     try {
-      await completeSubjects(sheetId, [selectedSubject.subjectId])
+      const result = await completeSubjects(sheetId, [selectedSubject.subjectId])
+      setUserPoint(result.totalUserPoint)
       setDetail(await fetchSheetDetailView(sheetId))
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : '수행을 기록하지 못했습니다.')
@@ -171,6 +179,8 @@ export function useSheetDetail(sheetId: number) {
     // 불러오기 상태
     loading,
     error,
+    /** 수행 보상을 받은 뒤의 보유 포인트. 아직 없으면 null. */
+    userPoint,
 
     // 원본 데이터
     sheet,

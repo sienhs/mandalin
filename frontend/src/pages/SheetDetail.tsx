@@ -33,7 +33,8 @@ export default function SheetDetail({ readOnly = false }: SheetDetailProps) {
   // min-w: 가로 스크롤이 생겼을 때 오른쪽에 배경 없는 흰 띠가 보이지 않게 한다.
   return (
     <div className="min-h-screen min-w-[1280px] bg-[#F6F7F8]">
-      <Header />
+      {/* 과제를 수행하면 포인트가 늘어난다. 서버가 준 잔액을 머리말에 바로 반영한다. */}
+      <Header fallbackPoint={detail.userPoint ?? undefined} />
 
       {/*
         폭을 고정한다(반응형 아님) — max-w 로 두면 브라우저를 확대할 때 CSS 뷰포트가 좁아지면서
