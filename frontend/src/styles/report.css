@@ -1,0 +1,480 @@
+@reference "../index.css";
+
+.report-page {
+  min-height: 100vh;
+  background: #f4f7f9;
+  color: #172033;
+}
+
+.report-page > .app-header {
+  position: relative;
+  z-index: 10;
+  background: #fff;
+}
+
+.report-main {
+  --report-primary: #13a897;
+  --report-primary-dark: #0d8075;
+  --report-primary-soft: #e8f8f4;
+  --report-accent: #3f82ed;
+  width: min(940px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 56px 0 80px;
+}
+
+.report-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  padding: 0 4px;
+}
+
+.report-title {
+  display: flex;
+  align-items: center;
+}
+
+.report-title p {
+  margin: 0 0 3px;
+  color: var(--report-primary-dark);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.report-title h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+
+.report-content,
+.report-loading {
+  display: grid;
+  gap: 18px;
+}
+
+.report-error,
+.report-empty {
+  display: grid;
+  min-height: 260px;
+  place-content: center;
+  justify-items: center;
+  border: 1px solid #e1e7eb;
+  border-radius: 18px;
+  background: #fff;
+  color: #334155;
+  text-align: center;
+  box-shadow: 0 10px 24px rgba(51, 65, 85, 0.1);
+}
+
+.report-error p,
+.report-empty p {
+  max-width: 520px;
+  margin: 10px 24px 18px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.report-error button,
+.report-empty button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  background: var(--report-primary);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* 리포트가 없을 때는 이 카드가 화면의 전부라, 본문 한가운데에 오도록 키운다 */
+.report-empty {
+  min-height: min(58vh, 460px);
+}
+
+.report-empty button {
+  padding: 12px 26px;
+  font-size: 13px;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--report-primary) 32%, transparent);
+}
+
+.report-summary,
+.report-insights section,
+.report-chart,
+.report-loading-card,
+.report-skeleton {
+  border: 1px solid rgba(222, 230, 235, 0.78);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(51, 65, 85, 0.1);
+}
+
+.report-summary {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 26px;
+  padding: 26px;
+}
+
+.report-summary::after {
+  position: absolute;
+  right: -45px;
+  bottom: -75px;
+  width: 190px;
+  height: 190px;
+  border: 36px solid color-mix(in srgb, var(--report-primary) 9%, transparent);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.report-summary {
+  background: linear-gradient(118deg, #effcf8 0%, #f1f8ff 100%);
+}
+
+.report-summary-copy > span {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: color-mix(in srgb, var(--report-primary) 11%, white);
+  color: var(--report-primary-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-summary h2 {
+  margin: 12px 0 10px;
+  font-size: 21px;
+}
+
+.report-summary p {
+  max-width: 600px;
+  margin: 0;
+  color: #718096;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.report-metrics {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 12px;
+}
+
+.report-metrics article {
+  display: grid;
+  width: 88px;
+  height: 82px;
+  place-content: center;
+  gap: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  box-shadow: 0 8px 18px rgba(51, 65, 85, 0.1);
+}
+
+.report-metrics strong {
+  font-size: 22px;
+}
+
+.report-metrics strong.is-mint { color: #11a99b; }
+.report-metrics strong.is-blue { color: #4285f4; }
+.report-metrics strong.is-orange { color: #f17a2c; }
+
+.report-metrics span {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.report-insights,
+.report-skeleton-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.report-insights section,
+.report-chart {
+  padding: 22px;
+}
+
+.report-insights section {
+  position: relative;
+  overflow: hidden;
+}
+
+.report-insights section::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--report-primary);
+  content: '';
+}
+
+.report-insights section:last-child::before {
+  background: #ff686e;
+}
+
+.report-insights h2,
+.report-chart h2 {
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+
+.report-insights h2.is-strength { color: #0e9d8f; }
+.report-insights h2.is-improvement { color: #ff5158; }
+
+.report-insights p {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: #455366;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.report-insights p span {
+  display: grid;
+  flex: 0 0 19px;
+  height: 19px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--report-primary-soft);
+  color: var(--report-primary-dark);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.report-insights section:last-child p span {
+  background: #fff0f1;
+  color: #f04d55;
+}
+
+.report-chart {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.report-chart:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(51, 65, 85, 0.13);
+}
+
+/*
+ * 달성률 막대는 전부 한 색이다. 라벨마다 다른 색을 주면 75% 가 빨강으로 나오는 식이라
+ * 색이 값의 신호처럼 읽힌다 — 값은 숫자와 길이로만 말하게 둔다
+ */
+.report-progress-list,
+.report-sheet {
+  --progress-accent: var(--report-primary);
+}
+
+.report-progress-list {
+  display: grid;
+  gap: 13px;
+}
+
+.report-progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 11px;
+}
+
+.report-progress-label strong {
+  color: var(--report-primary-dark);
+}
+
+.report-sheet-list {
+  display: grid;
+  gap: 18px;
+}
+
+.report-sheet + .report-sheet {
+  padding-top: 18px;
+  border-top: 1px solid #eef2f6;
+}
+
+.report-sheet-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+/* 완료 건수는 보조 정보라 제목과 달성률 사이에서 밀려나도 된다 */
+.report-sheet-head span {
+  flex: 1;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.report-sheet-head b {
+  color: var(--report-primary-dark);
+  font-size: 13px;
+}
+
+/* 시트 합계 막대. 아래 도메인 막대보다 굵어야 어느 쪽이 합계인지 바로 보인다 */
+.report-sheet > .ui-progress {
+  height: 10px;
+}
+
+/* 시트에 딸린 도메인 목록임이 들여쓰기로 드러나야 한다 */
+.report-sheet-domains {
+  margin-top: 12px;
+  padding-left: 12px;
+  border-left: 2px solid #eef2f6;
+}
+
+.report-sheet-domains .ui-progress {
+  height: 5px;
+}
+
+.report-sheet-domains .report-progress-label strong {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.report-sheet-empty {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.report-loading-card {
+  display: grid;
+  justify-items: center;
+  padding: 42px;
+  background: linear-gradient(118deg, var(--report-primary-soft), #f1f8ff);
+}
+
+.report-spinner {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 20px;
+  border: 4px solid color-mix(in srgb, var(--report-primary) 16%, white);
+  border-top-color: var(--report-primary);
+  border-radius: 50%;
+  animation: report-spin 0.9s linear infinite;
+}
+
+.report-loading-card p {
+  margin: 8px 0 20px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.report-loading-track {
+  width: min(360px, 100%);
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe9ec;
+}
+
+.report-loading-track span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--report-primary), var(--report-accent));
+}
+
+.report-loading-labels {
+  display: flex;
+  justify-content: space-between;
+  width: min(360px, 100%);
+  margin-top: 7px;
+  color: #a5b0bd;
+  font-size: 10px;
+}
+
+.report-skeleton {
+  padding: 25px;
+}
+
+.report-skeleton-summary {
+  display: flex;
+  justify-content: space-between;
+}
+
+.report-skeleton i,
+.report-skeleton b {
+  display: block;
+  height: 12px;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  background: #edf2f7;
+}
+
+.report-skeleton-summary > div:first-child {
+  width: 68%;
+}
+
+.report-skeleton-summary i:nth-child(1) { width: 26%; }
+.report-skeleton-summary i:nth-child(2) { width: 85%; }
+.report-skeleton-summary i:nth-child(3) { width: 65%; }
+
+.report-skeleton-metrics {
+  display: flex;
+  gap: 10px;
+}
+
+.report-skeleton-metrics i {
+  width: 78px;
+  height: 58px;
+  border-radius: 12px;
+}
+
+.report-skeleton-grid .report-skeleton i { width: 28%; }
+.report-skeleton-grid .report-skeleton b {
+  width: 100%;
+  height: 82px;
+  border-radius: 10px;
+}
+
+@keyframes report-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-spinner { animation: none; }
+}
+
+@media (max-width: 760px) {
+  .report-main {
+    width: min(100% - 28px, 940px);
+    padding-top: 30px;
+  }
+
+  .report-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .report-heading {
+    align-items: flex-end;
+  }
+
+  .report-title p {
+    display: none;
+  }
+
+  .report-metrics {
+    justify-content: space-between;
+  }
+
+  .report-metrics article {
+    width: 30%;
+  }
+
+  .report-insights,
+  .report-skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+}

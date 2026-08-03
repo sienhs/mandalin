@@ -10,15 +10,29 @@ interface Props {
   onPick: (v: string | 'auto') => void
   onClose: () => void
   title?: string
+  /**
+   * 랜드마크(3×3) 전용 모드.
+   * 테마 탭 없이 보유 랜드마크만 나열한다 — 일반 건물과 후보를 섞으면 1칸 자리에 거대
+   * 건물을, 중앙 3×3 에 1칸 건물을 놓을 수 있게 된다.
+   */
+  landmarkOnly?: boolean
 }
 
 /**
  * 보유 건물 썸네일 그리드 선택 모달.
  * 테마 탭으로 한 번에 한 그룹만 렌더 → 썸네일 베이킹 부하를 ~20개로 제한.
  */
-export function BuildingPicker({ catalog, value, onPick, onClose, title = '건물 선택' }: Props) {
-  const [tab, setTab] = useState<string>(catalog.themes[0]?.id ?? '')
-  const active = catalog.themes.find((t) => t.id === tab) ?? catalog.themes[0]
+export function BuildingPicker({
+  catalog, value, onPick, onClose, title = '건물 선택', landmarkOnly = false,
+}: Props) {
+  const themes = landmarkOnly
+    ? (catalog.landmarks.length > 0
+      ? [{ id: 'LANDMARK', label: '랜드마크', items: catalog.landmarks }]
+      : [])
+    : catalog.themes
+
+  const [tab, setTab] = useState<string>(themes[0]?.id ?? '')
+  const active = themes.find((t) => t.id === tab) ?? themes[0]
 
   const cardStyle = (selected: boolean): React.CSSProperties => ({
     border: selected ? '2px solid #2b6cb0' : '1px solid #dde3e8',
@@ -49,9 +63,10 @@ export function BuildingPicker({ catalog, value, onPick, onClose, title = '건�
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
 
-        {/* 테마 탭 — 보유한 테마만 나온다 */}
+        {/* 테마 탭 — 보유한 테마만 나온다. 랜드마크 모드는 그룹이 하나라 숨긴다. */}
+        {!landmarkOnly && (
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 10, borderBottom: '1px solid #eef1f4' }}>
-          {catalog.themes.map((t) => (
+          {themes.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -67,6 +82,7 @@ export function BuildingPicker({ catalog, value, onPick, onClose, title = '건�
             </button>
           ))}
         </div>
+        )}
 
         <div style={{ overflowY: 'auto', paddingRight: 4 }}>
           <button
@@ -75,7 +91,9 @@ export function BuildingPicker({ catalog, value, onPick, onClose, title = '건�
           >
             <span>
               <div style={{ fontSize: 14, fontWeight: 700 }}>자동 (기본 배치)</div>
-              <div style={{ fontSize: 11, color: '#5a6b76' }}>진행률·마을/도시풍에 따라 자동 결정</div>
+              <div style={{ fontSize: 11, color: '#5a6b76' }}>
+                {landmarkOnly ? '보유한 랜드마크 중 첫 번째' : '진행률·마을/도시풍에 따라 자동 결정'}
+              </div>
             </span>
           </button>
 
@@ -86,7 +104,7 @@ export function BuildingPicker({ catalog, value, onPick, onClose, title = '건�
                 {active.items.map((b) => (
                   <button key={b.itemKey} onClick={() => pick(b.itemKey)} style={cardStyle(value === b.itemKey)}>
                     <div style={{ height: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#eaf4f8,#f6f9fb)', borderRadius: 8, marginBottom: 6, overflow: 'hidden' }}>
-                      <BuildingImage k={b.itemKey} remoteUrl={b.thumbnailUrl} parts={b.parts} stage={3} size={84} alt={b.name} />
+                      <BuildingImage k={b.itemKey} remoteUrl={b.thumbnailUrl} parts={b.parts} size={84} alt={b.name} landmark={landmarkOnly} />
                     </div>
                     <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>{b.name}</div>
                   </button>
@@ -95,9 +113,9 @@ export function BuildingPicker({ catalog, value, onPick, onClose, title = '건�
             </div>
           )}
 
-          {catalog.themes.length === 0 && (
+          {themes.length === 0 && (
             <div style={{ padding: '32px 12px', textAlign: 'center', color: '#8a97a0', fontSize: 13 }}>
-              보유한 건물이 없습니다.
+              {landmarkOnly ? '보유한 랜드마크가 없습니다. 상점에서 먼저 구매하세요.' : '보유한 건물이 없습니다.'}
             </div>
           )}
         </div>

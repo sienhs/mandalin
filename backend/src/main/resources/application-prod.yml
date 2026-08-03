@@ -1,4 +1,8 @@
 spring:
+  # docker-compose 의 redis 서비스 이름. backend 컨테이너 기준 localhost 가 아니다
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
   jpa:
     show-sql: false
   flyway:
