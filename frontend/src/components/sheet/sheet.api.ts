@@ -1,4 +1,4 @@
-import { apiFetch } from '../../api'
+import { apiFetch } from '../../api/client'
 import { DOMAIN_COUNT } from './sheet.data'
 import type { Domain, Period, Sheet, Subject } from './sheet.types'
 
