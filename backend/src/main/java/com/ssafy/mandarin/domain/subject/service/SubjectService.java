@@ -82,6 +82,7 @@ public class SubjectService {
             }
 
             responses.add(TodoListResponse.builder()
+                    .sheetId(subject.getDomain().getSheet().getId())
                     .subjectId(subject.getId())
                     .sheetId(sheet.getId())
                     .sheetTitle(sheet.getTitle())
