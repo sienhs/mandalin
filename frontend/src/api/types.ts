@@ -42,6 +42,19 @@ export type SubjectDetailDto = {
   tryCount: number | null
   isDone: boolean
   isDonePeriod: boolean
+  /** 한 주기에 몇 번 해야 하는지(예: "주 3회" 의 3). */
+  countPerPeriod: number | null
+  /** 이번 주기에 지금까지 몇 번 했는지. */
+  currentPeriodCount: number | null
+  /** 오늘 완료를 눌렀는지. */
+  isDoneToday: boolean | null
+  /**
+   * 지금 수행 버튼을 누를 수 있는지 — <b>서버가 판단해 내려준다.</b>
+   *
+   * <p>클라이언트가 같은 규칙을 다시 계산하면(최종 완수 · 오늘 여부 · 주기 내 횟수) 반드시
+   * 어긋난다. 서버의 판단을 그대로 쓴다.
+   */
+  canExecute: boolean | null
   /** 0~100. 서버가 확정한 값이라 클라이언트에서 다시 계산하지 않는다. */
   progress: number
 }

@@ -451,6 +451,11 @@ export default function SheetCreate() {
             tryCount: 0,
             isDone: false,
             isDonePeriod: false,
+            countPerPeriod: s.countPerPeriod,
+            currentPeriodCount: 0,
+            isDoneToday: false,
+            // 아직 저장하지 않은 미리보기라 수행 자체가 없다.
+            canExecute: false,
             progress: 0,
           })),
       })),
