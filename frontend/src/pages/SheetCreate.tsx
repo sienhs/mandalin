@@ -396,7 +396,7 @@ export default function SheetCreate() {
       (acc, d) => acc + d.subjects.filter((s) => s.title.trim()).length,
       0,
     )
-    const filled = (title.trim() ? 1 : 0) + domainDone + subjectDone
+    const filled = (title.trim() ? 1 : 0) + domainDone * 2 + subjectDone
 
     /** 아직 덜 찬 블록. 어디를 채워야 하는지 바로 짚어준다. */
     const incomplete = domains
