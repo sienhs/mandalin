@@ -1,0 +1,74 @@
+# AI 전용 EC2(mandarin-ai-sfu, 52.78.195.46)에서 도는 두 컨테이너입니다.
+#
+# **운영 중인 것은 `/opt/mandarin/ai_livekit` 에 있습니다.** master 푸시마다 CI 의
+# `deploy_ai` 잡이 저장소 내용을 그 경로로 rsync 하고 거기서 띄웁니다. 사람이 손볼 때도
+# 같은 곳으로 들어가면 됩니다 — 러너 빌드 디렉터리를 뒤질 필요가 없습니다.
+#
+#   cd /opt/mandarin/ai_livekit
+#   docker compose logs -f worker      # worker 만 로그
+#   docker compose restart worker      # worker 만 재시작
+#   docker compose stop worker         # restart 정책이 unless-stopped 라 계속 멈춰 있습니다
+#
+# **`.env` 가 같은 디렉터리에 있어야 합니다.** 저장소에는 없고(gitignore) 서버의 저 경로에
+# 상주합니다 — CI 의 rsync 가 `--exclude='.env'` 로 지나갑니다. 없는 채로 `up` 을 하면
+# `${LIVEKIT_API_KEY}` 가 **빈 문자열로 조용히 치환되어** 아무도 입장하지 못합니다.
+# 로컬에서 이 compose 를 쓸 일이 있으면 `.env.example` 을 복사해서 채우세요.
+
+services:
+  # ── LiveKit 서버 ──────────────────────────────────────────────────────
+  # HANDOFF 에서 동작을 확인한 버전과 같은 1.13.5 로 고정합니다. `latest` 로 두면
+  # 재배포 때 서버만 조용히 올라가서, 문제가 생겨도 우리 변경 탓인지 알 수 없습니다.
+  livekit:
+    image: livekit/livekit-server:v1.13.5
+    container_name: livekit
+    restart: unless-stopped
+
+    # **host 네트워크입니다.** WebRTC 미디어는 UDP 이고 포트가 넓게 쓰이는데, docker 의
+    # 브리지 NAT 를 한 겹 더 지나면 ICE 후보 주소가 어긋납니다. LiveKit 공식 권장이기도
+    # 합니다. 이 때문에 `ports:` 매핑이 없습니다 — 호스트 포트를 그대로 씁니다.
+    network_mode: host
+
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+
+    environment:
+      # `키: 시크릿` 한 줄이 LIVEKIT_KEYS 의 형식입니다(공백 필수).
+      #
+      # **이 두 값은 세 곳이 같아야 합니다** — 여기, 메인 EC2 의
+      # `infra/docker-compose.yml`(백엔드가 토큰을 서명), 그리고 개발자 로컬의
+      # `ai_livekit/.env`. 어긋나도 양쪽 다 기동은 되고 사용자만 입장에서 튕깁니다.
+      #
+      # 백엔드의 JWT_SECRET 을 재사용하면 안 됩니다 — LiveKit 서버가 우리 액세스 토큰까지
+      # 위조할 수 있게 됩니다.
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+
+  # ── 에이전트 worker ───────────────────────────────────────────────────
+  worker:
+    build: .
+    container_name: mandarin-worker
+    restart: unless-stopped
+
+    # worker 는 밖에서 들어오는 요청을 받지 않습니다. 반대로 LiveKit(7880)으로 나가서
+    # job 을 받습니다. host 네트워크를 쓰는 건 노출 때문이 아니라 아래 127.0.0.1 때문입니다.
+    network_mode: host
+
+    # Gemini·Deepgram 키와 BOT_* 설정이 여기 들어 있습니다.
+    env_file: .env
+
+    environment:
+      # **env_file 의 LIVEKIT_URL 을 덮어씁니다(compose 는 environment 가 우선).**
+      # `.env` 의 값은 브라우저용 공개 주소일 수 있는데, worker 는 같은 호스트의
+      # 서버에 붙으므로 밖으로 한 바퀴 돌 이유가 없습니다.
+      LIVEKIT_URL: ws://127.0.0.1:7880
+
+      # **비워두면 worker 가 기동 즉시 죽습니다.** `start` 모드의 기본 포트가 8081 인데
+      # 이 호스트는 구형 `webrtc-sfu` 가 8081 을 잡고 있고, host 네트워크라 그대로
+      # 부딪힙니다(`[Errno 98] address already in use`). 밖에서 쓰지 않는 포트라
+      # 안 겹치기만 하면 값은 무엇이든 상관없습니다. → agent/entrypoint.py
+      AGENT_HTTP_PORT: "8099"
+
+    # 기동 순서만 맞춥니다. LiveKit 이 아직 포트를 열기 전이어도 worker 가 재시도하므로
+    # 헬스체크까지는 필요 없습니다 — restart 정책이 최종 안전망입니다.
+    depends_on:
+      - livekit
