@@ -31,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SubjectService {
 
     // 사용자별 일일 포인트 획득 상한선 (1000P)
-    private static final long DAILY_POINT_LIMIT = 1000L;
+    public static final long DAILY_POINT_LIMIT = 1000L;
 
     private final SubjectRepository subjectRepository;
     private final SubjectLogRepository subjectLogRepository;
