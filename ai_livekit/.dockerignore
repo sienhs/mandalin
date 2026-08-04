@@ -1,0 +1,21 @@
+# 이미지에 들어가면 안 되는 것이 첫 줄입니다 — Gemini 와 Deepgram 키가 들어 있습니다.
+# 런타임에 compose 의 env_file 로 주입되므로 이미지에는 있을 이유가 없습니다.
+.env
+.env.*
+!.env.example
+
+# 빌드 컨텍스트를 줄입니다. t3.micro 에서 컨텍스트 전송도 체감됩니다.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.claude/
+.git/
+.gitignore
+
+# 진단용 로그. 로컬에서 만들어진 것이 이미지에 섞이면 컨테이너의 첫 로그와 헷갈립니다.
+worker.log
+
+# worker 는 테스트를 실행하지 않습니다. CI 에서 따로 돌릴 때는 저장소 체크아웃을 씁니다.
+tests/
