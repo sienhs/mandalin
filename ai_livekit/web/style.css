@@ -151,6 +151,12 @@ svg {
   color: var(--text-muted);
 }
 .page-actions { display: flex; align-items: center; gap: 10px; }
+/* 페이지 배경 위의 배지는 테두리를 줍니다 — `.badge` 의 기본 배경(sunken)이 페이지
+   배경과 같은 값이라, 카드 밖에서는 배경만으로는 배지인지 그냥 글자인지 모릅니다. */
+.page-actions .badge {
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-card);
+}
 
 .grid {
   flex: 1;

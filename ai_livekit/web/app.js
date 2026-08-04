@@ -666,3 +666,12 @@ function escapeHtml(value) {
 
 renderSheet()
 setComposerEnabled(false)
+
+// 첫 화면의 대화 칸을 비워 두지 않습니다. 프론트도 코치의 첫 인사로 시작하는데
+// (`AiCoachPage.tsx` 의 `messages` 초기값), 여기서는 아직 방에 붙지 않았으니 **AI 가
+// 한 말처럼 쓰지 않고** 무엇을 눌러야 하는지만 적습니다.
+log(
+  aiLabel,
+  '연결하기를 누르면 방에 들어갑니다. 그다음 이루고 싶은 것을 적거나 아래 문장을 눌러 보세요.',
+  'ai'
+)

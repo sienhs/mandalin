@@ -161,7 +161,7 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `BOT_STEP_TIMEOUT_SECONDS` | `25` | 게이트웨이는 느립니다. 기본값 15 면 정상 응답이 잘립니다 |
 | `BOT_TIMEOUT_SECONDS` | `45` | 위와 같음(기본값 20) |
 | `BOT_MODE` | `goal` | `goal` 경로만 배선돼 있습니다. 다른 값은 경고만 남고 동작은 같습니다 |
-| `BOT_MAX_CONCURRENT_ROOMS` | `0` | worker 하나가 맡을 방 수 상한(0=무제한). 리눅스는 방 하나가 프로세스 하나라 **메모리가 먼저 막힙니다** — t3.small(2GiB) 기준 6~8. 넘으면 `admit()` 이 거절하고 다른 worker 로 넘깁니다 |
+| `BOT_MAX_CONCURRENT_ROOMS` | `0` | worker 하나가 맡을 방 수 상한(0=무제한). 넘으면 `admit()` 이 거절하고 다른 worker 로 넘깁니다. t3.small 권장 8 — 근거와 실측치는 `.env.example` 주석에 있습니다(세션당 약 45MB, 먼저 막히는 것은 메모리가 아니라 CPU 크레딧과 게이트웨이) |
 | `BOT_SYSTEM_PROMPT_FILE` | `./prompts/system.md` | 생략 가능. 기본값이 저장소의 정본을 |
 | `BOT_CLASSIFY_PROMPT_FILE` | `./prompts/classify.md` | 가리킵니다 — 다른 파일로 실험할 때만 |
 

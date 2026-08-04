@@ -223,8 +223,11 @@ def hello_payload(name: str, *, voice: bool, llm: str = "ok") -> str:
 #: 동안 job 이 거절되고, 증상은 `admit()` 의 상한과 똑같이 "브라우저는 붙는데 AI 만 안
 #: 들어옴" 입니다 — 원인을 찾기 어려운 쪽입니다.
 #:
-#: `job_memory_limit_mb` 는 **일부러 비워 뒀습니다.** 세션당 실제 사용량을 아직 재지
-#: 않았고(`/proc/<pid>/smaps_rollup` 의 Pss), 짐작으로 상한을 걸면 정상 job 을 죽입니다.
+#: `job_memory_limit_mb` 는 **여전히 비워 둡니다.** 실측(2026-08-04, 배포 compose 그대로
+#: 띄운 컨테이너)에서 job 프로세스는 **RSS 250~280MB / PSS 95~135MB** 였습니다 — 상한은
+#: RSS 로 비교되므로 300MB 만 걸어도 정상 job 이 죽습니다. 게다가 그 측정은 **텍스트
+#: 턴**이고, STT 가 붙은 세션(오디오 버퍼 + Deepgram 소켓)은 더 씁니다. 그쪽을 재기 전에는
+#: 짐작한 상한이 보호가 아니라 장애입니다.
 #:
 #: 인스턴스를 키우면 두 값을 같이 올려야 합니다 — `tests/test_worker_limits.py` 가
 #: 그때 실패해서 알려줍니다.
