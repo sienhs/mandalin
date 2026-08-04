@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
 import Button from '../components/common/ActionButton'
@@ -32,12 +32,22 @@ export default function Profile() {
     setMode,
     resetMockData,
     gateway,
+    reloadSheets,
+    reloadDetails,
   } = useStore()
   const navigate = useNavigate()
 
   const [nickOpen, setNickOpen] = useState(false)
   const [draft, setDraft] = useState(user?.name ?? '')
   const [busy, setBusy] = useState(false)
+
+  const handleCloseNick = useCallback(() => setNickOpen(false), [])
+
+  /** 마이페이지 진입 시 최신 만다라트 목록 및 상세(달성률) 데이터 갱신 */
+  useEffect(() => {
+    void reloadSheets()
+    void reloadDetails()
+  }, [reloadSheets, reloadDetails])
 
   /** 포인트 적립 내역. 페이지 단위라 이 화면에서만 따로 받는다. */
   const [page, setPage] = useState(0)
@@ -153,22 +163,25 @@ export default function Profile() {
             <p className="muted m-0 mt-4 text-[12.5px] font-semibold">아직 만든 표가 없어요.</p>
           ) : (
             <ul className="m-0 mt-5 flex list-none flex-col gap-4 p-0">
-              {sheets.data.map((s) => (
-                <li key={s.id}>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                    <Link
-                      to={`/app/sheets/${s.id}`}
-                      className="truncate text-[13.5px] font-bold no-underline hover:text-brand-600"
-                    >
-                      {s.title}
-                    </Link>
-                    <span className="shrink-0 text-[12px] font-black tabular-nums">
-                      {s.achievementRate}%
-                    </span>
-                  </div>
-                  <ProgressBar value={s.achievementRate} size="sm" label={`${s.title} 달성률`} />
-                </li>
-              ))}
+              {sheets.data.map((s) => {
+                const rate = details.data[s.id]?.achievementRate ?? s.achievementRate
+                return (
+                  <li key={s.id}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                      <Link
+                        to={`/app/sheets/${s.id}`}
+                        className="truncate text-[13.5px] font-bold no-underline hover:text-brand-600"
+                      >
+                        {s.title}
+                      </Link>
+                      <span className="shrink-0 text-[12px] font-black tabular-nums">
+                        {rate}%
+                      </span>
+                    </div>
+                    <ProgressBar value={rate} size="sm" label={`${s.title} 달성률`} />
+                  </li>
+                )
+              })}
             </ul>
           )}
 
@@ -345,13 +358,13 @@ export default function Profile() {
 
       <Modal
         open={nickOpen}
-        onClose={() => setNickOpen(false)}
+        onClose={handleCloseNick}
         title="닉네임 변경"
         description="1~20자까지 쓸 수 있어요."
         size="sm"
         footer={
           <>
-            <Button variant="ghost" size="sm" onClick={() => setNickOpen(false)}>
+            <Button variant="ghost" size="sm" onClick={handleCloseNick}>
               취소
             </Button>
             <Button
