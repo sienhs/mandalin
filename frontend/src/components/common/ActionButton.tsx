@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../utils/cn'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'quiet'
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'quiet' | 'ai'
 type Size = 'sm' | 'md' | 'lg'
 
 const BASE =
@@ -24,6 +24,18 @@ const VARIANT: Record<Variant, string> = {
     'border border-red-500/25 bg-red-500/[.08] text-red-600 hover:bg-red-500/[.14] dark:text-red-400',
   quiet:
     'bg-[var(--surface-sunken)] text-[var(--text-strong)] hover:bg-black/[.06] dark:hover:bg-white/[.08]',
+  /*
+    AI 가 하는 일에만 쓴다.
+
+    <p>브랜드색(오렌지)은 "내가 누르는 주요 동작"이라는 뜻으로 이미 쓰이고 있다. 코치에게
+    맡기는 동작을 같은 오렌지로 두면 저장·완료 버튼과 구별되지 않는다. 청록 계열로 갈라 두면
+    화면에서 "여기는 AI" 가 한눈에 읽힌다.
+  */
+  ai:
+    'bg-gradient-to-br from-sky-500 to-cyan-600 text-white ' +
+    'shadow-[0_1px_2px_rgba(2,132,199,.28),0_8px_20px_-8px_rgba(8,145,178,.55)] ' +
+    'hover:-translate-y-0.5 hover:from-sky-400 hover:to-cyan-500 ' +
+    'hover:shadow-[0_2px_4px_rgba(2,132,199,.3),0_14px_28px_-10px_rgba(8,145,178,.6)]',
 }
 
 const SIZE: Record<Size, string> = {

@@ -24,26 +24,27 @@ type ToastCtx = {
 
 const Ctx = createContext<ToastCtx | null>(null)
 
+/* 아이콘 판은 채운 그라데이션이다 — 옅은 반투명 판은 토스트 카드 위에서 거의 안 보였다. */
 const TONE: Record<Tone, { ring: string; icon: string; iconWrap: string }> = {
   success: {
     ring: 'border-emerald-500/25',
     icon: '✓',
-    iconWrap: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+    iconWrap: 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white',
   },
   info: {
     ring: 'border-sky-500/25',
     icon: 'i',
-    iconWrap: 'bg-sky-500/12 text-sky-600 dark:text-sky-400',
+    iconWrap: 'bg-gradient-to-br from-sky-500 to-cyan-600 text-white',
   },
   warn: {
     ring: 'border-amber-500/30',
     icon: '!',
-    iconWrap: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    iconWrap: 'bg-gradient-to-br from-amber-400 to-amber-600 text-white',
   },
   point: {
     ring: 'border-brand-500/30',
     icon: '＋',
-    iconWrap: 'bg-brand-500/12 text-brand-600 dark:text-brand-400',
+    iconWrap: 'bg-gradient-to-br from-brand-500 to-brand-700 text-white',
   },
 }
 

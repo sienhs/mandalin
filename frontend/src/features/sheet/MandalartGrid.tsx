@@ -119,7 +119,16 @@ export default function MandalartGrid({
 
         const localIndex = cy * 3 + cx
         const subjectIndex = localIndex > 4 ? localIndex - 1 : localIndex
-        const subject: Subject | undefined = domain?.subjects[subjectIndex]
+        /*
+          배열 순서가 아니라 `position` 으로 찾는다.
+
+          생성 화면의 미리보기는 아직 안 쓴 칸을 걸러낸 배열을 넘긴다(8칸이 아니다). 인덱스로
+          집으면 첫 칸을 비워 두고 세 번째 과제만 적었을 때 그 과제가 <b>첫 칸에</b> 그려졌다.
+          바로 위 도메인도 이미 position 으로 찾고 있으니 규칙을 하나로 맞춘다.
+        */
+        const subject: Subject | undefined = domain?.subjects.find(
+          (s) => s.position === subjectIndex,
+        )
 
         rows.push({
           key: `${gx}-${gy}`,
@@ -171,11 +180,22 @@ export default function MandalartGrid({
         const filled = cell.label.trim().length > 0
         const interactive = Boolean(onSelect) && !mini
 
+        /*
+          강조 테두리 색. 배경이 진한 칸(핵심 목표·블록 중앙)에 같은 색 테두리를 그리면
+          아무것도 안 보인다 — 그 칸만 흰 테두리로 바꾼다.
+        */
+        const ring = cell.isCore || cell.isBlockCenter ? 'rgba(255,255,255,.9)' : color
+
         return (
           <button
             key={cell.key}
             type="button"
             disabled={!interactive}
+            /*
+              칸이 좁아 글자가 세 줄에서 잘린다(line-clamp-3). 예전에는 hover 확대가 그걸
+              메우는 역할을 겸했는데, 확대를 걷어냈으므로 전체 문구는 툴팁으로 보여 준다.
+            */
+            title={!mini && filled ? cell.label : undefined}
             aria-label={
               cell.isCore
                 ? `핵심 목표 ${cell.label}`
@@ -188,11 +208,21 @@ export default function MandalartGrid({
             className={cn(
               'relative flex items-center justify-center overflow-hidden p-[2px] text-center',
               mini ? 'rounded-[2px]' : 'rounded-[5px] sm:rounded-[7px]',
-              'transition-[transform,box-shadow] duration-200',
-              interactive && 'hover:z-10 hover:scale-[1.06] hover:shadow-lg',
-              active && 'z-10 scale-[1.06] shadow-lg',
+              'transition-[box-shadow] duration-200',
+              /*
+                강조를 칸 <b>안쪽에만</b> 그린다.
+
+                예전에는 hover·선택에 `scale(1.06)` + 바깥 그림자 + `z-10` 을 썼다. 칸 사이가
+                2~3px 뿐이라 확대분(칸 78px 기준 각 변 약 2.3px)과 그림자가 옆 칸을 덮었고,
+                z-10 으로 위에 올라오면서 이웃 칸의 클릭 영역까지 가렸다 — 칸을 훑는 동안
+                화면이 들썩이고 옆 칸이 눌리는 오조작이 났다.
+
+                inset 테두리는 자리를 전혀 건드리지 않으면서 "지금 이 칸" 을 똑같이 알려 준다.
+              */
+              interactive && 'cursor-pointer hover:shadow-[inset_0_0_0_2px_var(--cell-ring)]',
             )}
             style={{
+              ['--cell-ring' as string]: ring,
               background: cell.isCore
                 ? 'linear-gradient(140deg, var(--color-brand-500), var(--color-brand-700))'
                 : cell.isBlockCenter
@@ -200,7 +230,8 @@ export default function MandalartGrid({
                   : filled
                     ? `color-mix(in oklab, ${color}, var(--surface-card) 84%)`
                     : 'var(--surface-sunken)',
-              boxShadow: active ? `0 0 0 2.5px ${color}` : undefined,
+              /* 선택된 칸은 hover 보다 굵게. inline 이라 hover 클래스를 덮는다 — 의도한 우선순위다. */
+              boxShadow: active ? `inset 0 0 0 3px ${ring}` : undefined,
             }}
           >
             {!cell.isBlockCenter && !cell.isCore && cell.progress > 0 && (

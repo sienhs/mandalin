@@ -120,10 +120,18 @@ export function Badge({
   tone?: 'neutral' | 'brand' | 'success' | 'muted'
   className?: string
 }) {
+  /*
+    색이 있는 배지는 그라데이션 + 흰 글자다.
+
+    <p>예전에는 옅은 반투명 배경(`bg-brand-500/12`)에 같은 계열 진한 글자를 얹었다. 카드
+    위에서는 배경이 거의 사라져 글자만 뜬 것처럼 보였고, 그 옅은 판이 화면 곳곳에 흩어져
+    있어 무엇이 강조인지 읽히지 않았다. 채운 그라데이션은 카드·배경 어디에 놓아도 같은
+    무게로 읽힌다. 회색(neutral·muted)은 강조가 아니라 바탕이라 그대로 둔다.
+  */
   const tones = {
     neutral: 'bg-[var(--surface-sunken)] text-[var(--text-muted)]',
-    brand: 'bg-brand-500/12 text-brand-600 dark:text-brand-400',
-    success: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+    brand: 'bg-gradient-to-br from-brand-500 to-brand-700 text-white',
+    success: 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white',
     muted: 'bg-[var(--surface-sunken)] text-[var(--text-muted)]',
   } as const
 

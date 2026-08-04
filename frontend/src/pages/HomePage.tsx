@@ -282,11 +282,6 @@ export default function Home() {
                           아무 효과가 없었다(그래서 배지가 커진 채로 줄을 밀어냈다).
                         */}
                           <span className="muted mt-1 flex items-center gap-1.5 text-[11.5px] font-semibold">
-                            <span
-                              className="size-2 shrink-0 rounded-full"
-                              style={{ background: color }}
-                              aria-hidden="true"
-                            />
                             <span className="min-w-0 flex-1 truncate">
                               {row.todo.domainTitle} · {row.todo.sheetTitle}
                             </span>

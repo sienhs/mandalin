@@ -295,7 +295,7 @@ function PinnedSteps({ sheet }: { sheet: ReturnType<typeof showcaseSheet> }) {
                 pointerEvents: i === active ? undefined : 'none',
               }}
             >
-              <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/12 px-3 py-1.5 text-[12px] font-black text-brand-600 dark:text-brand-400">
+              <span className="inline-flex items-center gap-2 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 px-3 py-1.5 text-[12px] font-black text-white">
                 <step.icon className="size-[15px]" />
                 {step.hint}
               </span>
@@ -511,7 +511,7 @@ export default function Landing() {
               {STEPS.map((step, i) => (
                 <div key={step.no}>
                   <Reveal>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/12 px-3 py-1.5 text-[12px] font-black text-brand-600 dark:text-brand-400">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 px-3 py-1.5 text-[12px] font-black text-white">
                       <step.icon className="size-[15px]" />
                       {step.hint}
                     </span>

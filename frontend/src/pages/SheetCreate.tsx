@@ -1,10 +1,21 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { PERIOD_MAX_COUNT, type Period, type Sheet } from '../data/types'
 import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
+import {
+  clearDraft,
+  emptyDomains,
+  loadDraft,
+  saveDraft,
+  type DraftDomain,
+  type DraftSubject,
+  type StoredDraft,
+} from '../features/sheet/draftStorage'
 import Button from '../components/common/ActionButton'
 import Modal from '../components/common/Modal'
+import { useUnsavedWarning } from '../components/common/UnsavedGuard'
+import { useToast } from '../components/common/Toast'
 import {
   IconArrowLeft,
   IconArrowRight,
@@ -14,23 +25,7 @@ import {
 } from '../components/common/Icons'
 import { Field, Input, ProgressBar, Segmented, domainColor } from '../components/common/Primitives'
 import { cn } from '../utils/cn'
-
-type DraftSubject = {
-  title: string
-  period: Period
-  /** 한 주기에 몇 번 할지. 주기가 바뀌면 그 주기의 상한으로 잘린다. */
-  countPerPeriod: number
-}
-type DraftDomain = { title: string; subjects: DraftSubject[] }
-
-const EMPTY: DraftDomain[] = Array.from({ length: 8 }, () => ({
-  title: '',
-  subjects: Array.from({ length: 8 }, () => ({
-    title: '',
-    period: 'DAILY' as Period,
-    countPerPeriod: 1,
-  })),
-}))
+import { fromNow } from '../utils/format'
 
 const TODAY = new Date().toISOString().slice(0, 10)
 const IN_SIX_MONTHS = new Date(Date.now() + 1000 * 60 * 60 * 24 * 182).toISOString().slice(0, 10)
@@ -39,6 +34,67 @@ const IN_SIX_MONTHS = new Date(Date.now() + 1000 * 60 * 60 * 24 * 182).toISOStri
 type CoachDraft = {
   title?: string
   domains?: Array<{ title: string; subjects: Array<{ title: string; period: Period }> }>
+}
+
+/**
+ * 코치 초안을 8×8 뼈대에 얹는다.
+ *
+ * <p>코치는 8칸을 다 채우지 못할 수도 있어서(대화가 짧게 끝나면) 빈 칸은 그대로 남긴다.
+ * 코치 초안에는 주기당 횟수가 없으므로 기본 1회로 두고 사용자가 조정한다.
+ */
+function fromCoach(seeded: CoachDraft): DraftDomain[] {
+  return emptyDomains().map((empty, i) => {
+    const from = seeded.domains?.[i]
+    if (!from) return empty
+    return {
+      title: from.title ?? '',
+      subjects: empty.subjects.map((slot, j) => {
+        const s = from.subjects?.[j]
+        return s ? { ...slot, title: s.title, period: s.period } : slot
+      }),
+    }
+  })
+}
+
+/**
+ * 쓰던 초안 위에 코치 초안을 겹쳐 놓는다. <b>이미 쓴 칸은 절대 덮지 않는다.</b>
+ *
+ * <p>편집기에서 코치로 갔다 돌아오는 길을 열면 이 상황이 생긴다 — 30칸을 직접 쓴 사람이
+ * 남은 칸을 코치에게 받으려고 다녀온 것이다. 코치 제안으로 통째로 교체하면 그 30칸이 사라진다.
+ *
+ * <p>배치 규칙: 같은 이름의 세부 목표가 있으면 그 블록에 과제를 보태고, 없으면 빈 블록을
+ * 찾아 넣는다. 8블록 · 블록당 8과제가 이미 찼으면 남는 제안은 버린다(서버 규칙이 8×8 이다).
+ */
+function mergeCoach(base: DraftDomain[], seeded: CoachDraft): { domains: DraftDomain[]; added: number } {
+  const next = base.map((d) => ({ ...d, subjects: d.subjects.map((s) => ({ ...s })) }))
+  let added = 0
+
+  for (const from of seeded.domains ?? []) {
+    const domainTitle = (from.title ?? '').trim()
+    if (!domainTitle) continue
+
+    let slot = next.findIndex((d) => d.title.trim() === domainTitle)
+    if (slot < 0) {
+      slot = next.findIndex((d) => !d.title.trim())
+      if (slot < 0) continue
+      next[slot].title = domainTitle
+      added += 1
+    }
+
+    for (const s of from.subjects ?? []) {
+      const subjectTitle = (s.title ?? '').trim()
+      if (!subjectTitle) continue
+      // 같은 과제를 두 번 담지 않는다 — 코치를 두 번 다녀오면 그대로 겹친다.
+      if (next[slot].subjects.some((x) => x.title.trim() === subjectTitle)) continue
+
+      const free = next[slot].subjects.findIndex((x) => !x.title.trim())
+      if (free < 0) break
+      next[slot].subjects[free] = { title: subjectTitle, period: s.period, countPerPeriod: 1 }
+      added += 1
+    }
+  }
+
+  return { domains: next, added }
 }
 
 /**
@@ -91,7 +147,7 @@ function PanelShell({
         {done && (
           <span
             aria-label="채움"
-            className="grid size-6 shrink-0 place-items-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
+            className="grid size-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 text-white"
           >
             <IconCheck className="size-3.5" />
           </span>
@@ -313,6 +369,7 @@ export default function SheetCreate() {
   const { createSheet } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
 
   /**
    * 코치가 만들어 준 초안으로 시작한다.
@@ -322,32 +379,49 @@ export default function SheetCreate() {
    */
   const seeded = location.state as CoachDraft | null
 
-  const [pickerOpen, setPickerOpen] = useState(!seeded)
+  /** 이 탭에서 쓰다 나간 초안. 마운트할 때 한 번만 읽는다. */
+  const [restored] = useState<StoredDraft | null>(() => loadDraft())
+
+  /**
+   * 쓰던 초안과 코치 초안이 둘 다 있는 상태 — 편집기에서 코치를 다녀온 경로다.
+   * 어느 쪽을 살릴지는 사람만 알 수 있으므로 묻는다.
+   */
+  const [mergeAsk, setMergeAsk] = useState(Boolean(seeded && restored))
+
+  /** 되살렸다는 사실을 알리는 줄. 닫으면 이번 작성 동안 다시 뜨지 않는다. */
+  const [restoreNotice, setRestoreNotice] = useState(Boolean(restored) && !seeded)
+
+  const [pickerOpen, setPickerOpen] = useState(!seeded && !restored)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [title, setTitle] = useState(seeded?.title ?? '')
-  const [expiredAt, setExpiredAt] = useState(IN_SIX_MONTHS)
-  const [isOpen, setIsOpen] = useState(true)
+  /** 되살린 초안을 버릴지 묻는 팝업. */
+  const [resetOpen, setResetOpen] = useState(false)
+  /** 취소로 작성을 그만둘지 묻는 팝업. */
+  const [cancelOpen, setCancelOpen] = useState(false)
+  /*
+    쓰던 초안이 있으면 그것으로 시작한다 — 코치 제안은 아직 얹지 않는다. 무엇을 살릴지
+    답을 받기 전에 화면을 바꿔 버리면, 팝업을 닫기만 해도 이미 덮여 있게 된다.
+  */
+  const [title, setTitle] = useState(restored?.title ?? seeded?.title ?? '')
+  const [expiredAt, setExpiredAt] = useState(restored?.expiredAt || IN_SIX_MONTHS)
+  const [isOpen, setIsOpen] = useState(restored?.isOpen ?? true)
   /** 기본 설정 접힘. 처음 한 번 정하면 다시 볼 일이 드물어 펼친 채로 시작한다. */
   const [settingsOpen, setSettingsOpen] = useState(true)
-  const [domains, setDomains] = useState<DraftDomain[]>(() => {
-    if (!seeded?.domains?.length) return EMPTY
-    return EMPTY.map((empty, i) => {
-      const from = seeded.domains?.[i]
-      if (!from) return empty
-      return {
-        title: from.title ?? '',
-        // 코치 초안에는 주기당 횟수가 없다. 기본 1회로 채우고 사용자가 조정한다.
-        subjects: empty.subjects.map((slot, j) => {
-          const s = from.subjects?.[j]
-          return s ? { ...slot, title: s.title, period: s.period } : slot
-        }),
-      }
-    })
-  })
+
+  const [domains, setDomains] = useState<DraftDomain[]>(
+    () => restored?.domains ?? (seeded ? fromCoach(seeded) : emptyDomains()),
+  )
   const [selected, setSelected] = useState<CellRef | null>(
-    seeded ? { kind: 'domain', domainIndex: 0 } : { kind: 'core' },
+    seeded || restored ? { kind: 'domain', domainIndex: 0 } : { kind: 'core' },
   )
   const [saving, setSaving] = useState(false)
+
+  /**
+   * 이 작성을 끝냈는지(저장 성공 또는 사용자가 그만두기를 확정).
+   *
+   * <p>끝난 뒤에는 자동저장을 멈춘다 — 끝낼 때 보관한 초안을 지우는데, 자동저장이 한 번 더
+   * 돌면 지운 것이 되살아나 다음번에 "이어서 작성할까요?" 가 엉뚱하게 뜬다.
+   */
+  const finishedRef = useRef(false)
 
   const preview: Sheet = useMemo(
     () => ({
@@ -417,6 +491,38 @@ export default function SheetCreate() {
     }
   }, [title, domains])
 
+  /**
+   * 작성 중인 내용이 있으면 화면을 떠나기 전에 묻는다.
+   *
+   * <p>"사라진다" 고 하지 않는다 — 초안은 자동으로 보관되므로 실제로는 남아 있고 돌아오면
+   * 이어 쓸 수 있다. 사실과 다른 경고는 두 번째부터 아무도 안 읽는다.
+   */
+  const warning = useMemo(
+    () =>
+      status.filled === 0
+        ? null
+        : {
+            title: '작성 중인 만다라트가 있어요',
+            description: `${status.filled}칸을 채웠습니다. 지금 나가면 여기까지 임시 보관되고, 새 만다라트 화면으로 돌아올 때 이어서 쓸 수 있어요.`,
+            leaveLabel: '나가기',
+            stayLabel: '계속 작성하기',
+          },
+    [status.filled],
+  )
+  useUnsavedWarning(warning)
+
+  /**
+   * 자동 임시저장.
+   *
+   * <p>글자 하나마다 직렬화하면 81칸을 채우는 사이 수백 번 쓴다. 400ms 멈추면 그때 한 번만
+   * 쓴다 — 칸을 옮기거나 다음 문구를 생각하는 틈이면 충분히 저장된다.
+   */
+  useEffect(() => {
+    if (finishedRef.current) return
+    const timer = window.setTimeout(() => saveDraft({ title, expiredAt, isOpen, domains }), 400)
+    return () => window.clearTimeout(timer)
+  }, [title, expiredAt, isOpen, domains])
+
   const save = async () => {
     if (!status.complete) return
 
@@ -438,7 +544,94 @@ export default function SheetCreate() {
     })
     setSaving(false)
     setConfirmOpen(false)
-    if (id != null) navigate(`/app/sheets/${id}`, { replace: true })
+
+    /*
+      실패했으면(id == null) 초안을 지우지 않는다 — 서버가 거절했을 때 81칸이 함께
+      사라지면 처음부터 다시 써야 한다. 성공했을 때만 보관을 끝낸다.
+    */
+    if (id != null) {
+      finishedRef.current = true
+      clearDraft()
+      navigate(`/app/sheets/${id}`, { replace: true })
+    }
+  }
+
+  /**
+   * 되살린 초안을 버리고 빈 화면에서 다시 시작한다.
+   *
+   * <p>81칸을 한 번에 지우는 동작이라 곧바로 실행하지 않고 한 번 묻는다(`resetOpen`).
+   */
+  const resetDraft = () => {
+    setTitle('')
+    setExpiredAt(IN_SIX_MONTHS)
+    setIsOpen(true)
+    setDomains(emptyDomains())
+    setSelected({ kind: 'core' })
+    clearDraft()
+    setRestoreNotice(false)
+    setResetOpen(false)
+    setPickerOpen(true)
+  }
+
+  /**
+   * 코치에게 다녀온다.
+   *
+   * <p>자동저장은 400ms 쉰 뒤에 쓰므로 방금 친 글자가 아직 안 담겼을 수 있다. 여기서 한 번
+   * 확실히 써 두면 코치에서 돌아왔을 때 그대로 이어진다.
+   */
+  const goToCoach = () => {
+    saveDraft({ title, expiredAt, isOpen, domains })
+    navigate('/app/coach')
+  }
+
+  /**
+   * 코치 초안을 다 쓴 뒤 라우터 state 를 비운다.
+   *
+   * <p>비우지 않으면 이 history 항목에 코치 초안이 남아, 새로고침할 때마다 "어떻게 넣을까요?"
+   * 가 다시 뜬다.
+   */
+  const dropSeeded = () => navigate('/app/sheets/new', { replace: true, state: null })
+
+  /** 코치 제안을 빈 칸에만 채운다. 쓰던 칸은 그대로 남는다. */
+  const applyCoachMerge = () => {
+    if (!seeded) return
+    const { domains: merged, added } = mergeCoach(domains, seeded)
+    setDomains(merged)
+    if (!title.trim() && seeded.title) setTitle(seeded.title)
+    setMergeAsk(false)
+    dropSeeded()
+    toast.show({
+      tone: added > 0 ? 'success' : 'info',
+      title:
+        added > 0
+          ? `코치 제안 ${added}칸을 빈 칸에 채웠어요`
+          : '빈 칸에 넣을 새 제안이 없었어요',
+      body: added > 0 ? undefined : '이미 8×8 이 찼거나 같은 과제였어요.',
+    })
+  }
+
+  /** 쓰던 초안을 버리고 코치 초안만으로 다시 시작한다. */
+  const replaceWithCoach = () => {
+    if (!seeded) return
+    setTitle(seeded.title ?? '')
+    setDomains(fromCoach(seeded))
+    setSelected({ kind: 'domain', domainIndex: 0 })
+    setMergeAsk(false)
+    dropSeeded()
+  }
+
+  /**
+   * 작성을 그만두고 목록으로. 보관한 초안까지 지운다.
+   *
+   * <p>사이드바로 나가는 것과 다르게 다룬다 — 저쪽은 "잠깐 다른 걸 보러 가는" 이동이라
+   * 초안을 남겨야 하고, 이 버튼은 "이 만다라트를 안 만들겠다" 는 뜻이라 남기면 다음 진입마다
+   * 지운 줄 알았던 초안이 되살아난다.
+   */
+  const discardAndLeave = () => {
+    finishedRef.current = true
+    clearDraft()
+    setCancelOpen(false)
+    navigate('/app/sheets')
   }
 
   const jumpToIncomplete = () => {
@@ -485,12 +678,13 @@ export default function SheetCreate() {
     }
 
     if (selected.kind === 'core') {
+      /*
+        배지를 달지 않는다. 세부 목표·과제 칸은 배지에 숫자 한 글자만 들어가는데, 여기만
+        "가운데" 세 글자를 넣으려니 28px 배지에서 글자가 잘렸다. 어느 칸인지는 바로 옆
+        caption("가운데 칸")이 이미 말해 준다.
+      */
       return (
-        <PanelShell
-          title="핵심 목표"
-          caption="가운데 칸"
-          chip={{ label: '가운데', color: 'var(--color-brand-600)' }}
-        >
+        <PanelShell title="핵심 목표" caption="가운데 칸">
           <Field label="이루고 싶은 큰 목표 하나" hint="30자까지 쓸 수 있어요.">
             <Input
               value={title}
@@ -649,8 +843,22 @@ export default function SheetCreate() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => navigate('/app/sheets')}>
+          <Button
+            variant="ghost"
+            onClick={() =>
+              status.filled === 0 ? navigate('/app/sheets') : setCancelOpen(true)
+            }
+          >
             취소
+          </Button>
+
+          {/*
+            편집기에 들어오면 AI 로 채울 길이 끊겼다는 지적을 받은 자리. 방식 선택 팝업은
+            처음 한 번만 떴고, 닫은 뒤에는 코치로 갈 방법이 화면에 없었다. 여기 상시로 두고
+            누르면 쓰던 초안을 보관한 채 다녀온다 — 돌아오면 빈 칸에만 제안을 채워 준다.
+          */}
+          <Button variant="ai" onClick={goToCoach}>
+            <IconSparkle className="size-4" /> AI 코치로 이어 만들기
           </Button>
           <Button onClick={() => setConfirmOpen(true)} disabled={!status.complete || saving}>
             {status.complete ? '저장하기' : `${81 - status.filled}칸 남음`}
@@ -666,6 +874,36 @@ export default function SheetCreate() {
       <p className="muted m-0 text-center text-[12px] font-bold">
         저장하면 내용을 고칠 수 없어요 · 공개 여부만 나중에 바꿀 수 있습니다
       </p>
+
+      {/*
+        되살렸다는 사실을 말해 준다. 아무 말 없이 지난 내용이 채워져 있으면 "왜 이게 여기
+        있지" 부터 의심하게 되고, 반대로 빈 화면을 기대한 사람에게는 되돌릴 길이 필요하다.
+      */}
+      {restoreNotice && restored && (
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border px-4 py-3"
+          style={{ borderColor: 'var(--border-hairline)', background: 'var(--surface-sunken)' }}
+        >
+          <span className="min-w-0 flex-1 text-[12.5px] font-bold">
+            쓰던 초안 {restored.filled}칸을 되살렸어요
+            {restored.savedAt && (
+              <span className="muted font-semibold"> · {fromNow(restored.savedAt)} 저장</span>
+            )}
+          </span>
+
+          <Button variant="quiet" size="sm" onClick={() => setResetOpen(true)}>
+            처음부터 새로 만들기
+          </Button>
+          <button
+            type="button"
+            onClick={() => setRestoreNotice(false)}
+            aria-label="안내 닫기"
+            className="grid size-8 shrink-0 place-items-center rounded-full text-lg text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/*
         완성도. 예전에는 상태에 따라 테두리·배경색이 통째로 바뀌는 색 박스였는데,
@@ -688,15 +926,25 @@ export default function SheetCreate() {
           </p>
         </div>
 
-        {status.complete ? (
-          <span className="flex items-center gap-1.5 text-[12.5px] font-extrabold text-emerald-600 dark:text-emerald-400">
-            <IconCheck className="size-4" /> 모두 채웠어요
-          </span>
-        ) : (
-          <Button variant="secondary" size="sm" onClick={jumpToIncomplete}>
-            덜 채운 칸으로
+        <div className="flex items-center gap-2">
+          {status.complete ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] font-extrabold text-emerald-600 dark:text-emerald-400">
+              <IconCheck className="size-4" /> 모두 채웠어요
+            </span>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={jumpToIncomplete}>
+              덜 채운 칸으로
+            </Button>
+          )}
+
+          {/*
+            방식 선택 팝업을 다시 부르는 유일한 자리. 팝업은 처음 한 번만 뜨므로 이 버튼이
+            없으면 "직접 채우기" 를 고른 뒤 방식을 다시 볼 길이 사라진다.
+          */}
+          <Button variant="quiet" size="sm" onClick={() => setPickerOpen(true)}>
+            만드는 방법
           </Button>
-        )}
+        </div>
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
@@ -721,11 +969,6 @@ export default function SheetCreate() {
                     background: full ? domainColor(i) : 'var(--surface-sunken)',
                   }}
                 >
-                  <span
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ background: full ? 'rgba(255,255,255,.8)' : domainColor(i) }}
-                    aria-hidden="true"
-                  />
                   <span className="max-w-[120px] truncate">
                     {d.title.trim() || `목표 ${i + 1}`}
                   </span>
@@ -813,13 +1056,15 @@ export default function SheetCreate() {
         <div className="grid gap-3">
           <button
             type="button"
-            onClick={() => navigate('/app/coach')}
-            className="flex items-start gap-4 rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 hover:border-brand-300"
+            /* 작성 중에 다시 열 수도 있다. 쓰던 초안을 보관한 뒤 넘어간다. */
+            onClick={goToCoach}
+            className="flex items-start gap-4 rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 hover:border-sky-300"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
+            {/* AI 가 하는 일은 청록으로 갈라 둔다 — 헤더의 "AI 코치로 이어 만들기" 버튼과 같은 색이다. */}
             <span
               aria-hidden="true"
-              className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-500/12 text-brand-600 dark:text-brand-400"
+              className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white"
             >
               <IconSparkle />
             </span>
@@ -831,7 +1076,7 @@ export default function SheetCreate() {
                 하고 싶은 것을 말하면 코치가 세부 목표와 과제를 제안합니다. 64칸을 혼자 떠올리는
                 것보다 훨씬 빠릅니다.
               </span>
-              <span className="mt-2 inline-block text-[12px] font-black text-brand-600 dark:text-brand-400">
+              <span className="mt-2 inline-block rounded-full bg-gradient-to-br from-sky-500 to-cyan-600 px-2.5 py-1 text-[11.5px] font-black text-white">
                 추천
               </span>
             </span>
@@ -853,12 +1098,88 @@ export default function SheetCreate() {
             <span className="min-w-0">
               <strong className="block text-[14.5px] font-extrabold">직접 채워 넣기</strong>
               <span className="muted mt-1 block text-[12.5px] font-medium leading-relaxed">
-                이미 목표가 정리돼 있다면 칸을 눌러 바로 적어도 됩니다.
+                이미 목표가 정리돼 있다면 칸을 눌러 바로 적어도 됩니다. 격자에서 칸을 누르면
+                오른쪽에 입력창이 열립니다.
               </span>
             </span>
           </button>
+
+          {/*
+            두 방법이 갈림길처럼 보이면 한쪽을 고른 뒤 막혔을 때 되돌아갈 생각을 못 한다.
+            섞어 쓸 수 있다는 것을 여기서 분명히 말해 둔다.
+          */}
+          <p className="muted m-0 px-1 text-[12px] font-medium leading-relaxed">
+            둘을 섞어도 됩니다 — 직접 쓰다가 <b>AI 코치로 이어 만들기</b>로 다녀오면 쓴 내용은
+            그대로 두고 빈 칸만 채워 줍니다. 작성 중인 내용은 자동으로 보관돼요.
+          </p>
         </div>
       </Modal>
+
+      {/*
+        코치를 다녀왔다. 쓰던 초안과 코치 제안 중 무엇을 살릴지는 사람만 안다.
+        기본값(첫 버튼)은 잃는 것이 없는 쪽 — 빈 칸에만 채우기다.
+      */}
+      <Modal
+        open={mergeAsk}
+        /* ESC·배경 클릭으로 닫아도 잃는 것이 없는 쪽으로 처리한다 — 코치 제안을 그냥 버리면
+           사용자는 "가져오기" 를 눌렀는데 아무 일도 안 난 것처럼 보인다. */
+        onClose={applyCoachMerge}
+        title="코치 제안을 어떻게 넣을까요?"
+        description={
+          restored
+            ? `쓰던 초안 ${restored.filled}칸이 그대로 있습니다. 코치가 제안한 과제를 빈 칸에만 넣으면 쓴 내용은 하나도 지워지지 않아요.`
+            : undefined
+        }
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={replaceWithCoach}>
+              코치 제안으로 새로 시작
+            </Button>
+            <Button size="sm" onClick={applyCoachMerge}>
+              빈 칸에만 채우기
+            </Button>
+          </>
+        }
+      />
+
+      {/* 취소 — 보관한 초안까지 지우므로 사이드바 이탈보다 강하게 묻는다 */}
+      <Modal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        title="작성을 그만둘까요?"
+        description={`지금까지 채운 ${status.filled}칸이 지워집니다. 잠깐 다른 화면을 보고 올 거라면 취소 대신 왼쪽 메뉴로 이동하세요 — 그때는 초안이 남아 있어요.`}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setCancelOpen(false)}>
+              계속 작성하기
+            </Button>
+            <Button variant="danger" size="sm" onClick={discardAndLeave}>
+              지우고 나가기
+            </Button>
+          </>
+        }
+      />
+
+      {/* 되살린 초안 버리기 — 81칸이 한 번에 비므로 되돌릴 수 없다고 분명히 말한다 */}
+      <Modal
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        title="쓰던 내용을 지우고 새로 시작할까요?"
+        description="되살린 초안이 사라집니다. 이 동작은 되돌릴 수 없어요."
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setResetOpen(false)}>
+              계속 이어 쓰기
+            </Button>
+            <Button variant="danger" size="sm" onClick={resetDraft}>
+              지우고 새로 시작
+            </Button>
+          </>
+        }
+      />
 
       {/* 저장 확인 — 되돌릴 수 없는 동작이라 한 번 더 묻는다 */}
       <Modal
@@ -890,11 +1211,6 @@ export default function SheetCreate() {
                 className="flex items-center gap-2 rounded-xl px-3 py-2 text-[12.5px] font-bold"
                 style={{ background: 'var(--surface-sunken)' }}
               >
-                <span
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ background: domainColor(i) }}
-                  aria-hidden="true"
-                />
                 <span className="min-w-0 flex-1 truncate">{d.title}</span>
                 <span className="muted shrink-0">8</span>
               </li>

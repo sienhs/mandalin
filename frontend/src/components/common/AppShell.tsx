@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../../data/store'
+/*
+  셸의 링크는 하나도 빠짐없이 이탈 확인을 거쳐야 한다. 만다라트를 만들던 중 사이드바를
+  누르면 81칸이 사라졌던 게 여기서 시작한다 — 한 곳이라도 맨 `NavLink` 로 남으면 그 링크만
+  조용히 초안을 버린다. 그래서 이름을 그대로 `NavLink` 로 받아 쓴다.
+*/
+import { GuardedNavLink as NavLink, useUnsavedGuard } from './UnsavedGuard'
 import { cn } from '../../utils/cn'
 import { fromNow, num } from '../../utils/format'
 import Logo from './Logo'
@@ -59,6 +65,8 @@ export default function AppShell() {
   } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
+  /** 링크가 아닌 이동(알림 항목·로그아웃)도 같은 확인을 거친다. */
+  const { guard } = useUnsavedGuard()
   const [moreOpen, setMoreOpen] = useState(false)
   const [notiOpen, setNotiOpen] = useState(false)
 
@@ -226,19 +234,12 @@ export default function AppShell() {
                 : '지금은 실제 백엔드에 연결돼 있습니다. 눌러서 목업으로 전환'
             }
             className={cn(
-              'hidden h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black sm:flex',
+              'hidden h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black text-white sm:flex',
               mode === 'mock'
-                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                : 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+                ? 'bg-gradient-to-br from-amber-400 to-amber-600'
+                : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
             )}
           >
-            <span
-              aria-hidden="true"
-              className={cn(
-                'size-1.5 rounded-full',
-                mode === 'mock' ? 'bg-amber-500' : 'bg-emerald-500',
-              )}
-            />
             {mode === 'mock' ? '목업 데이터' : '서버 연결됨'}
           </button>
 
@@ -388,9 +389,12 @@ export default function AppShell() {
               </NavLink>
               <button
                 type="button"
-                onClick={async () => {
-                  await logout()
-                  navigate('/')
+                onClick={() => {
+                  const go = async () => {
+                    await logout()
+                    navigate('/')
+                  }
+                  if (!guard(() => void go())) void go()
                 }}
                 className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-bold text-red-500"
                 style={{ background: 'var(--surface-sunken)' }}
@@ -447,10 +451,13 @@ export default function AppShell() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (n.kind === 'FRIEND_REQUEST') navigate('/app/friends?tab=requests')
-                          else if (n.kind === 'TODO_REMAINING') navigate('/app')
-                          else navigate('/app/sheets')
-                          setNotiOpen(false)
+                          const go = () => {
+                            if (n.kind === 'FRIEND_REQUEST') navigate('/app/friends?tab=requests')
+                            else if (n.kind === 'TODO_REMAINING') navigate('/app')
+                            else navigate('/app/sheets')
+                            setNotiOpen(false)
+                          }
+                          if (!guard(go)) go()
                         }}
                         className={cn(
                           'flex w-full flex-col items-start gap-1 rounded-2xl px-4 py-3.5 text-left transition-colors',

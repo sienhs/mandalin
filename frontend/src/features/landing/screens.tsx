@@ -288,7 +288,7 @@ export function TodoScreen({
           <div className="flex flex-wrap items-center gap-3">
             <CardHead title="오늘의 할 일" caption="체크하면 포인트가 쌓여요" />
             <span className="ml-auto flex items-center gap-2 text-[11px] font-bold">
-              <span className="rounded-full bg-brand-500/12 px-2.5 py-1 text-brand-600 dark:text-brand-400">
+              <span className="rounded-full bg-gradient-to-br from-brand-500 to-brand-700 px-2.5 py-1 text-white">
                 {doneCount}개 완료
               </span>
               <span
@@ -359,7 +359,7 @@ export function CoachScreen({ point = 1_240 }: { point?: number }) {
 
             {/* 코치 답변 */}
             <div className="flex gap-2.5">
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-500/12 text-brand-600 dark:text-brand-400">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white">
                 <IconCoach className="size-[15px]" />
               </span>
               <p
@@ -455,7 +455,7 @@ export function SheetScreen({ sheet, point = 1_240 }: { sheet: Sheet; point?: nu
               세부 목표 8 · 실천 과제 64 · 달성률 {sheet.achievementRate}%
             </p>
           </div>
-          <span className="ml-auto flex shrink-0 items-center gap-1 rounded-full bg-brand-500/12 px-2.5 py-1 text-[11px] font-black text-brand-600 dark:text-brand-400">
+          <span className="ml-auto flex shrink-0 items-center gap-1 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 px-2.5 py-1 text-[11px] font-black text-white">
             공개
           </span>
         </div>

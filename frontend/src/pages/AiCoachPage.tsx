@@ -274,7 +274,7 @@ export default function Coach() {
                     <div className="flex gap-2.5">
                       <span
                         aria-hidden="true"
-                        className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-500/12 text-brand-600 dark:text-brand-400"
+                        className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white"
                       >
                         <IconCoach className="size-[17px]" />
                       </span>
@@ -476,11 +476,6 @@ export default function Coach() {
                   return (
                     <div key={b.domain}>
                       <div className="flex items-center gap-2">
-                        <span
-                          className="size-2.5 shrink-0 rounded-full"
-                          style={{ background: color }}
-                          aria-hidden="true"
-                        />
                         <strong className="min-w-0 flex-1 truncate text-[12.5px] font-extrabold">
                           {b.domain}
                         </strong>
@@ -577,6 +572,15 @@ export default function Coach() {
               {basket.length === 0
                 ? '과제를 담으면 세부 목표별로 배치된 채 편집기가 열려요.'
                 : `남은 ${64 - totalItems}칸은 편집기에서 이어 채우면 돼요. 81칸을 다 채워야 저장됩니다.`}
+            </p>
+
+            {/*
+              편집기와 코치를 오갈 수 있다는 사실을 여기서 말해 둔다. 예전에는 편집기로 가면
+              끝인 줄 알고 대화를 억지로 길게 끌거나, 반대로 편집기에서 막혀도 돌아오지 못했다.
+            */}
+            <p className="muted m-0 mb-3 text-[11.5px] font-medium leading-relaxed">
+              편집기에서 <b>AI 코치로 이어 만들기</b>를 누르면 쓰던 내용을 두고 다시 여기로 올 수
+              있어요. 돌아갈 때 빈 칸에만 채워 넣습니다.
             </p>
             <Button full disabled={basket.length === 0 || !goal.trim()} onClick={handoff}>
               편집기로 가져가기
