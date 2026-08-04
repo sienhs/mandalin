@@ -207,31 +207,27 @@ def hello_payload(name: str, *, voice: bool, llm: str = "ok") -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-#: **t3.small(2 vCPU / 2 GiB) 에 맞춰 기본값 둘을 조였습니다.**
+#: **t3.micro(2 vCPU / 1 GiB) 에 맞춘 값입니다.** 인스턴스를 바꾸면 둘 다 다시 정하세요 —
+#: `tests/test_worker_limits.py` 가 그때 실패해서 알려줍니다.
 #:
 #: `load_threshold` — 운영 기본값 0.7 은 **전체 CPU 대비 비율**입니다. 2 vCPU 의 70% 는
-#: 1.4 vCPU 인데 t3.small 의 baseline 은 **0.4 vCPU**(vCPU 당 20%)입니다. 즉 기본값대로
-#: 두면 worker 가 "아직 여유 있다" 며 job 을 계속 받으면서 **CPU 크레딧을 태웁니다.**
-#: T3 는 기본이 Unlimited 모드라 크레딧이 바닥나도 거절도 스로틀도 없이 surplus 로
-#: **청구**됩니다 — 에러도 로그도 없고 청구서에만 나타납니다. 0.2 = baseline 입니다.
+#: 1.4 vCPU 인데 t3.micro 의 baseline 은 **0.2 vCPU**(vCPU 당 10%)라 7배입니다. 기본값대로
+#: 두면 worker 가 "여유 있다" 며 job 을 계속 받으면서 CPU 크레딧을 태우고, T3 는 기본이
+#: Unlimited 모드라 바닥난 뒤에는 거절도 스로틀도 없이 **청구**됩니다(에러도 로그도 없음).
+#: 0.1 = baseline 입니다.
 #:
-#: `num_idle_processes` — 기본값은 `ceil(cpu_count)` = 여기서 2 입니다. 리눅스는 job
-#: 하나가 프로세스 하나라(forkserver) 예열된 유휴 프로세스도 메모리를 차지하고, 2 GiB
-#: 에서 그 한 칸은 세션 하나만큼입니다. forkserver 의 fork 는 빨라서 1 로 줄여도 첫
-#: 입장 지연은 체감되지 않습니다.
+#: `num_idle_processes` — 기본값은 `ceil(cpu_count)` = 2 입니다. 리눅스는 job 하나가
+#: 프로세스 하나라 예열된 유휴 프로세스도 메모리를 차지하는데, 실측 PSS 가 133MB 로
+#: **1 GiB 의 13%** 입니다. 1 로 둔 것은 그 칸이 곧 다음 세션의 job 프로세스가 되기
+#: 때문이고, 0 으로 내리면 세션마다 fork 를 기다립니다.
 #:
-#: **dev 기본값은 건드리지 않습니다.** 로컬에서 0.2 로 두면 다른 프로세스가 CPU 를 쓰는
-#: 동안 job 이 거절되고, 증상은 `admit()` 의 상한과 똑같이 "브라우저는 붙는데 AI 만 안
-#: 들어옴" 입니다 — 원인을 찾기 어려운 쪽입니다.
+#: dev 기본값은 건드리지 않습니다. 로컬에서 조이면 다른 프로세스가 CPU 를 쓰는 동안
+#: job 이 거절되고, 증상이 `admit()` 상한과 똑같아 구분이 안 됩니다.
 #:
-#: `job_memory_limit_mb` 는 **여전히 비워 둡니다.** 실측(2026-08-04, 배포 compose 그대로
-#: 띄운 컨테이너)에서 job 프로세스는 **RSS 250~280MB / PSS 95~135MB** 였습니다 — 상한은
-#: RSS 로 비교되므로 300MB 만 걸어도 정상 job 이 죽습니다. 게다가 그 측정은 **텍스트
-#: 턴**이고, STT 가 붙은 세션(오디오 버퍼 + Deepgram 소켓)은 더 씁니다. 그쪽을 재기 전에는
-#: 짐작한 상한이 보호가 아니라 장애입니다.
-#:
-#: 인스턴스를 키우면 두 값을 같이 올려야 합니다 — `tests/test_worker_limits.py` 가
-#: 그때 실패해서 알려줍니다.
+#: `job_memory_limit_mb` 는 비워 둡니다. 실측(2026-08-04)에서 job 프로세스가
+#: **RSS 250~280MB / PSS 95~135MB** 였고 상한은 RSS 로 비교되므로, 300MB 만 걸어도 정상
+#: job 이 죽습니다. 그 측정은 텍스트 턴이고 STT 세션은 더 씁니다 — 재기 전에는 짐작한
+#: 상한이 보호가 아니라 장애입니다.
 #: worker 자체 HTTP 서버의 포트를 **환경변수가 있을 때만** 고정합니다.
 #:
 #: 이 포트는 밖에서 쓸 일이 없지만(README "포트" 표), `start` 모드의 기본값이 8081 이라
@@ -245,7 +241,7 @@ def hello_payload(name: str, *, voice: bool, llm: str = "ok") -> str:
 #: 이고, 0 은 "임의의 빈 포트" 라서 개발자 두 명이 로컬에서 각자 worker 를 띄워도
 #: 부딪히지 않게 해 줍니다. 여기서 8081 을 못박으면 그 성질이 사라집니다.
 _HTTP_PORT = os.getenv("AGENT_HTTP_PORT")
-_LOAD_THRESHOLD = ServerEnvOption(dev_default=math.inf, prod_default=0.2)
+_LOAD_THRESHOLD = ServerEnvOption(dev_default=math.inf, prod_default=0.1)
 _IDLE_PROCESSES = ServerEnvOption(dev_default=0, prod_default=1)
 
 #: 두 갈래로 적는 이유는 `**{"port": ...}` 스플랫을 mypy 가 다른 인자와 맞추지

@@ -15,7 +15,7 @@
 | 푸시투토크(10초 창) | 상시 청취는 침묵도 과금하고 잡음 구분 장치가 필요해집니다. 사람이 창을 열고 닫으면 둘 다 사라집니다 |
 | 벡터 DB 안 씀(아직) | 중복 문제의 원인이 아니었습니다(3절) |
 | 방은 사용자 1명 + 에이전트 1개 | 백엔드가 방을 `u_<userId>` 로 나눕니다. 그 규칙에만 기대지 않고 겹을 셋 둡니다 — `max_participants: 2`, 발신자 대조, 오디오만 구독(`tests/test_single_user_room.py`) |
-| worker 부하 기준을 t3.small 에 맞춤 | `load_threshold` 0.2(= baseline 0.4 vCPU), 유휴 프로세스 1개. 기본값 0.7 은 baseline 의 3.5배라 **CPU 크레딧을 태웁니다** — 증상이 청구서뿐입니다(`tests/test_worker_limits.py`) |
+| worker 부하 기준을 t3.micro 에 맞춤 | `load_threshold` 0.1(= baseline 0.2 vCPU), 유휴 프로세스 1개, 방 4개. 기본값 0.7 은 baseline 의 7배라 **CPU 크레딧을 태웁니다** — 증상이 청구서뿐입니다(`tests/test_worker_limits.py`) |
 | 화자 라벨(`Turn.speaker`) 안 씀 | 사람이 1명이라 구분할 것이 없고, 누가 말했는지는 `contents[].role` 이 나릅니다. 표시 이름이 프롬프트에 닿는 경로도 같이 없어졌습니다 |
 | `web/` 에 빌드 도구 없음 | `livekit-client` 를 CDN ESM 으로. 정적 파일을 그냥 서빙합니다 |
 | 프롬프트 정본은 `prompts/` | 모델에게 가는 텍스트가 코드와 파일로 갈리면 두 곳이 서로 다른 말을 합니다(`tests/test_prompts_are_one_folder.py`) |
