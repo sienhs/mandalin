@@ -30,10 +30,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SubjectService {
 
+    // 사용자별 일일 포인트 획득 상한선 (1000P)
+    private static final long DAILY_POINT_LIMIT = 1000L;
+
     private final SubjectRepository subjectRepository;
     private final SubjectLogRepository subjectLogRepository;
     private final SheetRepository sheetRepository;
     private final UserRepository userRepository;
+
 
 
     /**
@@ -141,6 +145,13 @@ public class SubjectService {
         long totalEarnedPoint = 0L;
         LocalDate today = LocalDate.now();
 
+        LocalDateTime todayStart = today.atStartOfDay();
+        LocalDateTime todayEnd = today.atTime(23, 59, 59);
+
+        // 당일 유저가 이미 획득한 총 포인트 계산 및 잔여 일일 한도 산정
+        long todayEarnedPoints = subjectLogRepository.sumEarnedPointByUserIdAndCreatedAtBetween(userId, todayStart, todayEnd);
+        long remainingDailyCap = Math.max(0L, DAILY_POINT_LIMIT - todayEarnedPoints);
+
         LocalDateTime mondayStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
         LocalDateTime sundayEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).atTime(23, 59, 59);
         LocalDateTime monthStart = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
@@ -204,21 +215,28 @@ public class SubjectService {
                     }
                 }
 
-                // 5. 보상 포인트 지급
-                int rewardPoint = subject.getPoint().intValue();
-                user.addPoint(rewardPoint);
-                totalEarnedPoint += rewardPoint;
+                // 5. 일일 상한선(DAILY_POINT_LIMIT) 내 보상 포인트 지급
+                long rewardPoint = subject.getPoint() != null ? subject.getPoint() : 0L;
+                long actualEarnedPoint = Math.min(rewardPoint, remainingDailyCap);
+
+                if (actualEarnedPoint > 0) {
+                    user.addPoint((int) actualEarnedPoint);
+                    remainingDailyCap -= actualEarnedPoint;
+                }
+
+                totalEarnedPoint += actualEarnedPoint;
                 completedSubjectIds.add(subjectId);
 
-                // 6. 과제 수행 이력 저장
+                // 6. 과제 수행 이력 저장 (실제 획득한 포인트 기록, 일일 상한 소진 시 0P)
                 subjectLogRepository.save(SubjectLog.builder()
                         .user(user)
                         .subject(subject)
-                        .earnedPoint((long) rewardPoint)
+                        .earnedPoint(actualEarnedPoint)
                         .build());
 
             }
         }
+
 
         return SubjectCompleteResponse.builder()
                 .completedSubjectIds(completedSubjectIds)
