@@ -534,13 +534,6 @@ export default function VillagePage() {
                 )}
                 style={{ background: active ? color : 'var(--surface-sunken)' }}
               >
-                <span
-                  aria-hidden="true"
-                  className="size-2 rounded-full"
-                  style={{
-                    background: active ? 'rgba(255,255,255,.85)' : color,
-                  }}
-                />
                 {d.title || `세부 목표 ${domainIndexOf(i) + 1}`}
               </button>
             )

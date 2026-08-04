@@ -51,5 +51,17 @@ public interface SubjectLogRepository extends JpaRepository<SubjectLog, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
+
+    // 지정된 일시 범위 내 사용자가 획득한 총 포인트 합계 조회
+    @Query("SELECT COALESCE(SUM(sl.earnedPoint), 0) FROM SubjectLog sl " +
+           "WHERE sl.user.id = :userId " +
+           "AND sl.createdAt >= :startDate " +
+           "AND sl.createdAt <= :endDate")
+    long sumEarnedPointByUserIdAndCreatedAtBetween(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 }
+
 
