@@ -183,7 +183,7 @@ async def test_a_text_only_turn_runs_the_whole_pipeline():
     )
 
     pipeline = GoalPipeline(settings, EchoBackend())
-    turn = Turn(role="user", text="매일 알고리즘 문제 풀고 싶어", speaker="우찬")
+    turn = Turn(role="user", text="매일 알고리즘 문제 풀고 싶어")
 
     sheet = [
         DomainRef(
@@ -196,7 +196,7 @@ async def test_a_text_only_turn_runs_the_whole_pipeline():
     result = await pipeline.run([turn], sheet)
 
     assert result.stages == ["classify", "retrieve", "decide"]
-    # 전사문은 1단계가 아니라 STT 가 만든 것이 그대로 흘러야 합니다.
+    # 원문은 1단계가 아니라 STT(또는 채팅 입력)가 만든 것이 그대로 흘러야 합니다.
     assert result.transcript == "매일 알고리즘 문제 풀고 싶어"
     # `_settle_domain` / `_mark_new_domain` 은 모델이 아니라 서버가 채웁니다.
     assert result.data["domain"] == "학습"
@@ -204,3 +204,90 @@ async def test_a_text_only_turn_runs_the_whole_pipeline():
     assert result.data["domain_is_new"] is False
     # `reasoning` 은 사용자에게 나가지 않습니다 (`public_data`).
     assert "reasoning" not in result.data
+
+
+async def test_the_first_stage_never_restates_the_utterance():
+    """**1단계는 발화를 되풀이하지 않습니다** — 원문은 서버가 정합니다.
+
+    예전 스키마에는 `transcript`(원문을 그대로 옮겨 적는 필드)가 `required` 로 있었습니다.
+    1단계 모델이 오디오 받아쓰기를 겸하던 설계의 잔재이고, 남겨두면 둘을 잃습니다 —
+
+      ① 발화 길이만큼 **출력** 토큰을 매 턴 태웁니다. 입력 길이를 막는 곳이 없어서 긴
+         텍스트는 `BOT_MAX_OUTPUT_TOKENS` 를 넘겨 결정적으로 잘립니다(재시도도 무력)
+      ② 모델이 요약·윤문하면 3단계가 원문이 아닌 것을 봅니다
+
+    그래서 **모델이 무슨 값을 돌려주든 무시하는지**를 검사합니다. 스키마 모양만 보면
+    필드를 다시 추가한 뒤 값을 읽는 코드가 붙는 것을 못 잡습니다.
+    """
+    from agent.reuse import GoalPipeline, Settings, Turn
+    from mandarin_goal.bot.goal import CLASSIFY_SCHEMA
+
+    assert "transcript" not in CLASSIFY_SCHEMA["required"]
+
+    class Rewriting:
+        """받아쓰기를 시키면 모델이 할 수 있는 최악: 발화를 딴 말로 바꿔 돌려줍니다."""
+
+        name = "rewriting"
+
+        async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+            if "intent" in schema.get("properties", {}):
+                return {"intent": "goal", "domain": "학습", "transcript": "전혀 다른 말"}
+            return {"action": "clarify", "clarify_question": "어떤 목표인가요?"}
+
+        async def aclose(self):
+            return None
+
+    settings = Settings(bot_mode="goal", bot_provider="echo")
+    pipeline = GoalPipeline(settings, Rewriting())
+    result = await pipeline.run([Turn(role="user", text="매일 알고리즘 문제 풀고 싶어")])
+
+    assert result.transcript == "매일 알고리즘 문제 풀고 싶어"
+
+
+async def test_the_user_turn_reaches_the_model_verbatim():
+    """**발화 텍스트에 화자 라벨을 섞지 않습니다.**
+
+    예전에는 `Turn.speaker` 가 있어서 사용자 턴이 `"우찬: 매일 알고리즘…"` 으로 나갔고,
+    근거는 *"방에는 사람이 여럿"* 이었습니다. 이 서비스의 방은 사용자 1명 + 에이전트
+    1개라(`agent/entrypoint.py` 모듈 주석) 라벨이 구분하는 것이 없었고, 누가 말했는지는
+    `contents[].role` 이 이미 나릅니다.
+
+    되살아나기 쉬운 종류입니다 — 붙여도 에러가 없고 응답도 그대로라, 드러나는 것은
+    1단계가 이름을 발화의 일부로 읽을 때의 품질 저하뿐입니다. 그래서 **전송 직전의
+    요청 본문**을 봅니다. `Turn` 의 필드 모양만 보면 렌더 시점에 다시 붙이는 코드를
+    못 잡습니다.
+    """
+    import json
+
+    import httpx
+
+    from agent.reuse import Settings, Turn
+    from mandarin_goal.bot.llm import GeminiBackend
+
+    sent: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.update(json.loads(request.content))
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "{}"}]}}]})
+
+    backend = GeminiBackend(
+        Settings(bot_provider="gemini", bot_api_key="k", bot_default_model="m")
+    )
+    backend._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        await backend.reply_json(
+            "시스템",
+            [
+                Turn(role="user", text="매일 알고리즘 문제 풀고 싶어"),
+                Turn(role="assistant", text="어느 칸에 담을까요?"),
+            ],
+            {"properties": {}},
+        )
+    finally:
+        await backend.aclose()
+
+    parts = [(c["role"], c["parts"][0]["text"]) for c in sent["contents"]]
+    assert parts == [
+        ("user", "매일 알고리즘 문제 풀고 싶어"),
+        ("model", "어느 칸에 담을까요?"),
+    ], "발화가 그대로 실려야 합니다 — 이름·역할 접두를 붙이면 안 됩니다"

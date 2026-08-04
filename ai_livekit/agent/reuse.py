@@ -20,11 +20,16 @@ from mandarin_goal.bot.goal import (
     escape_slot_value,
 )
 from mandarin_goal.bot.llm import (
+    BACKENDS,
+    DEMO_PROVIDERS,
     EchoBackend,
     LlmError,
+    LlmRateLimitedError,
     LlmTruncatedError,
+    MisconfiguredBackend,
     Turn,
     build_backend,
+    normalize_provider,
 )
 from mandarin_goal.bot.prompt import PROJECT_ROOT, SystemPrompt
 from mandarin_goal.bot.subjects import FREQUENCY_LABELS, frequency_label
@@ -53,7 +58,9 @@ REUSED_MODULES = (
 TRANSPORT_ONLY = ("livekit", "fastapi", "starlette", "uvicorn", "av")
 
 __all__ = [
+    "BACKENDS",
     "BLOCKED_REPLIES",
+    "DEMO_PROVIDERS",
     "DOMAIN_UNKNOWN_REPLY",
     "FREQUENCY_LABELS",
     "MAX_DOMAINS",
@@ -66,7 +73,9 @@ __all__ = [
     "GoalPipeline",
     "GoalResult",
     "LlmError",
+    "LlmRateLimitedError",
     "LlmTruncatedError",
+    "MisconfiguredBackend",
     "Settings",
     "SubjectRef",
     "SystemPrompt",
@@ -76,4 +85,5 @@ __all__ = [
     "escape_slot_value",
     "frequency_label",
     "get_settings",
+    "normalize_provider",
 ]

@@ -3,7 +3,7 @@
 ```
 발화(텍스트/음성)
    │
-   ├─[1] 분류 (LLM)      → { intent, domain, transcript }
+   ├─[1] 분류 (LLM)      → { intent, domain, what, frequency }
    │        │
    │        ├─ intent != goal ──▶ 고정 안내 문구 (LLM 추가 호출 없음) ──▶ 끝
    │        │
@@ -19,8 +19,19 @@
 데이터 의존성이 있는 곳에서만 갈랐습니다.
 
 **입력은 텍스트뿐입니다.** Deepgram 이 전사를 끝낸 뒤 텍스트 턴만 들어옵니다.
-1단계 스키마의 `transcript` 는 주어진 발화를 그대로 옮겨 적는 필드이고, 3단계가
-그 값을 씁니다.
+
+**그래서 1단계는 발화를 되풀이하지 않습니다.** 예전 스키마에는 `transcript`(원문을
+그대로 옮겨 적는 필드)가 있었습니다 — 1단계 모델이 오디오 받아쓰기를 겸하던 설계의
+잔재입니다. 지금은 서버가 원문을 확실히 알고 있고(`history` 의 마지막 사용자 턴),
+모델에게 물으면 두 가지를 잃습니다 —
+
+  ① 발화 길이만큼 **출력** 토큰을 매 턴 태웁니다. 사용자 입력 길이를 막는 곳이 없어서
+     긴 텍스트는 `BOT_MAX_OUTPUT_TOKENS`(512)를 넘겨 **결정적으로** 잘립니다
+     (`_step` 의 재시도는 비결정적 디코딩 붕괴를 노린 것이라 길이 초과에는 무력합니다)
+  ② 모델이 요약·윤문하면 3단계가 원문이 아닌 것을 보고, 화면의 대화 로그와도 갈립니다
+
+`_resolve_match` 가 제목을 시트에서 채우고 `_mark_new_domain` 이 새 칸 여부를 직접
+판정하는 것과 같은 규칙입니다 — **아는 값은 서버가 정합니다.**
 """
 from __future__ import annotations
 
@@ -35,6 +46,7 @@ from dataclasses import dataclass, field, replace
 from mandarin_goal.bot.llm import (
     LlmBackend,
     LlmError,
+    LlmRateLimitedError,
     LlmTruncatedError,
     Turn,
     build_backend,
@@ -47,6 +59,16 @@ from mandarin_goal.config import Settings
 from mandarin_goal.sheet import DomainRef
 
 logger = logging.getLogger(__name__)
+
+#: 429 를 만났을 때 재시도까지 기다리는 시간(초). `Retry-After` 가 오면 그 값을 씁니다.
+#:
+#: 짧게 잡은 이유는 예산입니다 — `BOT_TIMEOUT_SECONDS`(45초)가 파이프라인 전체를
+#: 덮는데 단계가 둘이라, 대기가 길면 재시도로 답을 얻어도 전체 타임아웃에 걸려
+#: 버려집니다. 실측 지연이 단계당 1~2초라 1초 대기면 몰림 한 파는 지나갑니다.
+RATE_LIMIT_WAIT_SECONDS = 1.0
+
+#: 이보다 긴 `Retry-After` 는 따르지 않고 바로 실패로 올립니다.
+MAX_RATE_LIMIT_WAIT_SECONDS = 3.0
 
 #: 파이프라인을 더 진행하지 않고 끊는 경우와 그때 돌려줄 문구.
 BLOCKED_REPLIES: dict[str, str] = {
@@ -62,9 +84,6 @@ BLOCKED_REPLIES: dict[str, str] = {
         "말씀해 주세요."
     ),
 }
-
-#: 이전 이름. 외부에서 참조하던 코드가 깨지지 않게 남겨둡니다.
-INJECTION_REPLY = BLOCKED_REPLIES["injection"]
 
 #: 목표와 무관하다고 판단했을 때 돌려줄 고정 문구. **모델을 다시 부르지 않습니다.**
 OFF_TOPIC_REPLY = (
@@ -115,8 +134,9 @@ CLASSIFY_SCHEMA: dict = {
         # 대신 프롬프트에 사용자의 실제 칸 목록을 넣어 그 중에서 고르도록 유도합니다.
         "domain": {"type": "string", "nullable": True},
 
-        # `transcript` = 원문
-        "transcript": {"type": "string"},
+        # **발화를 되풀이하는 필드를 두지 않습니다**(모듈 주석 참고). 원문은 서버가
+        # `history` 에서 읽습니다 — 모델에게 물으면 출력 토큰을 태우고, 긴 입력에서는
+        # 상한에 걸려 결정적으로 잘립니다.
 
         # `what` 은 그 발화의 **실천 내용만 남김
         "what": {"type": "string", "nullable": True},
@@ -129,7 +149,7 @@ CLASSIFY_SCHEMA: dict = {
             "nullable": True,
         },
     },
-    "required": ["intent", "transcript"],
+    "required": ["intent"],
 }
 
 #: 3단계 스키마. `prompts/system.md` 의 <output_format> 과 같은 모양이되,
@@ -232,7 +252,8 @@ class GoalResult:
     #: UI 가 과제 카드를 그릴 때 쓰는 구조화 결과.
     #: **이미 `public_data` 를 거친 값입니다** — 그대로 내보내도 됩니다.
     data: dict | None = None
-    #: 1단계가 받아쓴 발화. 히스토리의 `(음성 메시지)` 자리를 대체합니다.
+    #: 이번 턴의 발화 원문. **모델이 돌려준 값이 아니라 서버가 히스토리에서 읽은
+    #: 값입니다** — 로그·테스트가 "무엇에 대한 판단인가" 를 확인하는 자리입니다.
     transcript: str | None = None
     #: 어느 단계까지 갔는지 (로깅·테스트용).
     stages: list[str] = field(default_factory=list)
@@ -382,13 +403,7 @@ class GoalPipeline:
     `BOT_MODE=goal` 전용입니다.
     """
 
-    def __init__(
-        self,
-        settings: Settings,
-        backend: LlmBackend,
-        *,
-        task_counts: Callable[[], dict[str, int]] | None = None,
-    ) -> None:
+    def __init__(self, settings: Settings, backend: LlmBackend) -> None:
         self._settings = settings
         self._backend = backend
         #: 단계마다 다른 모델을 쓸 수 있습니다. **필요한 능력이 다릅니다** —
@@ -409,9 +424,6 @@ class GoalPipeline:
                 settings.bot_classify_model or settings.bot_default_model,
                 settings.bot_decide_model or settings.bot_default_model,
             )
-        #: `<existing_domain_tasks>` 폴백. 우선순위는 `join` 이 실어 보낸
-        #: `subjectCount` 이고(사용자 시트의 실제 값), 그게 없을 때 이 콜백을 씁니다.
-        self._task_counts = task_counts or dict
         self._classify_prompt = SystemPrompt(
             settings,
             file=settings.bot_classify_prompt_file,
@@ -495,9 +507,10 @@ class GoalPipeline:
             ),
         )
 
+        # **원문은 서버가 정합니다.** `Conversation` 이 사용자 턴을 히스토리에 넣은 뒤
+        # 부르므로 이 값은 언제나 이번 발화입니다 — 모델에게 되풀이시킬 이유가 없습니다.
         last_user = next((t for t in reversed(history) if t.role == "user"), None)
-        last_text = (last_user.text if last_user else "") or ""
-        transcript = (classified.get("transcript") or "").strip() or last_text
+        transcript = (last_user.text if last_user else "") or ""
         intent = classified.get("intent")
         # 값을 검증하지 않습니다. **고정 집합이 없어서 무엇이 "틀린" 값인지 정의할
         # 수 없습니다.** 이 값은 후보 검색의 가점에만 쓰이므로, 모델이 엉뚱한 이름을
@@ -781,19 +794,14 @@ class GoalPipeline:
         셀 수 없으면 규칙은 근거 없는 지시일 뿐입니다. 발화마다 100토큰 넘게 쓰면서
         아무것도 막지 못합니다 — 실측으로 확인했습니다.
 
-        개수의 출처는 두 곳입니다. `join` 이 실어 보낸 `subjectCount` 가 우선이고
-        (사용자 시트의 실제 값입니다), 없으면 `GoalPipeline(task_counts=...)` 로
-        주입된 콜백을 씁니다.
+        개수는 시트에서만 옵니다 — `subjectCount` 가 우선이고 없으면 `subjects` 의
+        길이로 셉니다. 클라이언트가 둘 중 하나만 보내도 정원 규칙이 동작해야 합니다.
         """
-        # `subjectCount` 가 우선이고, 없으면 `subjects` 의 길이로 셉니다. 클라이언트가
-        # 둘 중 하나만 보내도 정원 규칙이 동작해야 합니다.
         counts = {
             d.title: d.subjectCount or len(d.subjects)
             for d in domains
             if d.title and (d.subjectCount or d.subjects)
         }
-        if not counts:
-            counts = self._task_counts()
         if not counts:
             return "(집계 없음 — 정원 규칙 미적용)"
         return f"{json.dumps(counts, ensure_ascii=False)}\n{self._capacity_rule.text()}"
@@ -842,6 +850,23 @@ class GoalPipeline:
             logger.warning(
                 "%s 단계 응답이 잘렸습니다(디코딩 붕괴로 추정) — 한 번 재시도합니다", name
             )
+            return await self._attempt(name, make_coro)
+        except LlmRateLimitedError as exc:
+            wait = exc.retry_after if exc.retry_after is not None else RATE_LIMIT_WAIT_SECONDS
+            if wait > MAX_RATE_LIMIT_WAIT_SECONDS:
+                # 길게 기다리라는 요청은 따르지 않고 바로 올립니다. 어차피
+                # `BOT_TIMEOUT_SECONDS` 가 먼저 터져 사용자는 타임아웃 문구를 보게
+                # 되는데, 그러면 "몰렸다" 는 원인이 사라집니다.
+                logger.warning(
+                    "%s 단계 429 — Retry-After %.0f초는 너무 길어 재시도하지 않습니다",
+                    name, wait,
+                )
+                raise
+            logger.warning(
+                "%s 단계 429(몰림) — %.1f초 뒤 한 번 재시도합니다%s",
+                name, wait, "" if exc.retry_after is None else " (Retry-After)",
+            )
+            await asyncio.sleep(wait)
             return await self._attempt(name, make_coro)
 
     async def _attempt(self, name: str, make_coro: Callable[[], Awaitable]):

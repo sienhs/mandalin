@@ -85,11 +85,20 @@ def main() -> None:
     print("  [OK]  DomainRef 가 Spring 모양 payload 를 파싱")
 
     # ⑥ 파이프라인을 실제로 만들 수 있는가 (LLM 호출은 하지 않습니다)
-    from agent.reuse import build_backend, get_settings
+    from agent.reuse import BACKENDS, build_backend, get_settings, normalize_provider
 
     settings = get_settings()
     GoalPipeline(settings, build_backend(settings))
-    print(f"  [OK]  GoalPipeline 생성 (BOT_PROVIDER={settings.bot_provider})")
+    # `build_backend()` 는 모르는 provider 에도 예외를 내지 않습니다(방에 들어가기 전에
+    # 죽으면 사용자에게 원인을 전할 수 없어서입니다). 그래서 오타 진단은 여기서 합니다 —
+    # 안 그러면 `BOT_PROVIDER=gemmini` 가 [OK] 로 통과합니다.
+    if normalize_provider(settings.bot_provider) not in BACKENDS:
+        print(
+            f"  [실패] 알 수 없는 BOT_PROVIDER={settings.bot_provider!r} "
+            f"(가능: {', '.join(BACKENDS)}) — 발화가 전부 실패합니다"
+        )
+    else:
+        print(f"  [OK]  GoalPipeline 생성 (BOT_PROVIDER={settings.bot_provider})")
     if settings.bot_mode != "goal":
         print(f"  [경고] BOT_MODE={settings.bot_mode} — goal 이 아니면 과제를 만들지 않습니다")
 

@@ -93,3 +93,65 @@ def test_a_configured_provider_is_ok():
     payload = json.loads(hello_payload("AI", voice=True, llm="ok"))
     assert payload["llm"] == "ok"
     assert "llmMessage" not in payload, "정상일 때 경고 문구를 실으면 노이즈입니다"
+
+
+def test_every_known_provider_has_a_status():
+    """**표를 훑습니다.** provider 문자열을 해석하는 곳이 둘(`BACKENDS` 디스패치와 이
+    알림)이면, 제공자를 추가한 날 디스패치는 맞고 알림만 조용히 틀립니다 — 사용자에게는
+    `ok` 라고 알리면서 첫 발화에서 실패하는 조합입니다. 문구가 아니라 구조를 봅니다.
+    """
+    from agent.entrypoint import llm_status
+    from agent.reuse import BACKENDS
+
+    for provider in BACKENDS:
+        assert llm_status(provider, "key") in {"ok", "echo"}, (
+            f"BACKENDS 에 {provider!r} 를 추가하고 llm_status 를 안 고쳤습니다"
+        )
+
+
+def test_a_provider_typo_is_announced_instead_of_guessed():
+    """오타를 `echo` 로 폴백하지 않습니다 — 답이 나오면 설정이 맞다고 믿게 됩니다."""
+    from agent.entrypoint import llm_status
+
+    assert llm_status("gemmini", "AIza-something") == "unknown_provider"
+    payload = json.loads(hello_payload("AI", voice=False, llm="unknown_provider"))
+    assert payload["llm"] == "unknown_provider"
+    assert "BOT_PROVIDER" in payload["llmMessage"]
+
+
+def test_surrounding_whitespace_is_not_a_typo():
+    """`.env` 에 `BOT_PROVIDER=gemini ` 처럼 공백이 붙는 경우입니다. 이것까지 설정
+    오류로 보내면 원인이 보이지 않습니다."""
+    from agent.entrypoint import llm_status
+
+    assert llm_status(" gemini ", "AIza-something") == "ok"
+    assert llm_status("ECHO", None) == "echo"
+
+
+def test_a_provider_typo_does_not_kill_the_session():
+    """**예외를 내면 이 알림 자체가 못 나갑니다.**
+
+    `build_backend()` 가 `raise` 하던 동안에는 `entrypoint()` 가 `ctx.connect()` 뒤·
+    `wait_for_participant()` 앞에서 죽어서, 브라우저는 접속은 되는데 에이전트만 안 들어오는
+    것을 봤습니다 — 사용자에게 원인을 전할 경로가 없었습니다.
+    """
+    from agent.reuse import Settings, build_backend
+
+    backend = build_backend(Settings(bot_provider="gemmini"))
+    assert backend.name == "misconfigured"
+
+
+async def test_a_misconfigured_provider_says_why_on_every_utterance():
+    """알림을 놓친 사용자에게도 원인이 닿아야 합니다.
+
+    `LlmError` 라서 `Conversation` 이 `(AI 응답 실패: …)` 로 그대로 띄웁니다 — 그 예외의
+    독스트링대로 "방에 그대로 노출해도 되는 실패" 입니다. `supports_json()` 을 통과하는
+    것도 중요합니다. 안 그러면 실패 문구가 설정 오류가 아니라 "스키마 강제 미지원" 이 됩니다.
+    """
+    import pytest
+
+    from agent.reuse import LlmError, Settings, build_backend
+
+    backend = build_backend(Settings(bot_provider="gemmini"))
+    with pytest.raises(LlmError, match="gemmini"):
+        await backend.reply_json("system", [], {})

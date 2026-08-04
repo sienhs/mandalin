@@ -1,9 +1,15 @@
 /**
- * 브라우저에서 에이전트와 텍스트로 대화합니다 — 로컬 확인용.
+ * 브라우저에서 에이전트와 대화합니다 — 로컬 확인용.
  *
  * `scripts/smoke_client.py` 가 파이썬으로 하던 일을 브라우저에서 합니다. 차이는
  * **토큰을 직접 만들지 않는다**는 것입니다 — `API_SECRET` 이 브라우저에 있으면
  * 누구나 토큰을 위조할 수 있으므로, `dev_server.py`(= 실제로는 Spring)에서 받아옵니다.
+ *
+ * ## 화면은 React 프론트에 맞춰 둡니다
+ *
+ * 레이아웃·토큰·말풍선 모양이 `frontend/src/pages/AiCoachPage.tsx` 와 같습니다.
+ * 그쪽으로 옮길 때(README "남은 일") 배선만 들고 가면 되도록, **여기서 만드는 마크업도
+ * 저쪽 클래스 구성을 따릅니다.** 다른 점은 `web/index.html` 머리 주석에 있습니다.
  *
  * ## 빌드 도구가 없습니다
  *
@@ -25,6 +31,7 @@ import { Room, RoomEvent } from 'https://cdn.jsdelivr.net/npm/livekit-client@2.2
 
 // `agent/entrypoint.py` · `agent/sheet_transfer.py` 와 **같은 문자열이어야 합니다.**
 // 한쪽만 고치면 메시지가 조용히 사라집니다 — 에러가 아니라 무응답으로 드러납니다.
+// `tests/test_topics_match.py` 가 세 곳(서버 · 이 파일 · React 훅)을 대조합니다.
 const CHAT_TOPIC = 'lk.chat'
 const GOAL_TOPIC = 'mandarin.goal'
 const SHEET_TOPIC = 'mandarin.sheet'
@@ -38,11 +45,34 @@ const HELLO_TOPIC = 'mandarin.hello'
 //: (모델에게 주는 규칙), 그리고 여기(화면 표시). 하나를 고치면 셋 다 봐야 합니다.
 const DOMAIN_CAPACITY = 8
 
+//: 만다라트의 세부 목표 정원. 진행 막대의 분모입니다.
+//:
+//: **`sheet.py` 의 `MAX_DOMAINS`(16)와 다른 값입니다.** 저쪽은 "정원이 아니라 남용
+//: 천장" 이라고 적어 둔 데이터 상한이고(프롬프트 분량 방어), 화면이 보여줄 정원은
+//: 만다라트와 같은 8 입니다. React 프론트의 `SLOTS` 와 같습니다.
+const DOMAIN_SLOTS = 8
+
+//: 도메인 8색. `frontend/src/components/common/Primitives.tsx` 의 `DOMAIN_COLORS` 와
+//: 같은 값이어야 합니다 — 만다라트 칸·마을 건물·리포트 막대가 이 배열을 공유합니다.
+const DOMAIN_COLORS = [
+  '#e8590c', '#d9480f', '#1971c2', '#0c8599',
+  '#2f9e44', '#5f3dc4', '#c2255c', '#f08c00',
+]
+const domainColor = (index) => DOMAIN_COLORS[((index % 8) + 8) % 8]
+
 const FREQUENCY_LABELS = {
   daily: '일간 · 주 7회',
   weekly: '주간 · 주 1회',
   none: '없음 · 한 번만',
 }
+
+//: 마크업에 끼워 넣는 아이콘. `index.html` 의 것과 같은 규격입니다(24 그리드, 굵기 1.8).
+//: `frontend/src/components/common/Icons.tsx` 의 `IconCoach` · `IconCheck` 입니다.
+const ICON_COACH =
+  '<svg viewBox="0 0 24 24" class="i17"><rect x="4" y="8" width="16" height="12" rx="4" />' +
+  '<path d="M12 8V4.5" /><circle cx="12" cy="3.4" r="1.3" />' +
+  '<path d="M9.3 13.2v1.6M14.7 13.2v1.6" /></svg>'
+const ICON_CHECK = '<svg viewBox="0 0 24 24" class="i16"><path d="m4.5 12.5 5 5L20 7" /></svg>'
 
 const $ = (id) => document.getElementById(id)
 const badge = $('badge')
@@ -57,25 +87,30 @@ let sheet = { domains: [] }
 let aiLabel = 'AI'
 let voiceAvailable = false
 
+//: 방금 담은 과제(`"칸 제목 과제 제목"`). 그 줄만 한 번 튀어 오르게 하고 비웁니다.
+let freshKey = ''
+
 // ── 렌더링 ────────────────────────────────────────────────────────────
+/** 연결 상태 배지. 프론트에는 없는 자리입니다(저쪽은 방에 붙지 않습니다). */
 function setStatus(text, kind) {
   badge.textContent = text
   badge.className = `badge ${kind}`
 }
 
 /**
- * 캐릭터 상태. 배지는 **연결** 상태를 말하고, 캐릭터는 **AI 가 지금 무엇을 하는지**를
- * 말합니다 — 둘을 한 곳에 합치면 "연결됨" 만 떠 있는 동안 응답을 기다리는 중인지
- * 알 수 없습니다.
+ * 캐릭터와 대화 카드의 상태 점.
+ *
+ * 배지는 **연결** 상태를 말하고 이쪽은 **AI 가 지금 무엇을 하는지**를 말합니다 — 둘을
+ * 한 곳에 합치면 "연결됨" 만 떠 있는 동안 응답을 기다리는 중인지 알 수 없습니다.
  *
  *   idle      char_3  방에 들어와 시트를 읽는 중 (아무것도 안 하는 상태)
  *   thinking  char_2  내 말을 보냈고 답을 기다리는 중
  *   answering char_1  답이 도착함
  */
 const AVATAR = {
-  idle: { src: './images/char_3.png', caption: '시트를 보고 있어요' },
-  thinking: { src: './images/char_2.png', caption: '생각하고 있어요…' },
-  answering: { src: './images/char_1.png', caption: '답을 드릴게요!' },
+  idle: { src: './images/char_3.png', state: '시트를 보고 있어요', dot: 'ready' },
+  thinking: { src: './images/char_2.png', state: '생각하고 있어요', dot: 'busy' },
+  answering: { src: './images/char_1.png', state: '답을 드렸어요', dot: 'ready' },
 }
 
 // 미리 받아 둡니다. 안 하면 상태가 처음 바뀔 때 그림이 잠깐 빕니다.
@@ -88,53 +123,130 @@ function setAvatar(state) {
   if (box.dataset.state === state) return
   box.dataset.state = state
   $('avatar-img').src = next.src
-  $('avatar-caption').textContent = next.caption
+  $('state-text').textContent = next.state
+  $('state-dot').className = `dot ${next.dot}`
+  // 생각 중에만 점 세 개를 띄웁니다 — 프론트의 `thinking` 표시와 같은 자리입니다.
+  setThinking(state === 'thinking')
+}
+
+/** 응답 대기 표시. 답(또는 실패)이 오면 지웁니다. */
+function setThinking(on) {
+  const existing = $('thinking')
+  if (!on) {
+    existing?.remove()
+    return
+  }
+  if (existing) return
+  const dots = document.createElement('div')
+  dots.className = 'thinking'
+  dots.id = 'thinking'
+  dots.setAttribute('aria-label', '응답 생성 중')
+  dots.innerHTML = '<span></span><span></span><span></span>'
+  $('log').appendChild(dots)
+  scrollLog()
+}
+
+function scrollLog() {
+  $('log').scrollTop = $('log').scrollHeight
 }
 
 function renderSheet() {
   const host = $('sheet')
   host.innerHTML = ''
-  if (!sheet.domains.length) {
-    host.innerHTML = '<p class="empty">시트가 비어 있습니다. AI 가 모든 칸을 새로 제안합니다.</p>'
+
+  const domains = sheet.domains ?? []
+  const total = domains.reduce((sum, d) => sum + (d.subjects?.length ?? d.subjectCount ?? 0), 0)
+  $('task-count').textContent = `과제 ${total}/${DOMAIN_SLOTS * DOMAIN_CAPACITY}`
+  $('task-count').className = total > 0 ? 'badge busy' : 'badge'
+  $('domain-count').textContent = `세부 목표 ${domains.length}/${DOMAIN_SLOTS}`
+  $('progress-fill').style.width = `${Math.min(100, (domains.length / DOMAIN_SLOTS) * 100)}%`
+
+  if (!domains.length) {
+    host.innerHTML =
+      '<div class="empty"><span class="mark" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" class="i24"><rect x="4" y="8" width="16" height="12" rx="4" />' +
+      '<path d="M12 8V4.5" /><circle cx="12" cy="3.4" r="1.3" />' +
+      '<path d="M9.3 13.2v1.6M14.7 13.2v1.6" /></svg></span>' +
+      '<strong>시트가 비어 있어요</strong>' +
+      '<p>AI 가 모든 칸을 새로 제안합니다. 담기를 누르면 여기에 쌓이고 중복 검사에 들어갑니다.</p></div>'
     return
   }
-  for (const domain of sheet.domains) {
+
+  domains.forEach((domain, index) => {
+    const color = domainColor(index)
+    const subjects = domain.subjects ?? []
+    const used = subjects.length || domain.subjectCount || 0
+
     const box = document.createElement('div')
-    box.className = 'domain'
-    const used = domain.subjects?.length ?? domain.subjectCount ?? 0
-    box.innerHTML = `<h3>${escapeHtml(domain.title)} <span class="count">${used}/${DOMAIN_CAPACITY}</span></h3>`
+    box.innerHTML =
+      '<div class="dom-head">' +
+      `<span class="dom-dot" style="background:${color}" aria-hidden="true"></span>` +
+      `<strong>${escapeHtml(domain.title)}</strong>` +
+      `<span class="muted nums">${used}/${DOMAIN_CAPACITY}</span></div>` +
+      `<div class="ticks" aria-hidden="true" title="${used}/${DOMAIN_CAPACITY} 칸">` +
+      Array.from({ length: DOMAIN_CAPACITY }, (_, slot) =>
+        `<span${slot < used ? ` style="background:${color}"` : ''}></span>`
+      ).join('') +
+      '</div>'
+
     const list = document.createElement('ul')
-    for (const subject of domain.subjects ?? []) {
+    list.className = 'items'
+    for (const subject of subjects) {
       const li = document.createElement('li')
+      li.className = 'item'
       // **두 이름을 다 읽습니다** — 토큰에서 온 과제는 Spring 이름(`period`)이고,
-      // `keep()` 이 방금 담은 과제는 모델 payload 의 이름(`frequency`)입니다. 위
+      // `keep()` 이 방금 담은 과제는 모델 payload 의 이름(`frequency`)입니다. 아래
       // `nextLocalSubjectId()` 가 `id ?? subjectId` 를 보는 것과 같은 이유이고,
       // 한쪽만 읽으면 빈도 칩만 조용히 사라집니다(서버도 양쪽을 받습니다 —
       // `mandarin_goal/sheet.py`).
       const freq = FREQUENCY_LABELS[subject.period ?? subject.frequency]
-      li.innerHTML = `${escapeHtml(subject.title)}${freq ? ` <em>${freq}</em>` : ''}`
+      li.innerHTML =
+        ICON_CHECK +
+        `<span class="body"><span class="title">${escapeHtml(subject.title)}</span>` +
+        (freq ? `<span class="meta">${freq}</span>` : '') +
+        '</span>'
+      if (freshKey === `${domain.title} ${subject.title}`) li.classList.add('fresh')
       list.appendChild(li)
     }
     box.appendChild(list)
     host.appendChild(box)
-  }
+  })
+
+  // 한 번만 띄웁니다. 안 비우면 시트를 다시 그릴 때마다 같은 줄이 계속 튑니다.
+  freshKey = ''
 }
 
+/**
+ * 대화 한 줄. `kind` 로 말풍선 모양이 갈립니다 —
+ *
+ *   me    오른쪽 브랜드색 말풍선
+ *   ai    왼쪽 가라앉은 말풍선 + 코치 아이콘
+ *   sys   배선 상태. **말풍선을 주지 않습니다** — 대화가 아니라 진단 정보입니다
+ *   warn  같은 자리, 브랜드색으로
+ */
 function log(who, text, kind = '') {
   const line = document.createElement('div')
-  line.className = `msg ${kind}`
-  line.innerHTML = `<span class="who">${escapeHtml(who)}</span><span class="text">${escapeHtml(text)}</span>`
+  if (kind === 'me') {
+    line.className = 'turn-me'
+    line.innerHTML = `<p>${escapeHtml(text)}</p>`
+  } else if (kind === 'ai') {
+    line.className = 'turn-ai'
+    line.innerHTML =
+      `<span class="coach-mini" aria-hidden="true">${ICON_COACH}</span><p>${escapeHtml(text)}</p>`
+  } else {
+    line.className = `turn-sys ${kind}`
+    line.innerHTML = `<b>${escapeHtml(who)}</b><span>${escapeHtml(text)}</span>`
+  }
   $('log').appendChild(line)
-  $('log').scrollTop = $('log').scrollHeight
+  scrollLog()
   return line
 }
 
 /**
- * 구조화 결과를 말풍선 아래에 붙입니다.
+ * 구조화 결과를 말풍선 아래에 붙입니다 — 프론트의 "제안 카드" 자리입니다.
  *
- * `recommend`/`generate` 일 때만 담기 버튼이 붙습니다. 자동으로 담지 않는 이유는
- * 프롬프트의 `no_autocomplete` 규칙입니다 — 추천과 초안까지만 하고 최종 확정은
- * 사용자가 합니다.
+ * `generate` 일 때만 담기 버튼이 붙습니다. 자동으로 담지 않는 이유는 프롬프트의
+ * `no_autocomplete` 규칙입니다 — 추천과 초안까지만 하고 최종 확정은 사용자가 합니다.
  */
 function renderGoal(data) {
   const box = document.createElement('div')
@@ -144,50 +256,66 @@ function renderGoal(data) {
   const task = data.generated_task ?? data.matched_task ?? null
   const domain = data.domain ?? null
 
-  const bits = [`<code>${escapeHtml(action)}</code>`]
   if (domain) {
-    bits.push(
-      data.domain_is_new
-        ? `새로 <b>${escapeHtml(domain)}</b> 칸을 만들어 담습니다`
-        : `<b>${escapeHtml(domain)}</b> 칸에 담습니다`
-    )
+    const label = document.createElement('p')
+    label.className = 'goal-label'
+    label.textContent = data.domain_is_new
+      ? `새 세부 목표 “${domain}” 에 담을 과제`
+      : `세부 목표 “${domain}” 에 담을 과제`
+    box.appendChild(label)
   }
-  box.innerHTML = `<div class="goal-head">${bits.join(' · ')}</div>`
 
   if (task?.title) {
     const freq = FREQUENCY_LABELS[task.frequency]
-    const row = document.createElement('div')
-    row.className = 'goal-task'
-    row.innerHTML = `<span>${escapeHtml(task.title)}</span>${freq ? `<em>${freq}</em>` : ''}`
-    box.appendChild(row)
-  }
+    const card = document.createElement('div')
+    card.className = 'sug'
+    card.innerHTML =
+      '<div class="sug-top">' +
+      `<strong>${escapeHtml(task.title)}</strong>` +
+      (freq ? `<span class="badge">${freq}</span>` : '') +
+      '</div>'
 
-  // **`generate` 만 담습니다.** 서버의 `_STORABLE_ACTIONS = ("generate",)` 와 같은
-  // 조건입니다. `recommend` 는 "이미 시트에 있는 과제" 를 지목한 것이라 담으면 중복이
-  // 됩니다 — 실제로 그렇게 시트가 3개에서 4개로 늘었습니다.
-  if (action === 'generate' && domain) {
+    // 근거 자리입니다. 모델의 `reasoning` 은 사용자에게 나가지 않으므로(`public_data`)
+    // 여기에는 **서버가 무엇을 하려는지**를 적습니다.
+    const why = document.createElement('p')
+    why.className = 'sug-why'
+    why.textContent =
+      action === 'generate'
+        ? data.domain_is_new
+          ? '새로 만든 초안입니다. 담으면 이 칸이 시트에 생깁니다.'
+          : '새로 만든 초안입니다. 담으면 다음 턴 중복 검사에 들어갑니다.'
+        : '이미 시트에 있는 과제를 지목한 것입니다 — 새로 담지 않습니다.'
+    card.appendChild(why)
+
+    // **`generate` 만 담습니다.** 서버의 `_STORABLE_ACTIONS = ("generate",)` 와 같은
+    // 조건입니다. `recommend` 는 "이미 시트에 있는 과제" 를 지목한 것이라 담으면 중복이
+    // 됩니다 — 실제로 그렇게 시트가 3개에서 4개로 늘었습니다.
     const btn = document.createElement('button')
     btn.type = 'button'
-    btn.className = 'keep'
-    btn.textContent = `담기 → ${domain}${data.domain_is_new ? ' (새 칸)' : ''}`
-    btn.addEventListener('click', () => keep(data, btn))
-    box.appendChild(btn)
-  } else if (action === 'recommend') {
-    // 담을 것이 없다는 것을 알려줘야 합니다. 버튼만 없으면 사용자는 "왜 담기가
-    // 안 나오지" 로 읽습니다.
-    const note = document.createElement('div')
-    note.className = 'goal-note'
-    note.textContent = '이미 담아둔 과제예요 — 새로 담지 않습니다.'
-    box.appendChild(note)
+    if (action === 'generate' && domain) {
+      btn.className = 'btn btn-secondary btn-sm'
+      btn.textContent = `담기${data.domain_is_new ? ' (새 칸)' : ''}`
+      btn.addEventListener('click', () => keep(data, btn))
+    } else {
+      // 담을 것이 없다는 것을 알려줘야 합니다. 버튼만 없으면 사용자는 "왜 담기가
+      // 안 나오지" 로 읽습니다.
+      btn.className = 'btn btn-quiet btn-sm'
+      btn.textContent = '이미 담아둔 과제예요'
+      btn.disabled = true
+    }
+    card.appendChild(btn)
+    box.appendChild(card)
   }
 
   // 원본도 접어서 보여줍니다. 배선을 확인하는 화면이라 payload 를 볼 수 있어야 합니다.
   const raw = document.createElement('details')
-  raw.innerHTML = `<summary>payload</summary><pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`
+  raw.innerHTML =
+    `<summary>payload · action=${escapeHtml(action)}</summary>` +
+    `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`
   box.appendChild(raw)
 
   $('log').appendChild(box)
-  $('log').scrollTop = $('log').scrollHeight
+  scrollLog()
 
   if ('reasoning' in data) {
     // 여기 오면 서버가 `public_data()` 를 건너뛴 것입니다.
@@ -240,7 +368,11 @@ async function keep(data, btn) {
   domain.subjectCount = domain.subjects.length
 
   btn.disabled = true
-  btn.textContent = '담았습니다'
+  btn.className = 'btn btn-quiet btn-sm'
+  btn.textContent = '담았어요'
+  // 방금 담은 줄을 한 번 띄워 **어디에 들어갔는지** 보여줍니다. 렌더가 그 줄을 알아야
+  // 해서 키로 넘깁니다 — DOM 을 다시 뒤져 찾으면 목록 순서에 기대는 코드가 됩니다.
+  freshKey = `${domain.title} ${title}`
   renderSheet()
   log('시스템', `"${title}" 을 ${domain.title} 칸에 담았습니다`, 'sys')
 
@@ -282,12 +414,16 @@ async function connect() {
     voiceAvailable = !!hello.voice
     aiLabel = hello.mode ? `${hello.name} · ${hello.mode}` : hello.name || 'AI'
     $('mic').disabled = !voiceAvailable
+    if (hello.mode) $('mode-badge').textContent = hello.mode
 
     // LLM 이 못 쓰는 상태면 **먼저** 알립니다. 발화를 던지고 실패를 기다리게 두면
     // 사용자는 자기 말이 문제인 줄 압니다. 음성과 달리 LLM 은 선택 기능이 아닙니다.
     if (hello.llmMessage) {
       log('시스템', hello.llmMessage, 'warn')
-      setStatus(hello.llm === 'missing_key' ? 'AI 사용 불가' : '데모 백엔드', 'off')
+      // **아는 데모 하나만 데모로 부르고 나머지는 사용 불가로 둡니다.** `missing_key` 만
+      // 특별 취급하면 서버가 상태를 하나 더 늘린 날(`unknown_provider`) 쓸 수 없는 상태가
+      // "데모 백엔드" 로 표시됩니다 — 관리자에게 알려야 할 일이 정상처럼 읽힙니다.
+      setStatus(hello.llm === 'echo' ? '데모 백엔드' : 'AI 사용 불가', 'off')
     }
     if (voiceAvailable) {
       $('mic').title = '누르면 10초간 듣습니다'
@@ -296,7 +432,7 @@ async function connect() {
       // 이유를 화면에 남깁니다. 서버 로그에만 있으면 사용자는 버튼이 왜 안 되는지
       // 알 수 없습니다.
       $('mic').title = '서버에 음성이 꺼져 있습니다 (DEEPGRAM_API_KEY 없음)'
-      setMicLabel('🎤 음성 꺼짐', false)
+      setMicLabel('음성 꺼짐', false)
       log('시스템', `${aiLabel} 준비됨 — 음성이 꺼져 있어 텍스트로만 대화합니다`, 'sys')
     }
   })
@@ -321,7 +457,7 @@ async function connect() {
     // mute 를 토글해도 에이전트에 이벤트가 안 닿으면 아무 일도 일어나지 않는데, 그
     // 상태를 화면에서 알 방법이 없어 버그가 여러 라운드 숨었습니다.
     if ('listening' in payload) {
-      setStatus(payload.listening ? '에이전트가 듣고 있음' : '에이전트 연결됨', 'on')
+      setStatus(payload.listening ? '듣고 있음' : '에이전트 연결됨', 'on')
       return
     }
     if (payload.final) {
@@ -342,20 +478,26 @@ async function connect() {
     }
   })
 
+  // **원격 참가자는 에이전트뿐이라고 봅니다.** 방은 사용자 1명 + 에이전트 1개이고
+  // (백엔드가 방을 사용자마다 나눕니다 — `agent/entrypoint.py` 모듈 주석) 서버가 이
+  // 방에 넣는 다른 참가자는 없습니다. `p.kind` 를 보지 않으므로, 사람이 둘일 수 있는
+  // 설계로 바뀌면 여기와 아래 `remoteParticipants.size` 판정을 같이 고쳐야 합니다.
   room.on(RoomEvent.ParticipantConnected, (p) => {
     log('시스템', `참가자 입장: ${p.identity}`, 'sys')
     setStatus('에이전트 연결됨', 'on')
   })
   room.on(RoomEvent.Disconnected, () => {
     setStatus('연결 끊김', 'off')
-    $('input').disabled = $('send').disabled = $('mic').disabled = true
+    setComposerEnabled(false)
+    $('mic').disabled = true
     $('connect').disabled = false
     showCaption('')
     // 타이머를 안 지우면 끊긴 뒤에도 자동 종료가 돌아 `room` 이 null 인 채로 부릅니다.
     clearTalkTimers()
-    setMicLabel('🎤 말하기', false)
+    setMicLabel('말하기', false)
     // 끊긴 뒤에 "생각 중" 으로 굳어 있으면 오지 않을 답을 기다리게 됩니다.
     setAvatar('idle')
+    setThinking(false)
     // 재접속하면 hello 를 다시 받습니다. 그때까지 음성은 없는 것으로 둡니다.
     voiceAvailable = false
   })
@@ -377,8 +519,14 @@ async function connect() {
   if (room.remoteParticipants.size > 0) setStatus('에이전트 연결됨', 'on')
 
   // 마이크는 `mandarin.hello` 가 음성 가능이라고 알려줄 때까지 잠겨 있습니다.
-  $('input').disabled = $('send').disabled = false
+  setComposerEnabled(true)
   $('input').focus()
+}
+
+/** 입력·보내기·빠른 문장을 한꺼번에 잠그고 엽니다. */
+function setComposerEnabled(on) {
+  $('input').disabled = $('send').disabled = !on
+  for (const chip of $('chips').children) chip.disabled = !on
 }
 
 /** 진행 중인 전사문. 빈 문자열이면 감춥니다. */
@@ -416,7 +564,7 @@ let countdownTimer = null
 let talkStartedAt = 0
 
 function setMicLabel(text, active) {
-  $('mic').textContent = text
+  $('mic-label').textContent = text
   $('mic').classList.toggle('active', !!active)
 }
 
@@ -442,12 +590,12 @@ async function startTalking() {
   talkStartedAt = Date.now()
   // 여기서 "말하세요" 라고 해도 거짓이 아닙니다 — Deepgram 연결이 열리기 전에 말해도
   // 프레임은 무제한 채널에 쌓여 있다가 전송됩니다. 전사가 0.7초쯤 늦게 올 뿐입니다.
-  setMicLabel('🎤 듣는 중 10s', true)
+  setMicLabel('듣는 중 10s', true)
   log('시스템', '말하세요 (10초 후 자동으로 멈춥니다)', 'sys')
 
   countdownTimer = setInterval(() => {
     const left = Math.ceil((TALK_WINDOW_MS - (Date.now() - talkStartedAt)) / 1000)
-    if (left > 0) setMicLabel(`🎤 듣는 중 ${left}s`, true)
+    if (left > 0) setMicLabel(`듣는 중 ${left}s`, true)
   }, 250)
 
   talkTimer = setTimeout(() => void stopTalking('시간 종료'), TALK_WINDOW_MS)
@@ -462,7 +610,7 @@ async function stopTalking(reason) {
     log('시스템', `마이크를 끄지 못했습니다: ${err.message}`, 'warn')
   }
   $('mic').disabled = false
-  setMicLabel('🎤 말하기', false)
+  setMicLabel('말하기', false)
   showCaption('')
   log('시스템', `듣기를 멈췄습니다 (${reason})`, 'sys')
 }
@@ -482,18 +630,30 @@ async function toggleTalk() {
   await stopTalking('직접 멈춤')
 }
 
+/** 텍스트 한 줄을 보냅니다. 입력창과 빠른 문장 칩이 같이 씁니다. */
+async function send(text) {
+  const value = text.trim()
+  if (!value || !room) return
+  log('나', value, 'me')
+  setAvatar('thinking')
+  await room.localParticipant.sendText(value, { topic: CHAT_TOPIC })
+}
+
 $('connect').addEventListener('click', () => void connect())
 $('mic').addEventListener('click', () => void toggleTalk())
 
-$('composer').addEventListener('submit', async (event) => {
+$('composer').addEventListener('submit', (event) => {
   event.preventDefault()
-  const text = $('input').value.trim()
-  if (!text || !room) return
+  const text = $('input').value
   $('input').value = ''
-  log('나', text, 'me')
-  setAvatar('thinking')
-  await room.localParticipant.sendText(text, { topic: CHAT_TOPIC })
+  void send(text)
 })
+
+// 빠른 문장. 프론트의 quick 칩과 같은 자리입니다 — 여기서는 시트 fixture 에 맞춰
+// 중복(recommend) 과 신규(generate) 를 둘 다 밟도록 골라 두었습니다.
+for (const chip of $('chips').children) {
+  chip.addEventListener('click', () => void send(chip.textContent))
+}
 
 function escapeHtml(value) {
   // `&` 를 먼저 바꿔야 합니다. 나중에 바꾸면 앞서 만든 `&lt;` 가 이중 이스케이프됩니다
@@ -505,3 +665,4 @@ function escapeHtml(value) {
 }
 
 renderSheet()
+setComposerEnabled(false)

@@ -14,7 +14,14 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from agent.reuse import DomainRef, GoalPipeline, GoalResult, LlmError, Turn
+from agent.reuse import (
+    DomainRef,
+    GoalPipeline,
+    GoalResult,
+    LlmError,
+    LlmRateLimitedError,
+    Turn,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +39,11 @@ FAILURE_NOTE = "(응답 실패)"
 #: 사용자는 AI 가 죽었는지 생각 중인지 알 수 없습니다.
 FAILURE_REPLY = "지금 답을 만들지 못했어요. 다시 말씀해 주시겠어요?"
 TIMEOUT_REPLY = "응답이 늦어져서 취소했어요. 다시 말씀해 주세요."
+
+#: 429(혼잡) 전용 문구. **원문을 보여주지 않는 유일한 `LlmError` 갈래입니다** —
+#: 다른 실패는 원인이 키·할당량·설정이라 사용자나 관리자가 볼 값이 있지만, 혼잡은
+#: 할 수 있는 일이 기다리는 것뿐입니다.
+BUSY_REPLY = "지금 요청이 몰려 있어요. 잠시 후에 다시 말씀해 주세요."
 
 #: LLM 실패는 **원인을 그대로 보여줍니다.**
 #:
@@ -57,12 +69,10 @@ class Conversation:
         pipeline: GoalPipeline,
         *,
         timeout_seconds: float,
-        speaker: str = "",
         history_turns: int = DEFAULT_HISTORY_TURNS,
     ) -> None:
         self._pipeline = pipeline
         self._timeout = timeout_seconds
-        self._speaker = speaker
         self._history_turns = max(1, history_turns)
         self._history: list[Turn] = []
         self._domains: list[DomainRef] = []
@@ -93,7 +103,7 @@ class Conversation:
             return "", None
 
         async with self._lock:
-            self._append(Turn(role="user", text=text, speaker=self._speaker))
+            self._append(Turn(role="user", text=text))
             try:
                 result = await asyncio.wait_for(
                     self._pipeline.run(list(self._history), self._domains),
@@ -103,12 +113,24 @@ class Conversation:
                 logger.warning("파이프라인 타임아웃 (%.1fs)", self._timeout)
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return TIMEOUT_REPLY, None
+            except LlmRateLimitedError:
+                # **원문을 보여주지 않습니다.** 429 는 사용자가 할 수 있는 일이
+                # 하나뿐이고(잠시 후 다시), 서버 JSON 을 보여줘도 도움이 안 됩니다.
+                # 다른 `LlmError` 와 달리 원인이 사용자 쪽도 서버 설정 쪽도 아니라
+                # **일시적 혼잡**이라 문구를 따로 둡니다. 파이프라인이 이미 한 번
+                # 재시도한 뒤라(`_step`) 여기까지 왔으면 진짜로 붐비는 상태입니다.
+                logger.warning("LLM 혼잡(429) — 재시도 후에도 실패")
+                self._append(Turn(role="assistant", text=FAILURE_NOTE))
+                return BUSY_REPLY, None
             except LlmError as exc:
                 # 원인을 그대로 보여줍니다(위 `LLM_FAILURE_PREFIX` 주석).
                 logger.warning("LLM 실패: %s", exc)
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return f"({LLM_FAILURE_PREFIX}: {exc})", None
-            except Exception:  # noqa: BLE001 - 봇 오류가 세션을 끊으면 안 됩니다
+            # 봇 오류가 세션을 끊으면 안 됩니다. 광범위 except 인데 `BLE001` 이 안 걸리는
+            # 이유는 아래에서 `logger.exception` 으로 트레이스백을 남기기 때문입니다 —
+            # ruff 가 그 경우를 면제합니다. 로깅을 지우면 규칙이 살아납니다.
+            except Exception:
                 logger.exception("파이프라인 실패")
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return FAILURE_REPLY, None

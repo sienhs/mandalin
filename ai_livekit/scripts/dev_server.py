@@ -129,11 +129,27 @@ def reset_room(room: str) -> None:
 
 
 class Handler(SimpleHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802 - stdlib 규약
+    def do_GET(self) -> None:  # stdlib 규약이라 이름이 camelCase 입니다
         if urlparse(self.path).path == "/api/token":
             self._serve_token()
             return
         super().do_GET()
+
+    def end_headers(self) -> None:
+        """**모든 응답에 캐시 금지를 붙입니다** — 정적 파일까지 포함해서.
+
+        `SimpleHTTPRequestHandler` 는 `Last-Modified` 만 보내고 `Cache-Control` 을 붙이지
+        않습니다. 그러면 브라우저가 **휴리스틱 캐싱**을 합니다 — Chrome 은 "마지막 수정
+        이후 경과 시간의 10%" 를 신선도로 잡으므로, 며칠 전에 만든 파일은 한 번 받아가면
+        몇 시간 동안 서버에 다시 묻지 않습니다.
+
+        `web/` 를 고칠 때 이게 고약합니다. `index.html` 만 새로 받고 `style.css` 와
+        `app.js` 는 캐시에서 나오면 **새 마크업에 옛 선택자가 붙어 화면이 통째로
+        깨집니다** — CSS 가 깨진 것처럼 보이지만 파일은 멀쩡합니다. 실제로 한 번
+        헤맸습니다. 개발용 서버라 캐시로 얻을 것이 없으니 전부 끕니다.
+        """
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
 
     def _serve_token(self) -> None:
         query = parse_qs(urlparse(self.path).query)
@@ -154,8 +170,12 @@ class Handler(SimpleHTTPRequestHandler):
         token = (
             api.AccessToken(key, secret)
             .with_identity(identity)
-            # 표시 이름은 **서버가 정합니다.** 채팅과 LLM 프롬프트에 들어가는 값이라
-            # 사용자가 정하면 가짜 발화자를 만들 수 있습니다(`_safe_speaker` 가 2차 방어).
+            # 표시 이름. **실서비스에서는 Spring 이 DB 값을 넣습니다** — 여기서는 대역이라
+            # `?name=` 으로 받습니다(이 파일에는 인증이 없으므로 어차피 신뢰 경계가 없습니다).
+            #
+            # **프롬프트로는 가지 않습니다.** 예전에는 화자 라벨로 LLM 입력에 실렸고 그래서
+            # 무해화가 필요했는데, 방에 사람이 1명이라 `Turn` 에서 뺐습니다(그 docstring 참고).
+            # 지금 이 값이 닿는 곳은 worker 의 입장 로그뿐입니다.
             .with_name(name)
             # 시트를 여기 싣습니다. 브라우저가 보내는 게 아니라 **토큰에 박혀서** 갑니다.
             .with_metadata(json.dumps(sheet, ensure_ascii=False))
@@ -170,8 +190,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        # 캐시되면 시트를 고쳐도 옛 토큰이 재사용됩니다.
-        self.send_header("Cache-Control", "no-store")
+        # `Cache-Control: no-store` 는 `end_headers()` 가 붙입니다 — 여기서 또 넣으면
+        # 헤더가 두 줄이 됩니다. 캐시되면 시트를 고쳐도 옛 토큰이 재사용됩니다.
         self.end_headers()
         self.wfile.write(body)
         logger.info(

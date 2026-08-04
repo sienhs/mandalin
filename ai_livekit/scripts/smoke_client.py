@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -109,6 +109,10 @@ async def main(utterance: str, timeout: float) -> int:
     await room.connect(url, token)
     print(f"  접속 완료. 기존 참가자: {list(room.remote_participants)}")
 
+    # **원격 참가자가 있으면 에이전트로 간주합니다** — 방에 사람은 나 하나뿐이라는
+    # 전제입니다(`agent/entrypoint.py` 모듈 주석). `kind` 를 보지 않으므로, 브라우저 탭이
+    # 같은 방에 붙어 있으면 worker 가 죽어 있어도 이 스모크는 통과합니다. 로컬은 방
+    # 이름이 `dev-room` 하나라 실제로 겹칩니다 — 실패를 의심할 때 탭을 먼저 닫으세요.
     if room.remote_participants:
         agent_joined.set()
 

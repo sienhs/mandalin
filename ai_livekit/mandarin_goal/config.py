@@ -41,8 +41,7 @@ class Settings(BaseSettings):
     # 일부 게이트웨이는 헤더 대신 ?key= 를 요구합니다. 켜면 헤더와 함께 보냅니다.
     bot_api_key_in_query: bool = False
     # 환경변수로 프롬프트를 통째로 덮어쓰는 층. **기본값이 비어 있습니다** —
-    # 정본은 `prompts/` 의 파일이고, 여기 문자열을 두면 같은 말을 하는 곳이 둘이
-    # 됩니다(chat 모드 페르소나는 `prompts/chat.md` 로 옮겼습니다).
+    # 정본은 `prompts/` 의 파일이고, 여기 문자열을 두면 같은 말을 하는 곳이 둘이 됩니다.
     # 우선순위는 파일 > 이 값 > `bot/prompt.py` 의 EMERGENCY 입니다.
     bot_system_prompt: str = ""
     # 프롬프트는 코드가 아니라 콘텐츠라 파일로 둡니다. 여러 줄로 길게 쓸 수 있고,
@@ -57,12 +56,13 @@ class Settings(BaseSettings):
     bot_system_prompt_max_chars: int = 8000
 
     # --- 목표 설계 파이프라인 -------------------------------------------------
-    # chat : 프롬프트 하나로 한 번 호출 (기존 동작)
     # goal : 분류 -> 후보 검색 -> 판단. gemini 처럼 스키마 강제가 되는 백엔드 전용
     #
-    # **`chat` 이면 과제를 만들지 않습니다.** `ai_livekit` 은 goal 경로만 배선돼
-    # 있어서 `agent/entrypoint.py` 가 기동 시 경고를 남깁니다.
-    bot_mode: str = "chat"
+    # **`ai_livekit` 에는 goal 경로만 배선돼 있습니다.** 다른 값을 넣어도 파이프라인은
+    # 그대로 돌고 `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 경고만 남깁니다 —
+    # 이 값이 실제로 무언가를 가르는 자리는 없습니다(chat 페르소나는 프롬프트째로
+    # 지웠습니다). 남겨둔 것은 `.env` 와 README 가 가리키고 있어서입니다.
+    bot_mode: str = "goal"
     bot_classify_prompt_file: str = "./prompts/classify.md"
     # 프롬프트에 넣을 중복 후보 개수. 후보는 클라이언트(Spring 이 서명한 토큰의
     # metadata)가 실어 보낸 **사용자 시트의 과제**입니다 — 서버가 예시 목록을 들고
@@ -102,6 +102,23 @@ class Settings(BaseSettings):
     bot_cache_size: int = 0
 
     bot_history_turns: int = 12
+
+    #: worker 하나가 동시에 맡을 방 수의 상한. 0 이면 무제한(CPU 기준만).
+    #:
+    #: **이것이 LLM 게이트웨이 동시 요청을 막는 유일한 지점입니다.** 방 하나는 LLM
+    #: 호출을 **동시에 하나만** 냅니다 — `Conversation` 이 생성 중 발화를 버리고
+    #: (락), 파이프라인이 분류->판단을 순차로 부르기 때문입니다. 그래서
+    #:
+    #:     동시 게이트웨이 요청 <= 동시 방 수 <= 이 값
+    #:
+    #: 이 등식이 성립합니다. 프로세스 안에 세마포어를 두는 방법은 듣지 않습니다 —
+    #: job 이 **프로세스마다 하나**라(리눅스 forkserver) 프로세스 내 상한은 이미 1인
+    #: 값을 다시 1로 묶는 것뿐입니다.
+    #:
+    #: 값은 게이트웨이의 rate limit 을 알아야 정할 수 있습니다. 모르는 동안 0(무제한)
+    #: 으로 두는 편이 낫습니다 — 임의로 조이면 쓸 수 있는 용량을 스스로 버립니다.
+    bot_max_concurrent_rooms: int = 0
+
     bot_timeout_seconds: float = 20.0
     bot_max_output_tokens: int = 512
     # 반복 억제(Gemini 2.x). 0 이면 요청에 넣지 않습니다.

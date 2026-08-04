@@ -1,9 +1,12 @@
 """오디오 트랙 → 텍스트. Deepgram 스트리밍 STT.
 
-푸시투토크 버튼이 없으므로 **"언제 말이 끝났는가" 를 정할 장치가 필요합니다.**
-Deepgram 은 스트리밍이라 그 판단을 자기가 합니다(`endpointing_ms`)
-— 그래서 silero VAD 를 따로 붙이지 않습니다. 배치 STT(Whisper 계열)를 골랐다면 VAD 가
-필수였을 자리입니다.
+**"언제 말이 끝났는가" 는 Deepgram 이 정합니다** — 스트리밍이라 그 판단을 자기가
+합니다(`endpointing_ms`). 그래서 silero VAD 를 따로 붙이지 않습니다. 배치
+STT(Whisper 계열)를 골랐다면 VAD 가 필수였을 자리입니다.
+
+푸시투토크(`web/app.js` 의 10초 창)와 **다른 층입니다.** 창은 *듣는 구간*을 정해 침묵
+과금을 막고, 발화 경계는 그 안에서 Deepgram 이 나눕니다 — 창 하나에 문장이 둘이면
+FINAL 도 두 번 옵니다. 창이 생겼다고 이 파일이 할 일이 줄지 않습니다.
 
 ```
 오디오 트랙 ─rtc.AudioStream─▶ push_frame ─▶ Deepgram ─▶ SpeechEvent
@@ -29,8 +32,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import suppress
+from typing import Any
 
 from livekit import rtc
 from livekit.agents import stt as stt_api
@@ -59,7 +63,9 @@ logger = logging.getLogger("mandarin.listen")
 try:
     from livekit.plugins import deepgram
 except ImportError:  # pragma: no cover - 플러그인 미설치 환경
-    deepgram = None
+    # 타입 검사기에게는 모듈 자리에 `None` 을 넣는 것이라 알려 둡니다. 아래 코드는
+    # `deepgram is None` 으로 갈라지므로 런타임 계약은 이것이 맞습니다.
+    deepgram = None  # type: ignore[assignment]
 
 #: Deepgram 에 넘길 언어. **`multi` 로 두지 마세요 — 한국어가 그 목록에 없습니다.**
 #:
@@ -142,14 +148,21 @@ class TranscriptionRegistry:
     """
 
     def __init__(self) -> None:
-        self._tasks: dict[str, asyncio.Task] = {}
+        self._tasks: dict[str, asyncio.Task[None]] = {}
 
     @property
     def tracked(self) -> list[str]:
         return list(self._tasks)
 
-    def start(self, sid: str, make_coro: Callable[[], Awaitable[None]]) -> bool:
-        """전사를 시작합니다. **이미 돌고 있으면 `False`** (중복 시작 방지)."""
+    def start(self, sid: str, make_coro: Callable[[], Coroutine[Any, Any, None]]) -> bool:
+        """전사를 시작합니다. **이미 돌고 있으면 `False`** (중복 시작 방지).
+
+        **`Awaitable` 이 아니라 `Coroutine` 을 받습니다.** `asyncio.create_task` 는
+        코루틴만 받는데 `Awaitable` 은 Future 나 커스텀 awaitable 도 포함해서, 타입
+        검사를 통과하는 값이 런타임 `TypeError` 로 떨어집니다. 지금 호출부
+        (`entrypoint.py` 의 `lambda: listener.run(track)`)는 코루틴이라 좁혀도
+        잃는 것이 없습니다.
+        """
         if sid in self._tasks:
             return False
         task = asyncio.create_task(make_coro())
@@ -159,7 +172,7 @@ class TranscriptionRegistry:
         task.add_done_callback(lambda finished: self._forget(sid, finished))
         return True
 
-    def _forget(self, sid: str, finished: asyncio.Task) -> None:
+    def _forget(self, sid: str, finished: asyncio.Task[None]) -> None:
         if self._tasks.get(sid) is finished:
             del self._tasks[sid]
 
@@ -191,8 +204,13 @@ class TranscriptionRegistry:
 class TrackListener:
     """오디오 트랙 하나를 받아 전사문을 콜백으로 흘려보냅니다.
 
-    트랙마다 인스턴스 하나이고, 스트림은 발화가 끝나도 계속 살아 있습니다 —
-    Deepgram 이 발화 경계를 알아서 나눕니다.
+    **인스턴스는 상태를 들고 있지 않습니다.** 스트림도 오디오도 `run()` 안에서 만들고
+    닫으므로 인스턴스 하나로 트랙 여러 개를 돌려도 됩니다 — `entrypoint.py` 가 실제로
+    하나를 만들어 재사용합니다. 이 방에는 사용자 마이크 트랙 하나뿐이라 지금은 겹칠
+    일이 없지만, 그 사실에 기대고 있는 코드는 없습니다.
+
+    스트림은 발화가 끝나도 계속 살아 있습니다 — Deepgram 이 발화 경계를 알아서
+    나눕니다. 닫히는 것은 mute(취소)와 job 종료 때뿐입니다.
     """
 
     def __init__(

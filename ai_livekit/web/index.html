@@ -1,62 +1,128 @@
 <!doctype html>
+<!--
+  로컬 확인용 화면. **레이아웃과 토큰을 React 프론트의 AI 코치 화면에 맞춰 둡니다**
+  (`frontend/src/pages/AiCoachPage.tsx`). 나중에 그쪽으로 옮길 때 두 파일을 나란히 놓고
+  비교할 수 있어야 하고, 지금도 "실제 화면에서 이렇게 보인다" 를 확인할 수 있어야 합니다.
+
+  다른 점은 셋뿐이고 전부 의도한 것입니다 —
+
+    ① 연결 버튼과 상태 배지가 있습니다. 저쪽은 규칙 기반 목업이라 방에 붙지 않습니다
+    ② 오른쪽 패널이 "담은 과제 -> 만다라트" 가 아니라 **내 시트**입니다. 이 화면의 목적은
+       AI 가 중복 판단에 쓰는 목록을 눈으로 확인하는 것입니다(과제 삭제·편집기 인계는
+       README "남은 일")
+    ③ 대화 카드에 캐릭터 그림이 섭니다. 진단용 화면이라 "지금 무엇을 하는 중인지" 가
+       보여야 하고, 프론트에도 같은 자리가 있습니다(`styles/ai-coach.css` 의
+       `.ai-coach-figure` — 말풍선 바로 위)
+
+  **id 를 지우거나 바꾸지 마세요.** `app.js` 가 `$('...')` 로 찾습니다.
+-->
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ai_livekit — 로컬 확인</title>
+  <title>AI 코치 — ai_livekit 로컬 확인</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <header>
-    <h1>ai_livekit <span class="sub">로컬 확인용</span></h1>
-    <div class="status">
-      <span id="badge" class="badge off">연결 안 됨</span>
-      <button id="connect" type="button">연결하기</button>
-    </div>
-  </header>
-
-  <main>
-    <!-- 왼쪽: 시트. 토큰의 participant metadata 로 들어간 값을 그대로 보여줍니다.
-         AI 가 중복 검사에 쓰는 목록이 무엇인지 눈으로 확인하려는 것입니다. -->
-    <section class="panel" id="sheet-panel">
-      <h2>내 시트 <span class="hint">토큰 metadata</span></h2>
-      <div id="sheet"></div>
-      <p class="note">
-        담기를 누르면 이 목록에 추가되고 <code>mandarin.sheet</code> 토픽으로
-        에이전트에 통째로 다시 보냅니다.
-      </p>
-    </section>
-
-    <!-- 가운데: 캐릭터. 상태를 그림 하나로 알려줍니다 —
-         입장 = char_3(읽는 중) · 생각 중 = char_2(턱 괴기) · 응답 = char_1(손가락 들기).
-         `app.js` 의 `setAvatar()` 가 `data-state` 를 바꾸면 그림이 따라갑니다. -->
-    <section class="panel" id="avatar-panel">
-      <div id="avatar" data-state="idle">
-        <img id="avatar-img" src="./images/char_3.png" alt="" />
+  <div class="shell">
+    <!-- 프론트의 page-title / page-caption 과 같은 자리입니다. -->
+    <header class="page-head">
+      <div>
+        <h1 class="page-title">AI 코치</h1>
+        <p class="page-caption">대화로 과제를 모으고, 시트에 담아 중복을 확인합니다.</p>
       </div>
-      <p class="avatar-caption" id="avatar-caption">시트를 보고 있어요</p>
-    </section>
+      <div class="page-actions">
+        <span id="badge" class="badge">연결 안 됨</span>
+        <button id="connect" class="btn btn-primary" type="button">연결하기</button>
+      </div>
+    </header>
 
-    <!-- 오른쪽: 대화 -->
-    <section class="panel" id="chat-panel">
-      <h2>대화 <span class="hint">lk.chat</span></h2>
-      <div id="log"></div>
-      <!-- 진행 중인 전사문. 최종 전사가 오면 대화 로그로 옮겨가고 여기는 비워집니다.
-           "지워질 글자" 와 "로그에 남을 글자" 를 갈라 두어야 사용자가 헷갈리지 않습니다. -->
-      <div id="caption" hidden></div>
-      <form id="composer">
-        <button id="mic" type="button" disabled title="누르면 10초간 듣습니다">🎤 말하기</button>
-        <input id="input" type="text" autocomplete="off"
-               placeholder="예) 매일 알고리즘 문제 풀고 싶어" disabled />
-        <button id="send" type="submit" disabled>보내기</button>
-      </form>
-      <p class="note" id="mic-note">
-        <b>말하기</b>를 누르면 10초간 듣고 자동으로 멈춥니다. 다 말했으면 한 번 더 눌러
-        바로 끄세요 — <b>켜 둔 시간만큼 STT 가 과금됩니다.</b>
-        응답은 텍스트로 옵니다 — 음성 출력은 만들지 않습니다.
-      </p>
-    </section>
-  </main>
+    <div class="grid">
+      <!-- ───────── 대화 ───────── -->
+      <section class="card chat">
+        <div class="chat-head">
+          <span class="coach-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="i22"><rect x="4" y="8" width="16" height="12" rx="4" /><path d="M12 8V4.5" /><circle cx="12" cy="3.4" r="1.3" /><path d="M9.3 13.2v1.6M14.7 13.2v1.6" /></svg>
+          </span>
+          <div class="chat-who">
+            <strong>만다린 코치</strong>
+            <!-- 상태를 글자로만 쓰면 "대기 중" 이 늘 붙어 있어 아무 정보도 주지 않습니다.
+                 점 색으로 두면 흘깃 봐도 지금 답하는 중인지 알 수 있습니다(프론트와 같은 판단). -->
+            <span class="chat-state muted" id="chat-state">
+              <span class="dot" id="state-dot" aria-hidden="true"></span>
+              <span id="state-text">연결 전</span>
+            </span>
+          </div>
+          <span class="badge" id="mode-badge">lk.chat</span>
+        </div>
+
+        <!-- 캐릭터. `app.js` 의 `setAvatar()` 가 `data-state` 를 바꾸면 그림이 따라갑니다 —
+             입장 = char_3(읽는 중) · 생각 중 = char_2(턱 괴기) · 응답 = char_1(손가락 들기). -->
+        <div class="coach-figure" id="avatar" data-state="idle">
+          <img id="avatar-img" src="./images/char_3.png" alt="" />
+        </div>
+
+        <div class="msgs no-scrollbar" id="log"></div>
+
+        <!-- 진행 중인 전사문. 최종 전사가 오면 대화 로그로 옮겨가고 여기는 비워집니다.
+             "지워질 글자" 와 "로그에 남을 글자" 를 갈라 두어야 사용자가 헷갈리지 않습니다. -->
+        <div class="caption" id="caption" hidden></div>
+
+        <!-- 프론트의 quick 칩과 같은 자리입니다. 값은 이 저장소의 시트 fixture 에 맞춰
+             중복(recommend) 과 신규(generate) 를 둘 다 밟도록 골랐습니다. -->
+        <div class="chips no-scrollbar" id="chips">
+          <button class="chip" type="button">매일 알고리즘 문제 풀고 싶어</button>
+          <button class="chip" type="button">매일 아침 스트레칭 10분 하고 싶어</button>
+          <button class="chip" type="button">이력서를 분기마다 손보고 싶어</button>
+          <button class="chip" type="button">화 안 내는 사람이 되고 싶어</button>
+        </div>
+
+        <form class="composer" id="composer">
+          <button id="mic" class="icon-btn" type="button" disabled title="누르면 10초간 듣습니다"
+                  aria-label="말하기">
+            <svg viewBox="0 0 24 24" class="i19"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" /><path d="M12 18v3" /></svg>
+            <span id="mic-label">말하기</span>
+          </button>
+          <input id="input" class="input pill" type="text" autocomplete="off"
+                 placeholder="이루고 싶은 것을 적어보세요" aria-label="에이전트에게 보낼 메시지" disabled />
+          <button id="send" class="icon-btn send" type="submit" disabled aria-label="보내기">
+            <svg viewBox="0 0 24 24" class="i19"><path d="M4.5 12 20 4.5 15.5 20l-4-6.5-7-1.5Z" /></svg>
+          </button>
+        </form>
+      </section>
+
+      <!-- ───────── 내 시트 ───────── -->
+      <aside class="card sheet">
+        <div class="sheet-head">
+          <div class="row">
+            <h2 class="section-title">내 시트</h2>
+            <span class="badge" id="task-count">과제 0개</span>
+          </div>
+          <p class="muted src-note">
+            토큰 <code>participant metadata</code> 로 들어온 목록입니다 — AI 가 중복을
+            판단하는 근거입니다.
+          </p>
+          <div class="progress-row">
+            <span class="progress" aria-hidden="true"><span id="progress-fill"></span></span>
+            <span class="muted nums" id="domain-count">세부 목표 0/8</span>
+          </div>
+        </div>
+
+        <div class="sheet-body no-scrollbar" id="sheet"></div>
+
+        <div class="sheet-foot">
+          <p class="muted foot-note">
+            <b>담기</b>를 누르면 이 목록에 추가되고 <code>mandarin.sheet</code> 토픽으로
+            에이전트에 통째로 다시 보냅니다. 담긴 과제는 다음 턴 중복 검사에 들어갑니다.
+          </p>
+          <p class="muted foot-note" id="mic-note">
+            <b>말하기</b>는 10초간 듣고 자동으로 멈춥니다 — <b>켜 둔 시간만큼 STT 가
+            과금됩니다.</b> 응답은 텍스트로만 옵니다(TTS 없음).
+          </p>
+        </div>
+      </aside>
+    </div>
+  </div>
 
   <script type="module" src="./app.js"></script>
 </body>

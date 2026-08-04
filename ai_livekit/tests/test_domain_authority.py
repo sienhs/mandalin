@@ -55,10 +55,9 @@ class FakeBackend:
         max_output_tokens: int | None = None,
     ) -> dict:
         if "intent" in schema.get("properties", {}):
-            last = next((t for t in reversed(history) if t.role == "user"), None)
             # 1단계 도메인은 비웁니다. 채우면 `_settle_domain` 이 3단계의 빈 도메인을
             # 메워버려서 무엇을 검사하고 있는지 흐려집니다.
-            return {"intent": "goal", "domain": None, "transcript": last.text if last else ""}
+            return {"intent": "goal", "domain": None}
         return dict(self._decided)
 
     async def aclose(self) -> None:
