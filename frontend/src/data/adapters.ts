@@ -37,6 +37,12 @@ import type {
 export function toSubject(dto: SubjectDetailDto): Subject {
   const targetCount = dto.targetCount ?? 1
   const tryCount = dto.tryCount ?? 0
+  const isDone = dto.isDone ?? false
+  const isDoneToday = dto.isDoneToday ?? false
+  const isDonePeriod = dto.isDonePeriod ?? false
+  const countPerPeriod = dto.countPerPeriod ?? 1
+  const currentPeriodCount = dto.currentPeriodCount ?? (isDoneToday ? 1 : 0)
+
   return {
     id: dto.subjectId,
     position: dto.position,
@@ -45,8 +51,17 @@ export function toSubject(dto: SubjectDetailDto): Subject {
     point: dto.point ?? 0,
     targetCount,
     tryCount,
-    isDone: dto.isDone ?? false,
-    isDonePeriod: dto.isDonePeriod ?? false,
+    isDone,
+    isDonePeriod,
+    countPerPeriod,
+    currentPeriodCount,
+    isDoneToday,
+    /*
+      서버 판단을 그대로 쓴다. 안 내려오는 옛 응답에서만 같은 규칙으로 메운다 —
+      최종 완수도 아니고, 오늘 누른 것도 아니고, 이번 주기 횟수도 남아 있어야 누를 수 있다.
+    */
+    canExecute:
+      dto.canExecute ?? (!isDone && !isDoneToday && currentPeriodCount < countPerPeriod),
     // 서버가 progress 를 안 주면(옛 응답) 횟수로 메운다.
     progress: dto.progress ?? (targetCount > 0 ? Math.round((tryCount / targetCount) * 100) : 0),
   }

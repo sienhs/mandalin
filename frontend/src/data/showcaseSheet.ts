@@ -165,6 +165,11 @@ export function showcaseSheet(): Sheet {
           tryCount: Math.round((progress / 100) * targetCount),
           isDone: progress >= 100,
           isDonePeriod: false,
+          countPerPeriod: 1,
+          currentPeriodCount: 0,
+          isDoneToday: false,
+          // 소개용 시트라 누를 일이 없다. 완료된 칸만 잠긴 것으로 둔다.
+          canExecute: progress < 100,
           progress,
         }
       }),

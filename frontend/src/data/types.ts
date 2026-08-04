@@ -38,8 +38,21 @@ export type Subject = {
   /** 지금까지 수행한 횟수 */
   tryCount: number
   isDone: boolean
-  /** 이번 주기(오늘/이번 주)에 이미 했는지. 목록 API 에서만 내려온다. */
+  /** 이번 주기(오늘/이번 주/이번 달)의 목표 횟수를 채웠는지. */
   isDonePeriod: boolean
+  /** 한 주기에 몇 번 해야 하는지(예: "주 3회" 의 3). */
+  countPerPeriod: number
+  /** 이번 주기에 지금까지 몇 번 했는지. */
+  currentPeriodCount: number
+  /** 오늘 완료를 눌렀는지. */
+  isDoneToday: boolean
+  /**
+   * 지금 수행 버튼을 누를 수 있는지 — 서버 판단을 그대로 옮긴 값이다.
+   *
+   * <p>화면이 `isDone`·`isDoneToday`·주기 내 횟수로 직접 판단하면 서버 규칙과 어긋나
+   * "눌리지만 아무 일도 안 일어나는" 버튼이 된다. 이 한 값만 본다.
+   */
+  canExecute: boolean
   /** 0~100. 서버가 확정한 값 — 클라이언트에서 다시 계산하지 않는다. */
   progress: number
 }
