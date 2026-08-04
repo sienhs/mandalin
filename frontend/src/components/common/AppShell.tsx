@@ -224,26 +224,26 @@ export default function AppShell() {
             <strong className="text-base font-black tracking-[-0.04em]">만다린</strong>
           </NavLink>
 
-          {/* 어느 데이터에 붙어 있는지 항상 보이게 둔다 */}
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'mock' ? 'api' : 'mock')}
-            title={
-              mode === 'mock'
-                ? '지금은 브라우저 안의 목업 데이터입니다. 눌러서 실제 서버로 전환'
-                : '지금은 실제 백엔드에 연결돼 있습니다. 눌러서 목업으로 전환'
-            }
-            className={cn(
-              'hidden h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black text-white sm:flex',
-              mode === 'mock'
-                ? 'bg-gradient-to-br from-amber-400 to-amber-600'
-                : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
-            )}
-          >
-            {mode === 'mock' ? '목업 데이터' : '서버 연결됨'}
-          </button>
-
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+            {/* 페이지 제목이나 본문 폭과 무관하게 항상 오른쪽 도구 영역의 첫 자리에 둔다. */}
+            <button
+              type="button"
+              onClick={() => setMode(mode === 'mock' ? 'api' : 'mock')}
+              title={
+                mode === 'mock'
+                  ? '지금은 브라우저 안의 목업 데이터입니다. 눌러서 실제 서버로 전환'
+                  : '지금은 실제 백엔드에 연결돼 있습니다. 눌러서 목업으로 전환'
+              }
+              className={cn(
+                'hidden h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black text-white sm:flex',
+                mode === 'mock'
+                  ? 'bg-gradient-to-br from-amber-400 to-amber-600'
+                  : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
+              )}
+            >
+              {mode === 'mock' ? '목업 데이터' : '서버 연결됨'}
+            </button>
+
             <NavLink
               to="/app/shop"
               className="flex h-10 items-center gap-1.5 rounded-full border px-3 text-[13px] font-extrabold no-underline transition-colors hover:border-brand-300"

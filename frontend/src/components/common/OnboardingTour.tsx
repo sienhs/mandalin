@@ -93,6 +93,15 @@ export default function OnboardingTour() {
           <Button variant="ghost" size="sm" onClick={finishOnboarding}>
             건너뛰기
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={step === 0}
+            aria-label="이전 단계로 돌아가기"
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+          >
+            이전
+          </Button>
           {last ? (
             <Button
               size="sm"
