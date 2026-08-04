@@ -1,31 +1,30 @@
-# worker 이미지. `python -m agent start` 하나만 돕니다 — 들어오는 요청을 받지 않고
-# LiveKit 서버로 나가서 붙습니다(README "포트"). 그래서 EXPOSE 가 없습니다.
-FROM python:3.13-slim
+# 에이전트 worker 이미지.
+#
+# **LiveKit 서버는 여기 안 들어갑니다.** 그쪽은 공식 이미지를 그대로 쓰고
+# `docker-compose.yml` 이 둘을 같이 띄웁니다. 이 이미지는 `python -m agent` 하나입니다.
 
-# `livekit` rtc SDK 는 미리 빌드된 네이티브 라이브러리를 싣고, `av` 는 manylinux
-# wheel 로 ffmpeg 를 함께 가져옵니다. slim 에 없는 것은 TLS 루트 인증서뿐입니다 —
-# 이게 빠지면 Deepgram·Gemini 로 나가는 요청이 인증서 검증에서 실패합니다.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+# requirements.txt 가 `livekit-agents~=1.6` 이고 그쪽 요구가 Python >=3.10,<3.15 입니다.
+FROM python:3.12-slim
+
+# PYTHONUNBUFFERED: 안 주면 stdout 이 블록 버퍼링돼서 `docker logs` 가 한참 뒤에야
+#   나옵니다. worker 진단은 로그가 전부라 즉시 보여야 합니다.
+# PYTHONIOENCODING: 로그에 한글이 섞이므로 필수입니다. slim 이미지의 로케일은 POSIX 라
+#   빼면 UnicodeEncodeError 로 죽습니다(로컬 CP949 에서 겪은 것과 같은 사고).
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8
 
 WORKDIR /app
 
-# 의존성을 먼저 넣어 레이어 캐시를 살립니다. 프롬프트만 고칠 때 재설치하지 않습니다.
+# requirements 만 먼저 복사합니다. 소스만 고친 배포에서는 이 레이어가 캐시에 걸려
+# pip install 을 건너뜁니다 — t3.micro 에서 매 배포마다 재설치하면 몇 분씩 걸립니다.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 파이프라인 · 전송 계층 · 프롬프트. **prompts/ 가 빠지면 조용히 코드 기본값으로
-# 내려갑니다** — 인젝션 차단 규칙이 없는 EMERGENCY 문구로 도는 상태이고, 로그에
-# 표시가 없습니다(`bot/prompt.py`). 그래서 이미지에 반드시 포함시킵니다.
-COPY mandarin_goal ./mandarin_goal
-COPY agent ./agent
-COPY prompts ./prompts
+COPY . .
 
-# `.env` 는 굽지 않습니다. compose 의 `env_file` 로 주입합니다.
+# `dev` 가 아니라 `start` 입니다. `dev` 는 파일 변경 감시와 자동 재시작이 붙은
+# 개발용 모드라 운영에서 쓰면 안 됩니다.
 #
-# `-u` 로 버퍼링을 끕니다. 없으면 `docker logs` 에 로그가 늦게 나오고, 컨테이너가
-# 죽을 때 마지막 줄이 유실됩니다 — 기동 실패를 진단할 때 정작 그 줄이 필요합니다.
-# `start` 는 운영 모드입니다(`dev` 는 재접속·리로드 동작이 다릅니다).
-ENV PYTHONUNBUFFERED=1 PYTHONIOENCODING=utf-8
+# `.env` 는 이미지에 넣지 않습니다(.dockerignore). 런타임에 compose 의 env_file 로
+# 들어옵니다 — 키가 이미지 레이어에 박히면 이미지를 가진 사람이 전부 읽을 수 있습니다.
 CMD ["python", "-m", "agent", "start"]

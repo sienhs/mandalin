@@ -1,3 +1,6 @@
+# **운영에 뜨는 것은 저장소 루트의 같은 이름 파일입니다.** CI 의 deploy_ai 잡이
+# /opt/mandarin/ai_livekit 에서 `docker compose up` 을 합니다. 이 파일은 nginx 를
+# AI 호스트에 두던 구성의 사본입니다(wss 는 지금 메인 EC2 가 맡습니다).
 # AI 전용 EC2. **`infra/docker-compose.yml` 과 다른 호스트입니다.**
 #
 # 저쪽은 nginx + Spring + postgres + redis 이고 여기는 LiveKit + worker 입니다. 두

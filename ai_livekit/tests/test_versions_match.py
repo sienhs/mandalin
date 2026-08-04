@@ -3,7 +3,7 @@
 두 곳에 따로 적혀 있고, 갈렸을 때 아무 데서도 드러나지 않습니다 —
 
     README.md                   "기준 버전은 … LiveKit 서버 1.13.5"
-    deploy/docker-compose.yml   image: livekit/livekit-server:v1.8   ← 실제로 뜨는 것
+    docker-compose.yml          image: livekit/livekit-server:v1.8   ← 실제로 뜨는 것
 
 실제로 이 상태였습니다. **검증했다는 것보다 다섯 마이너 낮은 서버가 배포에 뜨는데
 테스트도 로컬도 초록불**이었습니다(로컬은 README 절차대로 `--dev` 로 태그 없이 띄우므로
@@ -20,7 +20,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = REPO_ROOT / "deploy" / "docker-compose.yml"
+COMPOSE = REPO_ROOT / "docker-compose.yml"
 README = REPO_ROOT / "README.md"
 
 #: README 첫머리의 "기준 버전은 … LiveKit 서버 1.13.5 …" 에서 숫자만 뽑습니다.

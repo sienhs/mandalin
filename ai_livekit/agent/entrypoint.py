@@ -66,6 +66,7 @@ import asyncio
 import json
 import logging
 import math
+import os
 
 from livekit import rtc
 from livekit.agents import AgentServer, AutoSubscribe, JobContext, JobRequest
@@ -231,9 +232,35 @@ def hello_payload(name: str, *, voice: bool, llm: str = "ok") -> str:
 #:
 #: 인스턴스를 키우면 두 값을 같이 올려야 합니다 — `tests/test_worker_limits.py` 가
 #: 그때 실패해서 알려줍니다.
-server = AgentServer(
-    load_threshold=ServerEnvOption(dev_default=math.inf, prod_default=0.2),
-    num_idle_processes=ServerEnvOption(dev_default=0, prod_default=1),
+#: worker 자체 HTTP 서버의 포트를 **환경변수가 있을 때만** 고정합니다.
+#:
+#: 이 포트는 밖에서 쓸 일이 없지만(README "포트" 표), `start` 모드의 기본값이 8081 이라
+#: 그 포트를 이미 쓰는 호스트에서는 worker 가 기동 즉시 죽습니다 —
+#: `OSError: [Errno 98] address already in use`. AI EC2 가 정확히 그 상태였습니다
+#: (구형 `webrtc-sfu` 의 시그널링이 8081). `start` 에는 `--port` 플래그가 없고
+#: `livekit-agents` 도 이 값을 환경변수로 받지 않아서 여기서 읽습니다.
+#:
+#: **값을 안 주면 `AgentServer()` 를 그대로 부릅니다.** 정수를 항상 넘기면 안 됩니다 —
+#: 기본값은 단순한 8081 이 아니라 `ServerEnvOption(dev_default=0, prod_default=8081)`
+#: 이고, 0 은 "임의의 빈 포트" 라서 개발자 두 명이 로컬에서 각자 worker 를 띄워도
+#: 부딪히지 않게 해 줍니다. 여기서 8081 을 못박으면 그 성질이 사라집니다.
+_HTTP_PORT = os.getenv("AGENT_HTTP_PORT")
+_LOAD_THRESHOLD = ServerEnvOption(dev_default=math.inf, prod_default=0.2)
+_IDLE_PROCESSES = ServerEnvOption(dev_default=0, prod_default=1)
+
+#: 두 갈래로 적는 이유는 `**{"port": ...}` 스플랫을 mypy 가 다른 인자와 맞추지
+#: 못해 이 호출 전체를 에러로 보기 때문입니다.
+server = (
+    AgentServer(
+        load_threshold=_LOAD_THRESHOLD,
+        num_idle_processes=_IDLE_PROCESSES,
+        port=int(_HTTP_PORT),
+    )
+    if _HTTP_PORT
+    else AgentServer(
+        load_threshold=_LOAD_THRESHOLD,
+        num_idle_processes=_IDLE_PROCESSES,
+    )
 )
 
 

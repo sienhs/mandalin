@@ -1,6 +1,7 @@
 import { BrowserRouter } from 'react-router-dom'
 import { StoreProvider } from './data/store'
 import { ToastProvider } from './components/common/Toast'
+import { UnsavedGuardProvider } from './components/common/UnsavedGuard'
 import AppRoutes from './routes/AppRoutes'
 
 /**
@@ -15,13 +16,18 @@ import AppRoutes from './routes/AppRoutes'
  * 불러 같은 리프레시 쿠키를 동시에 회전시켰다. 서버는 이미 회전된 토큰이 다시 오면
  * 탈취로 보고 그 사용자의 모든 세션을 끊으므로(AuthService.reissue), 새 탭을 열 때마다
  * 로그아웃되는 증상이 났다. 그래서 인증 스택은 반드시 하나만 마운트한다.
+ *
+ * <p>`UnsavedGuardProvider` 는 라우터 안이어야 한다 — 이탈을 확인한 뒤 직접 이동시키려고
+ * `useNavigate` 를 쓴다. 확인 팝업이 본문 위에 뜨도록 라우트보다 바깥에 둔다.
  */
 function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
         <StoreProvider>
-          <AppRoutes />
+          <UnsavedGuardProvider>
+            <AppRoutes />
+          </UnsavedGuardProvider>
         </StoreProvider>
       </ToastProvider>
     </BrowserRouter>

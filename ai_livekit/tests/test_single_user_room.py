@@ -25,7 +25,7 @@ import agent.entrypoint
 from agent.entrypoint import sender_is_the_user
 
 ENTRYPOINT_PY = Path(agent.entrypoint.__file__)
-LIVEKIT_YAML = Path(__file__).resolve().parents[1] / "deploy" / "livekit.yaml"
+LIVEKIT_YAML = Path(__file__).resolve().parents[1] / "livekit.yaml"
 
 #: 방 밖에서 온 것을 버려야 하는 인바운드 경로.
 #:
