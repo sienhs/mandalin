@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { PERIOD_MAX_COUNT, type Period, type Sheet } from '../data/types'
@@ -213,14 +213,16 @@ const PERIOD_ORDER: Period[] = ['DAILY', 'WEEKLY', 'MONTHLY', 'NONE']
 function CountStepper({
   period,
   value,
+  disabled,
   onChange,
 }: {
   period: Period
   value: number
+  disabled?: boolean
   onChange: (next: number) => void
 }) {
   const max = PERIOD_MAX_COUNT[period]
-  const fixed = max <= 1
+  const fixed = disabled || max <= 1
 
   const step = (delta: number) => {
     if (fixed) return
@@ -276,12 +278,16 @@ function SubjectRow({
   value,
   color,
   autoFocus,
+  disabled,
+  inputRef,
   onChange,
 }: {
   index: number
   value: DraftSubject
   color: string
   autoFocus?: boolean
+  disabled?: boolean
+  inputRef?: Ref<HTMLInputElement>
   onChange: (patch: Partial<DraftSubject>) => void
 }) {
   const filled = value.title.trim().length > 0
@@ -314,13 +320,15 @@ function SubjectRow({
         </span>
 
         <input
+          ref={inputRef}
           value={value.title}
           onChange={(e) => onChange({ title: e.target.value })}
           placeholder={`과제 ${index + 1}`}
           maxLength={40}
           autoFocus={autoFocus}
+          disabled={disabled}
           aria-label={`과제 ${index + 1} 제목`}
-          className="h-10 min-w-0 flex-1 rounded-xl border bg-[var(--surface-card)] px-3 text-[13px] font-semibold text-[var(--text-strong)] outline-none transition-colors placeholder:font-medium placeholder:text-[var(--text-muted)] focus:border-brand-400"
+          className="h-10 min-w-0 flex-1 rounded-xl border bg-[var(--surface-card)] px-3 text-[13px] font-semibold text-[var(--text-strong)] outline-none transition-colors placeholder:font-medium placeholder:text-[var(--text-muted)] focus:border-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
           style={{ borderColor: 'var(--border-hairline)' }}
         />
       </div>
@@ -339,6 +347,7 @@ function SubjectRow({
                 key={p}
                 type="button"
                 onClick={() => changePeriod(p)}
+                disabled={disabled}
                 aria-pressed={active}
                 title={PERIOD_HINT[p]}
                 className={cn(
@@ -358,6 +367,7 @@ function SubjectRow({
         <CountStepper
           period={value.period}
           value={value.countPerPeriod}
+          disabled={disabled}
           onChange={(next) => onChange({ countPerPeriod: next })}
         />
       </div>
@@ -414,6 +424,43 @@ export default function SheetCreate() {
     seeded || restored ? { kind: 'domain', domainIndex: 0 } : { kind: 'core' },
   )
   const [saving, setSaving] = useState(false)
+
+  /** 도메인을 넘길 때 과제 목록을 1번으로 되돌리고, 격자에서 누른 과제 입력에 초점을 준다. */
+  const subjectListRef = useRef<HTMLDivElement>(null)
+  const subjectInputRef = useRef<HTMLInputElement>(null)
+  const domainInputRef = useRef<HTMLInputElement>(null)
+  const coreInputRef = useRef<HTMLInputElement>(null)
+  const selectedDomainIndex = selected?.kind === 'domain' ? selected.domainIndex : null
+
+  useEffect(() => {
+    if (selectedDomainIndex == null) return
+    subjectListRef.current?.scrollTo({ top: 0 })
+  }, [selectedDomainIndex])
+
+  /** 격자에서 이미 작성된 칸을 눌렀을 때 기존 문장 맨 뒤에서 이어 쓰게 한다. */
+  const focusAtEnd = (input: HTMLInputElement | null) => {
+    if (!input) return
+    input.focus()
+    const end = input.value.length
+    input.setSelectionRange(end, end)
+  }
+
+  const selectCell = (cell: CellRef) => {
+    setSelected(cell)
+
+    if (cell.kind === 'core') {
+      window.requestAnimationFrame(() => focusAtEnd(coreInputRef.current))
+      return
+    }
+    if (cell.kind === 'domain') {
+      window.requestAnimationFrame(() => focusAtEnd(domainInputRef.current))
+      return
+    }
+    if (!domains[cell.domainIndex]?.title.trim()) return
+
+    // 같은 칸을 다시 눌러도 상태값은 바뀌지 않으므로 클릭 시점에 직접 포커스한다.
+    window.requestAnimationFrame(() => focusAtEnd(subjectInputRef.current))
+  }
 
   /**
    * 이 작성을 끝냈는지(저장 성공 또는 사용자가 그만두기를 확정).
@@ -692,6 +739,7 @@ export default function SheetCreate() {
         <PanelShell title="핵심 목표" caption="가운데 칸">
           <Field label="이루고 싶은 큰 목표 하나" hint="30자까지 쓸 수 있어요.">
             <Input
+              ref={coreInputRef}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예) 건강한 몸 만들기"
@@ -732,6 +780,7 @@ export default function SheetCreate() {
         >
           <Field label="세부 목표" hint="핵심 목표를 이루기 위한 갈래 하나입니다.">
             <Input
+              ref={domainInputRef}
               value={domain.title}
               onChange={(e) =>
                 setDomains((prev) =>
@@ -749,13 +798,22 @@ export default function SheetCreate() {
               8줄이 한 번에 보이면 패널이 화면을 넘어가 저장 버튼까지 밀린다.
               스크롤 영역으로 묶고 스크롤바는 숨긴다.
             */}
-            <div className="no-scrollbar flex max-h-[368px] flex-col gap-2 overflow-y-auto pr-0.5">
+            {!domain.title.trim() && (
+              <p className="m-0 mb-2 rounded-xl bg-amber-500/10 px-3 py-2 text-center text-[11.5px] font-bold text-amber-700 dark:text-amber-300">
+                세부 목표를 먼저 작성해주세요.
+              </p>
+            )}
+            <div
+              ref={subjectListRef}
+              className="no-scrollbar flex max-h-[368px] flex-col gap-2 overflow-y-auto pr-0.5"
+            >
               {domain.subjects.map((sub, j) => (
                 <SubjectRow
                   key={j}
                   index={j}
                   value={sub}
                   color={domainColor(index)}
+                  disabled={!domain.title.trim()}
                   onChange={(patch) => patchSubject(index, j, patch)}
                 />
               ))}
@@ -797,9 +855,17 @@ export default function SheetCreate() {
           index={subjectIndex}
           value={sub}
           color={domainColor(index)}
-          autoFocus
+          autoFocus={Boolean(domain.title.trim())}
+          disabled={!domain.title.trim()}
+          inputRef={subjectInputRef}
           onChange={(patch) => patchSubject(index, subjectIndex, patch)}
         />
+
+        {!domain.title.trim() && (
+          <p className="m-0 rounded-xl bg-amber-500/10 px-3 py-2 text-center text-[11.5px] font-bold text-amber-700 dark:text-amber-300">
+            세부 목표를 먼저 작성해주세요.
+          </p>
+        )}
 
         <Button
           variant="quiet"
@@ -954,7 +1020,7 @@ export default function SheetCreate() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <section className="card p-4 sm:p-6">
-          <MandalartGrid sheet={preview} selected={selected} onSelect={setSelected} />
+          <MandalartGrid sheet={preview} selected={selected} onSelect={selectCell} />
 
           {/* 블록별 완성 상태 */}
           <div className="mt-5 flex flex-wrap gap-1.5">

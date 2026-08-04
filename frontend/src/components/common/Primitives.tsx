@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { cn } from '../../utils/cn'
 
@@ -186,15 +186,18 @@ const CONTROL =
   'outline-none transition-colors placeholder:font-medium placeholder:text-[var(--text-muted)] ' +
   'focus:border-brand-400 h-11'
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={cn(CONTROL, className)}
-      style={{ borderColor: 'var(--border-hairline)' }}
-      {...rest}
-    />
-  )
-}
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...rest }, ref) {
+    return (
+      <input
+        ref={ref}
+        className={cn(CONTROL, className)}
+        style={{ borderColor: 'var(--border-hairline)' }}
+        {...rest}
+      />
+    )
+  },
+)
 
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
