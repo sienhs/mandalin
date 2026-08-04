@@ -1,8 +1,7 @@
 """발화 하나를 받아 응답 문자열을 만듭니다 — **LiveKit 을 모릅니다.**
 
-`../ai` 의 `bot/manager.py` 에서 전송과 무관한 부분만 남긴 것입니다. 저쪽은 방·채팅·
-미디어를 알아야 하는 조립 지점이라 재사용 대상이 아니었지만, 그 안에 있던 **대화
-규율**은 전송 방식과 무관합니다.
+방·채팅·미디어를 아는 조립 지점(`entrypoint.py`)과 갈라 둡니다. **대화 규율**은
+전송 방식과 무관하기 때문입니다.
 
     히스토리 관리 · 동시성 제어 · 실패 시에도 무언가 말하기
 
@@ -15,15 +14,21 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from agent.reuse import DomainRef, GoalPipeline, GoalResult, LlmError, Turn
+from agent.reuse import (
+    DomainRef,
+    GoalPipeline,
+    GoalResult,
+    LlmError,
+    LlmRateLimitedError,
+    Turn,
+)
 
 logger = logging.getLogger(__name__)
 
 #: 히스토리 상한의 **폴백**. 실제 값은 `BOT_HISTORY_TURNS` 설정입니다.
 #:
-#: 처음에 이 상수만 두었는데 `../ai` 에 이미 `bot_history_turns` 가 있었습니다 —
-#: **같은 개념을 두 곳에서 정하고 값이 어긋날 수 있는 상태**였습니다(저쪽 `.env` 는
-#: 다른 값을 쓸 수 있습니다). 설정을 쓰고 이 상수는 주입이 없을 때만 씁니다.
+#: **정본은 `bot_history_turns` 설정입니다.** 이 상수는 주입이 없을 때만 씁니다 —
+#: 같은 개념을 두 곳에서 정하면 값이 어긋납니다.
 DEFAULT_HISTORY_TURNS = 12
 
 #: 파이프라인이 실패했을 때 히스토리에 남길 문구. 실패한 응답을 그대로 남기면
@@ -35,12 +40,16 @@ FAILURE_NOTE = "(응답 실패)"
 FAILURE_REPLY = "지금 답을 만들지 못했어요. 다시 말씀해 주시겠어요?"
 TIMEOUT_REPLY = "응답이 늦어져서 취소했어요. 다시 말씀해 주세요."
 
+#: 429(혼잡) 전용 문구. **원문을 보여주지 않는 유일한 `LlmError` 갈래입니다** —
+#: 다른 실패는 원인이 키·할당량·설정이라 사용자나 관리자가 볼 값이 있지만, 혼잡은
+#: 할 수 있는 일이 기다리는 것뿐입니다.
+BUSY_REPLY = "지금 요청이 몰려 있어요. 잠시 후에 다시 말씀해 주세요."
+
 #: LLM 실패는 **원인을 그대로 보여줍니다.**
 #:
 #: `LlmError` 의 docstring 이 "방에 그대로 노출해도 되는 실패 … 키 오류·할당량 초과·안전
 #: 필터 차단 등은 사용자가 봐야 원인을 알 수 있으므로 삼키지 않고 채팅 메시지로
-#: 띄웁니다" 라고 적어 둔 예외입니다. `../ai/bot/manager.py` 도 `(AI 응답 실패: {exc})`
-#: 로 보여줬는데, 이 파일이 처음에 그걸 일반 `Exception` 으로 뭉개고 있었습니다.
+#: 띄웁니다" 라고 적어 둔 예외입니다. 일반 `Exception` 으로 뭉개면 안 됩니다.
 #:
 #: **뭉개면 안 되는 이유**: `BOT_API_KEY` 가 비었거나 할당량이 끝난 경우 "다시 말씀해
 #: 주세요" 는 거짓말입니다 — 몇 번 말해도 안 됩니다. 사용자는 서버 설정 문제라는 것을
@@ -51,7 +60,7 @@ LLM_FAILURE_PREFIX = "AI 응답 실패"
 class Conversation:
     """방 하나의 대화 상태.
 
-    LiveKit 은 job 하나가 방 하나이므로 `../ai` 의 `dict[room_id, ...]` 가 필요
+    LiveKit 은 job 하나가 방 하나이므로 `dict[room_id, ...]` 로 들고 있을 필요가
     없습니다. 인스턴스 하나가 방 하나입니다.
     """
 
@@ -60,31 +69,25 @@ class Conversation:
         pipeline: GoalPipeline,
         *,
         timeout_seconds: float,
-        speaker: str = "",
         history_turns: int = DEFAULT_HISTORY_TURNS,
     ) -> None:
         self._pipeline = pipeline
         self._timeout = timeout_seconds
-        self._speaker = speaker
         self._history_turns = max(1, history_turns)
         self._history: list[Turn] = []
         self._domains: list[DomainRef] = []
-        #: 생성 중에 들어온 발화를 **버리기** 위한 락. 큐에 쌓지 않는 이유는
-        #: `../ai/LEARNING.md` 5절 그대로입니다 — 쌓으면 한참 뒤에 답변이 몰려 나와
-        #: 대화 흐름이 깨집니다. **버리는 것이 기능입니다.**
+        #: 생성 중에 들어온 발화를 **버리기** 위한 락. 큐에 쌓으면 한참 뒤에 답변이
+        #: 몰려 나와 대화 흐름이 깨집니다. **버리는 것이 기능입니다.**
         self._lock = asyncio.Lock()
 
     def set_domains(self, domains: list[DomainRef]) -> None:
         """시트를 갈아끼웁니다. 증분이 아니라 통째로 받습니다.
 
         증분은 순서가 어긋나거나 하나 유실되면 서버와 클라이언트가 조용히 갈라집니다.
-        시트는 도메인 16칸 x 과제 8개가 상한이라 통째로 보내도 작습니다.
+        시트는 `MAX_DOMAINS` x `MAX_SUBJECTS_PER_DOMAIN` 이 상한이라 통째로 보내도
+        작습니다.
         """
         self._domains = list(domains)
-
-    @property
-    def busy(self) -> bool:
-        return self._lock.locked()
 
     async def respond(self, text: str) -> tuple[str, GoalResult | None]:
         """발화 하나에 대한 응답. 두 번째 값은 과제 카드를 그릴 구조화 결과입니다.
@@ -100,7 +103,7 @@ class Conversation:
             return "", None
 
         async with self._lock:
-            self._append(Turn(role="user", text=text, speaker=self._speaker))
+            self._append(Turn(role="user", text=text))
             try:
                 result = await asyncio.wait_for(
                     self._pipeline.run(list(self._history), self._domains),
@@ -110,12 +113,24 @@ class Conversation:
                 logger.warning("파이프라인 타임아웃 (%.1fs)", self._timeout)
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return TIMEOUT_REPLY, None
+            except LlmRateLimitedError:
+                # **원문을 보여주지 않습니다.** 429 는 사용자가 할 수 있는 일이
+                # 하나뿐이고(잠시 후 다시), 서버 JSON 을 보여줘도 도움이 안 됩니다.
+                # 다른 `LlmError` 와 달리 원인이 사용자 쪽도 서버 설정 쪽도 아니라
+                # **일시적 혼잡**이라 문구를 따로 둡니다. 파이프라인이 이미 한 번
+                # 재시도한 뒤라(`_step`) 여기까지 왔으면 진짜로 붐비는 상태입니다.
+                logger.warning("LLM 혼잡(429) — 재시도 후에도 실패")
+                self._append(Turn(role="assistant", text=FAILURE_NOTE))
+                return BUSY_REPLY, None
             except LlmError as exc:
                 # 원인을 그대로 보여줍니다(위 `LLM_FAILURE_PREFIX` 주석).
                 logger.warning("LLM 실패: %s", exc)
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return f"({LLM_FAILURE_PREFIX}: {exc})", None
-            except Exception:  # noqa: BLE001 - 봇 오류가 세션을 끊으면 안 됩니다
+            # 봇 오류가 세션을 끊으면 안 됩니다. 광범위 except 인데 `BLE001` 이 안 걸리는
+            # 이유는 아래에서 `logger.exception` 으로 트레이스백을 남기기 때문입니다 —
+            # ruff 가 그 경우를 면제합니다. 로깅을 지우면 규칙이 살아납니다.
+            except Exception:
                 logger.exception("파이프라인 실패")
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return FAILURE_REPLY, None

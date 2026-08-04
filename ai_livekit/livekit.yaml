@@ -25,6 +25,11 @@ rtc:
   # (eipalloc-00e4255609b017161 → i-086f7b6c94207951e)
   node_ip: 52.78.195.46
 
+# 사용자 1명 + 에이전트 1개. 에이전트도 참가자로 세어지므로 2 입니다 — 1 로 두면
+# 에이전트가 방에 못 들어옵니다. tests/test_single_user_room.py 가 이 값을 지킵니다.
+room:
+  max_participants: 2
+
 logging:
   # `--dev` 의 debug 는 발화마다 수십 줄을 남깁니다. 운영에서 볼 것도 아닌데 디스크만 씁니다.
   level: info

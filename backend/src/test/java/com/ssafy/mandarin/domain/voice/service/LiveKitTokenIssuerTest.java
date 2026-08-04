@@ -144,6 +144,18 @@ class LiveKitTokenIssuerTest {
 	}
 
 	@Test
+	@DisplayName("시크릿이 JWT_SECRET 과 같으면 발급하지 않는다 — 두 시스템의 격리가 사라진다")
+	void disablesIssuingWhenSecretEqualsAccessTokenSecret() {
+		// HS256 은 검증 키 = 서명 키다. 두 값이 같으면 LiveKit 서버가 우리 액세스 토큰을
+		// 위조할 수 있다. `.env` 를 복붙하다 두 칸에 같은 값을 넣는 실수로 충분히 일어나고,
+		// 그때 증상이 없다는 것이 위험한 지점이라 경고가 아니라 비활성으로 막는다.
+		LiveKitTokenIssuer issuer = issuerWith(ACCESS_TOKEN_SECRET);
+
+		assertThatThrownBy(() -> issuer.issue(1L, "지우"))
+				.isInstanceOf(BusinessException.class);
+	}
+
+	@Test
 	@DisplayName("API key 가 비어 있으면 발급하지 않는다 — iss 가 빈 토큰은 LiveKit 이 전부 거절한다")
 	void disablesIssuingWhenApiKeyMissing() {
 		LiveKitTokenIssuer issuer = new LiveKitTokenIssuer(

@@ -1,18 +1,15 @@
 """파이프라인 재사용 가정을 지키는 테스트 — 이 저장소의 합격 기준입니다.
 
-전제는 둘입니다.
+전제는 하나입니다.
 
-1. **목표 설계 파이프라인이 전송 계층 없이 그대로 돈다.** 이게 있어서 SFU 를
-   LiveKit 으로 갈아치우면서도 `mandarin_goal/` 을 한 줄도 고치지 않았습니다.
-2. **`ai_livekit` 은 `../ai` 없이 혼자 돈다.** 예전에는
-   `pip install -e ../ai --no-deps` 로 옆 폴더의 `app` 패키지를 참조했습니다.
-   여섯 파일과 프롬프트를 들여오면서 그 의존이 끊겼고, 여기서 되돌아가지 않는지
-   지킵니다.
+**목표 설계 파이프라인이 전송 계층 없이 그대로 돈다.** 이게 지켜지면 전송 계층을
+통째로 갈아도 `mandarin_goal/` 을 고칠 일이 없습니다.
 
-둘 다 **깨지는 방식이 조용합니다** — `import fastapi` 한 줄이나 `from app.…` 한
+둘 다 깨지는 방식이 조용합니다 — `import fastapi` 한 줄이나 `from app.…` 한
 줄이 들어가는 것으로 충분하고, 그 줄을 쓴 사람의 환경에서는 (설치돼 있으니)
 아무 일도 일어나지 않습니다. 증상은 배포에서 `ModuleNotFoundError` 로만 드러납니다.
 """
+
 from __future__ import annotations
 
 import builtins
@@ -21,11 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.reuse import REUSED_MODULES
-
-#: 이 저장소의 파이프라인에 없어야 하는 것들.
-#: `av` 는 aiortc 가 끌고 오는 미디어 코덱 바인딩입니다.
-TRANSPORT_ONLY = ("aiortc", "fastapi", "starlette", "uvicorn", "av")
+from agent.reuse import REUSED_MODULES, TRANSPORT_ONLY
 
 #: 소스를 훑어 금지 import 를 찾을 대상. `.venv` 는 당연히 제외입니다.
 SOURCE_DIRS = ("agent", "mandarin_goal", "scripts", "tests")
@@ -39,7 +32,6 @@ def _sources() -> list[Path]:
 
 def test_the_goal_pipeline_imports_without_the_transport_stack():
     """전송 라이브러리를 막아도 파이프라인이 import 되는가.
-
     실제로 그것들이 설치돼 있든 없든 결과가 같아야 하므로, 설치 여부에 의존하지
     않고 **import 자체를 차단**해서 재현합니다.
     """
@@ -66,7 +58,6 @@ def test_the_goal_pipeline_imports_without_the_transport_stack():
 @pytest.mark.parametrize("module", REUSED_MODULES)
 def test_every_reused_module_is_actually_importable(module: str):
     """`reuse.py` 가 이름만 적어두고 실제로는 없는 모듈을 가리키지 않는가.
-
     `REUSED_MODULES` 는 위 테스트와 문서가 함께 보는 목록이라, 실물과 어긋나면
     "검사했다" 는 착각만 남습니다.
     """
@@ -74,12 +65,11 @@ def test_every_reused_module_is_actually_importable(module: str):
 
 
 def test_nothing_imports_the_old_ai_package():
-    """**`../ai` 로 되돌아가지 않는가** — 자립의 유일한 자동 검사입니다.
+    """**바깥 `app` 패키지로 되돌아가지 않는가** — 자립의 유일한 자동 검사입니다.
 
-    `app` 은 `../ai` 의 최상위 패키지 이름입니다. 그 폴더가 (다른 작업 때문에)
-    이 venv 에 설치돼 있으면 `from app.bot.llm import …` 한 줄은 **아무 증상 없이
-    통과합니다** — 그리고 그 줄이 들어간 채로 배포되면 worker 가 기동 즉시 죽습니다.
-    그래서 실행이 아니라 **소스를 봅니다.**
+    그 패키지가 (다른 작업 때문에) 이 venv 에 설치돼 있으면 `from app.bot.llm import …`
+    한 줄은 **아무 증상 없이 통과합니다** — 그리고 그 줄이 들어간 채로 배포되면
+    worker 가 기동 즉시 죽습니다. 그래서 실행이 아니라 **소스를 봅니다.**
 
     새로 쓰는 코드는 `mandarin_goal.` 을, 그중에서도 `agent/reuse.py` 를 거쳐
     가져다 쓰세요.
@@ -91,7 +81,7 @@ def test_nothing_imports_the_old_ai_package():
         if line.startswith(("import app", "from app ", "from app."))
     ]
     assert not offenders, (
-        f"`../ai` 의 `app` 패키지를 import 하는 곳이 있습니다: {offenders}. "
+        f"외부 `app` 패키지를 import 하는 곳이 있습니다: {offenders}. "
         "파이프라인은 이 저장소의 mandarin_goal/ 에 있습니다 (agent/reuse.py 경유)"
     )
 
@@ -118,12 +108,10 @@ def test_only_the_gateway_module_touches_the_pipeline_package():
 
 
 def test_the_prompts_live_in_this_repository():
-    """프롬프트가 `../ai` 가 아니라 여기 있는가.
+    """프롬프트가 이 저장소 안에 있는가.
 
     `PROJECT_ROOT` 는 `mandarin_goal/bot/prompt.py` 기준 `parents[2]` 라 이 저장소
-    루트입니다. 예전에는 같은 코드가 `../ai/` 로 풀렸고 `.env` 의
-    `./prompts/system.md` 가 옆 폴더를 가리켰습니다 — 그게 마지막 남은 경로
-    의존이었습니다.
+    루트이고, `.env` 의 `./prompts/system.md` 는 그 밑으로 풀려야 합니다.
 
     **없어도 예외가 나지 않습니다.** `SystemPrompt` 는 파일을 못 읽으면 조용히
     코드 기본값으로 내려가므로(의도된 폴백), 증상은 인젝션·유해 발화 차단 규칙이
@@ -141,9 +129,8 @@ def test_the_prompts_live_in_this_repository():
 def test_the_reused_pipeline_still_carries_its_injection_defences():
     """`escape_slot_value` 가 살아 있는가 — 재사용의 핵심 가치입니다.
 
-    파이프라인을 새로 쓰고 싶어지는 순간이 옵니다. 그때 잃는 것이 이 방어층입니다
-    (→ `../ai/LEARNING.md` 10절). 여기서 한 번 확인해 두면 "새로 쓰면 뭘 잃는가"
-    가 테스트 실패로 드러납니다.
+    파이프라인을 새로 쓰고 싶어지는 순간이 옵니다. 그때 잃는 것이 이 방어층입니다.
+    여기서 한 번 확인해 두면 "새로 쓰면 뭘 잃는가" 가 테스트 실패로 드러납니다.
     """
     from agent.reuse import escape_slot_value
 
@@ -179,14 +166,12 @@ def test_the_sheet_model_parses_a_spring_shaped_payload():
 async def test_a_text_only_turn_runs_the_whole_pipeline():
     """**STT 가 넘겨줄 모양 그대로** 3단계가 도는가 — STT 경로 확정의 근거입니다.
 
-    `../ai` 에서는 음성이 `Turn.audio` 로 들어가 1단계가 전사까지 겸했습니다.
-    LiveKit STT 를 쓰면 파이프라인에 닿는 것은 `audio=None` 인 텍스트 턴뿐입니다.
-    그 모양으로 `classify -> retrieve -> decide` 가 전부 돌고 `domain_id` 까지
-    채워지면, **파이프라인을 한 줄도 고치지 않아도 된다**는 뜻입니다.
+    Deepgram 이 전사를 끝낸 텍스트 턴으로 `classify -> retrieve -> decide` 가 전부
+    돌고 `domain_id` 까지 채워지는지 봅니다.
 
     `echo` 백엔드라 네트워크도 키도 필요 없습니다. 검사하는 것은 응답 문구가 아니라
     **단계가 다 돌았는지와 서버가 채우는 필드가 채워졌는지**입니다 — 문구를 단정하면
-    프롬프트를 다듬을 때마다 깨집니다(→ `../ai/LEARNING.md` 15절).
+    프롬프트를 다듬을 때마다 깨집니다.
     """
     from agent.reuse import DomainRef, EchoBackend, GoalPipeline, Settings, Turn
 
@@ -198,8 +183,7 @@ async def test_a_text_only_turn_runs_the_whole_pipeline():
     )
 
     pipeline = GoalPipeline(settings, EchoBackend())
-    turn = Turn(role="user", text="매일 알고리즘 문제 풀고 싶어", speaker="우찬")
-    assert turn.audio is None, "STT 경로에서는 오디오가 파이프라인에 닿지 않습니다"
+    turn = Turn(role="user", text="매일 알고리즘 문제 풀고 싶어")
 
     sheet = [
         DomainRef(
@@ -212,7 +196,7 @@ async def test_a_text_only_turn_runs_the_whole_pipeline():
     result = await pipeline.run([turn], sheet)
 
     assert result.stages == ["classify", "retrieve", "decide"]
-    # 전사문은 1단계가 아니라 STT 가 만든 것이 그대로 흘러야 합니다.
+    # 원문은 1단계가 아니라 STT(또는 채팅 입력)가 만든 것이 그대로 흘러야 합니다.
     assert result.transcript == "매일 알고리즘 문제 풀고 싶어"
     # `_settle_domain` / `_mark_new_domain` 은 모델이 아니라 서버가 채웁니다.
     assert result.data["domain"] == "학습"
@@ -220,3 +204,90 @@ async def test_a_text_only_turn_runs_the_whole_pipeline():
     assert result.data["domain_is_new"] is False
     # `reasoning` 은 사용자에게 나가지 않습니다 (`public_data`).
     assert "reasoning" not in result.data
+
+
+async def test_the_first_stage_never_restates_the_utterance():
+    """**1단계는 발화를 되풀이하지 않습니다** — 원문은 서버가 정합니다.
+
+    예전 스키마에는 `transcript`(원문을 그대로 옮겨 적는 필드)가 `required` 로 있었습니다.
+    1단계 모델이 오디오 받아쓰기를 겸하던 설계의 잔재이고, 남겨두면 둘을 잃습니다 —
+
+      ① 발화 길이만큼 **출력** 토큰을 매 턴 태웁니다. 입력 길이를 막는 곳이 없어서 긴
+         텍스트는 `BOT_MAX_OUTPUT_TOKENS` 를 넘겨 결정적으로 잘립니다(재시도도 무력)
+      ② 모델이 요약·윤문하면 3단계가 원문이 아닌 것을 봅니다
+
+    그래서 **모델이 무슨 값을 돌려주든 무시하는지**를 검사합니다. 스키마 모양만 보면
+    필드를 다시 추가한 뒤 값을 읽는 코드가 붙는 것을 못 잡습니다.
+    """
+    from agent.reuse import GoalPipeline, Settings, Turn
+    from mandarin_goal.bot.goal import CLASSIFY_SCHEMA
+
+    assert "transcript" not in CLASSIFY_SCHEMA["required"]
+
+    class Rewriting:
+        """받아쓰기를 시키면 모델이 할 수 있는 최악: 발화를 딴 말로 바꿔 돌려줍니다."""
+
+        name = "rewriting"
+
+        async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+            if "intent" in schema.get("properties", {}):
+                return {"intent": "goal", "domain": "학습", "transcript": "전혀 다른 말"}
+            return {"action": "clarify", "clarify_question": "어떤 목표인가요?"}
+
+        async def aclose(self):
+            return None
+
+    settings = Settings(bot_mode="goal", bot_provider="echo")
+    pipeline = GoalPipeline(settings, Rewriting())
+    result = await pipeline.run([Turn(role="user", text="매일 알고리즘 문제 풀고 싶어")])
+
+    assert result.transcript == "매일 알고리즘 문제 풀고 싶어"
+
+
+async def test_the_user_turn_reaches_the_model_verbatim():
+    """**발화 텍스트에 화자 라벨을 섞지 않습니다.**
+
+    예전에는 `Turn.speaker` 가 있어서 사용자 턴이 `"우찬: 매일 알고리즘…"` 으로 나갔고,
+    근거는 *"방에는 사람이 여럿"* 이었습니다. 이 서비스의 방은 사용자 1명 + 에이전트
+    1개라(`agent/entrypoint.py` 모듈 주석) 라벨이 구분하는 것이 없었고, 누가 말했는지는
+    `contents[].role` 이 이미 나릅니다.
+
+    되살아나기 쉬운 종류입니다 — 붙여도 에러가 없고 응답도 그대로라, 드러나는 것은
+    1단계가 이름을 발화의 일부로 읽을 때의 품질 저하뿐입니다. 그래서 **전송 직전의
+    요청 본문**을 봅니다. `Turn` 의 필드 모양만 보면 렌더 시점에 다시 붙이는 코드를
+    못 잡습니다.
+    """
+    import json
+
+    import httpx
+
+    from agent.reuse import Settings, Turn
+    from mandarin_goal.bot.llm import GeminiBackend
+
+    sent: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.update(json.loads(request.content))
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "{}"}]}}]})
+
+    backend = GeminiBackend(
+        Settings(bot_provider="gemini", bot_api_key="k", bot_default_model="m")
+    )
+    backend._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        await backend.reply_json(
+            "시스템",
+            [
+                Turn(role="user", text="매일 알고리즘 문제 풀고 싶어"),
+                Turn(role="assistant", text="어느 칸에 담을까요?"),
+            ],
+            {"properties": {}},
+        )
+    finally:
+        await backend.aclose()
+
+    parts = [(c["role"], c["parts"][0]["text"]) for c in sent["contents"]]
+    assert parts == [
+        ("user", "매일 알고리즘 문제 풀고 싶어"),
+        ("model", "어느 칸에 담을까요?"),
+    ], "발화가 그대로 실려야 합니다 — 이름·역할 접두를 붙이면 안 됩니다"

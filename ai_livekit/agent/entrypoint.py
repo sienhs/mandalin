@@ -3,18 +3,43 @@
     참가자 입장 ─▶ 토큰의 시트 읽기 ─┬─ 텍스트 발화 ──┐
                                       └─ 오디오 트랙 ─STT─┴─▶ GoalPipeline ─▶ 텍스트 응답
 
-**TTS 는 도입하지 않습니다(결정).** 응답은 텍스트로만 나갑니다 — `../ai` 와 같은
-모양입니다. 그래서 **이 에이전트는 오디오 트랙을 발행하지 않습니다.**
+**TTS 는 도입하지 않습니다(결정).** 응답은 텍스트로만 나갑니다. 그래서 **이
+에이전트는 오디오 트랙을 발행하지 않습니다.**
 
 `AgentSession` 을 쓰지 않습니다. 프레임워크의 job 수명주기와 방 접속만 쓰는
-**프로그램적 참가자**입니다 — `../ai` 의 봇이 WebSocket 없이 `RoomManager.join()` 으로
-들어갔던 것과 같은 위치입니다. 이유가 둘입니다 — `AgentSession` 은 STT-LLM-TTS 를 자기가
+**프로그램적 참가자**입니다. 이유가 둘입니다 — `AgentSession` 은 STT-LLM-TTS 를 자기가
 조율하는데 ① LLM 자리에 들어갈 것이 단일 모델 호출이 아니라 **3단계 파이프라인**이고
 ② TTS 를 안 하므로 조율할 출력이 없습니다.
 
 음성을 텍스트보다 나중에 붙인 이유는 **실패 지점을 하나만 남기기 위해서**였고,
 실제로 효과가 있었습니다 — 텍스트 단계에서 나온 두 버그(`.env` 미로딩, editable 설치
 실패)가 음성과 섞여 있었다면 원인을 가리기 어려웠습니다.
+
+## 방 하나에 사용자 1명 + 에이전트 1개
+
+**이 전제를 만드는 것은 백엔드입니다.** 방 이름을 `u_<userId>` 로, participant identity 를
+userId 로 정합니다(`backend/…/voice/service/LiveKitTokenIssuer.java`) — 다른 사용자는
+애초에 같은 방 토큰을 받을 수 없고, 같은 사용자의 두 번째 탭은 중복 identity 로 앞 탭이
+끊깁니다.
+
+**그 규칙 하나에만 기대지 않습니다.** 겹이 셋입니다 —
+
+    LiveKit 서버   `room.max_participants: 2` (deploy/livekit.yaml). 세 번째 참가자 거절
+    인바운드 3경로  `sender_is_the_user()` 로 발신자 대조 — lk.chat · mandarin.sheet ·
+                   오디오 트랙(구독/unmute/mute/unsubscribe)
+    구독 범위      `AutoSubscribe.AUDIO_ONLY` — 쓰지 않는 비디오는 받지 않습니다
+
+발신자 대조가 지금 막는 트래픽은 없습니다(위 규칙 때문에 도달할 수 없습니다). 두는
+이유는 **그 규칙이 바뀌는 날의 증상이 조용해서**입니다 — AI 가 남의 말에 답하고, 시트가
+남의 것으로 갈리고, 말하지 않은 STT 가 과금됩니다. 셋 다 에러도 로그도 없습니다.
+
+`participant_attributes_changed` 만 예외로 **조용히** 무시합니다 — 우리가 받는 명령이
+아니라 방 상태 동기화라서입니다(그 핸들러 주석).
+
+방에 사람이 둘일 수 있는 설계로 바뀌면 위 셋을 푸는 것으로 끝나지 않습니다.
+`Conversation` 은 화자를 구분하지 못합니다 — 히스토리에 라벨이 없고, 그 근거는
+`mandarin_goal/bot/llm.py` 의 `Turn` docstring 에 있습니다. 거기서부터 다시 설계해야
+합니다.
 
 ## 실행
 
@@ -40,14 +65,28 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 
 from livekit import rtc
-from livekit.agents import AgentServer, JobContext
+from livekit.agents import AgentServer, AutoSubscribe, JobContext, JobRequest
+
+# **`livekit.agents` 에 re-export 되어 있지 않습니다.** dev/운영 기본값을 나누는
+# 라이브러리 자체의 장치라 이걸 쓰지만, 공개 경로가 아니라서 버전을 올릴 때 확인할
+# 자리입니다(README "LiveKit 버전을 올릴 때"). 직접 `sys.argv` 를 보고 갈라도 되지만,
+# 그러면 CLI 가 어느 서브커맨드를 dev 로 보는지를 우리가 따로 알아야 합니다.
+from livekit.agents.worker import ServerEnvOption
 
 from agent.conversation import Conversation
 from agent.listen import TrackListener, TranscriptionRegistry, build_stt
-from agent.reuse import GoalPipeline, build_backend, get_settings
+from agent.reuse import (
+    BACKENDS,
+    DEMO_PROVIDERS,
+    GoalPipeline,
+    build_backend,
+    get_settings,
+    normalize_provider,
+)
 from agent.sheet_transfer import SHEET_TOPIC, parse_sheet, sheet_from_participant
 
 logger = logging.getLogger("mandarin.agent")
@@ -56,8 +95,7 @@ logger = logging.getLogger("mandarin.agent")
 #: 프론트에서 별도 배선 없이 보낼 수 있습니다.
 CHAT_TOPIC = "lk.chat"
 
-#: 구조화 결과(과제 카드)를 내려보내는 토픽. `../ai` 에서 채팅 payload 의 `goal`
-#: 필드가 하던 역할입니다 — 프론트의 담기 버튼이 이 값을 씁니다.
+#: 구조화 결과(과제 카드)를 내려보내는 토픽. 프론트의 담기 버튼이 이 값을 씁니다.
 GOAL_TOPIC = "mandarin.goal"
 
 #: 사용자 발화의 전사문. `{"text": ..., "final": bool}` JSON 입니다.
@@ -69,9 +107,8 @@ TRANSCRIPT_TOPIC = "mandarin.transcript"
 
 #: 세션 시작 알림 — `{"voice": bool, "name": str}`.
 #:
-#: `../ai` 의 `welcome` 메시지와 같은 자리입니다("클라이언트가 필요한 초기 상태를 한 번에
-#: 전달합니다"). 저쪽은 `iceServers`·`peers` 를 실었고, 여기서는 **음성이 되는지**를
-#: 알립니다.
+#: 클라이언트가 필요한 초기 상태를 한 번에 전달하는 자리입니다 — 여기서는
+#: **음성이 되는지**를 알립니다.
 #:
 #: **이게 없으면 조용히 실패합니다.** `DEEPGRAM_API_KEY` 가 없을 때 서버는 텍스트만
 #: 받는데, 프론트는 그걸 모른 채 마이크 버튼을 켜둡니다. 사용자는 눌러서 말하고 아무 일도
@@ -97,6 +134,10 @@ LLM_STATUS_MESSAGES = {
         "지금은 데모 백엔드(echo)로 돌고 있어 답이 정해진 문구로만 나옵니다. "
         "실제 과제 추천을 보려면 서버에서 BOT_PROVIDER 를 gemini 로 바꿔야 합니다."
     ),
+    "unknown_provider": (
+        "AI 응답을 만들 수 없습니다 — 서버의 BOT_PROVIDER 설정값이 잘못됐습니다. "
+        "관리자에게 알려주세요. (과제 담기와 시트는 그대로 쓸 수 있습니다)"
+    ),
 }
 
 
@@ -104,14 +145,53 @@ def llm_status(provider: str, api_key: str | None) -> str:
     """설정만 보고 판정합니다 — **LLM 을 부르지 않습니다.**
 
     입장할 때마다 확인 호출을 하면 발화 없이도 크레딧이 나갑니다. 그래서 여기서 잡는 것은
-    **설정 수준의 실패**뿐이고(키 누락·데모 백엔드), 키가 폐기됐거나 할당량이 끝난 경우는
-    첫 발화에서 `LlmError` 로 드러납니다(`Conversation` 이 그 문구를 그대로 보여줍니다).
+    **설정 수준의 실패**뿐이고(키 누락·데모 백엔드·잘못된 provider), 키가 폐기됐거나
+    할당량이 끝난 경우는 첫 발화에서 `LlmError` 로 드러납니다(`Conversation` 이 그 문구를
+    그대로 보여줍니다).
+
+    **판정 근거는 `BACKENDS` 표입니다** — provider 문자열을 여기서 다시 비교하면 제공자를
+    추가한 날 디스패치는 맞고 이 알림만 조용히 틀립니다(`tests/test_hello.py` 가 표를 훑어
+    막습니다).
     """
-    if provider == "echo":
+    name = normalize_provider(provider)
+    if name not in BACKENDS:
+        # `build_backend()` 가 `MisconfiguredBackend` 를 돌려주므로 세션은 살아 있고,
+        # 발화하면 `LlmError` 로 원인이 채팅에 뜹니다. 그 전에 여기서 먼저 알립니다.
+        return "unknown_provider"
+    if name in DEMO_PROVIDERS:
+        # 상태 키는 `"echo"` 로 둡니다 — 프론트(`useCoachRoom.ts` · `web/app.js`)와
+        # `LLM_STATUS_MESSAGES` 와 테스트가 같이 쓰는 계약이라, 데모 백엔드가 둘이 되는
+        # 날 이름을 다시 보면 됩니다.
         return "echo"
     if not (api_key or "").strip():
         return "missing_key"
     return "ok"
+
+
+def sender_is_the_user(identity: str, expected: str, what: str) -> bool:
+    """발신자가 이 방의 사용자인가. **아니면 거짓을 돌려주고 경고를 남깁니다.**
+
+    모듈 주석의 전제("방에는 사람이 하나")를 코드로 옮긴 것입니다. 지금은 도달할 수 없는
+    경로입니다 — 백엔드가 방을 `u_<userId>` 로 나누므로 다른 사용자는 이 방 토큰을 받지
+    못합니다. **그래도 검사합니다.** 조용히 통과시키면 그 규칙이 바뀌는 날 증상이 이렇게
+    나옵니다 —
+
+        AI 가 남의 말에 답한다 / 내 시트가 남의 것으로 바뀐다 / 말하지 않은 STT 과금
+
+    전부 에러도 로그도 없는 종류입니다(HANDOFF 2절과 같은 부류). 경고 한 줄이 그 하루를
+    아낍니다. **로그를 이 함수 안에 둔 이유**도 그것입니다 — 호출부에서 판정만 가져다
+    쓰면 조용히 버리는 경로가 생깁니다.
+
+    `entrypoint()` 안의 클로저가 아니라 모듈 최상위에 둔 것은 테스트 때문입니다
+    (`tests/test_single_user_room.py`). 이 파일에서 단위 테스트가 가능한 부분은 이렇게
+    순수 함수로 빼 둡니다 — `llm_status`·`hello_payload` 와 같은 이유입니다.
+    """
+    if identity == expected:
+        return True
+    logger.warning(
+        "%s 를 버립니다 — 이 방의 사용자(%s)가 아닙니다: from=%s", what, expected, identity
+    )
+    return False
 
 
 def hello_payload(name: str, *, voice: bool, llm: str = "ok") -> str:
@@ -127,6 +207,27 @@ def hello_payload(name: str, *, voice: bool, llm: str = "ok") -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
+#: **t3.micro(2 vCPU / 1 GiB) 에 맞춘 값입니다.** 인스턴스를 바꾸면 둘 다 다시 정하세요 —
+#: `tests/test_worker_limits.py` 가 그때 실패해서 알려줍니다.
+#:
+#: `load_threshold` — 운영 기본값 0.7 은 **전체 CPU 대비 비율**입니다. 2 vCPU 의 70% 는
+#: 1.4 vCPU 인데 t3.micro 의 baseline 은 **0.2 vCPU**(vCPU 당 10%)라 7배입니다. 기본값대로
+#: 두면 worker 가 "여유 있다" 며 job 을 계속 받으면서 CPU 크레딧을 태우고, T3 는 기본이
+#: Unlimited 모드라 바닥난 뒤에는 거절도 스로틀도 없이 **청구**됩니다(에러도 로그도 없음).
+#: 0.1 = baseline 입니다.
+#:
+#: `num_idle_processes` — 기본값은 `ceil(cpu_count)` = 2 입니다. 리눅스는 job 하나가
+#: 프로세스 하나라 예열된 유휴 프로세스도 메모리를 차지하는데, 실측 PSS 가 133MB 로
+#: **1 GiB 의 13%** 입니다. 1 로 둔 것은 그 칸이 곧 다음 세션의 job 프로세스가 되기
+#: 때문이고, 0 으로 내리면 세션마다 fork 를 기다립니다.
+#:
+#: dev 기본값은 건드리지 않습니다. 로컬에서 조이면 다른 프로세스가 CPU 를 쓰는 동안
+#: job 이 거절되고, 증상이 `admit()` 상한과 똑같아 구분이 안 됩니다.
+#:
+#: `job_memory_limit_mb` 는 비워 둡니다. 실측(2026-08-04)에서 job 프로세스가
+#: **RSS 250~280MB / PSS 95~135MB** 였고 상한은 RSS 로 비교되므로, 300MB 만 걸어도 정상
+#: job 이 죽습니다. 그 측정은 텍스트 턴이고 STT 세션은 더 씁니다 — 재기 전에는 짐작한
+#: 상한이 보호가 아니라 장애입니다.
 #: worker 자체 HTTP 서버의 포트를 **환경변수가 있을 때만** 고정합니다.
 #:
 #: 이 포트는 밖에서 쓸 일이 없지만(README "포트" 표), `start` 모드의 기본값이 8081 이라
@@ -140,13 +241,65 @@ def hello_payload(name: str, *, voice: bool, llm: str = "ok") -> str:
 #: 이고, 0 은 "임의의 빈 포트" 라서 개발자 두 명이 로컬에서 각자 worker 를 띄워도
 #: 부딪히지 않게 해 줍니다. 여기서 8081 을 못박으면 그 성질이 사라집니다.
 _HTTP_PORT = os.getenv("AGENT_HTTP_PORT")
+_LOAD_THRESHOLD = ServerEnvOption(dev_default=math.inf, prod_default=0.1)
+_IDLE_PROCESSES = ServerEnvOption(dev_default=0, prod_default=1)
 
-server = AgentServer(port=int(_HTTP_PORT)) if _HTTP_PORT else AgentServer()
+#: 두 갈래로 적는 이유는 `**{"port": ...}` 스플랫을 mypy 가 다른 인자와 맞추지
+#: 못해 이 호출 전체를 에러로 보기 때문입니다.
+server = (
+    AgentServer(
+        load_threshold=_LOAD_THRESHOLD,
+        num_idle_processes=_IDLE_PROCESSES,
+        port=int(_HTTP_PORT),
+    )
+    if _HTTP_PORT
+    else AgentServer(
+        load_threshold=_LOAD_THRESHOLD,
+        num_idle_processes=_IDLE_PROCESSES,
+    )
+)
 
 
-@server.rtc_session()
+async def admit(req: JobRequest) -> None:
+    """방을 받을지 결정합니다 — **게이트웨이 동시 요청을 막는 유일한 지점입니다.**
+
+    방 하나는 LLM 호출을 동시에 하나만 냅니다(`Conversation` 의 락 + 파이프라인의
+    순차 호출). 그래서 `동시 게이트웨이 요청 <= 동시 방 수` 이고, 방 수를 막으면
+    요청 수가 막힙니다. `BOT_MAX_CONCURRENT_ROOMS` 주석에 등식을 적어 뒀습니다.
+
+    **`terminate=False` 로 거절합니다.** 그러면 LiveKit 이 **다른 worker 에게 넘깁니다** —
+    "지금 나는 못 받는다" 이지 "이 방은 안 된다" 가 아닙니다. `True` 로 두면 worker 를
+    늘려도 거절된 방이 아무에게도 가지 않습니다.
+
+    거절은 조용합니다 — 방은 정상이고 사용자에게는 **AI 만 안 들어옵니다**(`hello`
+    알림도 못 보냅니다. 그건 job 이 시작된 뒤에 나가는 것이라서요). 그래서 여기서
+    반드시 로그를 남깁니다. `load_threshold` 로 CPU 에 걸려 거절될 때도 같은 증상이라,
+    둘을 구분할 단서가 이 로그뿐입니다.
+    """
+    limit = get_settings().bot_max_concurrent_rooms
+    active = len(server.active_jobs)
+    if limit > 0 and active >= limit:
+        logger.warning(
+            "방 수 상한(%d)에 걸려 거절합니다 — 다른 worker 로 넘어갑니다 "
+            "(현재 %d개). BOT_MAX_CONCURRENT_ROOMS 를 올리거나 worker 를 늘리세요",
+            limit, active,
+        )
+        await req.reject(terminate=False)
+        return
+    await req.accept()
+
+
+@server.rtc_session(on_request=admit)
 async def entrypoint(ctx: JobContext) -> None:
-    await ctx.connect()
+    # **오디오만 구독합니다.** 기본값은 `SUBSCRIBE_ALL` 이고, 그러면 누가 비디오를
+    # 발행하는 순간 쓰지도 않는 스트림을 내려받습니다 — 이 에이전트가 보는 것은
+    # 오디오뿐입니다(`build_stt` → `TrackListener`).
+    #
+    # `AUDIO_ONLY` 는 방 옵션의 자동 구독을 끄고(`RoomOptions.auto_subscribe=False`)
+    # **오디오 publication 만 골라** `set_subscribed(True)` 를 부릅니다 — 접속 시점의
+    # 것과 이후 `track_published` 양쪽입니다(`livekit.agents.job._apply_auto_subscribe_opts`).
+    # 그래서 아래 `track_subscribed` 배선은 그대로 돕니다.
+    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     settings = get_settings()
     if settings.bot_mode != "goal":
@@ -156,28 +309,47 @@ async def entrypoint(ctx: JobContext) -> None:
             "BOT_MODE=%s 입니다 — goal 이 아니면 과제를 만들지 않습니다", settings.bot_mode
         )
 
-    pipeline = GoalPipeline(settings, build_backend(settings))
+    # **job 하나가 방 하나이므로 파이프라인도 방마다 새로 만들어집니다.** 각 백엔드가
+    # `httpx.AsyncClient` 를 들고 있어서 닫지 않으면 방마다 연결이 남습니다.
+    #
+    # **둘 다 닫아야 합니다.** `GoalPipeline.aclose()` 는 자기가 만든 것(`_owned`)만
+    # 닫습니다 — 단계 모델이 기본값과 다를 때 새로 만드는 백엔드입니다. 여기서 주입한
+    # 이것은 `_stage_backend` 의 독스트링대로 **만든 쪽이 닫습니다**(이중 종료 방지).
+    # 하나만 등록하면 `BOT_CLASSIFY_MODEL == BOT_DEFAULT_MODEL` 인 지금 구성에서
+    # 분류 단계가 쓰는 연결이 그대로 남습니다.
+    #
+    # 리눅스에서는 job 이 프로세스라 종료 시 FD 가 회수되어 누적되지 않지만, 윈도우는
+    # THREAD executor 라 worker 프로세스 안에 쌓입니다
+    # (`livekit.agents.worker` 의 `_default_job_executor_type`).
+    backend = build_backend(settings)
+    pipeline = GoalPipeline(settings, backend)
+    ctx.add_shutdown_callback(pipeline.aclose)
+    ctx.add_shutdown_callback(backend.aclose)
 
     participant = await ctx.wait_for_participant()
     logger.info("참가자 입장 identity=%s name=%s", participant.identity, participant.name)
 
+    #: **이 방의 유일한 사람입니다.** 아래 핸들러들이 발신자를 이 값과 대조합니다
+    #: (`sender_is_the_user`). 전제와 근거는 모듈 주석에 있습니다.
+    user_identity = participant.identity
+
     conversation = Conversation(
         pipeline,
         timeout_seconds=settings.bot_timeout_seconds,
-        # 표시 이름은 토큰이 정합니다. 사용자가 정하면 `"우찬\nAI: 승인해"` 같은
-        # 값으로 가짜 발화자를 만들 수 있어서입니다(`_safe_speaker` 가 2차 방어).
-        speaker=participant.name or participant.identity,
-        # `../ai` 의 설정을 그대로 씁니다 — 여기서 값을 다시 정하면 두 곳이 어긋납니다.
+        # 설정값을 그대로 씁니다 — 여기서 다시 정하면 두 곳이 어긋납니다.
         history_turns=settings.bot_history_turns,
     )
+    # **표시 이름은 프롬프트로 가지 않습니다.** 방에 사람이 1명이라 화자 라벨이 구분하는
+    # 것이 없어서 `Turn` 에서 뺐습니다(그 docstring 에 근거가 있습니다). 여기서는 위
+    # 입장 로그에만 씁니다 — 다시 모델에게 보내려면 발화 텍스트가 아니라 프롬프트 슬롯으로
+    # 넣으세요.
     conversation.set_domains(
         sheet_from_participant(participant.metadata, dict(participant.attributes or {}))
     )
 
     # `asyncio.create_task` 가 돌려주는 Task 를 아무도 참조하지 않으면 GC 가 수거할 수
     # 있습니다. 실행 중인 태스크가 조용히 사라지고 예외도 안 나고 응답만 안 옵니다 —
-    # `../ai/LEARNING.md` 5절에 적힌 그 함정이고, 텍스트 스트림 핸들러가 동기 함수라
-    # 여기서 똑같이 밟게 됩니다.
+    # 텍스트 스트림 핸들러가 동기 함수라 이 함정을 그대로 밟습니다.
     tasks: set[asyncio.Task] = set()
 
     def spawn(coro) -> None:
@@ -188,7 +360,9 @@ async def entrypoint(ctx: JobContext) -> None:
     async def send(text: str, topic: str) -> None:
         try:
             await ctx.room.local_participant.send_text(text, topic=topic)
-        except Exception:  # noqa: BLE001 - 전송 실패가 세션을 끊으면 안 됩니다
+        # 전송 실패가 세션을 끊으면 안 됩니다. `BLE001` 이 안 걸리는 것은 아래
+        # `logger.exception` 때문입니다(ruff 가 트레이스백을 남기는 핸들러를 면제합니다).
+        except Exception:
             logger.exception("send_text 실패 topic=%s", topic)
 
     async def handle_utterance(text: str) -> None:
@@ -203,6 +377,9 @@ async def entrypoint(ctx: JobContext) -> None:
             await send(json.dumps(result.data, ensure_ascii=False), GOAL_TOPIC)
 
     def on_chat(reader, participant_identity: str) -> None:
+        if not sender_is_the_user(participant_identity, user_identity, "발화"):
+            return
+
         async def run() -> None:
             text = await reader.read_all()
             logger.info("발화 from=%s: %r", participant_identity, text[:80])
@@ -211,6 +388,12 @@ async def entrypoint(ctx: JobContext) -> None:
         spawn(run())
 
     def on_sheet(reader, participant_identity: str) -> None:
+        # **시트는 특히 남이 보내면 안 됩니다.** AI 가 중복을 판단하는 근거라
+        # (`sheet_transfer.py` 모듈 주석) 남의 시트로 갈리면 이미 담아 둔 과제를
+        # 다시 받거나, 없는 칸에 담으라는 답이 나옵니다.
+        if not sender_is_the_user(participant_identity, user_identity, "시트"):
+            return
+
         async def run() -> None:
             raw = await reader.read_all()
             conversation.set_domains(parse_sheet(raw, source=f"topic:{SHEET_TOPIC}"))
@@ -240,9 +423,8 @@ async def entrypoint(ctx: JobContext) -> None:
             #   ① 전사 이벤트가 정체됩니다 (실시간 캡션이 멈춤)
             #   ② 그 사이 마이크를 끄면 이 태스크가 취소되어 **응답이 사라집니다**
             #
-            # `../ai/LEARNING.md` 5절이 적어둔 그 함정입니다 — 저쪽은 `_on_message` 안에서
-            # LLM 을 await 하면 말한 사람의 시그널링 루프가 멈춘다고 했고, 여기서는 STT
-            # 루프가 멈춥니다. 태스크로 띄우면 둘 다 사라집니다. 동시 발화는
+            # 핸들러 안에서 LLM 을 await 하면 STT 루프가 멈춥니다. 태스크로 띄우면
+            # 둘 다 사라집니다. 동시 발화는
             # `Conversation` 이 이미 버리므로(락) 겹칠 걱정은 없습니다.
             spawn(handle_utterance(text))
 
@@ -311,6 +493,10 @@ async def entrypoint(ctx: JobContext) -> None:
         ) -> None:
             if track.kind != rtc.TrackKind.KIND_AUDIO:
                 return
+            # **남의 마이크를 전사하면 Deepgram 과금이 붙습니다.** 오디오 경로는 세 곳이
+            # 모두 막혀 있어야 합니다 — 여기(구독)와 아래 unmute·mute 입니다.
+            if not sender_is_the_user(participant.identity, user_identity, "오디오 트랙"):
+                return
             # 이미 mute 상태로 구독될 수 있습니다(마이크를 끈 채 접속). 그때 시작하면
             # 첫 발화 전부터 과금이 시작됩니다.
             if publication.muted:
@@ -335,6 +521,8 @@ async def entrypoint(ctx: JobContext) -> None:
             track = getattr(publication, "track", None)
             if track is None or track.kind != rtc.TrackKind.KIND_AUDIO:
                 return
+            if not sender_is_the_user(participant.identity, user_identity, "오디오 unmute"):
+                return
             start_transcribing(track, publication.sid, participant.identity)
 
         @ctx.room.on("track_muted")
@@ -342,6 +530,11 @@ async def entrypoint(ctx: JobContext) -> None:
             participant: rtc.Participant, publication: rtc.TrackPublication
         ) -> None:
             if publication.kind != rtc.TrackKind.KIND_AUDIO:
+                return
+            # **중지 쪽도 걸러야 합니다.** 시작을 막았으니 남의 트랙은 추적 목록에 없고,
+            # 그대로 통과시키면 `stop_transcribing` 이 "해당 track 이 없습니다" 경고를
+            # 냅니다 — 진짜 인자 순서 버그를 잡으려고 둔 경고라 가짜를 섞으면 안 됩니다.
+            if not sender_is_the_user(participant.identity, user_identity, "오디오 mute"):
                 return
             stop_transcribing(publication.sid, "mute")
 
@@ -355,13 +548,20 @@ async def entrypoint(ctx: JobContext) -> None:
             # 명시적으로 정리해 `transcribing` 에 죽은 항목이 남지 않게 합니다.
             if track.kind != rtc.TrackKind.KIND_AUDIO:
                 return
+            # mute 와 같은 이유로 걸러냅니다(가짜 경고 방지).
+            if not sender_is_the_user(participant.identity, user_identity, "오디오 unsubscribe"):
+                return
             stop_transcribing(publication.sid, "unsubscribe")
 
     @ctx.room.on("participant_attributes_changed")
     def _on_attributes_changed(changed: dict[str, str], p: rtc.Participant) -> None:
         # 시트를 attributes 로 싣는 클라이언트를 위한 경로입니다. metadata 쪽이
         # 우선이지만, 갱신은 attributes 가 더 다루기 쉬운 경우가 있습니다.
-        if p.identity != participant.identity:
+        #
+        # **여기만 조용히 무시합니다**(`sender_is_the_user` 를 쓰지 않습니다). 이 이벤트는
+        # 우리가 받는 명령이 아니라 방 상태 동기화라, 에이전트 자신을 포함해 누구의
+        # attributes 변경에도 뜰 수 있습니다 — 경고로 남기면 잡음이 됩니다.
+        if p.identity != user_identity:
             return
         domains = sheet_from_participant(None, changed)
         if domains:

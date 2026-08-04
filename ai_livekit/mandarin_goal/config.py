@@ -2,18 +2,8 @@
 
 pydantic-settings 는 필드명을 대문자로 바꿔 환경변수를 찾습니다
 (`bot_api_key` -> `BOT_API_KEY`).
-
-**`../ai` 에서 옮겨오면서 전송 계층 설정을 덜어냈습니다.** 저쪽의 `Settings` 에는
-`HOST`/`PORT`/`CORS_ORIGINS`(FastAPI) · `AUTH_*`(입장 티켓) · `STUN_URLS`/`TURN_*`
-(ICE) · `MAX_PARTICIPANTS_PER_ROOM`(방 정책) · `BOT_VOICE_*`(aiortc 푸시투토크
-캡처)가 함께 있는데, 여기서는 **하나도 쓰이지 않습니다** — 방·ICE·토큰은 LiveKit
-서버가, 음성 캡처는 Deepgram 이 합니다. 읽는 코드가 없는 설정을 남겨두면 `.env` 에
-적어놓고 왜 안 먹는지 찾게 됩니다.
-
-`extra="ignore"` 라서 **`../ai/.env` 를 그대로 가져와도 기동은 됩니다** — 덜어낸
-키들은 조용히 무시됩니다. 되살릴 일이 생기면 `../ai/app/config.py` 에 원문이
-그대로 있습니다.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -35,9 +25,9 @@ class Settings(BaseSettings):
     # --- AI 챗봇 ---------------------------------------------------------------
     #: 채팅에 붙는 이름. 입장 직후 `mandarin.hello` 로 프론트에 전달됩니다.
     bot_display_name: str = "AI"
-    bot_provider: str = "echo"          # echo | gemini | openai
+    bot_provider: str = "echo"          # echo | gemini
     # 폴백 기본값입니다. 단계별 모델(`bot_classify_model`/`bot_decide_model`)을
-    # 비웠을 때 그 자리를 대신하고, `BOT_MODE=chat` 경로에서 직접 쓰입니다.
+    # 비웠을 때 그 자리를 대신합니다.
     #
     # **구 이름 `BOT_MODEL` 도 계속 받습니다.** 이름만 바꾸고 별칭을 안 두면,
     # 예전 `.env` 를 쓰는 사람은 값이 조용히 코드 기본값으로 돌아갑니다 —
@@ -51,34 +41,33 @@ class Settings(BaseSettings):
     # 일부 게이트웨이는 헤더 대신 ?key= 를 요구합니다. 켜면 헤더와 함께 보냅니다.
     bot_api_key_in_query: bool = False
     # 환경변수로 프롬프트를 통째로 덮어쓰는 층. **기본값이 비어 있습니다** —
-    # 정본은 `prompts/` 의 파일이고, 여기 문자열을 두면 같은 말을 하는 곳이 둘이
-    # 됩니다(chat 모드 페르소나는 `prompts/chat.md` 로 옮겼습니다).
+    # 정본은 `prompts/` 의 파일이고, 여기 문자열을 두면 같은 말을 하는 곳이 둘이 됩니다.
     # 우선순위는 파일 > 이 값 > `bot/prompt.py` 의 EMERGENCY 입니다.
     bot_system_prompt: str = ""
     # 프롬프트는 코드가 아니라 콘텐츠라 파일로 둡니다. 여러 줄로 길게 쓸 수 있고,
     # 저장하면 **재시작 없이** 다음 응답부터 반영됩니다. 상대 경로는 저장소 루트
     # 기준입니다(`bot/prompt.py` 의 `PROJECT_ROOT`).
     #
-    # **기본값이 저장소의 정본을 가리킵니다.** 예전에는 `None` 이라 환경변수를
-    # 빠뜨리면 조용히 코드 내장 프롬프트로 떨어졌습니다 — 인젝션 차단 규칙이 빠진
-    # 채로 도는데 로그에는 아무 표시도 안 났습니다.
+    # **기본값을 비우지 마세요.** 비어 있으면 환경변수를 빠뜨렸을 때 조용히 코드
+    # 내장 프롬프트로 떨어집니다 — 인젝션 차단 규칙이 빠진 채로 도는데 로그에는
+    # 아무 표시도 안 납니다.
     bot_system_prompt_file: str = "./prompts/system.md"
     # 실수로 큰 파일을 가리켰을 때 매 요청에 그대로 실려 나가지 않게 하는 상한.
     bot_system_prompt_max_chars: int = 8000
 
     # --- 목표 설계 파이프라인 -------------------------------------------------
-    # chat : 프롬프트 하나로 한 번 호출 (기존 동작)
     # goal : 분류 -> 후보 검색 -> 판단. gemini 처럼 스키마 강제가 되는 백엔드 전용
     #
-    # **`chat` 이면 과제를 만들지 않습니다.** `ai_livekit` 은 goal 경로만 배선돼
-    # 있어서 `agent/entrypoint.py` 가 기동 시 경고를 남깁니다.
-    bot_mode: str = "chat"
+    # **`ai_livekit` 에는 goal 경로만 배선돼 있습니다.** 다른 값을 넣어도 파이프라인은
+    # 그대로 돌고 `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 경고만 남깁니다 —
+    # 이 값이 실제로 무언가를 가르는 자리는 없습니다(chat 페르소나는 프롬프트째로
+    # 지웠습니다). 남겨둔 것은 `.env` 와 README 가 가리키고 있어서입니다.
+    bot_mode: str = "goal"
     bot_classify_prompt_file: str = "./prompts/classify.md"
     # 프롬프트에 넣을 중복 후보 개수. 후보는 클라이언트(Spring 이 서명한 토큰의
-    # metadata)가 실어 보낸 **사용자 시트의 과제**입니다 — 서버가 들고 있던 예시
-    # 과제 카탈로그(`BOT_TEMPLATE_FILE`)는 없어졌습니다. 카탈로그의 고정 8칸이
-    # 사용자의 자유 도메인과 어긋나 없는 칸을 만들어내던 문제 때문입니다
-    # (`bot/subjects.py` 모듈 주석).
+    # metadata)가 실어 보낸 **사용자 시트의 과제**입니다 — 서버가 예시 목록을 들고
+    # 있으면 그 목록의 고정 칸이 사용자의 자유 도메인과 어긋나 없는 칸을 만들어
+    # 냅니다(`bot/subjects.py` 모듈 주석).
     bot_candidate_count: int = 5
     # 단계별 모델. 비우면 BOT_DEFAULT_MODEL 을 씁니다.
     #
@@ -87,9 +76,8 @@ class Settings(BaseSettings):
     # 일인데 입력이 무겁습니다(~4,100 토큰). 그래서 3단계를 싼 티어로 내리면 품질
     # 손실 대비 절감이 가장 큽니다.
     #
-    # **`../ai` 와 달리 1단계 모델이 멀티모달일 필요는 없습니다.** 저쪽은 푸시투토크
-    # 오디오가 1단계로 들어가 받아쓰기까지 거기서 일어났지만, 여기서는 Deepgram 이
-    # 전사를 끝낸 뒤 텍스트만 파이프라인에 닿습니다(`agent/listen.py`).
+    # **1단계 모델이 멀티모달일 필요는 없습니다.** Deepgram 이 전사를 끝낸 뒤
+    # 텍스트만 파이프라인에 닿습니다(`agent/listen.py`).
     bot_classify_model: str | None = None
     bot_decide_model: str | None = None
     # 단계마다 따로 겁니다. bot_timeout_seconds 는 체인 전체를 덮는 값이라,
@@ -114,6 +102,23 @@ class Settings(BaseSettings):
     bot_cache_size: int = 0
 
     bot_history_turns: int = 12
+
+    #: worker 하나가 동시에 맡을 방 수의 상한. 0 이면 무제한(CPU 기준만).
+    #:
+    #: **이것이 LLM 게이트웨이 동시 요청을 막는 유일한 지점입니다.** 방 하나는 LLM
+    #: 호출을 **동시에 하나만** 냅니다 — `Conversation` 이 생성 중 발화를 버리고
+    #: (락), 파이프라인이 분류->판단을 순차로 부르기 때문입니다. 그래서
+    #:
+    #:     동시 게이트웨이 요청 <= 동시 방 수 <= 이 값
+    #:
+    #: 이 등식이 성립합니다. 프로세스 안에 세마포어를 두는 방법은 듣지 않습니다 —
+    #: job 이 **프로세스마다 하나**라(리눅스 forkserver) 프로세스 내 상한은 이미 1인
+    #: 값을 다시 1로 묶는 것뿐입니다.
+    #:
+    #: 값은 게이트웨이의 rate limit 을 알아야 정할 수 있습니다. 모르는 동안 0(무제한)
+    #: 으로 두는 편이 낫습니다 — 임의로 조이면 쓸 수 있는 용량을 스스로 버립니다.
+    bot_max_concurrent_rooms: int = 0
+
     bot_timeout_seconds: float = 20.0
     bot_max_output_tokens: int = 512
     # 반복 억제(Gemini 2.x). 0 이면 요청에 넣지 않습니다.
@@ -132,7 +137,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """설정은 한 번만 읽고 캐시합니다.
-
     그래서 `.env` 를 고쳤다면 **worker 프로세스를 완전히 재시작**해야 반영됩니다.
     자주 걸리는 함정입니다 — 특히 worker 를 두 개 띄워놓고 한쪽만 재시작하면
     증상이 간헐적이 됩니다(README "안 될 때").

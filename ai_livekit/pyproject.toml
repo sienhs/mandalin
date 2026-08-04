@@ -3,7 +3,14 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# BLE(광범위 except)를 켠 이유: 이 프로젝트는 `except Exception` 을 **의도적으로** 씁니다
+# (봇 오류가 세션을 끊으면 안 되는 자리들). 그 자리마다 `# noqa: BLE001` 과 이유가 이미
+# 적혀 있었는데 규칙이 꺼져 있어서 주석만 사문으로 남아 있었습니다. 켜면 그 주석이 살아나고
+# **이유 없이 새로 추가되는 광범위 except** 가 걸립니다 — 켠 시점의 위반은 0건이었습니다.
+#
+# N(pep8-naming)은 켜지 않습니다. `mandarin_goal/sheet.py` 의 `subjectId`·`domainId`·
+# `subjectCount` 가 N815 로 걸리는데, Spring 응답 모양을 그대로 쓰는 의도된 이름입니다.
+select = ["E", "F", "I", "UP", "B", "BLE"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

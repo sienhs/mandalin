@@ -113,9 +113,15 @@ public class LiveKitTokenIssuer {
 			return null;
 		}
 
+		// 경고로 두지 않고 막는다. HS256 은 검증 키 = 서명 키라, 두 값이 같으면 LiveKit
+		// 서버(시크릿을 아는 쪽)가 우리 액세스 토큰을 위조할 수 있다 — 즉 두 시스템의
+		// 격리가 사라진다. 음성만 멈추는 것이 로그인 위조가 가능한 채로 도는 것보다 낫다.
+		// 위의 두 검사와 같은 형태로 비활성만 하고 기동은 시킨다.
 		if (apiSecret.equals(accessTokenSecret)) {
-			log.warn("LIVEKIT_API_SECRET 이 JWT_SECRET 과 같습니다. HS256 은 검증 키 = 서명 키라 "
-					+ "LiveKit 서버가 액세스 토큰까지 위조할 수 있습니다. 다른 값으로 바꾸세요.");
+			log.warn("LIVEKIT_API_SECRET 이 JWT_SECRET 과 같습니다 — AI 음성 토큰 발급이 "
+					+ "비활성화됩니다. HS256 은 검증 키 = 서명 키라 LiveKit 서버가 액세스 "
+					+ "토큰까지 위조할 수 있습니다. 서로 다른 값으로 바꾸세요.");
+			return null;
 		}
 
 		return Keys.hmacShaKeyFor(apiSecret.getBytes(StandardCharsets.UTF_8));

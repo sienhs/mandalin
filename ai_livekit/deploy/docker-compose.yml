@@ -1,0 +1,113 @@
+# **운영에 뜨는 것은 저장소 루트의 같은 이름 파일입니다.** CI 의 deploy_ai 잡이
+# /opt/mandarin/ai_livekit 에서 `docker compose up` 을 합니다. 이 파일은 nginx 를
+# AI 호스트에 두던 구성의 사본입니다(wss 는 지금 메인 EC2 가 맡습니다).
+# AI 전용 EC2. **`infra/docker-compose.yml` 과 다른 호스트입니다.**
+#
+# 저쪽은 nginx + Spring + postgres + redis 이고 여기는 LiveKit + worker 입니다. 두
+# 호스트는 서로 통신하지 않습니다 — 백엔드는 토큰을 서명만 하고(검증은 LiveKit 이
+# 공유 시크릿으로 자기가 합니다), 브라우저가 `LIVEKIT_URL` 로 여기에 직접 붙습니다
+# (`infra/nginx/conf.d/app.conf` 주석).
+#
+# **실행 (ai_livekit/ 에서):**
+#
+#   docker compose --env-file .env -f deploy/docker-compose.yml config     # 먼저 확인
+#   docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+#
+# **`--env-file` 을 반드시 붙이세요.** 값이 들어오는 경로가 두 가지로 다릅니다 —
+#
+#   worker 의 `env_file: ../.env`   → 컨테이너 **안의** 환경변수 (BOT_*, DEEPGRAM_*)
+#   아래 `${LIVEKIT_API_KEY}`        → compose 가 **이 파일을 읽을 때** 치환하는 값
+#
+# 뒤쪽은 `env_file` 을 보지 않고 "프로젝트 .env" 를 봅니다. 그 위치가 Compose 버전에
+# 따라 CWD 인지 compose 파일 폴더인지 달라서, 안 붙이면 `LIVEKIT_KEYS` 가 `": "` 로
+# 조립되고 **LiveKit 이 키 없이 떠서 모든 토큰을 거절합니다.** 증상은 "토큰은 받는데
+# 입장만 안 됨" 이라 원인을 찾기 어렵습니다.
+#
+# 그래서 `up` 전에 `config` 로 치환 결과를 눈으로 확인하세요 — `LIVEKIT_KEYS` 에
+# 실제 키 쌍이 보여야 합니다.
+
+services:
+  livekit:
+    # **README 의 "기준 버전" 과 같은 값이어야 합니다.** 여기가 v1.8 이고 README 가
+    # 1.13.5 였던 적이 있습니다 — 즉 검증했다는 것보다 다섯 마이너 낮은 서버가 배포에
+    # 뜨는 상태였고, 아무 데서도 드러나지 않았습니다(`tests/test_versions_match.py` 가
+    # 이제 막습니다).
+    #
+    # 마이너 태그(`v1.13`)를 쓰지 않는 이유는 패치가 조용히 바뀌면 "어제와 같은 것을
+    # 띄웠다" 가 보장되지 않기 때문입니다. 올릴 때는 README 의 기준 버전도 같이 고치세요.
+    #
+    # 실측(2026-08-04, 로컬): v1.8.4 와 v1.13.5 양쪽에서 worker 등록과 텍스트 왕복이
+    # 동작했습니다. 새 것을 고른 것은 그동안의 수정과 보안 패치를 받기 위해서입니다.
+    image: livekit/livekit-server:v1.13.5
+    container_name: livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    environment:
+      # **키를 yaml 이 아니라 여기로 넣습니다.** yaml 은 git 에 들어가므로 시크릿을
+      # 적으면 저장소에 남습니다. 형식은 `키: 시크릿` 이고 `.env` 의 두 값을 씁니다 —
+      # 그 두 값이 곧 `infra/.env` 와 같아야 하는 쌍입니다.
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    ports:
+      # 7880 은 노출하지 않습니다 — nginx 가 wss 로 감싸 443 으로 내보냅니다.
+      # 열어두면 평문 ws 로 우회 접속할 수 있는 경로가 생깁니다.
+      #
+      # **미디어 두 포트는 직접 노출합니다.** nginx 가 프록시할 수 없고(HTTP 아님)
+      # 브라우저가 여기에 직접 붙습니다. EC2 보안 그룹에도 열어야 합니다.
+      - "7881:7881"
+      - "7882:7882/udp"
+    networks:
+      - ai-net
+
+  worker:
+    build: ..
+    container_name: livekit-worker
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      # **`.env` 값을 덮어씁니다.** 저기에는 로컬용 `ws://localhost:7880` 이 들어
+      # 있는데, 컨테이너 안에서 localhost 는 worker 자신입니다. compose 네트워크의
+      # 서비스 이름으로 붙어야 합니다.
+      #
+      # 브라우저가 쓰는 공개 주소(`wss://…`)와 값이 다릅니다 — 그쪽은 `infra/.env`
+      # 의 LIVEKIT_URL 이고 Spring 이 응답에 실어 보냅니다.
+      LIVEKIT_URL: ws://livekit:7880
+    depends_on:
+      - livekit
+    networks:
+      - ai-net
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
+    depends_on:
+      - livekit
+    networks:
+      - ai-net
+
+  # `infra/docker-compose.yml` 과 같은 패턴입니다. `entrypoint: "true"` 로 두어
+  # 평소에는 아무것도 하지 않고, 발급·갱신할 때만 `docker compose run` 으로 씁니다.
+  certbot:
+    image: certbot/certbot
+    container_name: ai-certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+    entrypoint: "true"
+
+volumes:
+  certbot_www:
+  certbot_certs:
+
+networks:
+  ai-net:
