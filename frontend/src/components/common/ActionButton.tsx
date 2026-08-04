@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { cn } from '../../utils/cn'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'quiet' | 'ai'
-type Size = 'sm' | 'md' | 'lg'
+type Size = 'xs' | 'sm' | 'md' | 'lg'
 
 const BASE =
   'inline-flex items-center justify-center gap-2 rounded-xl font-bold tracking-[-0.01em] ' +
@@ -39,6 +39,11 @@ const VARIANT: Record<Variant, string> = {
 }
 
 const SIZE: Record<Size, string> = {
+  /*
+    목록 줄 안에 끼워 넣는 크기. 줄 높이를 밀지 않아야 해서 sm 보다 한 단 작다.
+    gap 은 BASE(gap-2)를 그대로 쓴다 — `cn` 은 단순 연결이라 여기서 덮어써도 먹지 않는다.
+  */
+  xs: 'h-8 px-2.5 text-[11.5px]',
   sm: 'h-9 px-3.5 text-[13px]',
   md: 'h-11 px-5 text-sm',
   lg: 'h-[52px] px-7 text-base',

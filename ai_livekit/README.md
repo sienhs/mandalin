@@ -1,7 +1,7 @@
 # ai_livekit
 
-`../ai` 의 자체 SFU(FastAPI + aiortc)를 LiveKit 으로 옮긴 목표 설계 에이전트입니다.
-목표 설계 파이프라인은 `mandarin_goal/` 로 들여왔고, `../ai` 없이 이 폴더만으로 돌아갑니다.
+LiveKit 위에서 도는 목표 설계 에이전트입니다. 목표 설계 파이프라인은
+`mandarin_goal/` 에 있고, 이 폴더만으로 돌아갑니다.
 
 입력은 텍스트와 음성(Deepgram STT), 출력은 텍스트뿐입니다. TTS 는 넣지 않았습니다.
 `AgentSession` 대신 프로그램적 참가자로 구현했고, 프레임워크에서는 job 수명주기와
@@ -9,7 +9,7 @@
 
 기준 버전은 `livekit-agents` 1.6.7, LiveKit 서버 1.13.5, `livekit-client` 2.21.0 입니다.
 
-이 문서는 사용법입니다. 진행 상황, 확정된 결정의 근거, 이미 잡은 버그 목록은
+이 문서는 사용법입니다. 확정된 결정의 근거와 이미 잡은 버그 목록은
 [HANDOFF.md](HANDOFF.md) 에 있습니다.
 
 ## 구조
@@ -42,8 +42,8 @@ LiveKit 이 필요한 파일은 `entrypoint.py` 하나입니다. 나머지에 �
 
 ### 고칠 때 지킬 것
 
-`mandarin_goal/` 에서 `livekit` 을 import 하지 마세요. 이 경계 덕분에 SFU 를 갈아치우면서
-파이프라인을 한 줄도 고치지 않았습니다.
+`mandarin_goal/` 에서 `livekit` 을 import 하지 마세요. 이 경계가 있으면 전송 계층을
+통째로 갈아도 파이프라인을 고칠 일이 없습니다.
 
 `mandarin_goal.` 을 직접 import 하지 마세요. `agent/reuse.py` 를 통합니다.
 
@@ -72,7 +72,7 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 `pip install -e .` 는 필요 없습니다. 서드파티는 `livekit-agents`,
 `livekit-plugins-deepgram`, `pydantic`, `pydantic-settings`, `httpx` 뿐입니다.
 
-예전 절차대로 `pip install -e ../ai --no-deps` 를 실행한 venv 라면 지우세요.
+venv 에 `webrtc-sfu`(`app` 패키지)가 설치돼 있으면 지우세요.
 
 ```powershell
 .venv\Scripts\python.exe -m pip uninstall webrtc-sfu
@@ -109,10 +109,15 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 ## 확인
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q                                    # 72 tests
+.venv\Scripts\python.exe -m pytest -q                                    # 125 tests
 .venv\Scripts\python.exe -m ruff check agent mandarin_goal tests scripts
+.venv\Scripts\python.exe -m mypy agent mandarin_goal scripts --ignore-missing-imports
 .venv\Scripts\python.exe scripts\smoke_client.py "화 안 내는 사람이 되고 싶어"
 ```
+
+`mypy` 는 **`tests/` 를 빼고** 돌립니다. 테스트 대역(`FlakyBackend` 등)이 프로토콜의 필요한
+부분만 구현하는 것이 의도라서, 넣으면 그 11건이 매번 나와 진짜 신호를 덮습니다.
+`--ignore-missing-imports` 는 `livekit.*` 에 타입 스텁이 없어서 필요합니다.
 
 `entrypoint.py` 는 LiveKit API 를 호출하는 유일한 파일이라 단위 테스트로 덮을 수
 없습니다. 배선을 고쳤으면 `smoke_client.py` 를 돌리세요. 다만 파이썬 클라이언트가
@@ -121,16 +126,23 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 
 | 테스트 파일 | 개수 | 대상 |
 |---|---:|---|
-| `test_conversation.py` | 14 | 생성 중 버리기, 타임아웃, 크래시 복구, 히스토리 상한 |
-| `test_reuse.py` | 13 | 파이프라인 자립, 전송 스택 없이 import, 텍스트 턴 왕복, 인젝션 방어 |
+| `test_conversation.py` | 11 | 생성 중 버리기, 타임아웃, 크래시 복구, 히스토리 상한 |
+| `test_reuse.py` | 15 | 파이프라인 자립, 전송 스택 없이 import, 텍스트 턴 왕복, 인젝션 방어, 원문의 출처, 발화가 모델에 그대로 실리는지 |
 | `test_sheet_transfer.py` | 13 | 시트 파싱. Spring 모양, 상한, fail-open, 폴백 |
 | `test_listen.py` | 10 | STT fail-open, 플러그인 import 위치, 언어 기본값 |
 | `test_event_signatures.py` | 8 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
-| `test_hello.py` | 8 | 세션 능력 알림. `voice:false` 필수 |
+| `test_hello.py` | 13 | 세션 능력 알림. `voice:false` 필수, LLM 상태와 `BACKENDS` 표의 일치 |
+| `test_single_user_room.py` | 11 | 사용자 1명 + 에이전트 1개. 발신자 대조, 오디오만 구독, `max_participants: 2` |
 | `test_transcription_registry.py` | 6 | mute/unmute 경합, 중복 시작, 누수 |
+| `test_domain_authority.py` | 6 | 도메인 정본이 시트인지, 없는 칸을 만들지 않는지 |
+| `test_prompts_are_one_folder.py` | 5 | 모델에게 가는 텍스트가 `prompts/` 에만 있는지, 슬롯이 제 자리에 채워지는지 |
+| `test_versions_match.py` | 2 | compose 가 띄우는 LiveKit 서버 태그와 README 의 기준 버전이 같은지, 패치까지 고정됐는지 |
+| `test_worker_limits.py` | 4 | 버스터블 baseline 에 맞춘 `load_threshold`·유휴 프로세스 수. 인스턴스를 바꾸면 실패합니다 |
+| `test_topics_match.py` | 3 | 토픽 문자열이 서버·`web/app.js`·React 훅 세 곳에서 같은지(이름→값 짝으로) |
 
-뒤 네 파일은 예외 없이 조용히 실패하던 버그에서 나왔습니다(HANDOFF 5절). 그래서
-문구가 아니라 구조를 검사합니다.
+`test_event_signatures.py` 부터 `test_transcription_registry.py` 까지는 예외 없이
+조용히 실패하던 버그에서 나왔습니다(HANDOFF 2절). 그래서 문구가 아니라 구조를
+검사합니다.
 
 ## 환경변수
 
@@ -143,12 +155,13 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `DEEPGRAM_API_KEY` | | 없으면 음성만 비활성됩니다 |
 | `STT_LANGUAGE` | `ko` | `multi` 로 바꾸지 마세요. 아래 참고 |
 | `STT_MODEL` | `nova-3` | `nova-2` 도 한국어를 지원합니다 |
-| `BOT_PROVIDER` | `gemini` | `echo` 는 키 없이 도는 데모. 답이 고정 문구입니다 |
-| `BOT_API_KEY` | | `../ai/.env` 의 `BOT_*` 를 그대로 가져오면 됩니다 |
+| `BOT_PROVIDER` | `gemini` | `echo` 는 키 없이 도는 데모. 답이 고정 문구입니다. 아는 값은 이 둘뿐이고 오타는 입장 알림으로 드러납니다 |
+| `BOT_API_KEY` | | Gemini API 키. `BOT_PROVIDER=gemini` 면 필수 |
 | `BOT_BASE_URL` | | 게이트웨이를 쓰면 필수. 빠뜨리면 공식 엔드포인트로 나갑니다 |
 | `BOT_STEP_TIMEOUT_SECONDS` | `25` | 게이트웨이는 느립니다. 기본값 15 면 정상 응답이 잘립니다 |
 | `BOT_TIMEOUT_SECONDS` | `45` | 위와 같음(기본값 20) |
-| `BOT_MODE` | `goal` | `chat` 이면 과제를 만들지 않습니다 |
+| `BOT_MODE` | `goal` | `goal` 경로만 배선돼 있습니다. 다른 값은 경고만 남고 동작은 같습니다 |
+| `BOT_MAX_CONCURRENT_ROOMS` | `0` | worker 하나가 맡을 방 수 상한(0=무제한). 넘으면 `admit()` 이 거절하고 다른 worker 로 넘깁니다. t3.micro 권장 4 — 근거와 실측치는 `.env.example` 주석에 있습니다(유휴 430MB + 세션당 약 45MB, 1 GiB 라 스왑 없이는 더 올리지 마세요) |
 | `BOT_SYSTEM_PROMPT_FILE` | `./prompts/system.md` | 생략 가능. 기본값이 저장소의 정본을 |
 | `BOT_CLASSIFY_PROMPT_FILE` | `./prompts/classify.md` | 가리킵니다 — 다른 파일로 실험할 때만 |
 
@@ -212,7 +225,7 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 
 필드 이름은 Spring 응답 그대로 써야 합니다. 빈도는 `frequency` 가 아니라 `period`
 입니다. fixture 나 `dev_server` 가 실제 모양을 안 흉내내면 테스트와 실서버가 다 초록불인
-채로 버그가 숨습니다(HANDOFF 5절).
+채로 버그가 숨습니다(HANDOFF 2절).
 
 ### 중복 방지
 
@@ -349,8 +362,6 @@ Google 플러그인은 대안이 아닙니다. Google Cloud STT 는 GCP 서비�
 
 ## 포트
 
-`../ai` 는 8080 이었지만 여기에는 8080 을 쓰는 게 없습니다.
-
 | 포트 | 무엇 | 브라우저로 열까 |
 |---|---|---|
 | 8000 | `dev_server.py`. 프론트와 토큰 발급 | 여기를 엽니다 |
@@ -368,8 +379,9 @@ worker 는 밖에서 들어오는 요청을 받지 않습니다. 반대로 LiveK
 | `토큰 실패` | `dev_server.py` 가 안 떠 있거나 포트 충돌 |
 | `could not establish pc connection` | `--node-ip 127.0.0.1` 누락. 아래 참고 |
 | `접속 실패` | LiveKit 컨테이너 확인(`docker ps`) |
-| 연결은 되는데 `참가자 입장` 이 안 뜸 | worker 미등록, 좌초된 job, `entrypoint()` 예외 중 하나 |
+| 연결은 되는데 `참가자 입장` 이 안 뜸 | worker 미등록, 좌초된 job, `entrypoint()` 예외 중 하나. **설정값 오류는 여기가 아닙니다** — 아래 `BOT_PROVIDER` 행 참고 |
 | 응답이 안 옴 | 토픽 문자열 불일치. `app.js` 와 `entrypoint.py` 의 `lk.chat` |
+| 입장 직후 `BOT_PROVIDER 설정값이 잘못됐습니다` | `.env` 의 `BOT_PROVIDER` 오타. 아는 값은 `echo`/`gemini` 뿐입니다(`BACKENDS`). 발화하면 `AI 응답 실패: 알 수 없는 BOT_PROVIDER` 가 같이 뜹니다 — 세션은 살아 있어 시트와 담기는 그대로 씁니다 |
 | payload 에 `reasoning` 이 들어 있음 | 서버가 `public_data()` 를 건너뜀 |
 | 마이크를 켰는데 캡션이 안 뜸 | `DEEPGRAM_API_KEY` 없음. 기동 로그의 `음성=` 확인 |
 | `마이크를 켤 수 없습니다` | 브라우저 권한이나 장치 문제. `localhost` 는 secure context 지만 다른 기기에서 열면 HTTPS 가 필요합니다 |
@@ -459,17 +471,23 @@ asyncio.run(main())
 `cli.run_app(server)` 를 쓰고, `WorkerOptions` 는 `ServerOptions` 의 별칭입니다.
 하한을 올릴 때는 `entrypoint.py` 를 먼저 읽고 공식 문서와 대조하세요.
 
+**서버 버전은 두 곳에 적혀 있습니다** — 이 문서 첫머리의 "기준 버전" 과
+`deploy/docker-compose.yml` 의 이미지 태그입니다. 갈리면 **검증한 것과 다른 서버가
+배포에 뜨는데 아무 데서도 드러나지 않습니다**(로컬은 `--dev` 로 태그 없이 띄우므로 그
+핀을 타지 않습니다). 실제로 그 상태였고, 지금은 `tests/test_versions_match.py` 가
+막습니다. 올릴 때 두 곳을 같이 고치세요.
+
+**`from livekit.agents.worker import ServerEnvOption` 이 `livekit.agents` 에 re-export 되어
+있지 않습니다.** dev/운영 기본값을 나누는 라이브러리 자체의 장치라 쓰고 있지만 공개
+경로가 아니어서, 버전을 올릴 때 여기가 먼저 깨질 수 있습니다. 없어지면 `sys.argv` 로
+dev 를 판별해 값을 갈라야 합니다(`tests/test_worker_limits.py` 가 값을 지킵니다).
+
 - [Job lifecycle](https://docs.livekit.io/agents/server/job/) — `JobContext`, `ctx.job.metadata`, `participant.attributes`
 - [Sending text](https://docs.livekit.io/transport/data/text-streams/) — `send_text`, `register_text_stream_handler`
 - [agents README](https://github.com/livekit/agents/blob/main/README.md) — `AgentServer` 최소 예제
 
 ## 남은 일
 
-스캐폴딩, STT, worker, 실서버, 프론트, 푸시투토크, 중복 방지, 빈도 검색, `../ai` 의존
-끊기까지는 끝났습니다. 검증 수단별 근거는 HANDOFF 1절에 있습니다.
-
-- 새로고침 후 시트 유지(localStorage). `../ai/static/js/board.js` 의 `#load`/`#save`
-- 과제 삭제와 담은 과제 인계(`postMessage`). 둘 다 `board.js` 에 있습니다
 - React 프론트(`../frontend/src/components/aiCoach/`) 이식. `signaling.ts` 와
   `sfuClient.ts` 를 버리고 `livekit-client` 로 갑니다. `taskBoard.ts` 와 패널은 그대로입니다
 - 인증. Spring 이 LiveKit access token 을 서명하면 검증은 LiveKit 서버가 하므로

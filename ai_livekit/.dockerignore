@@ -19,3 +19,9 @@ worker.log
 
 # worker 는 테스트를 실행하지 않습니다. CI 에서 따로 돌릴 때는 저장소 체크아웃을 씁니다.
 tests/
+
+# COPY . . 이므로 여기 빠진 것은 전부 이미지에 들어갑니다.
+scripts/
+web/
+docs/
+.mypy_cache/

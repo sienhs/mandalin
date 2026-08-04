@@ -32,7 +32,13 @@ def main() -> None:
 
     # ① 파이프라인이 import 되는가 (서드파티 셋: pydantic / pydantic-settings / httpx)
     try:
-        from agent.reuse import PROJECT_ROOT, REUSED_MODULES, DomainRef, GoalPipeline
+        from agent.reuse import (
+            PROJECT_ROOT,
+            REUSED_MODULES,
+            TRANSPORT_ONLY,
+            DomainRef,
+            GoalPipeline,
+        )
     except ModuleNotFoundError as exc:
         fail(
             f"파이프라인 모듈을 import 할 수 없습니다: {exc.name}",
@@ -40,25 +46,22 @@ def main() -> None:
         )
     print(f"  [OK]  파이프라인 모듈 {len(REUSED_MODULES)}개 import (mandarin_goal/)")
 
-    # ② `../ai` 에 기대고 있지 않은가
-    #    예전에는 `pip install -e ../ai --no-deps` 로 옆 폴더의 `app` 패키지를
-    #    참조했습니다. 지금은 필요 없고, **남아 있으면 오히려 위험합니다** —
-    #    새 코드에 `from app.…` 을 써도 이 환경에서는 통과해 버립니다.
+    # ② 바깥 `app` 패키지에 기대고 있지 않은가
+    #    이 venv 에 `app` 이 설치돼 있으면 **위험합니다** — 새 코드에 `from app.…` 을
+    #    써도 이 환경에서는 통과해 버립니다.
     if "app" in sys.modules or _installed("app"):
-        print("  [경고] 옛 `app` 패키지(../ai)가 이 venv 에 아직 설치돼 있습니다")
+        print("  [경고] 외부 `app` 패키지가 이 venv 에 설치돼 있습니다")
         print("         → pip uninstall webrtc-sfu   (없어야 자립이 실제로 검증됩니다)")
     else:
-        print("  [OK]  ../ai 의존 없음 (`app` 패키지 미설치)")
+        print("  [OK]  외부 의존 없음 (`app` 패키지 미설치)")
 
     # ③ 전송 스택이 딸려 들어오지 않았는가. 파이프라인은 전송 계층을 모릅니다.
-    leaked = sorted(
-        m for m in sys.modules if m.split(".")[0] in ("aiortc", "fastapi", "av", "uvicorn")
-    )
+    leaked = sorted(m for m in sys.modules if m.split(".")[0] in TRANSPORT_ONLY)
     if leaked:
         print(f"  [경고] 전송 스택이 import 됐습니다: {leaked}")
         print("         → mandarin_goal/ 에 역방향 import 가 생겼습니다")
     else:
-        print("  [OK]  전송 스택(aiortc/fastapi/av) 미포함")
+        print(f"  [OK]  전송 스택({'/'.join(TRANSPORT_ONLY)}) 미포함")
 
     # ④ 프롬프트가 어디서 읽히는가 — 상대 경로의 기준점을 실제 값으로 보여줍니다
     print(f"  [OK]  PROJECT_ROOT = {PROJECT_ROOT}")
@@ -82,11 +85,20 @@ def main() -> None:
     print("  [OK]  DomainRef 가 Spring 모양 payload 를 파싱")
 
     # ⑥ 파이프라인을 실제로 만들 수 있는가 (LLM 호출은 하지 않습니다)
-    from agent.reuse import build_backend, get_settings
+    from agent.reuse import BACKENDS, build_backend, get_settings, normalize_provider
 
     settings = get_settings()
     GoalPipeline(settings, build_backend(settings))
-    print(f"  [OK]  GoalPipeline 생성 (BOT_PROVIDER={settings.bot_provider})")
+    # `build_backend()` 는 모르는 provider 에도 예외를 내지 않습니다(방에 들어가기 전에
+    # 죽으면 사용자에게 원인을 전할 수 없어서입니다). 그래서 오타 진단은 여기서 합니다 —
+    # 안 그러면 `BOT_PROVIDER=gemmini` 가 [OK] 로 통과합니다.
+    if normalize_provider(settings.bot_provider) not in BACKENDS:
+        print(
+            f"  [실패] 알 수 없는 BOT_PROVIDER={settings.bot_provider!r} "
+            f"(가능: {', '.join(BACKENDS)}) — 발화가 전부 실패합니다"
+        )
+    else:
+        print(f"  [OK]  GoalPipeline 생성 (BOT_PROVIDER={settings.bot_provider})")
     if settings.bot_mode != "goal":
         print(f"  [경고] BOT_MODE={settings.bot_mode} — goal 이 아니면 과제를 만들지 않습니다")
 

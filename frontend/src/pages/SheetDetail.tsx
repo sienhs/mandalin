@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { domainProgress, filledCells, useSheetDetail, useStore } from '../data/store'
-import { PERIOD_LABEL } from '../data/types'
+import { PERIOD_LABEL, type Period, type Subject } from '../data/types'
 import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
 import Button from '../components/common/ActionButton'
 import { IconCheck, IconHeart, IconVillage } from '../components/common/Icons'
@@ -20,6 +20,29 @@ import { cn } from '../utils/cn'
 
 type Props = { readOnly?: boolean }
 
+/**
+ * 왜 더 못 누르는지 한 줄로 말해 준다.
+ *
+ * <p>예전에는 이유를 아무도 말하지 않았다. 오늘 이미 한 과제도 버튼이 그대로 열려 있어서
+ * 눌러 보면 아무 일도 일어나지 않았고(서버가 하루 한 번만 인정한다), 사용자는 고장으로 읽었다.
+ * 주기마다 "다시 열리는 시점"이 달라서 문구도 주기별로 갈라 준다.
+ */
+function lockedReason(sub: Subject): string | null {
+  if (sub.canExecute) return null
+  if (sub.isDone) return '목표를 다 채운 과제입니다'
+
+  const byPeriod: Record<Period, string> = {
+    DAILY: '오늘 이미 수행한 과제입니다',
+    WEEKLY: '이번 주에 목표 횟수를 채웠어요',
+    MONTHLY: '이번 달에 목표 횟수를 채웠어요',
+    NONE: '이미 수행한 과제입니다',
+  }
+
+  // 오늘 눌렀는데 주기 목표는 아직 남은 경우(예: 주 3회 중 1회) — 날이 바뀌면 또 할 수 있다.
+  if (sub.isDoneToday && !sub.isDonePeriod) return '오늘 이미 수행한 과제입니다'
+  return byPeriod[sub.period]
+}
+
 export default function SheetDetail({ readOnly = false }: Props) {
   const { sheetId } = useParams()
   const navigate = useNavigate()
@@ -28,6 +51,8 @@ export default function SheetDetail({ readOnly = false }: Props) {
 
   const [selected, setSelected] = useState<CellRef | null>(null)
   const [pending, setPending] = useState<number | null>(null)
+  /** 요청이 날아가는 중인지. 상태보다 먼저 바뀌어야 연타를 막을 수 있다. */
+  const inFlight = useRef(false)
 
   useEffect(() => {
     if (sheet && !selected) setSelected({ kind: 'domain', domainIndex: 0 })
@@ -67,11 +92,24 @@ export default function SheetDetail({ readOnly = false }: Props) {
   const selectedDomain =
     selected && selected.kind !== 'core' ? byPosition.get(selected.domainIndex) : undefined
 
+  /**
+   * 과제 한 번 완료.
+   *
+   * <p><b>왜 ref 로 한 번 더 막는가.</b> `pending` 상태만으로 막으면 버튼이 잠기는 건 다음
+   * 렌더부터다. 빠르게 두 번 누르면 두 클릭이 같은 렌더에서 처리돼 요청이 두 번 나갔다.
+   * ref 는 그 자리에서 바뀌므로 두 번째 클릭이 즉시 걸러진다.
+   */
   const complete = async (subjectId: number) => {
+    if (inFlight.current) return
+    inFlight.current = true
     setPending(subjectId)
-    const ok = await completeSubjects(sheet.id, [subjectId])
-    if (ok) await reload()
-    setPending(null)
+    try {
+      const ok = await completeSubjects(sheet.id, [subjectId])
+      if (ok) await reload()
+    } finally {
+      inFlight.current = false
+      setPending(null)
+    }
   }
 
   const like = async () => {
@@ -265,6 +303,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
                     {selectedDomain.subjects.map((sub, j) => {
                       const active = selected.kind === 'subject' && selected.subjectIndex === j
                       const busy = pending === sub.id
+                      const locked = lockedReason(sub)
 
                       return (
                         <li key={sub.id}>
@@ -305,30 +344,44 @@ export default function SheetDetail({ readOnly = false }: Props) {
                               </span>
                             </button>
 
-                            <div className="mt-2.5">
-                              <ProgressBar
-                                value={sub.progress}
-                                size="sm"
-                                color={domainColor(selectedDomain.position)}
-                                label={`${sub.title} 진행률`}
-                              />
+                            {/*
+                              진행 막대와 완료 버튼을 한 줄에 둔다. 예전에는 버튼이 <b>선택한
+                              과제에만</b> 전체 폭으로 나타나서, 다른 과제를 완료하려면 먼저
+                              그 줄을 눌러 선택해야 했다. 작은 버튼을 오른쪽에 항상 두면
+                              곧바로 누를 수 있고 줄 높이도 늘지 않는다.
+                            */}
+                            <div className="mt-2.5 flex items-center gap-2">
+                              <span className="min-w-0 flex-1">
+                                <ProgressBar
+                                  value={sub.progress}
+                                  size="sm"
+                                  color={domainColor(selectedDomain.position)}
+                                  label={`${sub.title} 진행률`}
+                                />
+                              </span>
+
+                              {!readOnly && (
+                                <Button
+                                  size="xs"
+                                  variant={locked ? 'quiet' : 'primary'}
+                                  className="shrink-0"
+                                  disabled={Boolean(locked) || busy}
+                                  /* 잠긴 이유는 툴팁으로도 남긴다 — 아래 안내가 접혀도 읽을 수 있게. */
+                                  title={locked ?? `한 번 완료하면 ${sub.point}P 를 받습니다`}
+                                  onClick={() => void complete(sub.id)}
+                                >
+                                  <IconCheck className="size-3.5" />
+                                  {busy ? '저장 중…' : locked ? '완료' : `한 번 완료 +${sub.point}P`}
+                                </Button>
+                              )}
                             </div>
 
-                            {!readOnly && active && (
-                              <Button
-                                size="sm"
-                                full
-                                className="mt-3"
-                                disabled={sub.isDone || busy}
-                                onClick={() => void complete(sub.id)}
-                              >
-                                <IconCheck className="size-4" />
-                                {sub.isDone
-                                  ? '목표를 다 채웠어요'
-                                  : busy
-                                    ? '저장 중…'
-                                    : `한 번 완료 +${sub.point}P`}
-                              </Button>
+                            {/* 왜 못 누르는지 그 자리에서 말해 준다. */}
+                            {!readOnly && locked && (
+                              <p className="m-0 mt-2 flex items-center gap-1.5 text-[11.5px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <IconCheck className="size-3.5 shrink-0" />
+                                {locked}
+                              </p>
                             )}
                           </div>
                         </li>

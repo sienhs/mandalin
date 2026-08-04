@@ -4,3 +4,12 @@ pytest>=8.3
 pytest-asyncio>=0.24
 ruff>=0.7
 pytest-timeout>=2.3
+# Type checking. It found three real things ruff cannot see: _HttpBackend used self.name
+# without declaring it (fails only on the error path), TranscriptionRegistry.start typed
+# its callback as Awaitable while asyncio.create_task needs a Coroutine, and the
+# deepgram=None import fallback. Run it on the source dirs only -- see README "확인".
+mypy>=1.11
+# tests/test_single_user_room.py parses deploy/livekit.yaml. A mis-indented key is
+# silently ignored by the server, so the test parses instead of grepping. PyYAML is
+# already present transitively -- pinning it here keeps the test from depending on that.
+pyyaml>=6.0

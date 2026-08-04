@@ -39,6 +39,7 @@ function subject(
 ): Subject {
   const targetCount = DEFAULT_TARGET[period]
   const tryCount = Math.round(targetCount * ratio)
+  const isDone = tryCount >= targetCount
   return {
     id: nextId(),
     position,
@@ -47,8 +48,13 @@ function subject(
     point: 10,
     targetCount,
     tryCount,
-    isDone: tryCount >= targetCount,
+    isDone,
     isDonePeriod: false,
+    countPerPeriod: 1,
+    currentPeriodCount: 0,
+    isDoneToday: false,
+    // 실제 서버와 같은 규칙으로 내려준다 — 화면은 이 값만 보고 버튼을 잠근다.
+    canExecute: !isDone,
     progress: Math.round((tryCount / targetCount) * 100),
   }
 }
@@ -576,6 +582,10 @@ export const mockGateway: Gateway = {
           tryCount: 0,
           isDone: false,
           isDonePeriod: false,
+          countPerPeriod: s.countPerPeriod ?? 1,
+          currentPeriodCount: 0,
+          isDoneToday: false,
+          canExecute: true,
           progress: 0,
         })),
       })),
@@ -646,12 +656,19 @@ export const mockGateway: Gateway = {
     for (const d of sheet.domains ?? []) {
       for (const s of d.subjects) {
         if (!subjectIds.includes(s.id) || s.isDone) continue
-        // 서버와 같은 규칙: 이번 주기에 이미 했으면 건너뛴다.
-        if (s.isDonePeriod) continue
+        // 서버와 같은 규칙: 지금 누를 수 없는 과제는 건너뛴다(오늘 이미 함 · 주기 횟수 소진).
+        if (!s.canExecute) continue
 
         s.tryCount += 1
-        s.isDonePeriod = true
+        s.currentPeriodCount += 1
+        s.isDoneToday = true
+        s.isDonePeriod = s.currentPeriodCount >= s.countPerPeriod
         s.isDone = s.tryCount >= s.targetCount
+        /*
+          다시 누를 수 있는지 서버와 같은 식으로 다시 매긴다. 목업이 이 값을 갱신하지 않으면
+          목업 모드에서만 버튼이 계속 열려 있어, 정작 고치려던 증상이 그대로 남는다.
+        */
+        s.canExecute = !s.isDone && !s.isDoneToday && s.currentPeriodCount < s.countPerPeriod
         s.progress = Math.round((s.tryCount / s.targetCount) * 100)
         earned += s.point
 

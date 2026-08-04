@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ssafy.mandarin.domain.auth.dto.DailyPointStatusResponse;
 import com.ssafy.mandarin.domain.auth.dto.ProfileUpdateRequest;
 import com.ssafy.mandarin.domain.auth.dto.UserProfileResponse;
 import com.ssafy.mandarin.domain.auth.service.AuthService;
@@ -53,6 +54,20 @@ public class UserAccountController {
 	) {
 		UserProfileResponse profile = authService.getProfile(userDetails.getUsername());
 		return ResponseEntity.ok(ApiResponse.success("Profile loaded", profile));
+	}
+
+	/**
+	 * 일일 포인트 현황 조회.
+	 *
+	 * <p>보유 포인트, 오늘 획득 포인트, 일일 상한선(1000P), 잔여 획득 포인트를 반환한다.
+	 */
+	@GetMapping("/points")
+	@Operation(summary = "Get my daily point status", description = "보유 포인트, 오늘 획득 포인트, 일일 상한선(1000P), 잔여 획득 포인트를 조회합니다.")
+	public ResponseEntity<ApiResponse<DailyPointStatusResponse>> getDailyPointStatus(
+			@AuthenticationPrincipal UserDetails userDetails
+	) {
+		DailyPointStatusResponse response = userAccountService.getDailyPointStatus(userDetails.getUsername());
+		return ResponseEntity.ok(ApiResponse.success("Daily point status loaded", response));
 	}
 
 	@PatchMapping

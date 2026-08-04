@@ -1,13 +1,12 @@
 """오디오 트랙 → 텍스트. Deepgram 스트리밍 STT.
 
-`../ai` 에서 이 자리는 **푸시투토크**였습니다 — 사용자가 버튼을 누르는 동안의 PCM 을
-모아 Gemini 에 넣었고, 시작·끝을 사람이 명시하니 발화 감지가 필요 없었습니다
-(`app/bot/voice.py`).
+**"언제 말이 끝났는가" 는 Deepgram 이 정합니다** — 스트리밍이라 그 판단을 자기가
+합니다(`endpointing_ms`). 그래서 silero VAD 를 따로 붙이지 않습니다. 배치
+STT(Whisper 계열)를 골랐다면 VAD 가 필수였을 자리입니다.
 
-LiveKit 으로 오면서 버튼이 사라졌으므로 **"언제 말이 끝났는가" 를 정할 장치가
-필요해졌습니다.** Deepgram 은 스트리밍이라 그 판단을 자기가 합니다(`endpointing_ms`)
-— 그래서 silero VAD 를 따로 붙이지 않습니다. 배치 STT(Whisper 계열)를 골랐다면 VAD 가
-필수였을 자리입니다.
+푸시투토크(`web/app.js` 의 10초 창)와 **다른 층입니다.** 창은 *듣는 구간*을 정해 침묵
+과금을 막고, 발화 경계는 그 안에서 Deepgram 이 나눕니다 — 창 하나에 문장이 둘이면
+FINAL 도 두 번 옵니다. 창이 생겼다고 이 파일이 할 일이 줄지 않습니다.
 
 ```
 오디오 트랙 ─rtc.AudioStream─▶ push_frame ─▶ Deepgram ─▶ SpeechEvent
@@ -19,8 +18,8 @@ LiveKit 으로 오면서 버튼이 사라졌으므로 **"언제 말이 끝났는
 
 `DEEPGRAM_API_KEY` 가 없으면 **음성만 조용히 빠지고 텍스트 대화는 그대로 됩니다.**
 fail-open 인 이유는 키 하나 때문에 세션 전체가 죽으면 안 되기 때문입니다 — 다만
-**경고를 크게 남깁니다.** `../ai` 의 프롬프트 로더와 같은 판단입니다(파일이 없으면
-기본값으로 내려가되 조용히 넘어가지 않음).
+**경고를 크게 남깁니다.** 프롬프트 로더와 같은 판단입니다 — 기본값으로 내려가되
+조용히 넘어가지 않습니다.
 
 ## 왜 `Conversation` 을 고치지 않았는가
 
@@ -33,8 +32,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import suppress
+from typing import Any
 
 from livekit import rtc
 from livekit.agents import stt as stt_api
@@ -63,7 +63,9 @@ logger = logging.getLogger("mandarin.listen")
 try:
     from livekit.plugins import deepgram
 except ImportError:  # pragma: no cover - 플러그인 미설치 환경
-    deepgram = None
+    # 타입 검사기에게는 모듈 자리에 `None` 을 넣는 것이라 알려 둡니다. 아래 코드는
+    # `deepgram is None` 으로 갈라지므로 런타임 계약은 이것이 맞습니다.
+    deepgram = None  # type: ignore[assignment]
 
 #: Deepgram 에 넘길 언어. **`multi` 로 두지 마세요 — 한국어가 그 목록에 없습니다.**
 #:
@@ -88,7 +90,7 @@ MULTI_LANGUAGES = (
 )
 
 #: 스트리밍 STT 에 넘길 샘플레이트. Deepgram 플러그인 기본값과 같습니다.
-#: `../ai/LEARNING.md` 7절 — 사람 음성의 주요 성분이 4kHz 아래라 16kHz 면 충분합니다.
+#: 사람 음성의 주요 성분이 4kHz 아래라 16kHz 면 충분합니다.
 SAMPLE_RATE = 16_000
 
 
@@ -146,24 +148,31 @@ class TranscriptionRegistry:
     """
 
     def __init__(self) -> None:
-        self._tasks: dict[str, asyncio.Task] = {}
+        self._tasks: dict[str, asyncio.Task[None]] = {}
 
     @property
     def tracked(self) -> list[str]:
         return list(self._tasks)
 
-    def start(self, sid: str, make_coro: Callable[[], Awaitable[None]]) -> bool:
-        """전사를 시작합니다. **이미 돌고 있으면 `False`** (중복 시작 방지)."""
+    def start(self, sid: str, make_coro: Callable[[], Coroutine[Any, Any, None]]) -> bool:
+        """전사를 시작합니다. **이미 돌고 있으면 `False`** (중복 시작 방지).
+
+        **`Awaitable` 이 아니라 `Coroutine` 을 받습니다.** `asyncio.create_task` 는
+        코루틴만 받는데 `Awaitable` 은 Future 나 커스텀 awaitable 도 포함해서, 타입
+        검사를 통과하는 값이 런타임 `TypeError` 로 떨어집니다. 지금 호출부
+        (`entrypoint.py` 의 `lambda: listener.run(track)`)는 코루틴이라 좁혀도
+        잃는 것이 없습니다.
+        """
         if sid in self._tasks:
             return False
         task = asyncio.create_task(make_coro())
         self._tasks[sid] = task
         # 강한 참조를 여기 보관합니다. 안 하면 GC 가 실행 중인 태스크를 수거해 전사가
-        # 조용히 멈춥니다(→ `../ai/LEARNING.md` 5절).
+        # 조용히 멈춥니다.
         task.add_done_callback(lambda finished: self._forget(sid, finished))
         return True
 
-    def _forget(self, sid: str, finished: asyncio.Task) -> None:
+    def _forget(self, sid: str, finished: asyncio.Task[None]) -> None:
         if self._tasks.get(sid) is finished:
             del self._tasks[sid]
 
@@ -195,9 +204,13 @@ class TranscriptionRegistry:
 class TrackListener:
     """오디오 트랙 하나를 받아 전사문을 콜백으로 흘려보냅니다.
 
-    트랙마다 인스턴스 하나입니다. `../ai` 의 `VoiceCapture` 가 발화마다 새로 만들어야
-    했던 것과 달리(리샘플러가 상태를 가져서) 여기서는 스트림이 계속 살아 있습니다 —
-    Deepgram 이 발화 경계를 알아서 나눕니다.
+    **인스턴스는 상태를 들고 있지 않습니다.** 스트림도 오디오도 `run()` 안에서 만들고
+    닫으므로 인스턴스 하나로 트랙 여러 개를 돌려도 됩니다 — `entrypoint.py` 가 실제로
+    하나를 만들어 재사용합니다. 이 방에는 사용자 마이크 트랙 하나뿐이라 지금은 겹칠
+    일이 없지만, 그 사실에 기대고 있는 코드는 없습니다.
+
+    스트림은 발화가 끝나도 계속 살아 있습니다 — Deepgram 이 발화 경계를 알아서
+    나눕니다. 닫히는 것은 mute(취소)와 job 종료 때뿐입니다.
     """
 
     def __init__(
@@ -254,7 +267,7 @@ class TrackListener:
             # **취소 중에도 반드시 닫습니다.** `finally` 안의 `await` 는 이미 취소된
             # 태스크에서 즉시 `CancelledError` 를 다시 낼 수 있는데, 그러면 뒤쪽 정리가
             # 건너뛰어져 STT 연결이 새어 나갑니다 — mute/unmute 를 반복하면 연결이
-            # 쌓입니다. `../ai` 의 `cleanup()` 이 멱등해야 했던 것과 같은 종류입니다.
+            # 쌓입니다. 정리 경로는 멱등해야 합니다.
             #
             # `BaseException` 을 삼키지는 않습니다. `KeyboardInterrupt`·`SystemExit` 까지
             # 먹으면 Ctrl+C 가 안 듣습니다 — 필요한 것은 `CancelledError` 뿐입니다.
@@ -276,8 +289,8 @@ class TrackListener:
                 await self._on_interim(text)
         elif event.type == stt_api.SpeechEventType.RECOGNITION_USAGE:
             # STT 는 LLM 토큰이 아니라 **오디오 시간**으로 과금됩니다. 그 값이
-            # `gemini usage` 로그에 안 나오므로 여기서 따로 남깁니다
-            # (→ `../ai/LEARNING.md` 16절: 합계는 "어디가" 를 알려주지 않습니다).
+            # `gemini usage` 로그에 안 나오므로 여기서 따로 남깁니다 — 합계만으로는
+            # "어디가" 를 알 수 없습니다.
             usage = event.recognition_usage
             if usage is not None:
                 logger.info("stt usage %s", usage)

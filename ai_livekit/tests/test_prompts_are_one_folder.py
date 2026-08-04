@@ -1,9 +1,8 @@
 """모델에게 가는 텍스트는 `prompts/` 에만 있다.
 
-예전에는 `goal.py`(1단계 폴백 · 정원 규칙 · 빈 목록 문구)와 `config.py`(chat 페르소나)
-에도 프롬프트가 있었습니다. 문구를 다듬으려면 어디에 있는지부터 찾아야 했고, 두
-곳이 서로 다른 말을 하는 일이 실제로 있었습니다 — 코드 폴백에는 없어진 고정 8칸
-목록(`건강, 재정, …`)과 지운 지 한참 된 오디오 지시가 남아 있었습니다.
+`goal.py`(1단계 폴백 · 정원 규칙 · 빈 목록 문구)나 `config.py`(chat 페르소나)에
+문구를 두면, 다듬을 때 어디에 있는지부터 찾아야 하고 두 곳이 서로 다른 말을 하게
+됩니다.
 
 **이 파일이 지키는 것은 "한 폴더" 라는 사실 자체입니다.** 경로에 오타가 나거나
 환경변수를 빠뜨리면 `SystemPrompt` 는 예외 없이 비상 문구로 내려갑니다(의도된
@@ -79,3 +78,43 @@ def test_the_emergency_text_still_carries_the_safety_rules():
         assert "harmful" in EMERGENCY[name], f"EMERGENCY[{name}] 에 유해 발화 규칙이 없습니다"
     # 칸을 지어내지 않는다는 규칙도 안전 쪽이다 — 사용자 만다라트에 없는 칸이 생긴다.
     assert "새 칸을 지어내지" in EMERGENCY["system"]
+
+
+#: 각 프롬프트가 받는 슬롯. `goal.py` 의 `fill_slots(...)` 호출부와 같아야 합니다 —
+#: 테스트가 계약을 **독립적으로** 다시 적는 자리라 일부러 복사해 둡니다.
+SLOTS = {
+    "bot_system_prompt_file": (
+        "domain_list",
+        "existing_domain_tasks",
+        "existing_subjects",
+        "user_utterance",
+    ),
+    "bot_classify_prompt_file": ("domain_list",),
+}
+
+
+def test_every_slot_is_filled_where_the_data_actually_goes():
+    """**`fill_slots` 는 첫 일치만 갈아끼웁니다**(`goal.py` 의 `pattern.search`).
+
+    그래서 프롬프트 본문에서 슬롯 이름을 언급할 때는 `&lt;domain_list&gt;` 처럼
+    이스케이프해야 합니다. 안 하면 그 언급이 채워지고 `<context>` 의 진짜 슬롯은
+    `{{설명}}` 플레이스홀더 그대로 모델에게 갑니다 — 에러도 로그도 없고 증상은
+    "칸 이름을 못 알아본다" 뿐입니다.
+
+    모양이 아니라 **실제로 채워 보고** 검사합니다. 남은 `{{` 가 곧 안 채워진 슬롯입니다.
+    """
+    from mandarin_goal.bot.goal import fill_slots
+
+    for setting, tags in SLOTS.items():
+        path = PROJECT_ROOT / getattr(SETTINGS, setting).lstrip("./")
+        filled = fill_slots(
+            path.read_text(encoding="utf-8"), {tag: f"__{tag}__" for tag in tags}
+        )
+        for tag in tags:
+            assert filled.count(f"__{tag}__") == 1, (
+                f"{path.name} 의 <{tag}> 슬롯이 한 자리에 들어가지 않았습니다"
+            )
+        assert "{{" not in filled, (
+            f"{path.name} 에 안 채워진 슬롯이 남았습니다 — 본문의 슬롯 언급을 "
+            "이스케이프하지 않아 그쪽이 먼저 채워졌을 수 있습니다"
+        )

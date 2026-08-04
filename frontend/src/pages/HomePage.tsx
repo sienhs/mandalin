@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { domainProgress, useStore } from '../data/store'
 import { PERIOD_LABEL, type TodoItem } from '../data/types'
@@ -27,6 +27,8 @@ export default function Home() {
   const navigate = useNavigate()
   const [villageIndex, setVillageIndex] = useState(0)
   const [pending, setPending] = useState<number | null>(null)
+  /** 요청이 날아가는 중인지. 상태보다 먼저 바뀌어야 연타를 막을 수 있다. */
+  const inFlight = useRef(false)
 
   const detailList = useMemo(
     () => Object.values(details.data).sort((a, b) => b.id - a.id),
@@ -85,10 +87,20 @@ export default function Home() {
     return { name: target.name, remain, count: Math.ceil(remain / avg) }
   }, [shop.data, user, rows])
 
+  /*
+    상세 화면과 같은 이유로 ref 로 한 번 더 막는다 — `pending` 상태만으로는 버튼이 다음
+    렌더부터 잠기므로, 빠른 연타가 같은 렌더에서 두 번 요청을 낸다.
+  */
   const complete = async (row: Row) => {
+    if (inFlight.current) return
+    inFlight.current = true
     setPending(row.todo.subjectId)
-    await completeSubjects(row.todo.sheetId, [row.todo.subjectId])
-    setPending(null)
+    try {
+      await completeSubjects(row.todo.sheetId, [row.todo.subjectId])
+    } finally {
+      inFlight.current = false
+      setPending(null)
+    }
   }
 
   /* ───────── 로딩 · 에러 ───────── */
