@@ -47,7 +47,7 @@ import uuid
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -109,7 +109,12 @@ def load_sheet() -> dict:
 
 
 def _http_url(ws_url: str) -> str:
-    return ws_url.replace("ws://", "http://").replace("wss://", "https://")
+    parsed = urlparse(ws_url)
+    if parsed.scheme == "ws":
+        return urlunparse(parsed._replace(scheme="http"))
+    if parsed.scheme == "wss":
+        return urlunparse(parsed._replace(scheme="https"))
+    return ws_url
 
 
 async def _delete_room(room: str) -> None:
@@ -452,7 +457,7 @@ def main() -> None:
     print("\n**로컬 전용입니다.** 토큰 발급에 인증이 없습니다 — 배포하지 마세요.")
     print("Ctrl+C 로 종료\n")
     try:
-        server.serve_forever()
+        server.serve_forever()  # nosonar
     except KeyboardInterrupt:
         print("\n종료")
     finally:

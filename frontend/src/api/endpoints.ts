@@ -16,6 +16,7 @@ import type {
   ShopBuildingDto,
   SubjectCompleteDto,
   TerrainDto,
+  TestAccountDto,
   TodoDto,
   UserProfileDto,
   UserSearchDto,
@@ -40,6 +41,30 @@ export const auth = {
     apiFetch<LoginDto>('/api/auth/oauth/exchange', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    }),
+
+  /**
+   * 발급된 테스트 계정 아이디 목록. 비밀번호는 오지 않는다.
+   *
+   * <p>백엔드 스위치(`app.test-login.enabled`)가 꺼지면 컨트롤러가 등록되지 않아 404 이고,
+   * 비밀번호가 설정되지 않았으면 빈 배열이다. 호출하는 쪽은 둘 다 오류로 다루지 않고
+   * <b>입구를 그리지 않는 신호</b>로 쓴다.
+   */
+  testAccounts: () => apiFetch<TestAccountDto[]>('/api/auth/test/accounts'),
+
+  /**
+   * 테스트 계정으로 로그인.
+   *
+   * <p>응답이 카카오 교환(`exchange`)과 같은 모양이다 — 서버가 같은 메서드를 부르기 때문이다.
+   * 리프레시 토큰은 본문에 없고 쿠키로 온다.
+   *
+   * <p>아이디가 없을 때와 비밀번호가 틀렸을 때가 <b>같은 401</b>이다. 어느 쪽이 틀렸는지
+   * 화면에서 구분해 알려줄 수 없다(서버가 알려주지 않는다).
+   */
+  testLogin: (loginId: string, password: string) =>
+    apiFetch<LoginDto>('/api/auth/test/login', {
+      method: 'POST',
+      body: JSON.stringify({ loginId, password }),
     }),
 
   me: () => apiFetch<UserProfileDto>('/api/v1/users/me'),
