@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { domainProgress, filledCells, useSheetDetail, useStore } from '../data/store'
+import { domainProgress, useSheetDetail, useStore } from '../data/store'
 import { PERIOD_LABEL, type Period, type Subject } from '../data/types'
 import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
 import Button from '../components/common/ActionButton'
@@ -28,19 +28,28 @@ type Props = { readOnly?: boolean }
  * 주기마다 "다시 열리는 시점"이 달라서 문구도 주기별로 갈라 준다.
  */
 function lockedReason(sub: Subject): string | null {
-  if (sub.canExecute) return null
   if (sub.isDone) return '목표를 다 채운 과제입니다'
-
-  const byPeriod: Record<Period, string> = {
-    DAILY: '오늘 이미 수행한 과제입니다',
-    WEEKLY: '이번 주에 목표 횟수를 채웠어요',
-    MONTHLY: '이번 달에 목표 횟수를 채웠어요',
-    NONE: '이미 수행한 과제입니다',
+  if (sub.isDoneToday) return '오늘 이미 수행한 과제입니다'
+  if (sub.isDonePeriod) {
+    const byPeriod: Record<Period, string> = {
+      DAILY: '오늘 이미 수행한 과제입니다',
+      WEEKLY: '이번 주에 목표 횟수를 채웠어요',
+      MONTHLY: '이번 달에 목표 횟수를 채웠어요',
+      NONE: '이미 수행한 과제입니다',
+    }
+    return byPeriod[sub.period] ?? '주기별 목표를 달성했습니다'
+  }
+  if (!sub.canExecute) {
+    const byPeriod: Record<Period, string> = {
+      DAILY: '오늘 이미 수행한 과제입니다',
+      WEEKLY: '이번 주에 목표 횟수를 채웠어요',
+      MONTHLY: '이번 달에 목표 횟수를 채웠어요',
+      NONE: '이미 수행한 과제입니다',
+    }
+    return byPeriod[sub.period] ?? '이미 수행한 과제입니다'
   }
 
-  // 오늘 눌렀는데 주기 목표는 아직 남은 경우(예: 주 3회 중 1회) — 날이 바뀌면 또 할 수 있다.
-  if (sub.isDoneToday && !sub.isDonePeriod) return '오늘 이미 수행한 과제입니다'
-  return byPeriod[sub.period]
+  return null
 }
 
 export default function SheetDetail({ readOnly = false }: Props) {
@@ -106,7 +115,35 @@ export default function SheetDetail({ readOnly = false }: Props) {
     setPending(subjectId)
     try {
       const ok = await completeSubjects(sheet.id, [subjectId])
-      if (ok) await reload()
+      if (ok) {
+        setSheet((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            domains: prev.domains.map((d) => ({
+              ...d,
+              subjects: d.subjects.map((s) => {
+                if (s.id !== subjectId) return s
+                const newTryCount = s.tryCount + 1
+                const isDoneNow = s.targetCount > 0 && newTryCount >= s.targetCount
+                const newPeriodCount = s.currentPeriodCount + 1
+                const isDonePeriodNow = newPeriodCount >= s.countPerPeriod
+                return {
+                  ...s,
+                  tryCount: newTryCount,
+                  currentPeriodCount: newPeriodCount,
+                  isDoneToday: true,
+                  isDonePeriod: isDonePeriodNow,
+                  isDone: isDoneNow,
+                  canExecute: false,
+                  progress: s.targetCount > 0 ? Math.round((newTryCount / s.targetCount) * 100) : 100,
+                }
+              }),
+            })),
+          }
+        })
+        await reload()
+      }
     } finally {
       inFlight.current = false
       setPending(null)
@@ -145,7 +182,6 @@ export default function SheetDetail({ readOnly = false }: Props) {
                 {sheet.isOpen ? '공개' : '비공개'}
               </Badge>
             )}
-            <Badge>{filledCells(sheet)}/81칸</Badge>
           </div>
 
           <h1 className="page-title mt-2">{sheet.title}</h1>
@@ -206,7 +242,6 @@ export default function SheetDetail({ readOnly = false }: Props) {
             className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4 text-[11.5px] font-bold"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
-            <span className="muted">칸 색이 아래에서 차오르면 그만큼 진행된 것입니다</span>
             <span className="ml-auto flex flex-wrap items-center gap-3">
               {domains.slice(0, 4).map((d) => (
                 <span key={d.id} className="flex items-center gap-1.5">
@@ -365,7 +400,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
                                 <Button
                                   size="xs"
                                   variant={locked ? 'quiet' : 'primary'}
-                                  className="shrink-0"
+                                  className="w-[130px] shrink-0 justify-center"
                                   disabled={Boolean(locked) || busy}
                                   /* 잠긴 이유는 툴팁으로도 남긴다 — 아래 안내가 접혀도 읽을 수 있게. */
                                   title={locked ?? `한 번 완료하면 ${sub.point}P 를 받습니다`}
