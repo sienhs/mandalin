@@ -48,6 +48,12 @@ interface Props {
   /** 카메라가 바라볼 지점. 생략하면 마을 중심. */
   focus?: [number, number, number]
   /**
+   * 캔버스 위에 얹은 UI 가 좌·우에서 덮은 폭(px). 마을이 남은 영역 중앙으로 미끄러진다.
+   * 자세한 내용은 {@link IsoCamera} 의 같은 이름 prop 주석에 있다.
+   */
+  occludedLeft?: number
+  occludedRight?: number
+  /**
    * 캔버스 안에 추가로 렌더할 것. 실서비스에서는 쓰지 않는다.
    *
    * 렌더 통계(draw call 수)는 `useThree` 로 renderer 에 닿아야 읽을 수 있는데, 그 훅은
@@ -81,6 +87,8 @@ export function Scene({
   initialZoom = 1,
   onFacingChange,
   focus,
+  occludedLeft,
+  occludedRight,
   children,
   onSelect,
   onSelectTask,
@@ -106,6 +114,8 @@ export function Scene({
         initialZoom={initialZoom}
         onFacingChange={onFacingChange}
         focus={focus}
+        occludedLeft={occludedLeft}
+        occludedRight={occludedRight}
       />
 
       {/*

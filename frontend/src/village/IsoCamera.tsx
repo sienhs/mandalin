@@ -92,6 +92,32 @@ function place(
   }
 }
 
+/**
+ * 절두체를 세팅한다. **네 값을 항상 함께 쓴다.**
+ *
+ * <p>`place` 와 같은 이유로 함수로 뽑았다 — 초기 배치(useLayoutEffect)와 매 프레임
+ * 갱신(useFrame)이 같은 식을 써야 한다. 한쪽만 고치면 첫 프레임에서 화면이 튄다.
+ *
+ * <p>`shift` 는 절두체를 카메라 좌표 기준으로 좌우로 민다. **줄이면 내용이 오른쪽으로
+ * 간다** — 창(window)이 왼쪽으로 가면 같은 월드 좌표가 창 안에서 오른쪽에 놓이기 때문이다.
+ *
+ * <p>네 값을 전부 쓰는 것이 중요하다. prop 으로만 넘기면 R3F 가 바뀐 것만 반영하는데,
+ * `half` 는 aspect 가 1.238 이상이면 상수라 `top`·`bottom` 이 갱신되지 않는다.
+ */
+function applyFrustum(
+  camera: ThreeOrthographicCamera | null,
+  half: number,
+  aspect: number,
+  shift: number,
+): void {
+  if (!camera) return
+  camera.left = -half * aspect + shift
+  camera.right = half * aspect + shift
+  camera.top = half
+  camera.bottom = -half
+  camera.updateProjectionMatrix()
+}
+
 export type IsoCameraHandle = {
   /** 시계 방향으로 90° 돈다. */
   rotateCW: () => void
@@ -117,9 +143,29 @@ type Props = {
    * 카메라가 그쪽으로 미끄러진다.
    */
   focus?: Vec3
+  /**
+   * 화면 왼쪽·오른쪽에서 UI 가 덮은 폭(px). 마을이 <b>남은 영역의 중앙</b>으로 미끄러진다.
+   *
+   * <p>`focus` 와 하는 일이 다르다. `focus` 는 "무엇을 볼지"(월드 좌표)를 옮기고, 이쪽은
+   * "그것이 화면 어디에 보일지"를 옮긴다. 그래서 회전해도 방향이 흔들리지 않는다 —
+   * 절두체를 좌우로 미는 것이라 카메라 각도와 무관하다.
+   *
+   * <p>`focus` 로 대신할 수 없는 이유: look-at 을 옮기면 화면상 이동 방향이 `facing` 에
+   * 따라 달라지는데, `facing` 은 state 인 반면 실제 각도는 프레임 보간이라 회전 중에
+   * 오프셋이 튄다.
+   */
+  occludedLeft?: number
+  occludedRight?: number
 }
 
-export function IsoCamera({ handleRef, onFacingChange, initialZoom = DEFAULT_ZOOM, focus }: Props) {
+export function IsoCamera({
+  handleRef,
+  onFacingChange,
+  initialZoom = DEFAULT_ZOOM,
+  focus,
+  occludedLeft = 0,
+  occludedRight = 0,
+}: Props) {
   const cameraRef = useRef<ThreeOrthographicCamera>(null)
   const { gl, size } = useThree()
 
@@ -132,6 +178,47 @@ export function IsoCamera({ handleRef, onFacingChange, initialZoom = DEFAULT_ZOO
   const zoomRef = useRef<number>(ZOOM_PRESETS[initialZoom])
   /** 실제로 바라보는 지점. focus 가 바뀌면 이 값이 그쪽으로 미끄러진다. */
   const targetRef = useRef<Vec3>([...TARGET])
+  /**
+   * 마을을 화면에서 옮길 거리 — **픽셀 단위**로 들고 있는다.
+   *
+   * <p>월드 단위로 들면 확대할 때 어긋난다. three.js 직교 투영은 `left`·`right` 의 <b>중심</b>은
+   * 그대로 쓰고 <b>폭</b>만 `zoom` 으로 나눈다(`dx = (right-left)/(2*zoom)`). 그래서 월드
+   * 오프셋을 고정해 두면 화면상 이동량이 `offset × zoom` 이 되어, 확대할수록 마을이 과하게
+   * 밀려난다(zoom 2.8 에서 2.8배).
+   *
+   * <p>패널이 덮는 폭은 픽셀로 고정이므로 보정도 픽셀로 고정이어야 한다. 그래서 여기서는
+   * 픽셀을 보간하고, 월드 변환은 매 프레임 <b>지금 적용된 zoom</b>으로 한다.
+   */
+  const offsetRef = useRef(0)
+  /** 지금 카메라에 들어가 있는 절두체 이동량(월드). 바뀔 때만 투영행렬을 다시 만든다. */
+  const appliedShiftRef = useRef(0)
+
+  /**
+   * 창 크기가 어떻게 바뀌어도 마을 전체가 들어오도록 절두체를 잡는다(contain).
+   *
+   * <p>예전에는 세로만 기준으로 고정해서, 창을 좁히면 가로가 모자라 마을이 옆으로 잘렸다.
+   * 가로·세로 <b>둘 다</b> 검사해 더 모자란 쪽에 맞추면 어떤 비율에서도 잘리지 않는다.
+   * 창을 줄이면 마을이 작아질 뿐 구도는 그대로다.
+   *
+   * <p><b>크기가 아직 0 일 때를 반드시 걸러야 한다.</b> Canvas 가 마운트되는 첫 프레임에는
+   * `size` 가 (0, 0) 으로 들어오는데, 그때 `width / height` 를 그대로 쓰면 aspect 가
+   * 수천이 되고 절두체가 ±20000 까지 벌어진다. 마을이 점 하나로 사라져서
+   * "카메라가 어디론가 날아간" 것처럼 보인다.
+   */
+  const ready = size.width > 0 && size.height > 0
+  const aspect = ready ? size.width / size.height : 1
+  // 세로로 담으려면 이만큼, 가로로 담으려면 이만큼 — 둘 중 큰 값을 쓴다.
+  const half = Math.max(WORLD_HEIGHT / 2, WORLD_WIDTH / 2 / aspect)
+
+  /**
+   * 마을이 화면에서 옮겨 가야 할 거리(px).
+   *
+   * <p>노출된 영역의 중심이 캔버스 중심에서 얼마나 벗어났는지를 잰다. 왼쪽이 덮였으면 노출
+   * 중심이 오른쪽에 있으므로 양수 = 마을을 오른쪽으로.
+   */
+  const offsetGoal = ready
+    ? (occludedLeft + (size.width - occludedRight)) / 2 - size.width / 2
+    : 0
 
   useImperativeHandle(
     handleRef,
@@ -265,6 +352,28 @@ export function IsoCamera({ handleRef, onFacingChange, initialZoom = DEFAULT_ZOO
     }
 
     place(camera, angleRef.current, zoomRef.current, targetRef.current)
+
+    /*
+      UI 가 덮은 만큼 마을을 남은 영역 중앙으로 민다. 각도·줌과 같은 감속을 써서 패널이
+      열리고 닫힐 때 마을이 같은 리듬으로 미끄러진다.
+
+      **보간은 픽셀로, 적용은 지금 zoom 으로.** 둘을 나눠 두면 확대와 패널이 서로 간섭하지
+      않는다 — 확대 중에도(`zoomRef` 가 움직이는 동안) 마을이 패널 옆에 그대로 머문다.
+      월드 오프셋을 보간했다면 zoom 이 바뀔 때마다 화면상 위치가 같이 튀었을 것이다.
+
+      CSS transition 으로 캔버스를 움직이지 않는 이유: 캔버스를 늘리면 렌더 결과가 늘어나
+      뭉개진다. 절두체를 옮기면 매 프레임 제대로 다시 그린다.
+    */
+    offsetRef.current += (offsetGoal - offsetRef.current) * t
+
+    // 화면 1px 이 월드 몇 단위인지. zoom 이 크면(확대) 1px 이 덮는 월드가 작아진다.
+    const worldPerPx = (2 * half * aspect) / zoomRef.current / size.width
+    const wantShift = -offsetRef.current * worldPerPx
+
+    if (Math.abs(wantShift - appliedShiftRef.current) > 0.0005) {
+      appliedShiftRef.current = wantShift
+      applyFrustum(camera, half, aspect, wantShift)
+    }
   })
 
   /**
@@ -279,11 +388,6 @@ export function IsoCamera({ handleRef, onFacingChange, initialZoom = DEFAULT_ZOO
    * 수천이 되고 절두체가 ±20000 까지 벌어진다. 마을이 점 하나로 사라져서
    * "카메라가 어디론가 날아간" 것처럼 보인다.
    */
-  const ready = size.width > 0 && size.height > 0
-  const aspect = ready ? size.width / size.height : 1
-  // 세로로 담으려면 이만큼, 가로로 담으려면 이만큼 — 둘 중 큰 값을 쓴다.
-  const half = Math.max(WORLD_HEIGHT / 2, WORLD_WIDTH / 2 / aspect)
-
   /*
     절두체를 매번 네 값 전부 다시 쓰고 투영행렬을 직접 갱신한다.
 
@@ -300,18 +404,15 @@ export function IsoCamera({ handleRef, onFacingChange, initialZoom = DEFAULT_ZOO
 
     그래서 두 가지를 같이 한다.
       1. `manual` — R3F 가 절두체에 손대지 않게 한다(updateCamera 가 즉시 반환한다).
-      2. 여기서 네 값을 전부 쓰고 updateProjectionMatrix 를 부른다. `manual` 이면 drei 도
-         갱신을 건너뛰므로(OrthographicCamera.js) 부를 사람이 우리뿐이다.
+      2. `applyFrustum` 이 네 값을 전부 쓰고 updateProjectionMatrix 를 부른다. `manual` 이면
+         drei 도 갱신을 건너뛰므로(OrthographicCamera.js) 부를 사람이 우리뿐이다.
+
+    지금 적용된 이동량을 같이 넘긴다 — 크기가 바뀌었을 때 0 으로 되돌리면 패널이 열린 채
+    마을이 중앙으로 튄다. 다음 프레임에 useFrame 이 새 비율로 다시 계산한다.
   */
   useLayoutEffect(() => {
-    const camera = cameraRef.current
-    if (!camera || !ready) return
-
-    camera.left = -half * aspect
-    camera.right = half * aspect
-    camera.top = half
-    camera.bottom = -half
-    camera.updateProjectionMatrix()
+    if (!ready) return
+    applyFrustum(cameraRef.current, half, aspect, appliedShiftRef.current)
   }, [ready, half, aspect])
 
   return (

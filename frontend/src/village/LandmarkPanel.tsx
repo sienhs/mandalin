@@ -3,8 +3,7 @@ import { LANDMARK_STAGE_LABELS, type LandmarkStage } from './partTypes'
 import type { LandmarkOverride } from './Landmark'
 import type { OwnedCatalog } from './ownedCatalog'
 import { landmarkStageOf, urbanLevelOf, type Domain } from './types'
-import Button from '../components/common/ActionButton'
-import { Badge, ProgressBar, Select, domainColor } from '../components/common/Primitives'
+import { Badge, ProgressBar, domainColor } from '../components/common/Primitives'
 
 interface Props {
   /** 정중앙 블록. tasks 는 8개 도메인의 진행률 요약이다. */
@@ -16,24 +15,7 @@ interface Props {
    * 이 패널의 단계 표시도 따라가야 한다 — 어긋나면 마을과 숫자가 다른 말을 한다.
    */
   preview: 'now' | 'done'
-  onPatch: (patch: Partial<LandmarkOverride>) => void
-  onReset: () => void
 }
-
-/** 0 은 "공사 부지"라 "0단계"로 읽히면 안 된다. 나머지는 `n단계 · 라벨`. */
-const ALL_STAGES: LandmarkStage[] = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-
-/**
- * 표시 단계 선택지. `LANDMARK_STAGE_LABELS` 에서 그대로 파생하므로 부르는 쪽이 만들지 않는다 —
- * 두 곳에서 만들면 라벨이 갈라진다.
- */
-const STAGE_OPTIONS: { value: LandmarkStage | 'auto'; label: string }[] = [
-  { value: 'auto', label: '자동 (진행률에 맞춤)' },
-  ...ALL_STAGES.map((stage) => ({
-    value: stage,
-    label: stage === 0 ? LANDMARK_STAGE_LABELS[0] : `${stage}단계 · ${LANDMARK_STAGE_LABELS[stage]}`,
-  })),
-]
 
 /**
  * 정중앙(중심 목표) 패널.
@@ -45,7 +27,7 @@ const STAGE_OPTIONS: { value: LandmarkStage | 'auto'; label: string }[] = [
  * <p>건물을 고르는 것은 이 패널이 아니라 아래 피커가 한다. 칸이 하나라 "칸을 먼저 고른다"는
  * 단계가 없어서, 피커를 열고 닫을 이유도 없다.
  */
-export function LandmarkPanel({ center, catalog, override, preview, onPatch, onReset }: Props) {
+export function LandmarkPanel({ center, catalog, override, preview }: Props) {
   const done = preview === 'done'
 
   /*
@@ -54,11 +36,7 @@ export function LandmarkPanel({ center, catalog, override, preview, onPatch, onR
   */
   const overall = urbanLevelOf(center) * 100
   const autoStage = landmarkStageOf(center)
-  const stage: LandmarkStage = done
-    ? 8
-    : override.stage !== 'auto'
-      ? override.stage
-      : autoStage
+  const stage: LandmarkStage = done ? 8 : override.stage !== 'auto' ? override.stage : autoStage
 
   const picked =
     override.building !== 'auto'
@@ -69,16 +47,22 @@ export function LandmarkPanel({ center, catalog, override, preview, onPatch, onR
 
   return (
     <div
-      className="mt-5 overflow-hidden rounded-2xl border"
+      className="mt-4 shrink-0 overflow-hidden rounded-2xl border"
       style={{ borderColor: 'var(--border-hairline)' }}
     >
-      {/* ── 지금 서 있는 랜드마크 ── */}
+      {/*
+        ── 지금 서 있는 랜드마크 ──
+
+        한 줄로 줄였다(썸네일 56 → 40, `p-4` → `p-3`, 부제 제거). 아래 피커가 고른 랜드마크에
+        테두리를 두르고 이름도 붙여 주므로 여기서 크게 다시 보여줄 필요가 없다. 남기는 것은
+        <b>단계 배지</b>다 — 그건 피커에 없다.
+      */}
       <div
-        className="flex flex-wrap items-center gap-3 border-b p-4"
+        className="flex items-center gap-2.5 border-b p-3"
         style={{ borderColor: 'var(--border-hairline)' }}
       >
         <span
-          className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl"
+          className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl"
           style={{ background: 'var(--surface-sunken)' }}
         >
           {picked ? (
@@ -86,40 +70,38 @@ export function LandmarkPanel({ center, catalog, override, preview, onPatch, onR
               k={picked.itemKey}
               remoteUrl={picked.thumbnailUrl}
               parts={picked.parts}
-              size={56}
+              size={38}
               alt={picked.name}
               landmark
             />
           ) : (
-            <span aria-hidden="true" className="text-[20px]">
+            <span aria-hidden="true" className="text-[16px]">
               🏗
             </span>
           )}
         </span>
 
-        <div className="min-w-0 flex-1">
-          <p className="m-0 truncate text-[13.5px] font-extrabold">
-            {picked?.name ?? '보유한 랜드마크 없음'}
-          </p>
-          <p className="muted m-0 mt-0.5 text-[11.5px] font-semibold">
-            {none ? '중앙은 공사 부지로 남습니다' : '중심 목표 · 3×3 랜드마크'}
-          </p>
-        </div>
+        <p className="m-0 min-w-0 flex-1 truncate text-[13px] font-extrabold">
+          {picked?.name ?? '보유한 랜드마크 없음'}
+        </p>
 
-        {!none && (
-          <Badge tone={stage >= 8 ? 'success' : 'brand'}>
+        {none ? (
+          <span className="muted shrink-0 text-[11px] font-semibold">공사 부지로 남습니다</span>
+        ) : (
+          <Badge tone={stage >= 8 ? 'success' : 'brand'} className="shrink-0">
             {stage}/8 · {LANDMARK_STAGE_LABELS[stage]}
           </Badge>
         )}
       </div>
 
-      <div className="p-4">
+      <div className="p-3">
         {/* ── 전체 진행률. 12.5% 눈금이 곧 단계 경계다 ── */}
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-[12.5px] font-bold">전체 진행률</span>
           <span className="muted text-[11.5px] font-bold tabular-nums">
             {/* 완성형에서도 실제 값이다. 위 배지가 8단계인 것과 어긋나 보이므로 그렇다고 적는다. */}
-            {Math.round(overall)}% · {done ? '실제 값 (완성형 미리보기 중)' : `자동 단계 ${autoStage}/8`}
+            {Math.round(overall)}% ·{' '}
+            {done ? '실제 값 (완성형 미리보기 중)' : `자동 단계 ${autoStage}/8`}
           </span>
         </div>
 
@@ -139,68 +121,54 @@ export function LandmarkPanel({ center, catalog, override, preview, onPatch, onR
           ))}
         </div>
 
-        {/* ── 표시 단계. 저장되지 않는 미리보기다 ── */}
-        <label className="mt-4 flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-bold text-[var(--text-muted)]">표시 단계</span>
-          <Select
-            value={done ? '8' : String(override.stage)}
-            disabled={done}
-            onChange={(e) =>
-              onPatch({
-                stage:
-                  e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as LandmarkStage),
-              })
-            }
-          >
-            {STAGE_OPTIONS.map((o) => (
-              <option key={String(o.value)} value={String(o.value)}>
-                {o.label}
-              </option>
+        {/*
+          표시 단계를 고르는 select 가 여기 있었다(약 52px). **없앴다** — 단계는 진행률이
+          정하는 것이고, 손으로 고르는 것은 사실상 개발용 미리보기였다. 그 높이는 아래 랜드마크
+          피커가 쓰는 편이 낫다(한 줄이 더 보인다).
+
+          완성형 미리보기에서 8단계가 되는 것은 이 컨트롤과 무관하다 — `shown` 이 진행률을 100
+          으로 올리면 `landmarkStageOf` 가 8 을 돌려준다.
+        */}
+
+        {/*
+          이 값들의 평균이 위의 자동 단계를 만든다.
+
+          <details> 로 접어 둔다 — 8줄이 항상 펼쳐져 있으면 좁은 패널에서 아래 피커가 화면
+          밖으로 밀린다. 단계의 근거가 필요할 때만 펼치면 된다.
+        */}
+        <details className="mt-4">
+          <summary className="cursor-pointer text-[12.5px] font-bold select-none">
+            도메인 8개 진행률
+          </summary>
+          <ul className="mt-2 mb-0 grid list-none gap-2.5 p-0">
+            {center.tasks.slice(0, 8).map((t, i) => (
+              <li key={t.id}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-[12px] font-semibold">
+                    {i + 1}. {t.title || '(빈 도메인)'}
+                  </span>
+                  <span className="muted shrink-0 text-[11px] font-black tabular-nums">
+                    {t.progress}%
+                  </span>
+                </div>
+                <span className="mt-1 block">
+                  <ProgressBar
+                    value={t.progress}
+                    size="sm"
+                    color={domainColor(i)}
+                    label={`${t.title} 진행률`}
+                  />
+                </span>
+              </li>
             ))}
-          </Select>
-          {/*
-            완성형에서 이 컨트롤은 먹지 않는다. 비활성만 하고 이유를 적지 않으면 고장으로
-            보이므로 같이 적는다. 고른 값은 남아 있어서 완성형을 끄면 돌아온다.
-          */}
-          {done && (
-            <span className="text-[11.5px] font-medium text-[var(--text-muted)]">
-              완성형 보기에서는 8단계로 고정됩니다. 끄면 고른 단계로 돌아옵니다.
-            </span>
-          )}
-        </label>
+          </ul>
+        </details>
 
-        {/* ── 이 값들의 평균이 위의 자동 단계를 만든다 ── */}
-        <p className="mt-5 mb-2 text-[12.5px] font-bold">도메인 8개 진행률</p>
-        <ul className="m-0 grid list-none gap-2.5 p-0 sm:grid-cols-2">
-          {center.tasks.slice(0, 8).map((t, i) => (
-            <li key={t.id}>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-[12px] font-semibold">
-                  {i + 1}. {t.title || '(빈 도메인)'}
-                </span>
-                <span className="muted shrink-0 text-[11px] font-black tabular-nums">
-                  {t.progress}%
-                </span>
-              </div>
-              <span className="mt-1 block">
-                <ProgressBar
-                  value={t.progress}
-                  size="sm"
-                  color={domainColor(i)}
-                  label={`${t.title} 진행률`}
-                />
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {(override.building !== 'auto' || override.stage !== 'auto') && (
-          <div className="mt-4">
-            <Button variant="quiet" size="sm" onClick={onReset}>
-              자동으로 되돌리기
-            </Button>
-          </div>
-        )}
+        {/*
+          `자동으로 되돌리기` 버튼이 여기 있었다(약 52px). **없앴다** — 바로 아래 피커 머리의
+          `자동으로` 가 같은 일을 한다(칸을 비우면 보유 목록 첫 종이 선다). 표시 단계를 없앤
+          뒤로는 되돌릴 것이 건물 하나뿐이라 둘이 완전히 겹쳤다.
+        */}
       </div>
     </div>
   )
