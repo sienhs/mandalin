@@ -18,6 +18,7 @@ public record SheetListResponse(
          */
         Boolean isLiked,
         Double achievementRate,
+        Double progress,
         LocalDateTime createdAt,
         LocalDateTime expiredAt
 ) {

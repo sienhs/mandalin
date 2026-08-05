@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.ssafy.mandarin.domain.sheet.entity.Sheet;
 
-public interface SheetRepository extends JpaRepository<Sheet, Long> {
+public interface SheetRepository extends JpaRepository<Sheet, Long>, SheetRepositoryCustom {
 
     // 특정 유저가 작성한 만다라트 시트 목록을 최신 생성순으로 조회
     List<Sheet> findByUserIdOrderByCreatedAtDesc(Long userId);

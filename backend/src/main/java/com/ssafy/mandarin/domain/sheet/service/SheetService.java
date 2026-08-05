@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.ssafy.mandarin.domain.auth.repository.UserRepository;
+import com.ssafy.mandarin.domain.sheet.dto.SheetProgressDto;
 import com.ssafy.mandarin.domain.sheet.dto.SheetCreateRequest;
 import com.ssafy.mandarin.domain.sheet.dto.SheetDetailResponse;
 import com.ssafy.mandarin.domain.sheet.dto.SheetLikeResponse;
@@ -238,9 +239,14 @@ public class SheetService {
         // 좋아요 여부는 한 번에 받아 대조한다. 시트마다 exists 를 부르면 N+1 이다.
         Set<Long> likedSheetIds = likesRepository.findLikedSheetIdsByUserId(userId);
 
+        // QueryDSL로 단 1번의 쿼리로 모든 시트의 진행률/달성률 집계 Map 가져오기
+        Map<Long, SheetProgressDto> progressMap = sheetRepository.findSheetProgressesByUserId(userId);
+
         for (Sheet sheet : sheets) {
-            long doneSubjects = subjectRepository.countByDomainSheetIdAndIsDoneTrue(sheet.getId());
-            double achievementRate = (doneSubjects / TOTAL_SUBJECT_COUNT) * 100.0;
+            SheetProgressDto progressDto = progressMap.getOrDefault(
+                    sheet.getId(),
+                    new SheetProgressDto(sheet.getId(), 0.0, 0.0)
+            );
 
             responses.add(SheetListResponse.builder()
                     .sheetId(sheet.getId())
@@ -248,7 +254,8 @@ public class SheetService {
                     .isOpen(sheet.getIsOpen())
                     .likeCount(sheet.getLikeCount() != null ? sheet.getLikeCount() : 0L)
                     .isLiked(likedSheetIds.contains(sheet.getId()))
-                    .achievementRate(Math.round(achievementRate * 10.0) / 10.0) // 소수점 버림
+                    .achievementRate(progressDto.achievementRate())
+                    .progress(progressDto.progress())
                     .createdAt(sheet.getCreatedAt())
                     .expiredAt(sheet.getExpiredAt())
                     .build());
@@ -384,6 +391,8 @@ public class SheetService {
                     isDonePeriod = (currentPeriodCount >= subject.getCountPerPeriod());
                 }
 
+                int subjectProgress = progressOf(subject);
+
                 subjectResponses.add(SheetDetailResponse.SubjectDetailResponse.builder()
                         .subjectId(subject.getId())
                         .position(subject.getPosition())
@@ -398,18 +407,26 @@ public class SheetService {
                         .isDoneToday(isDoneToday)
                         .canExecute(canExecute)
                         .isDonePeriod(isDonePeriod)
-                        .progress(progressOf(subject))
+                        .progress(subjectProgress)
                         .build());
             }
 
+            double domainProgress = subjectResponses.isEmpty() ? 0.0
+                    : subjectResponses.stream().mapToDouble(SheetDetailResponse.SubjectDetailResponse::progress).average().orElse(0.0);
+            double roundedDomainProgress = Math.round(domainProgress * 10.0) / 10.0;
 
             domainResponses.add(SheetDetailResponse.DomainDetailResponse.builder()
                     .domainId(domain.getId())
                     .position(domain.getPosition())
                     .title(domain.getTitle())
+                    .progress(roundedDomainProgress)
                     .subjects(subjectResponses)
                     .build());
         }
+
+        double sheetProgress = domainResponses.isEmpty() ? 0.0
+                : domainResponses.stream().mapToDouble(SheetDetailResponse.DomainDetailResponse::progress).average().orElse(0.0);
+        double roundedSheetProgress = Math.round(sheetProgress * 10.0) / 10.0;
 
         double achievementRate = (doneSubjects / TOTAL_SUBJECT_COUNT) * 100.0;
 
@@ -421,6 +438,7 @@ public class SheetService {
                 .likeCount(sheet.getLikeCount() != null ? sheet.getLikeCount() : 0L)
                 .isLiked(isLiked)
                 .achievementRate(Math.round(achievementRate * 10.0) / 10.0)
+                .progress(roundedSheetProgress)
                 .createdAt(sheet.getCreatedAt())
                 .expiredAt(sheet.getExpiredAt())
                 .domains(domainResponses)
