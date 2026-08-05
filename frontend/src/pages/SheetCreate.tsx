@@ -33,14 +33,32 @@ const IN_SIX_MONTHS = new Date(Date.now() + 1000 * 60 * 60 * 24 * 182).toISOStri
 /** AI 코치에서 넘어올 때 실려 오는 초안. */
 type CoachDraft = {
   title?: string
-  domains?: Array<{ title: string; subjects: Array<{ title: string; period: Period }> }>
+  domains?: Array<{
+    title: string
+    /**
+     * `countPerPeriod` 는 코치가 주기와 함께 정한 값이다("주 3회" 의 3).
+     *
+     * <p>옛 초안(횟수가 없던 시절)이 뒤로가기 히스토리에 남아 있을 수 있어 옵셔널이다 —
+     * 없으면 1 로 본다.
+     */
+    subjects: Array<{ title: string; period: Period; countPerPeriod?: number }>
+  }>
 }
+
+/**
+ * 코치가 정한 주기당 횟수를 그 주기에서 가능한 값으로 맞춘다.
+ *
+ * <p>일간·없음은 1 회 고정이고 주간은 1~7, 월간은 1~30 이다(`PERIOD_MAX_COUNT`).
+ * 서버도 코치도 같은 규칙으로 자르지만, 이 값은 <b>브라우저 히스토리를 거쳐</b> 오므로
+ * (뒤로가기로 되살아난 옛 state) 받는 쪽에서 한 번 더 본다.
+ */
+const seededCount = (period: Period, count?: number): number =>
+  Math.min(Math.max(1, Math.round(count ?? 1)), PERIOD_MAX_COUNT[period])
 
 /**
  * 코치 초안을 8×8 뼈대에 얹는다.
  *
  * <p>코치는 8칸을 다 채우지 못할 수도 있어서(대화가 짧게 끝나면) 빈 칸은 그대로 남긴다.
- * 코치 초안에는 주기당 횟수가 없으므로 기본 1회로 두고 사용자가 조정한다.
  */
 function fromCoach(seeded: CoachDraft): DraftDomain[] {
   return emptyDomains().map((empty, i) => {
@@ -50,7 +68,14 @@ function fromCoach(seeded: CoachDraft): DraftDomain[] {
       title: from.title ?? '',
       subjects: empty.subjects.map((slot, j) => {
         const s = from.subjects?.[j]
-        return s ? { ...slot, title: s.title, period: s.period } : slot
+        return s
+          ? {
+              ...slot,
+              title: s.title,
+              period: s.period,
+              countPerPeriod: seededCount(s.period, s.countPerPeriod),
+            }
+          : slot
       }),
     }
   })
@@ -89,7 +114,11 @@ function mergeCoach(base: DraftDomain[], seeded: CoachDraft): { domains: DraftDo
 
       const free = next[slot].subjects.findIndex((x) => !x.title.trim())
       if (free < 0) break
-      next[slot].subjects[free] = { title: subjectTitle, period: s.period, countPerPeriod: 1 }
+      next[slot].subjects[free] = {
+        title: subjectTitle,
+        period: s.period,
+        countPerPeriod: seededCount(s.period, s.countPerPeriod),
+      }
       added += 1
     }
   }
