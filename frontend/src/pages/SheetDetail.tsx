@@ -117,12 +117,12 @@ export default function SheetDetail({ readOnly = false }: Props) {
       const ok = await completeSubjects(sheet.id, [subjectId])
       if (ok) {
         setSheet((prev) => {
-          if (!prev) return prev
+          if (!prev || !prev.domains) return prev
           return {
             ...prev,
             domains: prev.domains.map((d) => ({
               ...d,
-              subjects: d.subjects.map((s) => {
+              subjects: (d.subjects ?? []).map((s) => {
                 if (s.id !== subjectId) return s
                 const newTryCount = s.tryCount + 1
                 const isDoneNow = s.targetCount > 0 && newTryCount >= s.targetCount
