@@ -75,6 +75,8 @@ export type SheetDetailDto = {
   likeCount: number
   isLiked: boolean | null
   achievementRate: number | null
+  /** 0~100. 64개 과제의 개별 진행률 평균. */
+  progress: number | null
   createdAt: string
   expiredAt: string | null
   domains: DomainDetailDto[]
@@ -88,6 +90,8 @@ export type SheetListDto = {
   /** 목록에서도 좋아요 여부를 알 수 있다. */
   isLiked: boolean | null
   achievementRate: number | null
+  /** 0~100. 64개 과제의 개별 진행률 평균. */
+  progress: number | null
   createdAt: string
   expiredAt: string | null
 }

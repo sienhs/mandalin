@@ -88,6 +88,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
   }
 
   const domains = sheet.domains ?? []
+  const sheetProgress = sheet.progress ?? sheet.achievementRate
   const byPosition = new Map(domains.map((d) => [d.position, d]))
   const selectedDomain =
     selected && selected.kind !== 'core' ? byPosition.get(selected.domainIndex) : undefined
@@ -129,9 +130,9 @@ export default function SheetDetail({ readOnly = false }: Props) {
     <div className="flex flex-col gap-5">
       {/* ───────── 헤더 ───────── */}
       <header className="card flex flex-wrap items-center gap-5 p-6">
-        <ProgressRing value={sheet.achievementRate} size={84}>
+        <ProgressRing value={sheetProgress} size={84}>
           <strong className="text-lg font-black tracking-[-0.04em]">
-            {sheet.achievementRate}%
+            {sheetProgress}%
           </strong>
         </ProgressRing>
 
