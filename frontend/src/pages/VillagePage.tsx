@@ -9,6 +9,7 @@ import { toMandalartFromModel } from '../village/mandalart'
 import { CENTER_BLOCK_INDEX, PITCH } from '../village/layout'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 import { AUTO_LANDMARK, type LandmarkOverride } from '../village/Landmark'
+import { LandmarkPanel } from '../village/LandmarkPanel'
 import { useIsoCamera } from '../village/IsoCamera'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { BuildingImage } from '../village/BuildingImage'
@@ -27,6 +28,7 @@ import {
   domainColor,
 } from '../components/common/Primitives'
 import { IconArrowLeft, IconArrowRight } from '../components/common/Icons'
+import { useToast } from '../components/common/Toast'
 
 /**
  * 보유 건물에 3D 부품을 붙인다.
@@ -93,6 +95,7 @@ function backTarget(from: unknown): { to: string; label: string } {
  */
 export default function VillagePage() {
   const { gateway, sheets: sheetList, details, setTerrain: saveTerrain } = useStore()
+  const toast = useToast()
   const camera = useIsoCamera()
   const back = backTarget((useLocation().state as { from?: string } | null)?.from)
 
@@ -106,7 +109,18 @@ export default function VillagePage() {
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
 
   const [overrides, setOverrides] = useState<Record<string, CellOverride>>({})
-  const [landmark] = useState<LandmarkOverride>(AUTO_LANDMARK)
+  const [landmark, setLandmark] = useState<LandmarkOverride>(AUTO_LANDMARK)
+  /**
+   * 중앙 랜드마크 칸의 격자 좌표.
+   *
+   * <p>서버가 `SheetService.createSheet` 에서 정하는 자리(현재 5·5)를 여기 적어두지 않고
+   * 배치 응답에서 받아 기억한다 — 좌표 규칙을 프론트에 복제하면 서버가 자리를 옮길 때
+   * 조용히 엉뚱한 칸에 저장된다. 못 받았으면 저장을 건너뛴다.
+   */
+  const [landmarkSpot, setLandmarkSpot] = useState<{
+    domainPosition: number
+    itemPosition: number
+  } | null>(null)
 
   const [terrainPending, setTerrainPending] = useState<Terrain | null>(null)
   /** 'now' = 지금 진행도, 'done' = 다 채웠을 때의 모습. */
@@ -186,6 +200,10 @@ export default function VillagePage() {
    *
    * <p>서버는 "격자 좌표 → 건물"로 저장하고, 3D 는 "task id → 건물"로 그린다.
    * 응답에 `subjectId` 가 함께 오므로 그걸로 이어 붙인다.
+   *
+   * <p><b>중앙 랜드마크 칸은 이 규칙에서 빠진다.</b> 과제에 매달린 칸이 아니라 `subjectId` 가
+   * 없어서, task id 로 잇는 위 규칙에 걸리지 않는다. 그래서 `isLandmarkSlot` 로 따로 집어
+   * `landmark` 로 넘긴다 — 이걸 빼면 서버에 무엇을 저장해도 화면은 보유 목록 첫 종을 그린다.
    */
   useEffect(() => {
     if (!sheet || sheet === 'none') return
@@ -196,7 +214,17 @@ export default function VillagePage() {
       .then((layout) => {
         if (!alive) return
         const next: Record<string, CellOverride> = {}
+        let center: LandmarkOverride = AUTO_LANDMARK
+        let centerSpot: { domainPosition: number; itemPosition: number } | null = null
+
         for (const spot of layout.spots) {
+          if (spot.isLandmarkSlot) {
+            centerSpot = { domainPosition: spot.domainPosition, itemPosition: spot.itemPosition }
+            // itemKey 가 없으면 아직 고르지 않은 것 — 'auto' 로 두어 보유 첫 종이 선다.
+            // 표시 단계는 서버가 저장하지 않는다(진행률에서 계산되므로) 늘 'auto' 다.
+            if (spot.itemKey) center = { building: spot.itemKey, stage: 'auto' }
+            continue
+          }
           if (spot.subjectId != null && spot.itemKey) {
             next[String(spot.subjectId)] = {
               building: spot.itemKey,
@@ -204,7 +232,10 @@ export default function VillagePage() {
             }
           }
         }
+
         setOverrides(next)
+        setLandmark(center)
+        setLandmarkSpot(centerSpot)
       })
       // 배치를 못 받아도 마을은 진행률만으로 그릴 수 있다. 화면 전체를 막지 않는다.
       .catch(() => undefined)
@@ -236,6 +267,21 @@ export default function VillagePage() {
       })),
     }
   }, [mandalart, preview])
+
+  /**
+   * 3D 에 넘길 랜드마크 설정.
+   *
+   * <p>완성형 미리보기에서는 <b>표시 단계 override 를 무시한다.</b> `shown` 이 진행률을 100 으로
+   * 올려도 `override.stage` 가 숫자면 `Landmark` 가 그 값을 먼저 보므로, "완성형" 을 켰는데
+   * 랜드마크만 예전 단계로 남는다. 8칸 오브젝트는 stage override 를 쓰는 곳이 없어(`place` 는
+   * building 만 바꾼다) 이 어긋남이 랜드마크에서만 생긴다.
+   *
+   * <p>끄면 고른 단계로 돌아온다 — 사본만 바꾸고 `landmark` 는 건드리지 않기 때문이다.
+   */
+  const shownLandmark = useMemo<LandmarkOverride>(
+    () => (preview === 'done' ? { ...landmark, stage: 'auto' } : landmark),
+    [landmark, preview],
+  )
 
   /** 지금 고른 블록의 도메인. 중앙은 랜드마크라 건물 목록이 없다. */
   const domain = mandalart ? mandalart.domains[block] : null
@@ -319,6 +365,62 @@ export default function VillagePage() {
     [sheet, gateway, catalog],
   )
 
+  /**
+   * 정중앙에 세울 랜드마크를 고른다.
+   *
+   * <p>칸이 하나뿐이라 `place` 처럼 task id 로 자리를 찾을 필요가 없다 — 좌표는 배치 응답에서
+   * 이미 받아 뒀다(`landmarkSpot`). 서버는 이 자리에 LANDMARK 만 받는다
+   * (`ITEM_SPOT_LANDMARK_ONLY`).
+   *
+   * <p><b>실패하면 되돌리고 알린다.</b> 8칸(`place`)은 저장이 실패해도 화면을 그대로 두는데,
+   * 그쪽 근거는 "되돌리면 사용자가 무엇을 눌렀는지 잃는다" 였다. 랜드마크에서는 그 근거가
+   * 성립하지 않는다 — 저장이 안 됐으면 새로고침이 어차피 되돌리므로, 화면만 그대로 두면
+   * <b>지금은 거짓을 보여주고 나중에 잃는다</b>. 되돌리는 쪽이 잃는 것이 같고 정직하다.
+   * 대신 왜 되돌아갔는지 토스트로 말해 준다.
+   *
+   * <p>좌표를 아직 못 받았으면(배치 조회 실패) 여기서 한 번 더 받아 본다. 조용히 건너뛰면
+   * 화면은 바뀌는데 저장은 안 되는 정확히 그 상태가 된다.
+   */
+  const placeLandmark = useCallback(
+    async (itemKey: string | 'auto') => {
+      if (!sheet || sheet === 'none') return
+
+      const previous = landmark
+      setLandmark((prev) => ({ ...prev, building: itemKey }))
+
+      try {
+        let spot = landmarkSpot
+        if (!spot) {
+          const layout = await gateway.villageLayout(sheet.id)
+          const found = layout.spots.find((s) => s.isLandmarkSlot)
+          if (!found) throw new Error('중앙 랜드마크 자리를 찾을 수 없습니다.')
+          spot = { domainPosition: found.domainPosition, itemPosition: found.itemPosition }
+          setLandmarkSpot(spot)
+        }
+
+        // 'auto' 는 칸을 비우는 것(invenId=null)이다 — 비운 칸에는 보유 목록 첫 종이 선다.
+        const owned =
+          itemKey === 'auto' ? null : catalog.landmarks.find((b) => b.itemKey === itemKey)
+        if (itemKey !== 'auto' && !owned) throw new Error('보유하지 않은 랜드마크입니다.')
+
+        await gateway.placeBuilding(
+          sheet.id,
+          spot.domainPosition,
+          spot.itemPosition,
+          owned?.invenId ?? null,
+        )
+      } catch (e: unknown) {
+        setLandmark(previous)
+        toast.show({
+          tone: 'warn',
+          title: '랜드마크를 저장하지 못했어요',
+          body: e instanceof Error ? e.message : '잠시 후 다시 시도해 주세요.',
+        })
+      }
+    },
+    [sheet, gateway, catalog, landmarkSpot, landmark, toast],
+  )
+
   const changeTerrain = async (terrain: Terrain) => {
     if (!village || village.terrain === terrain) return
     if (!sheet || sheet === 'none') return
@@ -393,7 +495,7 @@ export default function VillagePage() {
           terrain={village.terrain}
           catalog={catalog}
           selectedTaskId={selectedTask}
-          landmark={landmark}
+          landmark={shownLandmark}
           cameraRef={camera.ref}
           initialZoom={camera.zoom}
           onFacingChange={camera.setFacing}
@@ -508,14 +610,49 @@ export default function VillagePage() {
           <div>
             <h2 className="section-title m-0">건물 배치</h2>
             <p className="muted m-0 mt-1 text-[12.5px] font-semibold">
-              세부 목표 → 칸 → 건물 순으로 고르면 마을에 바로 세워집니다.
+              {isCenter
+                ? '중심 목표 자리에는 3×3 랜드마크 하나가 서고, 8개 도메인의 전체 진행률로 자랍니다.'
+                : '세부 목표 → 칸 → 건물 순으로 고르면 마을에 바로 세워집니다.'}
             </p>
           </div>
-          <Badge>{catalog.list.length}종 보유</Badge>
+          <Badge>
+            {isCenter
+              ? `랜드마크 ${catalog.landmarks.length}종 보유`
+              : `${catalog.list.length}종 보유`}
+          </Badge>
         </div>
 
-        {/* 세부 목표 8개 */}
-        <div className="mt-4 flex flex-wrap gap-1.5">
+        {/*
+          중심 목표 + 세부 목표 8개.
+
+          중심을 먼저 두고 칸막이로 끊는다 — 세부 목표와 같은 줄에 섞으면 "9번째 세부 목표"로
+          읽히는데, 실제로는 자리 수도(8칸 vs 1칸) 단계 규칙도(3단계 vs 8단계) 다른 종류다.
+        */}
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setBlock(CENTER_BLOCK_INDEX)
+              setSelectedTask(null)
+            }}
+            className={cn(
+              'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors',
+              isCenter
+                ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white'
+                : 'text-[var(--text-muted)]',
+            )}
+            style={isCenter ? undefined : { background: 'var(--surface-sunken)' }}
+          >
+            <span aria-hidden="true">🗺</span>
+            중심 목표
+          </button>
+
+          <span
+            aria-hidden="true"
+            className="mx-1 h-4 w-px"
+            style={{ background: 'var(--border-hairline)' }}
+          />
+
           {mandalart.domains.map((d, i) => {
             if (i === CENTER_BLOCK_INDEX) return null
             const active = block === i
@@ -540,7 +677,94 @@ export default function VillagePage() {
           })}
         </div>
 
-        {isCenter ? null : (
+        {isCenter ? (
+          <>
+            <LandmarkPanel
+              center={mandalart.domains[CENTER_BLOCK_INDEX]}
+              catalog={catalog}
+              override={landmark}
+              preview={preview}
+              onPatch={(patch) => setLandmark((prev) => ({ ...prev, ...patch }))}
+              onReset={() => {
+                setLandmark(AUTO_LANDMARK)
+                void placeLandmark('auto')
+              }}
+            />
+
+            {/*
+              랜드마크 고르기.
+
+              일반 건물 피커와 달리 테마 목록이 없다 — 랜드마크는 테마가 하나뿐이라 왼쪽 칸이
+              항상 한 줄짜리가 된다. 그리고 "칸을 먼저 고른다" 단계도 없어서 늘 펼쳐 둔다.
+            */}
+            <div
+              className="mt-4 overflow-hidden rounded-2xl border"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 border-b p-4"
+                style={{ borderColor: 'var(--border-hairline)' }}
+              >
+                <div className="min-w-0">
+                  <p className="m-0 text-[13.5px] font-extrabold">세울 랜드마크</p>
+                  <p className="muted m-0 mt-0.5 text-[11.5px] font-semibold">
+                    보유한 것 중에서 고릅니다. 단계는 진행률이 정합니다.
+                  </p>
+                </div>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => void placeLandmark('auto')}
+                  disabled={landmark.building === 'auto'}
+                >
+                  자동으로
+                </Button>
+              </div>
+
+              {catalog.landmarks.length === 0 ? (
+                /*
+                  상점을 권하지 않는다 — 랜드마크는 포인트로 사는 물건이 아니라 완성 보상이고,
+                  서버가 구매 자체를 거부한다(BUILDING_NOT_PURCHASABLE).
+                */
+                <p className="muted m-0 p-4 text-[12.5px] font-semibold">
+                  아직 보유한 랜드마크가 없어요. 랜드마크는 상점에서 살 수 없고, 만다라트를 채워
+                  해금합니다. 그동안 중앙은 공사 부지로 남습니다.
+                </p>
+              ) : (
+                <ul className="no-scrollbar m-0 grid max-h-[300px] list-none grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-4 lg:grid-cols-6">
+                  {catalog.landmarks.map((b) => {
+                    const chosen = landmark.building === b.itemKey
+                    return (
+                      <li key={b.itemKey}>
+                        <button
+                          type="button"
+                          onClick={() => void placeLandmark(b.itemKey)}
+                          title={b.name}
+                          className={cn(
+                            'flex w-full flex-col items-center gap-1 rounded-xl p-2 transition-all hover:-translate-y-0.5',
+                            chosen && 'ring-2 ring-brand-400/70',
+                          )}
+                          style={{ background: 'var(--surface-sunken)' }}
+                        >
+                          {/* landmark 플래그가 있어야 8단계 렌더러로 굽는다(일반 건물은 3단계다). */}
+                          <BuildingImage
+                            k={b.itemKey}
+                            remoteUrl={b.thumbnailUrl}
+                            parts={b.parts}
+                            size={84}
+                            alt={b.name}
+                            landmark
+                          />
+                          <span className="w-full truncate text-[10.5px] font-bold">{b.name}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </>
+        ) : (
           <>
             {/* 블록 안 8칸 */}
             <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
