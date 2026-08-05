@@ -6,6 +6,9 @@
 # requirements.txt 가 `livekit-agents~=1.6` 이고 그쪽 요구가 Python >=3.10,<3.15 입니다.
 FROM python:3.12-slim
 
+# 보안: root 사용자 대신 사용할 전용 non-root 사용자 및 그룹 생성
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
 # PYTHONUNBUFFERED: 안 주면 stdout 이 블록 버퍼링돼서 `docker logs` 가 한참 뒤에야
 #   나옵니다. worker 진단은 로그가 전부라 즉시 보여야 합니다.
 # PYTHONIOENCODING: 로그에 한글이 섞이므로 필수입니다. slim 이미지의 로케일은 POSIX 라
@@ -20,7 +23,15 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# 전체 복사(COPY . .) 대신 실행에 필요한 디렉터리만 명시적으로 복사합니다.
+# 민감 정보(.env 등)나 불필요한 파일(tests, web, docs 등)이 이미지에 포함되는 위험을 방지합니다.
+COPY --chown=appuser:appuser agent ./agent
+COPY --chown=appuser:appuser mandarin_goal ./mandarin_goal
+COPY --chown=appuser:appuser prompts ./prompts
+
+# 애플리케이션 작업 디렉터리 소유권 설정 및 non-root 사용자로 전환
+RUN chown -R appuser:appuser /app
+USER appuser
 
 # `dev` 가 아니라 `start` 입니다. `dev` 는 파일 변경 감시와 자동 재시작이 붙은
 # 개발용 모드라 운영에서 쓰면 안 됩니다.
