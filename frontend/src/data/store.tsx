@@ -650,14 +650,24 @@ export function stageOf(progress: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-/** 81칸 중 채워진 칸 수 (핵심 목표 1 + 도메인 8 + 과제 64). */
-export function filledCells(sheet: Sheet): number {
+/**
+ * 81칸 중 완전히 완료된 칸 수.
+ *
+ * 과제는 서버의 최종 완료 상태를 세고, 세부 목표는 과제 8개가 모두 끝났을 때 중앙과
+ * 외곽의 중복 칸 2개를 센다. 핵심 목표는 8개 세부 목표가 모두 끝났을 때 완료된다.
+ */
+export function completedCells(sheet: Sheet): number {
   const domains = sheet.domains ?? []
-  return (
-    (sheet.title.trim() ? 1 : 0) +
-    domains.filter((d) => d.title.trim()).length +
-    domains.reduce((acc, d) => acc + d.subjects.filter((s) => s.title.trim()).length, 0)
+  const completedSubjects = domains.reduce(
+    (count, domain) => count + domain.subjects.filter((subject) => subject.isDone).length,
+    0,
   )
+  const completedDomains = domains.filter(
+    (domain) => domain.subjects.length === 8 && domain.subjects.every((subject) => subject.isDone),
+  ).length
+  const completedCore = domains.length === 8 && completedDomains === 8 ? 1 : 0
+
+  return completedSubjects + completedDomains * 2 + completedCore
 }
 
 export function domainProgress(subjects: { progress: number }[]): number {

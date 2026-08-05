@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { domainProgress, useSheetDetail, useStore } from '../data/store'
-import { PERIOD_LABEL, type Period, type Subject } from '../data/types'
+import { completedCells, domainProgress, useSheetDetail, useStore } from '../data/store'
+import type { Period, Subject } from '../data/types'
 import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
 import Button from '../components/common/ActionButton'
 import { IconCheck, IconHeart, IconVillage } from '../components/common/Icons'
@@ -19,6 +19,14 @@ import { formatDate } from '../utils/format'
 import { cn } from '../utils/cn'
 
 type Props = { readOnly?: boolean }
+
+/** 상세 화면에서는 생성 시 선택한 주기 종류를 축약하지 않고 명확히 보여 준다. */
+const DETAIL_PERIOD_LABEL: Record<Period, string> = {
+  DAILY: '일간',
+  WEEKLY: '주간',
+  MONTHLY: '월간',
+  NONE: '없음',
+}
 
 /**
  * 왜 더 못 누르는지 한 줄로 말해 준다.
@@ -182,6 +190,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
                 {sheet.isOpen ? '공개' : '비공개'}
               </Badge>
             )}
+            <Badge>{completedCells(sheet)}/81칸 완료</Badge>
           </div>
 
           <h1 className="page-title mt-2">{sheet.title}</h1>
@@ -242,8 +251,9 @@ export default function SheetDetail({ readOnly = false }: Props) {
             className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4 text-[11.5px] font-bold"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
+            <span className="muted">과제를 진행할수록 칸이 아래에서부터 색으로 채워져요</span>
             <span className="ml-auto flex flex-wrap items-center gap-3">
-              {domains.slice(0, 4).map((d) => (
+              {domains.map((d) => (
                 <span key={d.id} className="flex items-center gap-1.5">
                   <span
                     className="size-2.5 rounded-sm"
@@ -322,7 +332,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
 
               <div className="mt-5">
                 <p className="muted m-0 mb-2.5 text-[12.5px] font-bold">
-                  실천 과제 {selectedDomain.subjects.length}/8
+                  실천 과제 {selectedDomain.subjects.filter((sub) => sub.isDone).length}/8 완료
                 </p>
 
                 {selectedDomain.subjects.length === 0 ? (
@@ -371,7 +381,8 @@ export default function SheetDetail({ readOnly = false }: Props) {
                                   {sub.title}
                                 </span>
                                 <span className="muted mt-1 block text-[11.5px] font-semibold">
-                                  {PERIOD_LABEL[sub.period]} · {sub.tryCount}/{sub.targetCount}회
+                                  {DETAIL_PERIOD_LABEL[sub.period]} · 현재 {sub.tryCount}회 · 목표{' '}
+                                  {sub.targetCount}회
                                   {sub.isDone && ' · 완료'}
                                 </span>
                               </span>

@@ -83,10 +83,10 @@ export default function Friends() {
             {
               value: 'requests',
               label: (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 whitespace-nowrap">
                   받은 요청
                   {requests.data.length > 0 && (
-                    <span className="grid size-4 place-items-center rounded-full bg-brand-500 text-[10px] font-black text-white">
+                    <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-black leading-none text-white">
                       {requests.data.length}
                     </span>
                   )}
