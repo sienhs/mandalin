@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { domainProgress, filledCells, useSheetDetail, useStore } from '../data/store'
-import { PERIOD_LABEL, type Period, type Subject } from '../data/types'
+import { completedCells, domainProgress, useSheetDetail, useStore } from '../data/store'
+import type { Period, Subject } from '../data/types'
 import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
 import Button from '../components/common/ActionButton'
 import { IconCheck, IconHeart, IconVillage } from '../components/common/Icons'
@@ -20,6 +20,14 @@ import { cn } from '../utils/cn'
 
 type Props = { readOnly?: boolean }
 
+/** 상세 화면에서는 생성 시 선택한 주기 종류를 축약하지 않고 명확히 보여 준다. */
+const DETAIL_PERIOD_LABEL: Record<Period, string> = {
+  DAILY: '일간',
+  WEEKLY: '주간',
+  MONTHLY: '월간',
+  NONE: '없음',
+}
+
 /**
  * 왜 더 못 누르는지 한 줄로 말해 준다.
  *
@@ -28,8 +36,11 @@ type Props = { readOnly?: boolean }
  * 주기마다 "다시 열리는 시점"이 달라서 문구도 주기별로 갈라 준다.
  */
 function lockedReason(sub: Subject): string | null {
-  if (sub.canExecute) return null
   if (sub.isDone) return '목표를 다 채운 과제입니다'
+
+  // 서버의 canExecute 값과 조합이 어긋나더라도 하루 중복 수행은 화면에서 먼저 막는다.
+  if (sub.isDoneToday) return '오늘 이미 수행한 과제입니다'
+  if (sub.canExecute) return null
 
   const byPeriod: Record<Period, string> = {
     DAILY: '오늘 이미 수행한 과제입니다',
@@ -38,8 +49,6 @@ function lockedReason(sub: Subject): string | null {
     NONE: '이미 수행한 과제입니다',
   }
 
-  // 오늘 눌렀는데 주기 목표는 아직 남은 경우(예: 주 3회 중 1회) — 날이 바뀌면 또 할 수 있다.
-  if (sub.isDoneToday && !sub.isDonePeriod) return '오늘 이미 수행한 과제입니다'
   return byPeriod[sub.period]
 }
 
@@ -145,7 +154,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
                 {sheet.isOpen ? '공개' : '비공개'}
               </Badge>
             )}
-            <Badge>{filledCells(sheet)}/81칸</Badge>
+            <Badge>{completedCells(sheet)}/81칸 완료</Badge>
           </div>
 
           <h1 className="page-title mt-2">{sheet.title}</h1>
@@ -206,9 +215,9 @@ export default function SheetDetail({ readOnly = false }: Props) {
             className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4 text-[11.5px] font-bold"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
-            <span className="muted">칸 색이 아래에서 차오르면 그만큼 진행된 것입니다</span>
+            <span className="muted">과제를 진행할수록 칸이 아래에서부터 색으로 채워져요</span>
             <span className="ml-auto flex flex-wrap items-center gap-3">
-              {domains.slice(0, 4).map((d) => (
+              {domains.map((d) => (
                 <span key={d.id} className="flex items-center gap-1.5">
                   <span
                     className="size-2.5 rounded-sm"
@@ -287,7 +296,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
 
               <div className="mt-5">
                 <p className="muted m-0 mb-2.5 text-[12.5px] font-bold">
-                  실천 과제 {selectedDomain.subjects.length}/8
+                  실천 과제 {selectedDomain.subjects.filter((sub) => sub.isDone).length}/8 완료
                 </p>
 
                 {selectedDomain.subjects.length === 0 ? (
@@ -336,7 +345,8 @@ export default function SheetDetail({ readOnly = false }: Props) {
                                   {sub.title}
                                 </span>
                                 <span className="muted mt-1 block text-[11.5px] font-semibold">
-                                  {PERIOD_LABEL[sub.period]} · {sub.tryCount}/{sub.targetCount}회
+                                  {DETAIL_PERIOD_LABEL[sub.period]} · 현재 {sub.tryCount}회 · 목표{' '}
+                                  {sub.targetCount}회
                                   {sub.isDone && ' · 완료'}
                                 </span>
                               </span>
