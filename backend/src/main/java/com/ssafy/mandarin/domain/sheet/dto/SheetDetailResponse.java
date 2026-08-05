@@ -16,6 +16,7 @@ public record SheetDetailResponse(
         Long likeCount,
         Boolean isLiked,
         Double achievementRate,
+        Double progress,
         LocalDateTime createdAt,
         LocalDateTime expiredAt,
         List<DomainDetailResponse> domains
@@ -25,6 +26,7 @@ public record SheetDetailResponse(
             Long domainId,
             Integer position,
             String title,
+            Double progress,
             List<SubjectDetailResponse> subjects
     ) {
     }

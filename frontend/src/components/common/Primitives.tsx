@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { cn } from '../../utils/cn'
 
 /** 도메인 8색. 만다라트 칸 · 마을 건물 · 리포트 막대가 모두 이 배열을 인용한다. */
 export const DOMAIN_COLORS = [
   '#e8590c',
-  '#d9480f',
+  '#2f9e44',
   '#1971c2',
   '#0c8599',
-  '#2f9e44',
+  '#c92a2a',
   '#5f3dc4',
   '#c2255c',
   '#f08c00',
@@ -186,15 +186,18 @@ const CONTROL =
   'outline-none transition-colors placeholder:font-medium placeholder:text-[var(--text-muted)] ' +
   'focus:border-brand-400 h-11'
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={cn(CONTROL, className)}
-      style={{ borderColor: 'var(--border-hairline)' }}
-      {...rest}
-    />
-  )
-}
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...rest }, ref) {
+    return (
+      <input
+        ref={ref}
+        className={cn(CONTROL, className)}
+        style={{ borderColor: 'var(--border-hairline)' }}
+        {...rest}
+      />
+    )
+  },
+)
 
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (

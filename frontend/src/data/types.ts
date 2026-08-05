@@ -75,6 +75,8 @@ export type Sheet = {
   isLiked: boolean
   /** 0~100. 목록/상세 모두 서버 값을 그대로 쓴다. */
   achievementRate: number
+  /** 서버가 계산한 64개 과제의 평균 진행률. 이전 서버 응답에서는 없을 수 있다. */
+  progress?: number
   createdAt: string
   expiredAt: string | null
   /** 목록 응답에는 도메인이 없다. 상세를 받아오기 전에는 null. */

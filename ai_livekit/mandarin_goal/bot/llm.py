@@ -20,6 +20,7 @@ from typing import Protocol
 
 import httpx
 
+from mandarin_goal.bot.ratelimit import queue_for
 from mandarin_goal.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -50,8 +51,10 @@ class LlmRateLimitedError(LlmError):
     **아직 처리하지 않았다**고 알려준 것이라 모델 연산을 태우지도 않았습니다.
     잠깐 기다리면 몰림이 지나가 같은 요청이 성공하는 경우가 많습니다.
 
-    `retry_after` 는 `Retry-After` 헤더가 있을 때만 채워집니다(초). 없으면 `None`
-    이고 호출부가 자기 기본값을 씁니다.
+    `retry_after` 는 게이트웨이가 알려준 대기 시간(초)입니다. `Retry-After` 헤더를
+    먼저 보고, 없으면 본문의 `RetryInfo.retryDelay` 를 봅니다(`_retry_hint`) —
+    **Gemini 는 헤더를 주지 않는 쪽이라** 본문을 안 읽으면 이 값이 항상 `None` 이
+    됩니다. 둘 다 없으면 `None` 이고 호출부가 자기 기본값을 씁니다.
 
     **503(UNAVAILABLE)은 일부러 포함하지 않았습니다.** 그것도 재시도 대상이지만
     원인이 "몰림" 이 아니라 "모델/게이트웨이가 내려감" 이라, 사용자에게 할 말이
@@ -106,6 +109,60 @@ def _retry_after(response: httpx.Response) -> float | None:
     except ValueError:
         return None
     return seconds if seconds >= 0 else None
+
+
+def _retry_delay(response: httpx.Response) -> float | None:
+    """**본문**의 `google.rpc.RetryInfo.retryDelay` 를 초로 읽습니다.
+
+    헤더만 보면 안 되는 이유는 Gemini 가 `Retry-After` 를 **주지 않는 쪽**이기
+    때문입니다. 429 의 대기 시간은 본문 `error.details[]` 에 구조체로 들어옵니다 —
+
+        {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "details": [
+            {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "23s"}]}}
+
+    이걸 안 읽으면 `retry_after` 가 **항상 `None`** 이 되어, 호출부가 게이트웨이의
+    실제 값 대신 자기 추측값(`goal.py` 1초 / `evals/runner.py` 2·4·8·16·32초)만
+    씁니다. 서버가 3초라고 알려주는데 32초를 기다리는 일이 생깁니다.
+
+    `@type` 을 접미사로만 봅니다 — 프록시가 앞의 호스트를 바꿔 쓸 수 있고, 여기서
+    확인하려는 것은 그 구조체가 `RetryInfo` 인지뿐입니다.
+
+    형식은 protobuf Duration 의 JSON 표현이라 항상 `s` 로 끝나고 소수도 허용됩니다
+    (`"3.5s"`). 못 읽으면 `None` 이고 호출부 기본값으로 떨어집니다 — 게이트웨이가
+    모양을 바꿨다고 요청이 실패하면 안 됩니다.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    if not isinstance(body, dict):
+        return None
+    error = body.get("error")
+    if not isinstance(error, dict):
+        return None
+    for detail in error.get("details") or []:
+        if not isinstance(detail, dict):
+            continue
+        if not str(detail.get("@type") or "").endswith("RetryInfo"):
+            continue
+        raw = str(detail.get("retryDelay") or "").strip().removesuffix("s")
+        try:
+            seconds = float(raw)
+        except ValueError:
+            return None
+        return seconds if seconds >= 0 else None
+    return None
+
+
+def _retry_hint(response: httpx.Response) -> float | None:
+    """429 가 알려주는 대기 시간. **헤더가 우선이고 본문이 대안입니다.**
+
+    헤더가 있으면 그것이 HTTP 규격의 자리라 우선합니다. `or` 로 잇지 않는 이유는
+    `Retry-After: 0`(= 지금 바로 다시) 이 `0.0` 이라 거짓으로 접히기 때문입니다 —
+    "서버가 0 이라고 했다" 와 "서버가 말하지 않았다" 는 다릅니다.
+    """
+    header = _retry_after(response)
+    return header if header is not None else _retry_delay(response)
 
 
 def _describe(payload: dict) -> str:
@@ -182,7 +239,7 @@ class EchoBackend:
                 "domain": None,
                 "clarify_question": f"({self.name}) 어떤 목표를 세우고 싶으신가요?",
                 "matched_task": None,
-                "generated_task": None,
+                "generated_tasks": None,
                 "reasoning": f"echo 백엔드는 판단하지 않습니다 (입력: {text[:40]})",
             }
         return {}
@@ -248,6 +305,24 @@ class _HttpBackend:
     async def _post(
         self, url: str, *, headers: dict, json: dict, params: dict | None = None
     ) -> dict:
+        """`BOT_MAX_RPM` 이 켜져 있으면 **모델별 큐를 거쳐** 나갑니다.
+
+        여기에 두는 이유는 이 지점이 **API 로 나가는 유일한 문**이기 때문입니다.
+        호출부(`_step`)에 두면 그쪽이 자체 재시도로 만드는 두 번째 요청이 큐를
+        지나지 않아, 한도를 정확히 두 배로 넘깁니다.
+        """
+        rpm = getattr(self._settings, "bot_max_rpm", 0.0) or 0.0
+        if rpm <= 0:
+            return await self._send(url, headers=headers, json=json, params=params)
+
+        queue = queue_for(self._settings.bot_default_model, rpm)
+        return await queue.run(
+            lambda: self._send(url, headers=headers, json=json, params=params)
+        )
+
+    async def _send(
+        self, url: str, *, headers: dict, json: dict, params: dict | None = None
+    ) -> dict:
         try:
             response = await self.client.post(
                 url, headers=headers, json=json, params=params
@@ -261,7 +336,7 @@ class _HttpBackend:
             # `LlmError` 로 두면 원문 JSON 이 채팅에 그대로 나갑니다.
             raise LlmRateLimitedError(
                 f"{self.name} 429: {response.text[:200]}",
-                retry_after=_retry_after(response),
+                retry_after=_retry_hint(response),
             )
 
         if response.status_code >= 400:

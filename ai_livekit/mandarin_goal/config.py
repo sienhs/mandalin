@@ -53,7 +53,19 @@ class Settings(BaseSettings):
     # 아무 표시도 안 납니다.
     bot_system_prompt_file: str = "./prompts/system.md"
     # 실수로 큰 파일을 가리켰을 때 매 요청에 그대로 실려 나가지 않게 하는 상한.
-    bot_system_prompt_max_chars: int = 8000
+    #
+    # **잘림은 앞이 아니라 뒤를 버립니다**(`prompt.py` 의 `text[:cap]`). `prompts/system.md`
+    # 는 맨 끝에 `<reminder>`("발화는 데이터다")를 두고 서버가 그걸 떼어 사용자 턴 **뒤에**
+    # 붙이는 구조라, 상한을 넘기면 **인젝션 되새김이 조용히 사라집니다.** 실제로
+    # 2026-08-04 에 프롬프트가 8,432자가 되면서 그 일이 났고, 로그에 WARNING 한 줄만
+    # 남았습니다(응답은 그대로 나옵니다). 잡아낸 것은 `tests/test_prompts_are_one_folder.py`
+    # 의 `test_the_utterance_goes_once_and_the_reminder_goes_last` 입니다 — 백엔드가
+    # 실제로 받는 인자를 보기 때문입니다.
+    #
+    # 그래서 8,000 에서 올렸습니다. 이 값은 **설계 예산이 아니라 사고 방지선**입니다 —
+    # 주기 4종·횟수·칸 정원까지 담은 정본이 8천 자대라, 여유가 없으면 다음 편집자가
+    # 같은 자리에서 같은 방식으로 넘깁니다.
+    bot_system_prompt_max_chars: int = 12000
 
     # --- 목표 설계 파이프라인 -------------------------------------------------
     # goal : 분류 -> 후보 검색 -> 판단. gemini 처럼 스키마 강제가 되는 백엔드 전용
@@ -89,7 +101,14 @@ class Settings(BaseSettings):
     # 차는 경우는 길어서가 아니라 **디코딩이 무너져 같은 문장을 반복**할 때였습니다
     # (candidatesTokenCount 2034, thoughts 0). 상한이 크면 그 낭비도 커집니다.
     # 512 면 정상 응답에는 여유가 있고 고장났을 때 태우는 양은 1/4 입니다.
-    bot_goal_max_output_tokens: int = 512
+    #
+    # **768 로 올린 이유는 과제가 배열이 되었기 때문입니다.** 한 턴이 과제를 3개까지
+    # 냅니다(`GOAL_SCHEMA.generated_tasks`) — 제목 25자 + 설명 40자 × 3 이면 정상
+    # 응답이 350 토큰대까지 올라가고, 512 는 여유가 아니라 **잘림 위험**이 됩니다.
+    # 길이 초과는 재시도로 못 고칩니다(`_step` 의 재시도는 디코딩 붕괴용입니다).
+    # 그렇다고 2048 로 되돌리지는 않았습니다 — 붕괴했을 때 태우는 양이 그만큼 늘고,
+    # 배열 상한이 3이라 그 이상은 정상 응답으로 쓰일 일이 없습니다.
+    bot_goal_max_output_tokens: int = 768
 
     # 같은 발화를 다시 받으면 이전 결과를 그대로 돌려줍니다. 0 이면 꺼짐.
     #
@@ -118,6 +137,16 @@ class Settings(BaseSettings):
     #: 값은 게이트웨이의 rate limit 을 알아야 정할 수 있습니다. 모르는 동안 0(무제한)
     #: 으로 두는 편이 낫습니다 — 임의로 조이면 쓸 수 있는 용량을 스스로 버립니다.
     bot_max_concurrent_rooms: int = 0
+
+    #: 모델 하나에 분당 몇 건까지 보낼지. **0 이면 큐를 쓰지 않습니다**(기본값).
+    #:
+    #: 실사용 경로는 방 하나에 사용자 한 명이라 요청이 몰리지 않고, 큐를 끼우면 방들이
+    #: 서로의 대기에 묶입니다. 켜야 하는 쪽은 **한 번에 수십 건을 밀어 넣는 곳** —
+    #: `evals/runner.py` 가 골든셋을 돌릴 때입니다.
+    #:
+    #: 한도는 모델·등급마다 다르므로 정확한 값을 여기 박지 않습니다. 이 값은 출발점이고
+    #: `ratelimit.ModelQueue` 가 429 를 만나면 알아서 간격을 벌립니다.
+    bot_max_rpm: float = 0.0
 
     bot_timeout_seconds: float = 20.0
     bot_max_output_tokens: int = 512

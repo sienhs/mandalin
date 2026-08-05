@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react'
 import type { Sheet, Subject, Terrain } from '../../data/types'
 import { stageOf } from '../../data/store'
 import { domainColor } from '../../components/common/Primitives'
+import { landmarkStageFromPercent } from '../../village/partTypes'
 import { cn } from '../../utils/cn'
 
 /* 타일 한 칸의 화면 크기. 값을 바꾸면 마을 전체 축척이 같이 움직인다. */
@@ -153,9 +154,15 @@ function Building({ stage, color, shape }: { stage: 0 | 1 | 2 | 3; color: string
   )
 }
 
-/** 정중앙 랜드마크. 전체 달성률 12.5% 마다 한 단계씩 자란다(0~8). */
+/**
+ * 정중앙 랜드마크. 전체 달성률 12.5% 마다 한 단계씩 자란다(0~8).
+ *
+ * 단계 계산은 3D 마을과 **같은 함수**를 쓴다. 예전에는 여기만 `floor(p/12.5)` 라 3D 와 한 단계
+ * 어긋났고, 랜딩에서 본 성장과 앱에서 본 성장이 달랐다. `partTypes` 는 모델링 데이터가 없는
+ * 스키마 모듈이라 2D 가 가져와도 번들이 무거워지지 않는다.
+ */
 function Landmark({ progress }: { progress: number }) {
-  const level = Math.max(0, Math.min(8, Math.floor(progress / 12.5)))
+  const level = landmarkStageFromPercent(progress)
   const color = '#f59f00'
   const h = 16 + level * 11
 
@@ -216,7 +223,7 @@ export default function IsoVillage({
   const skyId = `sky-${uid}`
   const glowId = `glow-${uid}`
 
-  const progress = sheet.achievementRate
+  const progress = sheet.progress ?? sheet.achievementRate
 
   /** 그리는 순서 = 뒤에서 앞으로. 안 그러면 뒤 건물이 앞 건물을 덮는다. */
   const cells = useMemo(() => {

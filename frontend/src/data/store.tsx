@@ -444,16 +444,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setUser((prev) => (prev ? { ...prev, point: res.totalPoint } : prev))
           await Promise.all([reloadTodos(), reloadSheets(), reloadDetails()])
           void reloadNotifications()
-          /*
-            서버는 이미 수행한 과제를 조용히 무시한다(earned = 0). 그때도 "+0P 적립" 을 띄우면
-            적립된 것처럼 읽히므로 무엇이 일어났는지 그대로 말한다. 다른 탭에서 먼저 눌렀거나
-            주기가 막 넘어간 경우에 걸린다.
-          */
-          toast.show(
-            res.earned > 0
-              ? { tone: 'point', title: `+${res.earned}P 적립`, body: '건물이 한 단계 자랐어요.' }
-              : { tone: 'info', title: '이미 수행한 과제예요', body: '포인트는 주기마다 한 번만 쌓여요.' },
-          )
+
+          const completedCount = res.completedSubjectIds?.length ?? 0
+          if (completedCount > 0) {
+            if (res.earned > 0) {
+              toast.show({
+                tone: 'point',
+                title: `+${res.earned}P 적립`,
+                body: '건물이 한 단계 자랐어요.',
+              })
+            } else {
+              toast.show({
+                tone: 'point',
+                title: '과제 수행 완료!',
+                body: '오늘 일일 포인트 상한(1,000P)을 채워 포인트는 적립되지 않았어요.',
+              })
+            }
+          } else {
+            toast.show({
+              tone: 'info',
+              title: '이미 수행한 과제예요',
+              body: '포인트는 주기마다 한 번만 쌓여요.',
+            })
+          }
           return true
         } catch (cause) {
           fail(cause, '수행 완료를 저장하지 못했습니다.')
@@ -637,14 +650,24 @@ export function stageOf(progress: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-/** 81칸 중 채워진 칸 수 (핵심 목표 1 + 도메인 8 + 과제 64). */
-export function filledCells(sheet: Sheet): number {
+/**
+ * 81칸 중 완전히 완료된 칸 수.
+ *
+ * 과제는 서버의 최종 완료 상태를 세고, 세부 목표는 과제 8개가 모두 끝났을 때 중앙과
+ * 외곽의 중복 칸 2개를 센다. 핵심 목표는 8개 세부 목표가 모두 끝났을 때 완료된다.
+ */
+export function completedCells(sheet: Sheet): number {
   const domains = sheet.domains ?? []
-  return (
-    (sheet.title.trim() ? 1 : 0) +
-    domains.filter((d) => d.title.trim()).length +
-    domains.reduce((acc, d) => acc + d.subjects.filter((s) => s.title.trim()).length, 0)
+  const completedSubjects = domains.reduce(
+    (count, domain) => count + domain.subjects.filter((subject) => subject.isDone).length,
+    0,
   )
+  const completedDomains = domains.filter(
+    (domain) => domain.subjects.length === 8 && domain.subjects.every((subject) => subject.isDone),
+  ).length
+  const completedCore = domains.length === 8 && completedDomains === 8 ? 1 : 0
+
+  return completedSubjects + completedDomains * 2 + completedCore
 }
 
 export function domainProgress(subjects: { progress: number }[]): number {

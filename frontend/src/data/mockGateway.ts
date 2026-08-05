@@ -1,6 +1,6 @@
 import type { Gateway, SheetDraft } from './gateway'
 import { DEFAULT_TARGET } from './adapters'
-import { SHOP_CATALOG } from './shopCatalog'
+import { LANDMARK_CATALOG, SHOP_CATALOG } from './shopCatalog'
 import type {
   AppNotification,
   Friend,
@@ -26,7 +26,16 @@ import type {
  * 상태는 localStorage 에만 남고 서버로 나가지 않는다.
  */
 
-const KEY = 'mandarin.mock.v2'
+/**
+ * localStorage 키. **끝의 버전을 올리면 저장분이 버려지고 `initial()` 이 다시 돈다.**
+ *
+ * <p>`load()` 는 저장분이 있으면 그대로 쓰므로, 카탈로그나 상태 모양을 바꿔도 이미 목업을
+ * 켜 본 사람에게는 반영되지 않는다. 그때 올린다.
+ *
+ * <p>v3: 보유 목록에 랜드마크 13종 추가(`LANDMARK_CATALOG`). v2 저장분에는 랜드마크가 없어
+ * 마을 정중앙이 계속 공사 부지로 남는다.
+ */
+const KEY = 'mandarin.mock.v3'
 
 let seq = 1000
 const nextId = () => (seq += 1)
@@ -258,6 +267,11 @@ type MockState = {
  * <p>목업은 모든 건물을 보유한 상태라 배치에 제약이 없다. 실제 서버에서는 보유한 것만
  * 세울 수 있다(`ItemSpotService` 가 `user_building` 을 대조한다).
  *
+ * <p>정중앙(5·5)에는 <b>시트 1 에만</b> 랜드마크를 세워 둔다. 시트 2 는 비워서 "고르지 않은
+ * 상태"(= 보유 목록 첫 종이 서는 자동 동작)를 같이 확인할 수 있게 한다. 시트 1 에 자동
+ * 기본값이 아닌 종을 넣는 이유는, 같은 종을 넣으면 <b>화면이 서버 값을 읽은 것인지 자동으로
+ * 떨어진 것인지 구분할 수 없기</b> 때문이다.
+ *
  * @returns "{sheetId}:{domainPosition}:{itemPosition}" → invenId
  */
 function seedPlacements(shop: ShopItem[]): Record<string, number> {
@@ -271,6 +285,10 @@ function seedPlacements(shop: ShopItem[]): Record<string, number> {
   ]
 
   const placements: Record<string, number> = {}
+
+  // 자동 기본값(LANDMARK_CATALOG 첫 종)이 아닌 것을 고른다 — 위 주석 참고.
+  const centerLandmark = shop.find((item) => item.itemKey === 'lm_iron_tower')
+  if (centerLandmark) placements['1:5:5'] = centerLandmark.itemId
 
   for (const { sheetId, items } of plans) {
     if (items.length === 0) continue
@@ -324,6 +342,28 @@ function initial(): MockState {
       owned: true,
       thumbnailUrl: null,
     }),
+  )
+
+  /*
+    랜드마크를 보유 목록에 이어 붙인다.
+
+    **상점 목록(`shopList`)에서는 걸러낸다** — 서버가 그러기 때문이다(`ShopService.findAll`).
+    같은 배열에 두는 이유는 `invenId` 로 건물을 찾는 곳(`buildLayout`·`placeBuilding`)이
+    이 배열 하나만 보기 때문이고, 목록을 둘로 나누면 그 조회를 전부 두 번 하게 된다.
+
+    가격은 0 이다. "무료" 가 아니라 **상점 재화가 아님**의 표시다(서버 시드도 0 으로 나간다).
+  */
+  shop.push(
+    ...LANDMARK_CATALOG.map(([itemKey, name], i) => ({
+      itemId: 100 + SHOP_CATALOG.length + i,
+      itemKey,
+      name,
+      theme: 'LANDMARK',
+      price: 0,
+      type: 'LANDMARK' as const,
+      owned: true,
+      thumbnailUrl: null,
+    })),
   )
 
   // 배치를 먼저 계산한다 — 이 안에서 쓰인 건물이 owned 로 바뀐다.
@@ -510,10 +550,20 @@ function buildLayout(sheet: Sheet): VillageLayout {
 /**
  * 건물 치수. 3D 가 높이순으로 자동 배치할 때 쓴다.
  * 서버 카탈로그의 실제 값을 그대로 쓰므로 목업 마을도 실제와 같은 실루엣이 된다.
+ *
+ * <p>랜드마크도 넣는다. 빠지면 기본값(0.46 × 0.46 × 1)으로 떨어져 3×3 거대 건물이 1칸짜리
+ * 치수로 보고된다. 지금은 그 값을 읽는 곳이 없지만(랜드마크는 `parts` 로 그리고,
+ * `buildOwnedCatalog` 는 높이순 표본에서 랜드마크를 먼저 걸러낸다) 서버가 주는 값과
+ * 어긋난 채로 두면 나중에 이 치수를 쓰는 코드가 조용히 틀린다.
  */
-const SIZE_BY_KEY = new Map(
-  SHOP_CATALOG.map(([key, , , , , width, depth, height]) => [key, { width, depth, height }]),
-)
+const SIZE_BY_KEY = new Map<string, { width: number; depth: number; height: number }>([
+  ...SHOP_CATALOG.map(
+    ([key, , , , , width, depth, height]) => [key, { width, depth, height }] as const,
+  ),
+  ...LANDMARK_CATALOG.map(
+    ([key, , width, depth, height]) => [key, { width, depth, height }] as const,
+  ),
+])
 
 function sizeOf(itemKey: string): { width: number; depth: number; height: number } {
   return SIZE_BY_KEY.get(itemKey) ?? { width: 0.46, depth: 0.46, height: 1 }
@@ -688,14 +738,25 @@ export const mockGateway: Gateway = {
     recalc(sheet)
     state.user = { ...state.user, point: state.user.point + earned }
     save()
-    return delay({ earned, totalPoint: state.user.point })
+    return delay({ completedSubjectIds: subjectIds, earned, totalPoint: state.user.point })
   },
 
-  shopList: () => delay(state.shop),
+  /*
+    랜드마크는 진열하지 않는다 — 서버와 같은 규칙이다(`ShopService.findAll` 이 `type=LANDMARK`
+    를 걸러낸다). 보유 목록(`ownedBuildings`)에는 그대로 들어간다.
+  */
+  shopList: () => delay(state.shop.filter((i) => i.type !== 'LANDMARK')),
 
   purchase: async (itemId) => {
     const item = state.shop.find((i) => i.itemId === itemId)
     if (!item) throw new Error('건물을 찾을 수 없습니다.')
+    /*
+      목록에서 뺀 것만으로는 못 막는다 — itemId 를 알면 직접 부를 수 있다.
+      서버도 같은 이유로 `purchase` 에서 한 번 더 막는다(BUILDING_NOT_PURCHASABLE).
+    */
+    if (item.type === 'LANDMARK') {
+      throw new Error('랜드마크는 상점에서 살 수 없습니다. 만다라트를 완성해 해금하세요.')
+    }
     if (item.owned) throw new Error('이미 보유한 건물입니다.')
     if (state.user.point < item.price) throw new Error('포인트가 부족합니다.')
 

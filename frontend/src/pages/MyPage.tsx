@@ -153,22 +153,25 @@ export default function Profile() {
             <p className="muted m-0 mt-4 text-[12.5px] font-semibold">아직 만든 표가 없어요.</p>
           ) : (
             <ul className="m-0 mt-5 flex list-none flex-col gap-4 p-0">
-              {sheets.data.map((s) => (
-                <li key={s.id}>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                    <Link
-                      to={`/app/sheets/${s.id}`}
-                      className="truncate text-[13.5px] font-bold no-underline hover:text-brand-600"
-                    >
-                      {s.title}
-                    </Link>
-                    <span className="shrink-0 text-[12px] font-black tabular-nums">
-                      {s.achievementRate}%
-                    </span>
-                  </div>
-                  <ProgressBar value={s.achievementRate} size="sm" label={`${s.title} 달성률`} />
-                </li>
-              ))}
+              {sheets.data.map((s) => {
+                const rate = details.data[s.id]?.achievementRate ?? s.achievementRate
+                return (
+                  <li key={s.id}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                      <Link
+                        to={`/app/sheets/${s.id}`}
+                        className="truncate text-[13.5px] font-bold no-underline hover:text-brand-600"
+                      >
+                        {s.title}
+                      </Link>
+                      <span className="shrink-0 text-[12px] font-black tabular-nums">
+                        {rate}%
+                      </span>
+                    </div>
+                    <ProgressBar value={rate} size="sm" label={`${s.title} 달성률`} />
+                  </li>
+                )
+              })}
             </ul>
           )}
 

@@ -71,6 +71,22 @@ export default function AppShell() {
   const [notiOpen, setNotiOpen] = useState(false)
 
   /**
+   * 3D 마을 화면인가.
+   *
+   * <p>이 화면만 <b>세로를 한 픽셀도 낭비할 수 없다</b> — 캔버스 아래에 조작 바와 이동 버튼이
+   * 있고 그 셋이 전부 첫 화면에 들어와야 하는데, 헤더(64) + 본문 위 여백(24)이 그만큼을
+   * 먼저 가져간다. 그래서 여기서만 헤더를 <b>본문 위에 겹치고</b> 배경을 지운다. 헤더가
+   * 흐름에서 빠지면 그 88px 이 캔버스로 간다.
+   *
+   * <p>버튼은 그대로 둔다. 각자 배경과 테두리가 있어 3D 위에서도 읽히고, 지우는 것은 헤더
+   * <b>판</b>(배경·블러·아래 테두리)뿐이다.
+   *
+   * <p>다른 화면은 전혀 건드리지 않는다 — 헤더가 sticky 로 자리를 차지하는 편이 카드 목록을
+   * 읽을 때 맞다.
+   */
+  const overlayHeader = location.pathname === '/app/village'
+
+  /**
    * 사이드바 접힘. 새로고침해도 유지된다.
    *
    * <p>3D 마을처럼 넓은 화면이 필요한 곳에서 248px 을 되찾으려고 접는 것인데, 페이지를
@@ -101,6 +117,26 @@ export default function AppShell() {
     setMoreOpen(false)
     setNotiOpen(false)
   }, [location.pathname])
+
+  /**
+   * 마을 화면에서만 문서 스크롤바를 숨긴다.
+   *
+   * <p>이 화면은 본문이 `h-dvh` 이고 캔버스가 남은 높이를 flex 로 받으므로 스크롤할 것이 없는데,
+   * 그래도 스크롤바 자리(약 15px)가 남으면 캔버스 폭이 그만큼 줄고 오른쪽에 회색 띠가 보인다.
+   *
+   * <p><b>`overflow: hidden` 이 아니라 스크롤바만 숨긴다.</b> 창을 아주 낮추면(768px 아래)
+   * 내용이 넘칠 수 있는데, 그때 스크롤 자체를 막으면 아래 버튼에 닿을 수 없다. 바만 감추면
+   * 휠·키보드로는 여전히 움직인다.
+   *
+   * <p>`html` 에 거는 이유는 문서 스크롤바가 거기 붙기 때문이다 — 셸 안쪽 div 에 걸어도 안 먹는다.
+   * 화면을 떠날 때 반드시 되돌린다. 안 그러면 다른 화면의 스크롤바까지 사라진다.
+   */
+  useEffect(() => {
+    if (!overlayHeader) return
+    const root = document.documentElement
+    root.classList.add('no-scrollbar')
+    return () => root.classList.remove('no-scrollbar')
+  }, [overlayHeader])
 
   return (
     <div className="min-h-dvh" style={{ background: 'var(--surface-page)' }}>
@@ -181,16 +217,33 @@ export default function AppShell() {
       {/* ───────── 상단 바 ───────── */}
       <header
         className={cn(
-          'sticky top-0 z-30 border-b backdrop-blur-xl',
+          'top-0 z-30',
           // 사이드바와 같은 200ms — 다르면 본문이 먼저 도착해 빈틈이 잠깐 보인다.
           'transition-[padding] duration-200 ease-out motion-reduce:transition-none',
           navOpen && 'lg:pl-[248px]',
+          /*
+            마을 화면만 흐름에서 빼 본문 위에 겹친다(`absolute`). `sticky` 로는 자리를 계속
+            차지해서 아래 내용을 밀어낸다 — 되찾으려는 것이 바로 그 64px 이다.
+            `pointer-events-none` 은 판에만 걸고 버튼에는 다시 켠다(아래 참고).
+          */
+          overlayHeader
+            ? 'pointer-events-none absolute inset-x-0'
+            : 'sticky border-b backdrop-blur-xl',
         )}
-        style={{
-          background: 'color-mix(in oklab, var(--surface-page), transparent 25%)',
-          borderColor: 'var(--border-hairline)',
-        }}
+        style={
+          overlayHeader
+            ? undefined
+            : {
+                background: 'color-mix(in oklab, var(--surface-page), transparent 25%)',
+                borderColor: 'var(--border-hairline)',
+              }
+        }
       >
+        {/*
+          겹칠 때는 빈 자리가 클릭을 먹지 않아야 한다 — 헤더가 3D 위 64px 을 덮고 있어서, 판이
+          이벤트를 받으면 그 띠에서 마을을 돌리거나 클릭할 수 없다. 그래서 판은
+          `pointer-events-none` 으로 통과시키고 **실제 버튼 묶음에만** 다시 켠다(아래 세 곳).
+        */}
         <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center gap-3 px-4 sm:px-6">
           {/*
             펴기 버튼은 접혔을 때만, 그리고 사이드바가 있던 자리에 그대로 둔다.
@@ -205,7 +258,10 @@ export default function AppShell() {
               aria-label="메뉴 펴기"
               aria-expanded={false}
               title="메뉴 펴기"
-              className="hidden size-10 shrink-0 place-items-center rounded-full border text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)] lg:grid"
+              className={cn(
+                'hidden size-10 shrink-0 place-items-center rounded-full border text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)] lg:grid',
+                overlayHeader && 'pointer-events-auto',
+              )}
               style={{ borderColor: 'var(--border-hairline)', background: 'var(--surface-card)' }}
             >
               <IconArrowRight className="size-[18px]" />
@@ -218,32 +274,38 @@ export default function AppShell() {
             className={cn(
               'flex items-center gap-2 no-underline',
               navOpen ? 'lg:hidden' : 'lg:flex',
+              overlayHeader && 'pointer-events-auto',
             )}
           >
             <Logo className="size-8 shrink-0 text-brand-500" />
             <strong className="text-base font-black tracking-[-0.04em]">만다린</strong>
           </NavLink>
 
-          {/* 어느 데이터에 붙어 있는지 항상 보이게 둔다 */}
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'mock' ? 'api' : 'mock')}
-            title={
-              mode === 'mock'
-                ? '지금은 브라우저 안의 목업 데이터입니다. 눌러서 실제 서버로 전환'
-                : '지금은 실제 백엔드에 연결돼 있습니다. 눌러서 목업으로 전환'
-            }
+          <div
             className={cn(
-              'hidden h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black text-white sm:flex',
-              mode === 'mock'
-                ? 'bg-gradient-to-br from-amber-400 to-amber-600'
-                : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
+              'ml-auto flex items-center gap-1.5 sm:gap-2',
+              overlayHeader && 'pointer-events-auto',
             )}
           >
-            {mode === 'mock' ? '목업 데이터' : '서버 연결됨'}
-          </button>
+            {/* 페이지 제목이나 본문 폭과 무관하게 항상 오른쪽 도구 영역의 첫 자리에 둔다. */}
+            <button
+              type="button"
+              onClick={() => setMode(mode === 'mock' ? 'api' : 'mock')}
+              title={
+                mode === 'mock'
+                  ? '지금은 브라우저 안의 목업 데이터입니다. 눌러서 실제 서버로 전환'
+                  : '지금은 실제 백엔드에 연결돼 있습니다. 눌러서 목업으로 전환'
+              }
+              className={cn(
+                'hidden h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black text-white sm:flex',
+                mode === 'mock'
+                  ? 'bg-gradient-to-br from-amber-400 to-amber-600'
+                  : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
+              )}
+            >
+              {mode === 'mock' ? '목업 데이터' : '서버 연결됨'}
+            </button>
 
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <NavLink
               to="/app/shop"
               className="flex h-10 items-center gap-1.5 rounded-full border px-3 text-[13px] font-extrabold no-underline transition-colors hover:border-brand-300"
@@ -310,7 +372,28 @@ export default function AppShell() {
           navOpen && 'lg:pl-[248px]',
         )}
       >
-        <div className="mx-auto w-full max-w-[1320px] px-4 pb-28 pt-6 sm:px-6 lg:pb-16">
+        {/*
+          마을 화면만 위·아래 여백을 줄이고 **높이를 화면에 못 박는다.**
+
+          위(`pt-6` 24 → `pt-3` 12): 헤더가 겹쳐 있으니 그 아래 첫 줄(뒤로 버튼)이 헤더와 겹치지
+          않을 만큼만 남긴다. 아래(`lg:pb-16` 64 → `lg:pb-4` 16): 마을 화면은 스크롤할 것이
+          없으므로 바닥 여백이 그냥 화면을 먹는다.
+
+          `lg:h-dvh` + `flex flex-col` 이 핵심이다. 예전에는 캔버스 높이를 `100dvh - 228px` 처럼
+          <b>뺄셈으로</b> 맞췄는데, 그러면 요소 높이를 하나라도 잘못 세는 순간(실제로 조작 바의
+          card 테두리 2px 과 버튼의 h-11 을 놓쳤다) 그만큼 어긋나 미세하게 스크롤됐다. 여기서
+          높이를 화면으로 고정하고 캔버스가 `flex-1` 로 남은 만큼 가져가면 <b>산수가 사라진다</b> —
+          브라우저가 정확히 나눈다. `box-border`(Tailwind 기본)라 위 패딩도 이 높이 안에 든다.
+
+          <b>줄인 것은 여백뿐이다</b> — 캔버스도 조작 바도 버튼도 크기가 그대로다.
+          모바일 하단 탭바를 피하는 `pb-28` 은 남긴다(그 자리에 탭바가 실제로 있다).
+        */}
+        <div
+          className={cn(
+            'mx-auto w-full max-w-[1320px] px-4 pb-28 sm:px-6',
+            overlayHeader ? 'pt-3 lg:flex lg:h-dvh lg:flex-col lg:pb-4' : 'pt-6 lg:pb-16',
+          )}
+        >
           <Outlet />
         </div>
       </main>
