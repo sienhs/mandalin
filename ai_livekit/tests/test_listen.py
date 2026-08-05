@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import ast
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -138,6 +139,476 @@ def test_the_first_alternative_wins_and_is_trimmed():
         alternatives=[FakeData(text="  매일 알고리즘 풀기  "), FakeData(text="다른 후보")]
     )
     assert _first_text(event) == "매일 알고리즘 풀기"
+
+
+FRAME_MS = 20
+
+
+def _frame(amplitude: int, ms: int = FRAME_MS, sample_rate: int = 16_000):
+    """진폭이 일정한 프레임. 0 이면 완전한 무음(mute 된 트랙)입니다."""
+    import numpy as np
+    from livekit import rtc
+
+    samples = sample_rate * ms // 1000
+    data = np.full(samples, amplitude, dtype=np.int16)
+    return rtc.AudioFrame(data.tobytes(), sample_rate, 1, samples)
+
+
+def _feed(gate, amplitude: int, ms: int):
+    """`ms` 동안 같은 소리를 넣고 (보낸 프레임 수, 마지막 판정) 을 돌려줍니다."""
+    sent = 0
+    last = None
+    for _ in range(ms // FRAME_MS):
+        last = gate.feed(_frame(amplitude))
+        sent += len(last.frames)
+    return sent, last
+
+
+def test_silence_is_not_sent_to_the_stt():
+    """**이걸 놓치면 15분 창이 15분어치 과금입니다.**
+
+    Deepgram 은 열려 있는 소켓 시간으로 과금하고, mute 되지 않은 트랙은 무음 프레임을
+    계속 흘려보냅니다. 사람이 창을 닫아주던 10초 시절에는 이 층이 없어도 됐습니다.
+    """
+    from agent.listen import SpeechGate
+
+    gate = SpeechGate()
+    sent, _ = _feed(gate, 0, 5_000)
+    assert sent == 0
+    assert not gate.speaking
+    assert gate.sent_seconds == 0.0
+    assert gate.silence_seconds == pytest.approx(5.0, abs=0.05)
+
+
+def test_speech_opens_the_gate_and_carries_the_audio_before_the_onset():
+    """온셋 판정에 쓴 앞부분까지 같이 보내야 첫 음절이 안 잘립니다.
+
+    되돌려 보내지 않으면 `ONSET_MS` + 스트림 연결 시간만큼이 통째로 사라집니다 —
+    에러가 아니라 전사 품질로만 드러나는 종류입니다.
+    """
+    from agent.listen import ONSET_MS, PREBUFFER_MS, SpeechGate
+
+    gate = SpeechGate()
+    _feed(gate, 0, 1_000)
+    sent, last = _feed(gate, 4_000, 200)
+
+    assert gate.speaking
+    # 온셋 프레임 하나가 아니라 그 앞 구간까지 나갑니다.
+    carried = (PREBUFFER_MS + ONSET_MS) / FRAME_MS
+    assert sent > carried
+    assert last is not None and not last.ended
+
+
+def test_a_short_pause_does_not_end_the_utterance():
+    """문장 중간의 숨 쉬는 구간에서 스트림이 닫히면 한 문장이 둘로 쪼개집니다."""
+    from agent.listen import HANGOVER_MS, SpeechGate
+
+    gate = SpeechGate()
+    _feed(gate, 4_000, 400)
+    sent, last = _feed(gate, 0, int(HANGOVER_MS) - FRAME_MS)
+
+    assert gate.speaking
+    assert last is not None and not last.ended
+    # hangover 구간의 무음은 **보냅니다** — Deepgram 이 문장 끝을 판정하는 근거입니다.
+    assert sent > 0
+
+
+def test_the_utterance_ends_once_after_the_hangover():
+    """`ended` 는 한 번만 떠야 합니다 — 호출부가 그때 `flush()` 를 부릅니다."""
+    from agent.listen import HANGOVER_MS, SpeechGate
+
+    gate = SpeechGate()
+    _feed(gate, 4_000, 400)
+
+    ends = 0
+    silent_sent = 0
+    for _ in range(int(HANGOVER_MS) // FRAME_MS + 100):
+        gated = gate.feed(_frame(0))
+        ends += gated.ended
+        silent_sent += len(gated.frames)
+
+    assert ends == 1
+    assert not gate.speaking
+    # hangover 만큼만 보내고 그 뒤 무음은 버립니다.
+    assert silent_sent == pytest.approx(HANGOVER_MS / FRAME_MS, abs=1)
+
+
+def test_a_single_loud_frame_does_not_open_the_gate():
+    """헛기침·문 닫는 소리로 스트림을 열면 연결 비용만 냅니다."""
+    from agent.listen import SpeechGate
+
+    gate = SpeechGate()
+    _feed(gate, 0, 500)
+    assert gate.feed(_frame(20_000)).frames == ()
+    assert not gate.speaking
+
+
+def test_the_gate_reads_its_thresholds_from_the_environment(monkeypatch):
+    """운영에서 조절할 수 있어야 합니다 — 잡음이 심한 방은 임계값을 올립니다."""
+    from agent.listen import SpeechGate
+
+    monkeypatch.setenv("STT_SILENCE_DBFS", "-20")
+    quiet = SpeechGate.from_env()
+    # -30dBFS 쯤인 소리라 임계값(-20)보다 조용합니다.
+    sent, _ = _feed(quiet, 1_000, 1_000)
+    assert sent == 0
+
+
+def test_a_broken_threshold_falls_back_instead_of_killing_the_session(monkeypatch):
+    """`.env` 오타로 음성이 죽으면 안 됩니다. 기본값으로 내려가되 경고를 남깁니다."""
+    from agent.listen import SILENCE_DBFS, _env_float
+
+    monkeypatch.setenv("STT_SILENCE_DBFS", "아니오")
+    assert _env_float("STT_SILENCE_DBFS", SILENCE_DBFS) == SILENCE_DBFS
+
+
+class FakeSttStream:
+    """`stt.SpeechStream` 중 `TrackListener` 가 실제로 쓰는 것만."""
+
+    def __init__(self) -> None:
+        import asyncio
+
+        self.pushed: list = []
+        self.flushes = 0
+        self.input_ended = False
+        self.closed = False
+        self._events: asyncio.Queue = asyncio.Queue()
+
+    def push_frame(self, frame) -> None:
+        assert not self.input_ended, "end_input 뒤에 push 하면 실제 스트림은 예외를 냅니다"
+        self.pushed.append(frame)
+
+    def flush(self) -> None:
+        self.flushes += 1
+
+    def end_input(self) -> None:
+        self.input_ended = True
+        self._events.put_nowait(None)
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        event = await self._events.get()
+        if event is None:
+            raise StopAsyncIteration
+        return event
+
+
+class FakeStt:
+    def __init__(self) -> None:
+        self.streams: list[FakeSttStream] = []
+
+    def stream(self) -> FakeSttStream:
+        self.streams.append(FakeSttStream())
+        return self.streams[-1]
+
+
+def _fake_audio(*segments: tuple[int, int]):
+    """`(진폭, ms)` 목록을 `rtc.AudioStream` 자리에 끼울 수 있는 것으로 만듭니다."""
+
+    class FakeEvent:
+        def __init__(self, frame) -> None:
+            self.frame = frame
+
+    frames = [
+        FakeEvent(_frame(amplitude))
+        for amplitude, ms in segments
+        for _ in range(ms // FRAME_MS)
+    ]
+
+    class FakeAudioStream:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self._frames = iter(frames)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._frames)
+            except StopIteration:
+                raise StopAsyncIteration from None
+
+        async def aclose(self) -> None:
+            pass
+
+    return FakeAudioStream
+
+
+async def _run_with(monkeypatch, *segments: tuple[int, int], is_busy=None) -> FakeStt:
+    import agent.listen as listen
+
+    monkeypatch.setattr(listen.rtc, "AudioStream", _fake_audio(*segments))
+    speech = FakeStt()
+    await listen.TrackListener(speech, on_final=_noop, is_busy=is_busy).run(track=object())
+    return speech
+
+
+async def _noop(_text: str) -> None:
+    pass
+
+
+async def test_a_silent_window_never_opens_a_deepgram_connection(monkeypatch):
+    """**소켓이 열린 시간이 요금입니다.** 켜두고 말하지 않으면 연결이 없어야 합니다."""
+    speech = await _run_with(monkeypatch, (0, 10_000))
+    assert speech.streams == []
+
+
+async def test_the_stream_closes_when_the_silence_outlasts_the_idle_window(monkeypatch):
+    """발화가 끝나고 무음이 이어지면 스트림을 닫습니다 — 과금이 실제로 멈추는 지점."""
+    import agent.listen as listen
+
+    monkeypatch.setenv("STT_IDLE_CLOSE_SECONDS", "1")
+    speech = await _run_with(monkeypatch, (0, 1_000), (4_000, 500), (0, 4_000))
+
+    assert len(speech.streams) == 1
+    stream = speech.streams[0]
+    assert stream.input_ended and stream.closed
+    # 발화가 끝날 때 Finalize 를 보냅니다. 무음을 더 안 보내므로 이게 없으면 마지막
+    # FINAL 이 다음 발화까지 밀립니다.
+    assert stream.flushes == 1
+    # 보낸 것은 발화 + hangover 뿐입니다(5.5초 창 전체가 아님).
+    ceiling = (500 + listen.HANGOVER_MS + listen.PREBUFFER_MS + listen.ONSET_MS) / FRAME_MS
+    assert 0 < len(stream.pushed) <= ceiling
+
+
+async def test_the_next_utterance_opens_a_new_stream(monkeypatch):
+    """닫은 뒤에도 계속 들어야 합니다 — 창이 15분이라 발화가 여러 번 옵니다."""
+    monkeypatch.setenv("STT_IDLE_CLOSE_SECONDS", "1")
+    speech = await _run_with(
+        monkeypatch, (4_000, 400), (0, 3_000), (4_000, 400), (0, 3_000)
+    )
+
+    assert len(speech.streams) == 2
+    assert all(s.input_ended and s.closed and s.pushed for s in speech.streams)
+
+
+async def test_nothing_is_transcribed_while_the_answer_is_being_generated(monkeypatch):
+    """**생성 중 발화는 `Conversation` 이 버립니다** — 전사하면 요금만 나갑니다."""
+    speech = await _run_with(monkeypatch, (4_000, 2_000), is_busy=lambda: True)
+    assert speech.streams == []
+
+
+async def test_generation_closes_the_open_stream(monkeypatch):
+    """발화가 끝나면 곧 생성이 시작됩니다. 그때 열려 있는 스트림을 닫습니다.
+
+    무음 규칙(`STT_IDLE_CLOSE_SECONDS`)을 기다리면 생성 시간만큼 소켓이 더 열려
+    있습니다 — 실측으로 발화당 5초쯤입니다.
+    """
+    generating = False
+
+    def is_busy() -> bool:
+        return generating
+
+    import agent.listen as listen
+
+    monkeypatch.setattr(listen.rtc, "AudioStream", _fake_audio((4_000, 400), (0, 200)))
+    speech = FakeStt()
+    listener = listen.TrackListener(speech, on_final=_noop, is_busy=is_busy)
+
+    # 발화 도중에 생성이 시작되는 상황입니다. 프레임 몇 개를 흘린 뒤 켭니다.
+    original = FakeSttStream.push_frame
+    pushes = 0
+
+    def counting_push(self, frame) -> None:
+        nonlocal generating, pushes
+        original(self, frame)
+        pushes += 1
+        if pushes == 5:
+            generating = True
+
+    monkeypatch.setattr(FakeSttStream, "push_frame", counting_push)
+    await listener.run(track=object())
+
+    assert len(speech.streams) == 1
+    stream = speech.streams[0]
+    assert stream.input_ended and stream.closed
+    # 닫기 전에 flush 합니다 — 그래야 방금 한 말의 FINAL 이 옵니다.
+    assert stream.flushes == 1
+
+
+async def test_listening_resumes_after_generation(monkeypatch):
+    """생성이 끝나면 다시 들어야 합니다 — 안 그러면 한 턴 만에 음성이 죽습니다."""
+    busy = True
+
+    import agent.listen as listen
+
+    monkeypatch.setattr(listen.rtc, "AudioStream", _fake_audio((4_000, 400), (4_000, 400)))
+    speech = FakeStt()
+
+    def is_busy() -> bool:
+        nonlocal busy
+        was, busy = busy, False  # 첫 프레임에서만 생성 중입니다
+        return was
+
+    await listen.TrackListener(speech, on_final=_noop, is_busy=is_busy).run(track=object())
+    assert len(speech.streams) == 1
+    assert speech.streams[0].pushed
+
+
+async def test_closing_a_stream_does_not_stall_the_next_utterance(monkeypatch):
+    """**정리는 오디오 루프 밖에서 합니다.**
+
+    `end_input()` 뒤 스트림이 끝나기까지 플러그인의 keepalive 주기(5초)만큼 걸립니다.
+    그동안 루프를 세우면 그 사이 시작된 발화의 첫 전사가 그만큼 늦습니다 — 실측에서
+    닫을 때마다 `FINALIZE_SECONDS` 를 통째로 기다렸습니다.
+    """
+    import asyncio
+
+    #: 정리에 이만큼 걸리는 상황입니다(실제로는 소켓 종료 + 마지막 전사 대기).
+    teardown = 0.5
+
+    class SlowClosingStream(FakeSttStream):
+        async def aclose(self) -> None:
+            await asyncio.sleep(teardown)
+            self.closed = True
+
+    class SlowStt(FakeStt):
+        def stream(self) -> FakeSttStream:
+            self.streams.append(SlowClosingStream())
+            return self.streams[-1]
+
+    import agent.listen as listen
+
+    monkeypatch.setenv("STT_IDLE_CLOSE_SECONDS", "1")
+    monkeypatch.setattr(
+        listen.rtc,
+        "AudioStream",
+        _fake_audio((4_000, 400), (0, 3_000), (4_000, 400), (0, 3_000)),
+    )
+    speech = SlowStt()
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    run = asyncio.create_task(listen.TrackListener(speech, on_final=_noop).run(track=object()))
+    try:
+        while len(speech.streams) < 2:
+            assert loop.time() - started < teardown / 2, (
+                "두 번째 발화가 첫 스트림의 정리를 기다렸습니다"
+            )
+            await asyncio.sleep(0.01)
+        # 첫 스트림은 아직 닫히는 중입니다 — 루프가 기다리지 않았다는 증거입니다.
+        # 기다렸다면 두 번째 스트림이 열릴 때 이미 닫혀 있습니다.
+        assert not speech.streams[0].closed
+    finally:
+        run.cancel()
+        with suppress(asyncio.CancelledError):
+            await run
+
+
+async def test_a_stream_that_will_not_end_is_closed_anyway(monkeypatch, caplog):
+    """**스트림이 스스로 끝나기를 기다리지 않습니다.**
+
+    플러그인 keepalive 가 소켓이 닫힌 것을 다음 전송(5초 주기)에서야 알아채서, 기다리면
+    발화당 약 5초가 더 청구됐습니다(실측). 유예만 주고 직접 닫습니다.
+    """
+    import logging
+
+    class NeverEndingStream(FakeSttStream):
+        def end_input(self) -> None:
+            self.input_ended = True  # 이벤트 채널을 안 닫습니다
+
+    class NeverEndingStt(FakeStt):
+        def stream(self) -> FakeSttStream:
+            self.streams.append(NeverEndingStream())
+            return self.streams[-1]
+
+    import agent.listen as listen
+
+    monkeypatch.setenv("STT_IDLE_CLOSE_SECONDS", "1")
+    monkeypatch.setenv("STT_FINALIZE_SECONDS", "0.05")
+    monkeypatch.setattr(listen.rtc, "AudioStream", _fake_audio((4_000, 400), (0, 3_000)))
+    speech = NeverEndingStt()
+    with caplog.at_level(logging.WARNING, logger="mandarin.listen"):
+        await listen.TrackListener(speech, on_final=_noop).run(track=object())
+
+    assert speech.streams[0].closed
+    # FINAL 을 받은 적이 없으니 경고도 없어야 합니다 — 경고는 INTERIM 뒤에만 뜹니다.
+    assert "FINAL" not in caplog.text
+
+
+async def test_dropping_a_pending_final_is_warned_about(monkeypatch, caplog):
+    """마지막 발화가 빠지는 것은 **조용히** 일어납니다. 그래서 경고를 남깁니다."""
+    import logging
+
+    from livekit.agents import stt as stt_api
+
+    class InterimOnlyStream(FakeSttStream):
+        """INTERIM 만 주고 FINAL 을 주지 않는 스트림 — 느린 네트워크의 재현입니다."""
+
+        def push_frame(self, frame) -> None:
+            super().push_frame(frame)
+            if len(self.pushed) == 3:
+                self._events.put_nowait(
+                    stt_api.SpeechEvent(
+                        type=stt_api.SpeechEventType.INTERIM_TRANSCRIPT,
+                        alternatives=[stt_api.SpeechData(language="ko", text="매일 알고")],
+                    )
+                )
+
+        def end_input(self) -> None:
+            self.input_ended = True  # FINAL 없이 끝냅니다
+
+    class InterimOnlyStt(FakeStt):
+        def stream(self) -> FakeSttStream:
+            self.streams.append(InterimOnlyStream())
+            return self.streams[-1]
+
+    import agent.listen as listen
+
+    monkeypatch.setenv("STT_IDLE_CLOSE_SECONDS", "1")
+    monkeypatch.setenv("STT_FINALIZE_SECONDS", "0.05")
+    monkeypatch.setattr(listen.rtc, "AudioStream", _fake_audio((4_000, 400), (0, 3_000)))
+    speech = InterimOnlyStt()
+    with caplog.at_level(logging.WARNING, logger="mandarin.listen"):
+        await listen.TrackListener(speech, on_final=_noop, on_interim=_noop).run(
+            track=object()
+        )
+
+    assert "FINAL" in caplog.text
+    assert speech.streams[0].closed
+
+
+async def test_cancelling_the_run_still_closes_the_open_stream(monkeypatch):
+    """mute 는 이 태스크를 취소합니다. 그때 정리를 건너뛰면 연결이 쌓입니다."""
+    import asyncio
+
+    import agent.listen as listen
+
+    started = asyncio.Event()
+
+    class SlowAudioStream:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self._frames = iter([_frame(4_000) for _ in range(50)])
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            frame = next(self._frames, None)
+            if frame is None:
+                started.set()
+                await asyncio.sleep(3600)
+            return type("E", (), {"frame": frame})()
+
+        async def aclose(self) -> None:
+            pass
+
+    monkeypatch.setattr(listen.rtc, "AudioStream", SlowAudioStream)
+    speech = FakeStt()
+    task = asyncio.create_task(
+        listen.TrackListener(speech, on_final=_noop).run(track=object())
+    )
+    await asyncio.wait_for(started.wait(), 5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert len(speech.streams) == 1
+    assert speech.streams[0].closed
 
 
 @pytest.mark.parametrize("language", ["ko", "multi"])

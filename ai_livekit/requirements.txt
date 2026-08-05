@@ -30,9 +30,13 @@ livekit-agents~=1.6
 # is no Gemini-based STT plugin. Do not revert to that reasoning.
 livekit-plugins-deepgram~=1.6
 
-# No VAD package on purpose. Deepgram delimits utterances itself. If you swap to
-# a batch STT (Whisper via Groq/OpenAI), you need livekit-plugins-silero and an
-# explicit turn-detection decision -- see agent/listen.py.
+# No VAD package on purpose. Deepgram delimits utterances inside the audio we send,
+# and agent/listen.py decides what to send with an RMS gate (SpeechGate) -- silero
+# would add per-job CPU and memory on a t3.micro for a judgement we do not need.
+#
+# numpy comes in through livekit anyway; it is listed because agent/listen.py imports
+# it directly (per-frame RMS).
+numpy>=1.26
 
 # --- TTS: not doing it (decided) -------------------------------------------
 # Replies go out as text only. The agent never publishes an audio track, so no
