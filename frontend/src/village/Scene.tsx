@@ -54,11 +54,14 @@ interface Props {
   occludedLeft?: number
   occludedRight?: number
   /**
-   * 캔버스 안에 추가로 렌더할 것. 실서비스에서는 쓰지 않는다.
+   * 캔버스 안에 추가로 렌더할 것.
    *
    * 렌더 통계(draw call 수)는 `useThree` 로 renderer 에 닿아야 읽을 수 있는데, 그 훅은
    * Canvas 안에서만 동작한다. 테스트 화면이 계측기를 꽂을 자리를 열어 두는 것 — 대신
-   * 공용 컴포넌트에 진단 코드를 심지 않는다.
+   * 공용 컴포넌트에 진단 코드를 심지 않는다. 홈 미리보기의 화면 캡처(`VillagePreview`)도
+   * 같은 자리를 쓴다.
+   *
+   * <p><b>마을과 같은 Suspense 경계 안에서 렌더된다</b> — 아래 경계 주석 참고.
    */
   children?: ReactNode
   onSelect: (domainIndex: number) => void
@@ -155,6 +158,11 @@ export function Scene({
         찍혀서 GPU 부하 문제로 오해하기 쉽다(부하·그림자맵·dpr 과는 무관하다).
 
         경계를 캔버스 안에 두면 폰트 로딩 동안 라벨만 잠깐 비고 캔버스는 계속 살아 있다.
+
+        ⚠️ `children` 도 이 안에 둔다. 밖에 두면 마을이 아직 안 그려진 동안에도 그쪽
+        `useFrame` 이 돌아서, 홈 미리보기가 <b>하늘만 찍힌 빈 그림</b>을 캡처해 캐시했다
+        (첫 진입에만 마을이 안 보이던 증상). 경계 안에 있으면 폰트가 준비돼 마을이
+        마운트된 뒤부터 프레임이 세어진다.
       */}
       <Suspense fallback={null}>
         <Village
@@ -171,9 +179,9 @@ export function Scene({
           onSelect={onSelect}
           onSelectTask={onSelectTask}
         />
-      </Suspense>
 
-      {children}
+        {children}
+      </Suspense>
     </Canvas>
   )
 }

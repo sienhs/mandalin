@@ -57,11 +57,68 @@ function withParts(b: ModelOwnedBuilding): OwnedBuilding | null {
   }
 }
 
+/** 자리를 잡을 시간. 이 프레임 수가 지나야 첫 검사를 한다. */
+const SETTLE_FRAMES = 12
+/** 아직 준비가 안 됐을 때 다시 볼 간격(프레임). */
+const RETRY_FRAMES = 6
+/** 이만큼 기다려도 그림이 차지 않으면 캡처를 포기한다(≈5초). */
+const GIVE_UP_FRAMES = 300
+/**
+ * 이 개수 이하의 색으로만 이뤄진 화면은 "아직 안 그려졌다" 로 본다.
+ *
+ * 하늘만 찍힌 프레임은 실측 3색이고 마을이 들어간 프레임은 300색이 넘는다. 사이가 넓어서
+ * 경계를 어디에 두어도 안전하다.
+ */
+const BLANK_COLOR_LIMIT = 16
+
+/**
+ * 화면이 사실상 단색인지. 마을이 아직 마운트되지 않아 하늘만 있는 프레임을 골라낸다.
+ *
+ * <p>검사 자체가 실패하면(2D 컨텍스트를 못 얻거나 캔버스가 오염됨) 막지 않는다 — 캡처를
+ * 봉쇄해 살아 있는 캔버스를 남기는 쪽이 더 나쁘다.
+ */
+function looksBlank(source: HTMLCanvasElement): boolean {
+  const probe = document.createElement('canvas')
+  probe.width = 96
+  probe.height = 48
+
+  const ctx = probe.getContext('2d')
+  if (!ctx) return false
+
+  // 보간을 끄지 않으면 축소하면서 중간색이 생겨 없던 색이 늘어난다.
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(source, 0, 0, probe.width, probe.height)
+
+  let data: Uint8ClampedArray
+  try {
+    data = ctx.getImageData(0, 0, probe.width, probe.height).data
+  } catch {
+    return false
+  }
+
+  const seen = new Set<number>()
+  for (let i = 0; i < data.length; i += 4) {
+    // 하늘의 미세한 그라데이션을 같은 색으로 묶는다(채널당 상위 5비트).
+    seen.add(((data[i] >> 3) << 10) | ((data[i + 1] >> 3) << 5) | (data[i + 2] >> 3))
+    if (seen.size > BLANK_COLOR_LIMIT) return false
+  }
+  return true
+}
+
 /**
  * 캔버스 안에서 몇 프레임 기다렸다가 화면을 PNG 로 넘긴다.
  *
  * <p>첫 프레임에 찍으면 안 된다 — drei `Text` 가 폰트를 비동기로 불러오고 그동안 라벨이
  * 비어 있어서, 글자 없는 마을이 찍힌다. 몇 프레임 지나면 대부분 자리를 잡는다.
+ *
+ * <p><b>그리고 찍은 것이 마을인지 확인한다.</b> 이 컴포넌트는 `Scene` 의 Suspense 경계
+ * 안에 있어서 마을이 마운트된 뒤부터 프레임이 세어지지만, 그것만으로는 부족하다 —
+ * 지오메트리가 올라오는 데 한두 프레임이 더 걸릴 수 있고, 한 번 빈 그림을 캐시하면
+ * 키가 바뀔 때까지 <i>계속</i> 빈 박스가 보인다(찍고 나서 캔버스를 버리기 때문에 스스로
+ * 회복하지 못한다). 그래서 색이 몇 종뿐인 프레임은 버리고 다시 기다린다.
+ *
+ * <p>끝까지 차지 않으면 캡처를 포기하고 캔버스를 그대로 둔다. 스크롤에서 뭉개질 수는
+ * 있지만 마을은 보인다 — 빈 박스보다 낫다.
  */
 function Shot({ onReady }: { onReady: (dataUrl: string) => void }) {
   const { gl } = useThree()
@@ -70,10 +127,21 @@ function Shot({ onReady }: { onReady: (dataUrl: string) => void }) {
 
   useFrame(() => {
     if (fired.current) return
-    if (++frames.current < 12) return
+
+    frames.current += 1
+    if (frames.current < SETTLE_FRAMES) return
+    if ((frames.current - SETTLE_FRAMES) % RETRY_FRAMES !== 0) return
+
+    const canvas = gl.domElement
+    if (looksBlank(canvas)) {
+      // 포기 시점을 넘겼으면 더 보지 않는다. 캔버스는 살려 둔다.
+      if (frames.current >= GIVE_UP_FRAMES) fired.current = true
+      return
+    }
+
     fired.current = true
     try {
-      onReady(gl.domElement.toDataURL('image/png'))
+      onReady(canvas.toDataURL('image/png'))
     } catch {
       // toDataURL 은 오염된 캔버스에서 던진다. 그때는 캔버스를 그대로 두면 된다.
     }
@@ -133,6 +201,10 @@ export function VillagePreview({ sheet, className }: Props) {
    *
    * <p>지형·배치·진행률이 들어간다. 건물을 바꾸거나 과제를 완료하면 값이 달라지므로
    * 캐시가 저절로 무효가 된다 — 따로 지울 시점을 관리할 필요가 없다.
+   *
+   * <p>`v2` 는 캐시 세대다. 예전 코드가 하늘만 찍힌 빈 그림을 저장할 수 있었고 그건
+   * 마을이 바뀌기 전까지 지워지지 않는다. 접두어를 올려 이미 저장된 것들을 한 번에
+   * 버린다 — 같은 이유로 캡처 규칙을 또 고치면 이 숫자도 같이 올린다.
    */
   const shotKey = useMemo(() => {
     const placed = Object.entries(overrides)
@@ -142,7 +214,7 @@ export function VillagePreview({ sheet, className }: Props) {
     const progress = mandalart.domains
       .map((d) => d.tasks.map((t) => t.progress).join('.'))
       .join('|')
-    return `village-shot:${sheet.id}:${village?.terrain ?? '-'}:${placed}:${progress}`
+    return `village-shot:v2:${sheet.id}:${village?.terrain ?? '-'}:${placed}:${progress}`
   }, [sheet.id, village, overrides, mandalart])
 
   const [shot, setShot] = useState<string | null>(null)
