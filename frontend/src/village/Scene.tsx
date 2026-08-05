@@ -39,6 +39,18 @@ interface Props {
    */
   details?: boolean
   /**
+   * 도메인 이름 라벨을 그릴지. **기본 true.**
+   *
+   * <p>끄는 이유는 성능이 아니라 <b>기다림</b>이다. 라벨은 drei `Text` 이고, 그것이
+   * 폰트를 받는 동안 마을 전체가 아래 Suspense 경계에 걸려 하늘만 보인다(캔버스 마운트
+   * 뒤 실측 0.8~1.2초). 홈 카드처럼 <b>한 장 찍고 끝나는</b> 화면에서는 그 공백이 그대로
+   * 결과물이 될 위험이 있어, 라벨을 빼서 기다릴 것 자체를 없앤다.
+   *
+   * <p>작은 미리보기에서 0.6 unit 글자는 어차피 읽히지 않는다 — 잃는 것이 없다.
+   * 마을 화면처럼 라벨이 정보인 곳에서는 켠다.
+   */
+  labels?: boolean
+  /**
    * 카메라 조작 통로. 회전·줌 버튼을 Canvas 밖(HTML)에 그리려면 필요하다.
    * `useIsoCamera()` 가 돌려주는 ref 를 그대로 넘긴다.
    */
@@ -86,6 +98,7 @@ export function Scene({
   islandBase = false,
   shadows = true,
   details = true,
+  labels = true,
   cameraRef,
   initialZoom = 1,
   onFacingChange,
@@ -176,6 +189,7 @@ export function Scene({
           landmark={landmark}
           islandBase={islandBase}
           details={details}
+          labels={labels}
           onSelect={onSelect}
           onSelectTask={onSelectTask}
         />

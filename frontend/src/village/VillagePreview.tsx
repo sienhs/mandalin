@@ -260,6 +260,12 @@ export function VillagePreview({ sheet, className }: Props) {
         islandBase={false}
         shadows={false}
         details={false}
+        /*
+          라벨을 끈다. 이 화면은 한 장 찍고 캔버스를 버리므로 폰트를 기다리는 동안의
+          빈 화면이 그대로 결과물이 될 수 있다. 라벨이 없으면 기다릴 것이 없어 첫
+          프레임부터 마을이 그려진다. 작은 카드에서 글자는 어차피 읽히지 않는다.
+        */
+        labels={false}
         initialZoom={0}
         onSelect={() => undefined}
         onSelectTask={() => undefined}
