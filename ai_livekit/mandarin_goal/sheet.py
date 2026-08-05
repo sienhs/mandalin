@@ -53,6 +53,17 @@ DOMAIN_SLOTS = 8
 MAX_SUBJECTS_PER_DOMAIN = 8
 MAX_SUBJECT_TITLE_LENGTH = 60
 
+#: 시트 제목 = 만다라트 가운데 칸 = **사용자의 최종목표**. 프롬프트의 `<final_goal>`
+#: 슬롯으로 들어갑니다(`agent/sheet_transfer.py` 의 `SheetPayload.title`).
+#:
+#: 자르는 이유는 프롬프트 길이 방어입니다 — Spring 은 255자까지 받고(`SheetCreateRequest`
+#: 의 `@Size(max = 255)`) 프론트 편집기는 30자로 막습니다(`draftStorage.ts` 의
+#: `MAX_SHEET_TITLE`). **셋 중 가장 느슨한 값을 그대로 프롬프트에 실을 이유는 없습니다** —
+#: 슬롯 하나가 길어지면 진짜 지시문이 뒤로 밀립니다(`goal.py` 의 `SLOT_MAX` 와 같은 판단).
+#: 여기 값이 프론트보다 큰 것은 편집기를 거치지 않은 시트(Spring 응답 직행)를 받기 위한
+#: 여유입니다.
+MAX_SHEET_TITLE_LENGTH = 60
+
 #: 실천 빈도의 어휘. 라벨(사람이 읽는 문구)은 `bot/subjects.py` 의`FREQUENCY_LABELS`
 # 이고, 이쪽은 데이터 제약입니다.
 #: 왜 위험한가: 후보 줄에 `"frequency": "매월"` 이 실려 가면 **모델이 그걸 읽고 배웁니다.**
