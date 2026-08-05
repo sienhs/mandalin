@@ -223,7 +223,7 @@ export default function IsoVillage({
   const skyId = `sky-${uid}`
   const glowId = `glow-${uid}`
 
-  const progress = sheet.achievementRate
+  const progress = sheet.progress ?? sheet.achievementRate
 
   /** 그리는 순서 = 뒤에서 앞으로. 안 그러면 뒤 건물이 앞 건물을 덮는다. */
   const cells = useMemo(() => {

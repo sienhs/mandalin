@@ -572,12 +572,37 @@ async def entrypoint(ctx: JobContext) -> None:
     llm = llm_status(settings.bot_provider, settings.bot_api_key)
     if llm != "ok":
         logger.warning("LLM 상태=%s — 입장 알림으로 사용자에게 전달합니다", llm)
-    await send(
-        hello_payload(
-            settings.bot_display_name, voice=speech is not None, llm=llm
-        ),
-        HELLO_TOPIC,
-    )
+
+    async def announce() -> None:
+        await send(
+            hello_payload(settings.bot_display_name, voice=speech is not None, llm=llm),
+            HELLO_TOPIC,
+        )
+
+    await announce()
+
+    @ctx.room.on("participant_connected")
+    def _on_participant_connected(p: rtc.RemoteParticipant) -> None:
+        """사용자가 **다시 들어오면 알림을 다시 보냅니다.**
+
+        텍스트 스트림은 보내는 순간 방에 있는 참가자에게만 갑니다. 위의 첫 `announce()`
+        는 job 이 시작될 때 있던 참가자에게만 닿으므로, 브라우저가 재접속하면 **그 세션은
+        `hello` 를 영원히 못 받습니다.** job 은 방 단위라 다시 배정되지 않습니다.
+
+        증상이 고약합니다 — 방에는 정상적으로 들어가고 텍스트 대화도 되는데 **말하기
+        버튼만 잠긴 채로 남습니다**(프론트가 `hello.voice` 를 받고서야 엽니다). 서버는
+        `음성=활성` 이라고 로그를 남기고 있어서 로그만 봐서는 정상으로 보입니다.
+        실관측(2026-08-05): job 이 09:29 에 시작해 알림을 보냈고, 09:43 의 재접속
+        세션에서는 버튼이 `음성 꺼짐` 이었습니다.
+
+        재접속은 같은 identity 로 옵니다(토큰의 `sub` = userId). 다른 사람이면 보내지
+        않습니다 — 이 방은 한 사람 전용이고, 그 전제를 지키는 곳이 `sender_is_the_user`
+        입니다.
+        """
+        if p.identity != user_identity:
+            return
+        logger.info("사용자 재입장 identity=%s — 입장 알림을 다시 보냅니다", p.identity)
+        spawn(announce())
 
     logger.info(
         "준비 완료 — topic=%s / 음성=%s",

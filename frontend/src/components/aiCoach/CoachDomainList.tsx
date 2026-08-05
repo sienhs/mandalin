@@ -12,18 +12,31 @@ import { cn } from '../../utils/cn'
 const PERIOD: Record<Period, { label: string; className: string }> = {
   daily: { label: '일간', className: 'bg-mint-100 text-mint-700' },
   weekly: { label: '주간', className: 'bg-[#fef3c7] text-[#b45309]' },
+  monthly: { label: '월간', className: 'bg-[#e0e7ff] text-[#4338ca]' },
   none: { label: '없음', className: 'bg-ink-100 text-ink-500' },
 }
 
+/**
+ * 모르는 주기가 와도 **화면은 살아 있어야 한다.**
+ *
+ * 이 칩이 그리는 값은 사용자 입력이 아니라 **다른 프로세스가 보낸 것**이다(에이전트의
+ * `mandarin.goal` payload). 타입은 컴파일 시점 약속일 뿐이라, 표에 없는 값이 오면
+ * `PERIOD[period].className` 이 `undefined.className` 으로 터지고 **목록 전체가 사라진다** —
+ * 주기 하나 때문에 제안 화면을 잃는 셈이다. 여기서 물러서면 라벨만 빠진다.
+ */
+const periodStyle = (period: Period) =>
+  PERIOD[period] ?? { label: String(period), className: 'bg-ink-100 text-ink-500' }
+
 function PeriodChip({ period, muted }: { period: Period; muted?: boolean }) {
+  const { label, className } = periodStyle(period)
   return (
     <span
       className={cn(
         'shrink-0 rounded px-1 py-[1px] text-[10px] font-bold leading-[1.4]',
-        muted ? 'bg-ink-100 text-ink-300' : PERIOD[period].className,
+        muted ? 'bg-ink-100 text-ink-300' : className,
       )}
     >
-      {PERIOD[period].label}
+      {label}
     </span>
   )
 }

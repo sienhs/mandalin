@@ -113,13 +113,23 @@ export const countFilledCells = (grid: GridCell[][]): number => {
  * 0 을 돌려주지 않는 이유: 기간이 7일보다 짧은 시트의 '매주' 과제가 floor(일수/7) = 0 이 되고
  * (종료일이 시작일보다 앞서면 모든 주기가 0), 그 값이 저장되면 진행률(수행/목표)이 0 으로
  * 나눠져 0% 에 갇힌다. 한 번도 수행할 수 없는 과제는 만들 수 없으니 최소 1 회로 본다.
+ *
+ * **서버 공식(`SheetService`)과 같은 나눗셈을 쓴다** — 주간은 일수/7, 월간은 일수/30.
+ * 서버는 요청에 `targetCount > 0` 이 오면 **그 값을 그대로 저장하고 다시 계산하지
+ * 않으므로**, 여기가 틀리면 서버가 바로잡아 주지 않는다.
+ *
+ * `monthly` 를 `else` 에 두면 안 되는 이유: 예전 코드는 daily 가 아닌 모든 주기를 7 로
+ * 나눴다. 그 상태에서 월간을 추가하면 1년 시트의 '월 1회' 과제가 12 가 아니라 **52 회**로
+ * 저장된다 — 에러 없이 진행률만 5분의 1로 눌린다.
  */
 export const calcTargetCount = (period: Period, startDate: string, endDate: string): number => {
   if (period === 'none') return 1
   const diffTime = new Date(endDate).getTime() - new Date(startDate).getTime()
   if (diffTime < 0) return 1
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
-  return Math.max(1, period === 'daily' ? diffDays : Math.floor(diffDays / 7))
+  if (period === 'daily') return Math.max(1, diffDays)
+  if (period === 'monthly') return Math.max(1, Math.floor(diffDays / 30))
+  return Math.max(1, Math.floor(diffDays / 7))
 }
 
 /** 아직 값이 없는 도메인 칸을 처음 저장할 때 쓰는 기본값. */

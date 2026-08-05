@@ -1,162 +1,234 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PERIOD_LABEL, type Period } from '../data/types'
+import { PERIOD_LABEL, PERIOD_MAX_COUNT, type Period } from '../data/types'
 import Button from '../components/common/ActionButton'
 import { IconCheck, IconCoach, IconMic, IconSend, IconTrash } from '../components/common/Icons'
 import { Badge, Field, Input, domainColor } from '../components/common/Primitives'
 import { cn } from '../utils/cn'
 import { useToast } from '../components/common/Toast'
+import {
+  useCoachRoom,
+  type GoalFrequency,
+  type GoalPayload,
+  type GoalTask,
+} from '../components/aiCoach/useCoachRoom'
 
-type Suggestion = { title: string; period: Period; why: string }
-type Message =
-  | { id: string; role: 'user'; text: string }
-  | { id: string; role: 'coach'; text: string; domain?: string; suggestions?: Suggestion[] }
+type Suggestion = { title: string; period: Period; count: number; why: string }
+
+/** 담은 과제. `id` 는 **에이전트가 중복 검사에 쓰는 값**이라 담을 때 붙인다. */
+type BasketItem = Suggestion & { id: number }
 
 /**
- * 목업 응답 규칙.
+ * 에이전트 어휘(소문자) → 앱 모델(대문자). **이 페이지가 두 표기의 경계다.**
  *
- * 실제 서비스의 코치는 별도 LiveKit worker(`ai_livekit`)가 담당한다. Spring 백엔드에는
- * 입장 토큰 발급(`POST /api/v1/voice-sessions`)만 있고 텍스트 대화 엔드포인트가 없어서,
- * 이 화면은 규칙 기반으로 제안을 만들고 결과만 실제 API(시트 생성)로 넘긴다.
+ * 에이전트는 백엔드 `SubjectPeriod` 의 `@JsonValue`(소문자)를 쓰고, 화면·편집기는
+ * `data/types.ts` 의 대문자 `Period` 를 쓴다. 어느 쪽이 옳으냐와 무관하게 **변환을
+ * 한곳에 모아 둔다** — 흘려보내면 `PERIOD_LABEL[period]` 가 `undefined` 가 되고 배지가
+ * 조용히 빈칸으로 나온다.
  */
-const RULES: Array<{ match: RegExp; domain: string; reply: string; items: Suggestion[] }> = [
-  {
-    match: /운동|헬스|근력|체력|살|다이어트|몸/,
-    domain: '규칙적인 운동',
-    reply:
-      '몸을 만드는 목표군요. 처음부터 강도를 올리면 오래 못 가니, 매일 할 수 있는 작은 것과 주 단위 큰 것을 섞어 잡아봤어요.',
-    items: [
-      { title: '아침 스트레칭 10분', period: 'DAILY', why: '기상 직후라 빠뜨리기 어렵습니다' },
-      { title: '주 3회 웨이트 트레이닝', period: 'WEEKLY', why: '근력은 주 단위가 현실적입니다' },
-      { title: '하루 8천 보 걷기', period: 'DAILY', why: '따로 시간을 내지 않아도 됩니다' },
-      { title: '운동 일지 기록', period: 'DAILY', why: '기록이 있어야 정체기를 압니다' },
-    ],
-  },
-  {
-    match: /공부|개발|코딩|알고리즘|취업|자격증|영어|시험/,
-    domain: '꾸준한 학습',
-    reply:
-      '공부는 “하루에 얼마나”보다 “매일 같은 시간에”가 훨씬 잘 지켜집니다. 분량을 작게 잡았어요.',
-    items: [
-      {
-        title: '매일 알고리즘 한 문제',
-        period: 'DAILY',
-        why: '한 문제면 바쁜 날도 넘길 수 있어요',
-      },
-      { title: '공식 문서 30분 읽기', period: 'DAILY', why: '강의보다 검색 능력이 늘어납니다' },
-      { title: '주 1회 회고 글쓰기', period: 'WEEKLY', why: '설명할 수 있어야 내 것이 됩니다' },
-      { title: '모의 코딩테스트', period: 'WEEKLY', why: '실전 감각은 따로 길러야 합니다' },
-    ],
-  },
-  {
-    match: /화|분노|스트레스|불안|마음|명상|감정|멘탈/,
-    domain: '마음 다스리기',
-    reply: '감정은 참는 것보다 알아차리는 게 먼저입니다. 관찰 → 진정 → 회복 순으로 나눠봤어요.',
-    items: [
-      { title: '화가 난 순간 기록하기', period: 'DAILY', why: '언제 올라오는지 패턴이 보입니다' },
-      { title: '호흡 4-7-8 하기', period: 'DAILY', why: '즉시 쓸 수 있는 진정 도구입니다' },
-      { title: '감사 일기 세 줄', period: 'DAILY', why: '주의를 다른 쪽으로 옮겨줍니다' },
-      { title: '주말 디지털 디톡스', period: 'WEEKLY', why: '자극의 총량을 줄입니다' },
-    ],
-  },
-  {
-    match: /독서|책|글쓰기|기록/,
-    domain: '읽고 남기기',
-    reply: '읽는 것과 남기는 것을 한 쌍으로 묶으면 훨씬 오래 갑니다.',
-    items: [
-      { title: '자기 전 20쪽 읽기', period: 'DAILY', why: '분량이 작아야 매일 됩니다' },
-      { title: '한 문장 밑줄 옮겨 적기', period: 'DAILY', why: '읽은 흔적이 남습니다' },
-      { title: '월 1권 서평 쓰기', period: 'NONE', why: '정리하면 기억에 남습니다' },
-      { title: '주 1회 서점 가기', period: 'WEEKLY', why: '다음 책이 끊기지 않게 합니다' },
-    ],
-  },
-  {
-    match: /돈|저축|재테크|절약|소비/,
-    domain: '돈 관리',
-    reply: '돈은 기록이 절반입니다. 새는 곳을 먼저 보이게 만들고 그다음에 줄여요.',
-    items: [
-      { title: '매일 지출 기록', period: 'DAILY', why: '적기만 해도 소비가 줄어듭니다' },
-      { title: '주간 예산 점검', period: 'WEEKLY', why: '월말에 몰아 보면 이미 늦습니다' },
-      { title: '고정비 한 건 줄이기', period: 'NONE', why: '한 번 줄이면 매달 절약됩니다' },
-      { title: '비상금 자동이체 설정', period: 'NONE', why: '의지가 아니라 구조로 만듭니다' },
-    ],
-  },
-]
+const PERIOD_BY_FREQUENCY: Record<GoalFrequency, Period> = {
+  daily: 'DAILY',
+  weekly: 'WEEKLY',
+  monthly: 'MONTHLY',
+  none: 'NONE',
+}
 
-const FALLBACK: Suggestion[] = [
-  { title: '하루 10분 목표 점검', period: 'DAILY', why: '무엇을 할지 정하는 시간이 먼저입니다' },
-  { title: '주간 회고 쓰기', period: 'WEEKLY', why: '한 주를 닫는 습관이 다음 주를 만듭니다' },
-  { title: '한 달 목표 다시 보기', period: 'NONE', why: '방향이 어긋났는지 확인합니다' },
-]
+/** 되돌리는 쪽 — 담은 과제를 에이전트에게 다시 보낼 때 쓴다(중복 검사용). */
+const FREQUENCY_BY_PERIOD: Record<Period, GoalFrequency> = {
+  DAILY: 'daily',
+  WEEKLY: 'weekly',
+  MONTHLY: 'monthly',
+  NONE: 'none',
+}
 
-const QUICK = [
-  '화 안 내는 사람이 되고 싶어',
-  '올해 안에 10kg 빼고 싶어',
-  '프론트엔드 취업 준비 중이야',
-  '책을 꾸준히 읽고 싶어',
-  '돈을 좀 모으고 싶어',
-]
+/**
+ * 주기 표시. **횟수가 2 이상일 때만 붙인다** — 주간·월간만 횟수를 정할 수 있고
+ * (일간·한번만은 1 고정), 1 회는 라벨만으로 이미 맞는 말이다.
+ */
+const periodText = (period: Period, count: number) =>
+  count > 1 ? `${PERIOD_LABEL[period]} · ${count}회` : PERIOD_LABEL[period]
 
-type Basket = { domain: string; items: Suggestion[] }
+/**
+ * 에이전트가 만든 과제 하나를 화면 모델로. **모르는 값은 버린다**(빈 배열).
+ *
+ * 주기를 모르면 어느 칸에 어떻게 담을지 정할 수 없고, 기본값으로 `NONE`("한 번만")을
+ * 붙이면 매일 해야 할 일이 한 번짜리로 굳는다 — 서버가 같은 이유로 기본값을 두지 않는다.
+ */
+const toSuggestion = (task: GoalTask): Suggestion[] => {
+  const title = (task.title ?? '').trim()
+  const frequency = task.frequency
+  if (!title || !frequency || !(frequency in PERIOD_BY_FREQUENCY)) return []
+  const period = PERIOD_BY_FREQUENCY[frequency]
+  // 서버가 이미 주기에 맞춰 잘라 보내지만(`_settle_counts`) 여기서도 막는다 — 이 값은
+  // 편집기를 거쳐 저장 요청까지 그대로 간다.
+  const count = Math.min(Math.max(1, Math.round(task.count ?? 1)), PERIOD_MAX_COUNT[period])
+  return [{ title, period, count, why: (task.description ?? '').trim() }]
+}
+
+/** 코치가 방금 제안한 묶음. 한 턴에 한 칸, 과제는 최대 3개다. */
+type Proposal = { key: number; domain: string; domainIsNew: boolean; items: Suggestion[] }
+
+type Basket = { domain: string; items: BasketItem[] }
+
+/**
+ * 말하기 버튼에 쓸 글자. **`ai_livekit/web/app.js` 의 `setMicLabel` 짝이다.**
+ *
+ * 아이콘만 두지 않고 글자를 붙이는 이유는 이 버튼이 **토글이면서 시한부**라서다 —
+ * 마이크 그림만으로는 지금 듣고 있는지, 남은 시간이 얼마인지 알 수 없다. 남은 초를
+ * 버튼 밖에 따로 띄우면 눈이 두 곳을 오가고, 음성이 꺼진 이유도 붙일 자리가 없다.
+ */
+const micLabel = (voiceAvailable: boolean, listening: boolean, talkLeft: number) => {
+  if (!voiceAvailable) return '음성 꺼짐'
+  return listening ? `듣는 중 ${talkLeft}s` : '말하기'
+}
+
+/**
+ * 버튼에 얹는 설명. 음성이 꺼졌을 때 **이유를 화면에 남긴다** — 서버 로그에만 있으면
+ * 사용자는 버튼이 왜 잠겼는지 알 수 없다(`app.js` 의 같은 문구).
+ */
+const micTitle = (voiceAvailable: boolean) =>
+  voiceAvailable
+    ? '누르면 10초간 듣습니다'
+    : '서버에 음성이 꺼져 있습니다 (DEEPGRAM_API_KEY 없음)'
+
+/** 세부 목표 하나에 담을 수 있는 과제 수, 그리고 세부 목표 칸 수. 서버 규칙(8 x 8)과 같다. */
+const SLOTS = 8
 
 export default function Coach() {
   const navigate = useNavigate()
   const toast = useToast()
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'm0',
-      role: 'coach',
-      text: '안녕하세요, 만다린 코치예요. 이루고 싶은 것을 편하게 말해주세요. 목표를 실천 과제로 잘게 나눠 드릴게요.',
-    },
-  ])
   const [input, setInput] = useState('')
-  const [thinking, setThinking] = useState(false)
   const [basket, setBasket] = useState<Basket[]>([])
   const [goal, setGoal] = useState('')
+  const [proposal, setProposal] = useState<Proposal | null>(null)
+  /** 담은 과제에 붙일 번호. **에이전트가 중복을 지목할 때 쓰는 id 라 유일하면 된다.** */
+  const nextId = useRef(1)
+
+  /**
+   * 에이전트에게 넘길 시트 — **담은 과제가 곧 시트다.**
+   *
+   * 이걸 안 보내면 코치는 사용자가 방금 담은 과제를 모르고 같은 것을 또 제안한다
+   * (서버의 중복 검사는 이 목록으로만 돈다). `subjectId` 를 반드시 붙인다 —
+   * 없는 과제는 후보에서 버려져서(`to_candidates`) 모델이 지목할 방법이 사라진다.
+   */
+  const getSheet = useCallback(
+    () => ({
+      domains: basket.map((b) => ({
+        title: b.domain,
+        subjects: b.items.map((i) => ({
+          subjectId: i.id,
+          title: i.title,
+          period: FREQUENCY_BY_PERIOD[i.period],
+          countPerPeriod: i.count,
+        })),
+      })),
+    }),
+    [basket],
+  )
+
+  /**
+   * 구조화 결과 도착. **`generate` 만 카드로 만든다.**
+   *
+   * 서버의 `_STORABLE_ACTIONS` 와 같은 조건이다. `recommend` 는 이미 시트에 있는 과제를
+   * 지목한 것이라 담으면 중복이고, `clarify`·`out_of_scope` 는 되묻기·거절이다 — 그
+   * 문장들은 말풍선으로 이미 도착해 있으므로 여기서 더 할 일이 없다.
+   */
+  const handleGoal = useCallback((payload: GoalPayload) => {
+    if (payload.action !== 'generate') return
+    const domain = (payload.domain ?? '').trim()
+    const items = (payload.generated_tasks ?? []).flatMap(toSuggestion)
+    // 칸 이름이나 과제가 비어 있으면 담을 수 없다. 서버가 이미 같은 검사를 하지만
+    // (`_unknown_domain`), 빈 카드를 그려 놓고 담기가 안 되는 쪽이 더 나쁘다.
+    if (!domain || items.length === 0) return
+    setProposal({ key: Date.now(), domain, domainIsNew: payload.domain_is_new ?? false, items })
+  }, [])
+
+  const {
+    connection,
+    status,
+    coachState,
+    messages,
+    caption,
+    voiceAvailable,
+    listening,
+    talkLeft,
+    micBusy,
+    connect,
+    sendChat,
+    sendSheet,
+    toggleTalk,
+  } = useCoachRoom({ getSheet, onGoal: handleGoal })
+
+  const thinking = coachState === 'thinking'
+  const ready = connection === 'on'
+
+  // 화면에 들어오면 바로 방을 잡는다. 이 페이지는 코치 전용이라 "연결" 버튼을 한 번 더
+  // 누르게 할 이유가 없다. 나갈 때 끊는 것은 훅이 한다.
+  useEffect(() => {
+    void connect()
+  }, [connect])
+
+  /**
+   * 담은 과제가 바뀌면 시트를 다시 보낸다.
+   *
+   * **`add()` 안에서 보내면 안 된다** — `setBasket` 직후에는 아직 새 상태가 렌더되지 않아
+   * `getSheet()` 가 직전 목록을 만든다. 방금 담은 과제가 빠진 시트가 가고, 증상은
+   * "담았는데 또 추천한다" 뿐이다.
+   */
+  useEffect(() => {
+    if (ready) void sendSheet()
+  }, [basket, ready, sendSheet])
+
+  /**
+   * 핵심 목표는 **첫 사용자 발화**다 — 에이전트도 같은 규칙으로 읽는다
+   * (`prompts/system.md`: "중심 목표는 대화의 첫 목표 발화").
+   *
+   * `send()` 안이 아니라 대화에서 읽는 이유는 **음성**이다. 마이크로 시작하면 발화가
+   * `send()` 를 지나지 않고 전사 토픽으로 들어와서, 그쪽에만 두면 말로 시작한 사용자는
+   * 핵심 목표 칸이 빈 채로 남는다. 길면 비워 둔다 — 30자를 넘는 문장은 제목이 아니다.
+   */
+  useEffect(() => {
+    if (goal) return
+    const first = messages.find((m) => m.who === 'me')?.text.trim()
+    if (first) setGoal(first.length <= 30 ? first : '')
+  }, [messages, goal])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, thinking])
+  }, [messages, caption, proposal, thinking])
 
   const send = (text: string) => {
     const value = text.trim()
-    if (!value || thinking) return
-
-    setMessages((m) => [...m, { id: `u${Date.now()}`, role: 'user', text: value }])
+    if (!value || thinking || !ready) return
     setInput('')
-    setThinking(true)
-    if (!goal) setGoal(value.length <= 20 ? value : '')
-
-    window.setTimeout(() => {
-      const rule = RULES.find((r) => r.match.test(value))
-      setMessages((m) => [
-        ...m,
-        {
-          id: `c${Date.now()}`,
-          role: 'coach',
-          text:
-            rule?.reply ??
-            '좋아요. 우선 방향을 잡을 수 있는 과제부터 제안해 볼게요. 더 구체적으로 말해주시면 더 정확해집니다.',
-          domain: rule?.domain ?? '첫 걸음',
-          suggestions: rule?.items ?? FALLBACK,
-        },
-      ])
-      setThinking(false)
-    }, 850)
+    // 지난 턴의 카드를 지운다. 남겨 두면 코치가 방향을 바꾼 뒤에도 옛 제안을 담을 수 있고,
+    // 어느 것이 지금 이야기인지 흐려진다.
+    setProposal(null)
+    void sendChat(value)
   }
 
   const add = (domain: string, item: Suggestion) => {
     setBasket((prev) => {
       const found = prev.find((b) => b.domain === domain)
-      if (!found) return [...prev, { domain, items: [item] }]
+      if (!found) {
+        // 세부 목표는 8칸이다. 서버도 자리가 없으면 새 칸을 만들지 않지만(`DOMAIN_SLOTS`),
+        // 담기까지 온 뒤에 막으면 사용자는 이유를 모른다.
+        if (prev.length >= SLOTS) {
+          toast.show({ tone: 'warn', title: `세부 목표는 ${SLOTS}칸까지예요` })
+          return prev
+        }
+        return [...prev, { domain, items: [{ ...item, id: nextId.current++ }] }]
+      }
       if (found.items.some((i) => i.title === item.title)) return prev
-      if (found.items.length >= 8) {
-        toast.show({ tone: 'warn', title: '한 세부 목표에는 과제 8개까지 담을 수 있어요' })
+      if (found.items.length >= SLOTS) {
+        toast.show({ tone: 'warn', title: `한 세부 목표에는 과제 ${SLOTS}개까지 담을 수 있어요` })
         return prev
       }
-      return prev.map((b) => (b.domain === domain ? { ...b, items: [...b.items, item] } : b))
+      return prev.map((b) =>
+        b.domain === domain ? { ...b, items: [...b.items, { ...item, id: nextId.current++ }] } : b,
+      )
     })
   }
 
@@ -187,14 +259,17 @@ export default function Coach() {
         title: goal.trim(),
         domains: basket.map((b) => ({
           title: b.domain,
-          subjects: b.items.map((item) => ({ title: item.title, period: item.period })),
+          // 횟수도 함께 넘긴다. 빼면 편집기가 전부 1 회로 앉히고, 주 3회로 제안받아
+          // 담은 과제가 주 1회가 된다 — 사용자는 편집기에서 다시 세어야 한다.
+          subjects: b.items.map((item) => ({
+            title: item.title,
+            period: item.period,
+            countPerPeriod: item.count,
+          })),
         })),
       },
     })
   }
-
-  /** 세부 목표 하나에 담을 수 있는 과제 수. 서버 규칙(8 x 8)과 같다. */
-  const SLOTS = 8
 
   return (
     /*
@@ -240,27 +315,50 @@ export default function Coach() {
                 상태를 글자로만 쓰면 "대기 중"이 늘 붙어 있어 아무 정보도 주지 않는다.
                 점 색으로 두면 흘깃 봐도 지금 답하는 중인지 알 수 있다.
               */}
+              {/*
+                상태 문구는 **훅이 주는 것을 그대로** 쓴다. 화면이 따로 문장을 만들면
+                연결이 끊겼는데 "준비됨" 이라고 적혀 있는 조합이 생긴다.
+              */}
               <span className="muted flex items-center gap-1.5 text-[11.5px] font-bold">
                 <span
                   aria-hidden="true"
                   className={cn(
                     'size-1.5 rounded-full',
-                    thinking ? 'animate-pulse bg-brand-500' : 'bg-emerald-500',
+                    thinking && 'animate-pulse bg-brand-500',
+                    !thinking && ready && 'bg-emerald-500',
+                    !thinking && !ready && 'bg-ink-300',
                   )}
                 />
-                {thinking ? '생각하는 중' : '준비됨'}
+                {thinking ? '생각하는 중' : ready ? '준비됨' : status}
               </span>
             </div>
 
-            <Badge className="ml-auto">규칙 기반 응답</Badge>
+            {/* 연결이 끊긴 상태에서 아무 버튼도 없으면 새로고침밖에 방법이 없다. */}
+            {connection === 'off' ? (
+              <Button size="sm" variant="secondary" className="ml-auto" onClick={() => void connect()}>
+                다시 연결
+              </Button>
+            ) : (
+              <Badge className="ml-auto" tone={ready ? 'brand' : 'neutral'}>
+                {ready ? 'AI 코치' : '연결 중'}
+              </Badge>
+            )}
           </div>
 
           <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-6">
             {/* 말풍선은 너무 넓으면 눈이 줄을 놓친다. 다만 예전 680px 은 카드 안에 빈 띠를
                 크게 남겼다 — 제안 카드가 두 장 나란히 들어갈 만큼만 넓힌다. */}
             <div className="mx-auto flex max-w-[860px] flex-col gap-5">
+              {/*
+                고정 인사말을 두지 않는다. 에이전트가 한 말이 아닌데 말풍선 모양이라
+                코치가 인사한 것처럼 읽히고, 접속 전에도 늘 떠 있어서 화면이 살아 있는
+                듯한 착각을 준다 — 실제로 목업으로 오해된 적이 있다.
+
+                에이전트가 붙었다는 사실은 `mandarin.hello` 를 받은 뒤 훅이 넣는 시스템
+                안내(`"… 준비됨"`)가 알린다. 그쪽은 진짜 상태다.
+              */}
               {messages.map((m) =>
-                m.role === 'user' ? (
+                m.who === 'me' ? (
                   <div key={m.id} className="flex justify-end">
                     <p
                       className="m-0 max-w-[80%] rounded-[18px] rounded-br-md px-4 py-3 text-[13.5px] font-semibold leading-relaxed text-white"
@@ -269,63 +367,97 @@ export default function Coach() {
                       {m.text}
                     </p>
                   </div>
-                ) : (
-                  <div key={m.id} className="flex flex-col gap-3">
-                    <div className="flex gap-2.5">
-                      <span
-                        aria-hidden="true"
-                        className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white"
-                      >
-                        <IconCoach className="size-[17px]" />
-                      </span>
-                      <p
-                        className="m-0 max-w-[80%] rounded-[18px] rounded-tl-md px-4 py-3 text-[13.5px] font-semibold leading-relaxed"
-                        style={{ background: 'var(--surface-sunken)' }}
-                      >
-                        {m.text}
-                      </p>
-                    </div>
-
-                    {m.suggestions && m.domain && (
-                      <div className="ml-10">
-                        <p className="muted m-0 mb-2 text-[11.5px] font-bold">
-                          세부 목표 “{m.domain}” 에 담을 과제
-                        </p>
-                        <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
-                          {m.suggestions.map((s) => {
-                            const already = inBasket(m.domain!, s.title)
-                            return (
-                              <li
-                                key={s.title}
-                                className="flex flex-col rounded-2xl border p-4"
-                                style={{ borderColor: 'var(--border-hairline)' }}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <strong className="text-[13px] font-extrabold leading-snug">
-                                    {s.title}
-                                  </strong>
-                                  <Badge>{PERIOD_LABEL[s.period]}</Badge>
-                                </div>
-                                <p className="muted m-0 mt-1.5 flex-1 text-[12px] font-medium leading-relaxed">
-                                  {s.why}
-                                </p>
-                                <Button
-                                  size="sm"
-                                  variant={already ? 'quiet' : 'secondary'}
-                                  disabled={already}
-                                  className="mt-3"
-                                  onClick={() => add(m.domain!, s)}
-                                >
-                                  {already ? '담았어요' : '담기'}
-                                </Button>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
-                    )}
+                ) : m.who === 'ai' ? (
+                  <div key={m.id} className="flex gap-2.5">
+                    <span
+                      aria-hidden="true"
+                      className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white"
+                    >
+                      <IconCoach className="size-[17px]" />
+                    </span>
+                    <p
+                      className="m-0 max-w-[80%] rounded-[18px] rounded-tl-md px-4 py-3 text-[13.5px] font-semibold leading-relaxed"
+                      style={{ background: 'var(--surface-sunken)' }}
+                    >
+                      {m.text}
+                    </p>
                   </div>
+                ) : (
+                  /*
+                    안내·경고는 말풍선이 아니다. 코치가 한 말처럼 보이면 사용자는 서버
+                    사정을 코치의 대답으로 읽는다("입장 토큰을 받지 못했습니다").
+                  */
+                  <p
+                    key={m.id}
+                    className={cn(
+                      'm-0 text-center text-[11.5px] font-bold',
+                      m.who === 'warn' ? 'text-red-500' : 'muted',
+                    )}
+                  >
+                    {m.text}
+                  </p>
                 ),
+              )}
+
+              {/* 말하는 중인 전사문. 최종본이 오면 위 목록으로 옮겨가고 여기는 비워진다. */}
+              {caption && (
+                <div className="flex justify-end">
+                  <p
+                    className="m-0 max-w-[80%] rounded-[18px] rounded-br-md border border-dashed px-4 py-3 text-[13.5px] font-semibold leading-relaxed"
+                    style={{ borderColor: 'var(--color-brand-400)', color: 'var(--text-muted)' }}
+                  >
+                    {caption}
+                  </p>
+                </div>
+              )}
+
+              {/*
+                제안 카드는 **마지막 한 묶음만** 남긴다. 지난 턴의 카드를 쌓아 두면 이미
+                담았거나 코치가 방향을 바꾼 과제까지 계속 담을 수 있게 되고, 어느 것이
+                지금 이야기인지 흐려진다.
+              */}
+              {proposal && (
+                // key 를 두어 새 제안이 오면 이 블록을 **갈아끼운다** — 같은 자리에서 내용만
+                // 바뀌면 카드의 초점·스크롤 위치가 옛 제안 것으로 남는다.
+                <div key={proposal.key} className="ml-10">
+                  <p className="muted m-0 mb-2 text-[11.5px] font-bold">
+                    {proposal.domainIsNew ? '새 세부 목표' : '세부 목표'} “{proposal.domain}” 에
+                    담을 과제
+                  </p>
+                  <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+                    {proposal.items.map((s) => {
+                      const already = inBasket(proposal.domain, s.title)
+                      return (
+                        <li
+                          key={s.title}
+                          className="flex flex-col rounded-2xl border p-4"
+                          style={{ borderColor: 'var(--border-hairline)' }}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <strong className="text-[13px] font-extrabold leading-snug">
+                              {s.title}
+                            </strong>
+                            <Badge>{periodText(s.period, s.count)}</Badge>
+                          </div>
+                          {s.why && (
+                            <p className="muted m-0 mt-1.5 flex-1 text-[12px] font-medium leading-relaxed">
+                              {s.why}
+                            </p>
+                          )}
+                          <Button
+                            size="sm"
+                            variant={already ? 'quiet' : 'secondary'}
+                            disabled={already}
+                            className="mt-3"
+                            onClick={() => add(proposal.domain, s)}
+                          >
+                            {already ? '담았어요' : '담기'}
+                          </Button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
               )}
 
               {thinking && (
@@ -342,20 +474,6 @@ export default function Coach() {
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto px-5 pb-3 no-scrollbar">
-            {QUICK.map((q) => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => send(q)}
-                className="shrink-0 rounded-full border px-3.5 py-2 text-[12px] font-bold transition-colors hover:border-brand-300 hover:text-brand-600"
-                style={{ borderColor: 'var(--border-hairline)' }}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -364,34 +482,56 @@ export default function Coach() {
             className="flex items-center gap-2 border-t px-4 py-3.5"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
+            {/*
+              `ai_livekit/web/index.html` 의 `#mic` 을 옮긴 것 — 아이콘 + 글자, 남은 초는
+              글자 안에.
+
+              **`voiceAvailable` 을 받고서야 열린다.** 서버가 음성을 못 받는 상태에서
+              버튼을 열어두면, 눌러서 말하고 아무 일도 안 일어나는 것을 보게 된다.
+              저쪽처럼 `disabled` 로 잠그고 이유는 `title` 로 붙인다 — 눌러 보고 토스트로
+              알려주는 것보다 애초에 못 누르는 편이 낫다.
+
+              `micBusy` 는 마이크가 켜지거나 꺼지는 동안이다. 그 사이의 두 번째 클릭은
+              타이머를 둘로 만든다(훅의 `micBusy` 주석).
+            */}
             <button
               type="button"
-              onClick={() =>
-                toast.show({
-                  tone: 'info',
-                  title: '음성 대화는 별도 서버가 필요해요',
-                  body: 'LiveKit worker(ai_livekit)와 입장 토큰 발급이 함께 떠 있어야 합니다.',
-                })
-              }
-              aria-label="음성으로 말하기"
-              className="grid size-11 shrink-0 place-items-center rounded-full border text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
-              style={{ borderColor: 'var(--border-hairline)' }}
+              onClick={() => void toggleTalk()}
+              disabled={!voiceAvailable || micBusy}
+              title={micTitle(voiceAvailable)}
+              aria-label={listening ? '말하기 멈추기' : '음성으로 말하기'}
+              aria-pressed={listening}
+              className={cn(
+                'flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-bold transition-colors',
+                listening
+                  ? 'border-0 bg-red-500 text-white'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-strong)]',
+                'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--text-muted)]',
+              )}
+              style={listening ? undefined : { borderColor: 'var(--border-hairline)' }}
             >
               <IconMic className="size-[19px]" />
+              {/* 남은 초가 글자로 들어오므로 폭이 흔들린다. 숫자만 tabular 로 두면
+                  "듣는 중 9s" → "듣는 중 10s" 에서 버튼이 덜 튄다. */}
+              <span className="tabular-nums">{micLabel(voiceAvailable, listening, talkLeft)}</span>
             </button>
 
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="이루고 싶은 것을 적어보세요"
+              placeholder={ready ? '이루고 싶은 것을 적어보세요' : `${status}…`}
               aria-label="코치에게 보낼 메시지"
-              className="h-11 min-w-0 flex-1 rounded-full border bg-[var(--surface-sunken)] px-4 text-sm font-semibold outline-none transition-colors focus:border-brand-400"
+              disabled={!ready}
+              className="h-11 min-w-0 flex-1 rounded-full border bg-[var(--surface-sunken)] px-4 text-sm font-semibold outline-none transition-colors focus:border-brand-400 disabled:cursor-not-allowed disabled:opacity-60"
               style={{ borderColor: 'var(--border-hairline)' }}
             />
 
+            {/* 남은 시간은 버튼 글자 안에 있다(`micLabel`). 여기 따로 두면 같은 값이 두
+                군데 뜨고, 눈이 버튼과 이 자리를 오간다. */}
+
             <button
               type="submit"
-              disabled={!input.trim() || thinking}
+              disabled={!input.trim() || thinking || !ready}
               aria-label="보내기"
               className="grid size-11 shrink-0 place-items-center rounded-full border-0 bg-brand-600 text-white transition-all hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -520,7 +660,7 @@ export default function Coach() {
                                 {item.title}
                               </span>
                               <span className="muted block text-[10.5px] font-semibold">
-                                {PERIOD_LABEL[item.period]}
+                                {periodText(item.period, item.count)}
                               </span>
                             </span>
                             <button

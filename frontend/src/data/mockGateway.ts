@@ -738,7 +738,7 @@ export const mockGateway: Gateway = {
     recalc(sheet)
     state.user = { ...state.user, point: state.user.point + earned }
     save()
-    return delay({ earned, totalPoint: state.user.point })
+    return delay({ completedSubjectIds: subjectIds, earned, totalPoint: state.user.point })
   },
 
   /*

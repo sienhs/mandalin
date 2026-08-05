@@ -33,14 +33,32 @@ const IN_SIX_MONTHS = new Date(Date.now() + 1000 * 60 * 60 * 24 * 182).toISOStri
 /** AI 코치에서 넘어올 때 실려 오는 초안. */
 type CoachDraft = {
   title?: string
-  domains?: Array<{ title: string; subjects: Array<{ title: string; period: Period }> }>
+  domains?: Array<{
+    title: string
+    /**
+     * `countPerPeriod` 는 코치가 주기와 함께 정한 값이다("주 3회" 의 3).
+     *
+     * <p>옛 초안(횟수가 없던 시절)이 뒤로가기 히스토리에 남아 있을 수 있어 옵셔널이다 —
+     * 없으면 1 로 본다.
+     */
+    subjects: Array<{ title: string; period: Period; countPerPeriod?: number }>
+  }>
 }
+
+/**
+ * 코치가 정한 주기당 횟수를 그 주기에서 가능한 값으로 맞춘다.
+ *
+ * <p>일간·없음은 1 회 고정이고 주간은 1~7, 월간은 1~30 이다(`PERIOD_MAX_COUNT`).
+ * 서버도 코치도 같은 규칙으로 자르지만, 이 값은 <b>브라우저 히스토리를 거쳐</b> 오므로
+ * (뒤로가기로 되살아난 옛 state) 받는 쪽에서 한 번 더 본다.
+ */
+const seededCount = (period: Period, count?: number): number =>
+  Math.min(Math.max(1, Math.round(count ?? 1)), PERIOD_MAX_COUNT[period])
 
 /**
  * 코치 초안을 8×8 뼈대에 얹는다.
  *
  * <p>코치는 8칸을 다 채우지 못할 수도 있어서(대화가 짧게 끝나면) 빈 칸은 그대로 남긴다.
- * 코치 초안에는 주기당 횟수가 없으므로 기본 1회로 두고 사용자가 조정한다.
  */
 function fromCoach(seeded: CoachDraft): DraftDomain[] {
   return emptyDomains().map((empty, i) => {
@@ -50,7 +68,14 @@ function fromCoach(seeded: CoachDraft): DraftDomain[] {
       title: from.title ?? '',
       subjects: empty.subjects.map((slot, j) => {
         const s = from.subjects?.[j]
-        return s ? { ...slot, title: s.title, period: s.period } : slot
+        return s
+          ? {
+              ...slot,
+              title: s.title,
+              period: s.period,
+              countPerPeriod: seededCount(s.period, s.countPerPeriod),
+            }
+          : slot
       }),
     }
   })
@@ -89,7 +114,11 @@ function mergeCoach(base: DraftDomain[], seeded: CoachDraft): { domains: DraftDo
 
       const free = next[slot].subjects.findIndex((x) => !x.title.trim())
       if (free < 0) break
-      next[slot].subjects[free] = { title: subjectTitle, period: s.period, countPerPeriod: 1 }
+      next[slot].subjects[free] = {
+        title: subjectTitle,
+        period: s.period,
+        countPerPeriod: seededCount(s.period, s.countPerPeriod),
+      }
       added += 1
     }
   }
@@ -375,6 +404,34 @@ function SubjectRow({
   )
 }
 
+type SettingsRowProps = {
+  label: string
+  hint: string
+  children: ReactNode
+  htmlFor?: string
+}
+
+/** 기본 설정의 라벨·컨트롤·안내 문구 간격을 동일하게 유지한다. */
+function SettingsRow({ label, hint, children, htmlFor }: SettingsRowProps) {
+  const labelClassName = 'w-16 shrink-0 text-[12.5px] font-bold text-[var(--text-muted)]'
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-4">
+        {htmlFor ? (
+          <label htmlFor={htmlFor} className={labelClassName}>
+            {label}
+          </label>
+        ) : (
+          <span className={labelClassName}>{label}</span>
+        )}
+        <div className="w-[190px] shrink-0">{children}</div>
+      </div>
+      <span className="text-[11.5px] font-medium text-[var(--text-muted)]">{hint}</span>
+    </div>
+  )
+}
+
 export default function SheetCreate() {
   const { createSheet } = useStore()
   const navigate = useNavigate()
@@ -446,20 +503,42 @@ export default function SheetCreate() {
   }
 
   const selectCell = (cell: CellRef) => {
-    setSelected(cell)
-
     if (cell.kind === 'core') {
+      setSelected(cell)
       window.requestAnimationFrame(() => focusAtEnd(coreInputRef.current))
       return
     }
+
+    // 핵심 목표가 없으면 나머지 80칸보다 먼저 가운데 칸을 작성하게 안내한다.
+    if (!title.trim()) {
+      setSelected({ kind: 'core' })
+      window.requestAnimationFrame(() => focusAtEnd(coreInputRef.current))
+      return
+    }
+
     if (cell.kind === 'domain') {
+      setSelected(cell)
       window.requestAnimationFrame(() => focusAtEnd(domainInputRef.current))
       return
     }
-    if (!domains[cell.domainIndex]?.title.trim()) return
 
+    // 과제의 부모인 세부 목표가 비어 있으면 그 입력으로 먼저 보낸다.
+    if (!domains[cell.domainIndex]?.title.trim()) {
+      setSelected({ kind: 'domain', domainIndex: cell.domainIndex })
+      window.requestAnimationFrame(() => focusAtEnd(domainInputRef.current))
+      return
+    }
+
+    setSelected(cell)
     // 같은 칸을 다시 눌러도 상태값은 바뀌지 않으므로 클릭 시점에 직접 포커스한다.
     window.requestAnimationFrame(() => focusAtEnd(subjectInputRef.current))
+  }
+
+  const isCellLocked = (cell: CellRef) => {
+    if (cell.kind === 'core') return false
+    if (!title.trim()) return true
+    if (cell.kind === 'domain') return false
+    return !domains[cell.domainIndex]?.title.trim()
   }
 
   /**
@@ -1020,7 +1099,12 @@ export default function SheetCreate() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <section className="card p-4 sm:p-6">
-          <MandalartGrid sheet={preview} selected={selected} onSelect={selectCell} />
+          <MandalartGrid
+            sheet={preview}
+            selected={selected}
+            onSelect={selectCell}
+            isLocked={isCellLocked}
+          />
 
           {/* 블록별 완성 상태 */}
           <div className="mt-5 flex flex-wrap gap-1.5">
@@ -1051,10 +1135,6 @@ export default function SheetCreate() {
         </section>
 
         <div className="flex flex-col gap-5">
-          {/*
-            기본 설정은 처음 한 번 정하면 다시 볼 일이 드물다. 접어 두면 그만큼
-            '선택한 칸'이 위로 올라와, 81칸을 채우는 동안 눈이 덜 움직인다.
-          */}
           <section className="card p-6">
             <button
               type="button"
@@ -1074,11 +1154,6 @@ export default function SheetCreate() {
               </span>
             </button>
 
-            {/*
-              grid-template-rows 0fr ↔ 1fr 로 여닫는다. max-height 로 하면 실제 높이를
-              모르니 넉넉한 값을 넣게 되고, 그만큼 열릴 때 빠르고 닫힐 때 늦는 어긋난
-              속도가 된다. 이 방식은 내용이 몇 줄이든 같은 속도로 움직인다.
-            */}
             <div
               className={cn(
                 'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
@@ -1087,18 +1162,23 @@ export default function SheetCreate() {
             >
               <div className="overflow-hidden">
                 <div className="mt-4 flex flex-col gap-4">
-                  <Field label="마감일" hint="이 날짜까지를 한 주기로 봅니다.">
+                  <SettingsRow
+                    label="마감일"
+                    hint="이 날짜까지를 한 주기로 봅니다."
+                    htmlFor="sheet-expired-at"
+                  >
                     <Input
+                      id="sheet-expired-at"
                       type="date"
                       value={expiredAt}
                       min={TODAY}
                       onChange={(e) => setExpiredAt(e.target.value)}
-                      aria-label="마감일"
                     />
-                  </Field>
+                  </SettingsRow>
 
-                  <Field label="공개 여부" hint="이것만은 나중에 바꿀 수 있어요.">
+                  <SettingsRow label="공개 여부" hint="나중에 변경 가능합니다.">
                     <Segmented
+                      className="w-full [&>button]:min-w-0 [&>button]:flex-1 [&>button]:px-0"
                       value={isOpen ? 'public' : 'private'}
                       onChange={(v) => setIsOpen(v === 'public')}
                       options={[
@@ -1106,7 +1186,7 @@ export default function SheetCreate() {
                         { value: 'private', label: '비공개' },
                       ]}
                     />
-                  </Field>
+                  </SettingsRow>
                 </div>
               </div>
             </div>
