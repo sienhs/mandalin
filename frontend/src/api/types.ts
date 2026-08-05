@@ -27,6 +27,20 @@ export type UserProfileDto = {
 
 export type LoginDto = UserProfileDto & { accessToken: string }
 
+/**
+ * 발급된 테스트 계정 한 줄. **비밀번호는 담기지 않는다** — 계정을 나눠 주는 사람이 따로 전한다.
+ *
+ * 백엔드 스위치가 꺼져 있으면 목록 조회가 404, 비밀번호가 설정되지 않았으면 빈 배열이다.
+ * 둘 다 로그인 화면이 입구를 그리지 않는 신호다.
+ */
+export type TestAccountDto = {
+  /** 로그인 아이디(tester1 …). */
+  loginId: string
+  name: string
+  /** 친구 코드. 테스터끼리 친구 요청을 보내 볼 때 쓴다. */
+  uuid: string
+}
+
 /* ─────────────────────────  시트  ───────────────────────── */
 
 /** 백엔드 SubjectPeriod 와 1:1. 값을 더할 때는 서버 enum 도 함께 고쳐야 한다. */

@@ -39,6 +39,18 @@ interface Props {
    */
   details?: boolean
   /**
+   * 도메인 이름 라벨을 그릴지. **기본 true.**
+   *
+   * <p>끄는 이유는 성능이 아니라 <b>기다림</b>이다. 라벨은 drei `Text` 이고, 그것이
+   * 폰트를 받는 동안 마을 전체가 아래 Suspense 경계에 걸려 하늘만 보인다(캔버스 마운트
+   * 뒤 실측 0.8~1.2초). 홈 카드처럼 <b>한 장 찍고 끝나는</b> 화면에서는 그 공백이 그대로
+   * 결과물이 될 위험이 있어, 라벨을 빼서 기다릴 것 자체를 없앤다.
+   *
+   * <p>작은 미리보기에서 0.6 unit 글자는 어차피 읽히지 않는다 — 잃는 것이 없다.
+   * 마을 화면처럼 라벨이 정보인 곳에서는 켠다.
+   */
+  labels?: boolean
+  /**
    * 카메라 조작 통로. 회전·줌 버튼을 Canvas 밖(HTML)에 그리려면 필요하다.
    * `useIsoCamera()` 가 돌려주는 ref 를 그대로 넘긴다.
    */
@@ -54,11 +66,14 @@ interface Props {
   occludedLeft?: number
   occludedRight?: number
   /**
-   * 캔버스 안에 추가로 렌더할 것. 실서비스에서는 쓰지 않는다.
+   * 캔버스 안에 추가로 렌더할 것.
    *
    * 렌더 통계(draw call 수)는 `useThree` 로 renderer 에 닿아야 읽을 수 있는데, 그 훅은
    * Canvas 안에서만 동작한다. 테스트 화면이 계측기를 꽂을 자리를 열어 두는 것 — 대신
-   * 공용 컴포넌트에 진단 코드를 심지 않는다.
+   * 공용 컴포넌트에 진단 코드를 심지 않는다. 홈 미리보기의 화면 캡처(`VillagePreview`)도
+   * 같은 자리를 쓴다.
+   *
+   * <p><b>마을과 같은 Suspense 경계 안에서 렌더된다</b> — 아래 경계 주석 참고.
    */
   children?: ReactNode
   onSelect: (domainIndex: number) => void
@@ -83,6 +98,7 @@ export function Scene({
   islandBase = false,
   shadows = true,
   details = true,
+  labels = true,
   cameraRef,
   initialZoom = 1,
   onFacingChange,
@@ -155,6 +171,11 @@ export function Scene({
         찍혀서 GPU 부하 문제로 오해하기 쉽다(부하·그림자맵·dpr 과는 무관하다).
 
         경계를 캔버스 안에 두면 폰트 로딩 동안 라벨만 잠깐 비고 캔버스는 계속 살아 있다.
+
+        ⚠️ `children` 도 이 안에 둔다. 밖에 두면 마을이 아직 안 그려진 동안에도 그쪽
+        `useFrame` 이 돌아서, 홈 미리보기가 <b>하늘만 찍힌 빈 그림</b>을 캡처해 캐시했다
+        (첫 진입에만 마을이 안 보이던 증상). 경계 안에 있으면 폰트가 준비돼 마을이
+        마운트된 뒤부터 프레임이 세어진다.
       */}
       <Suspense fallback={null}>
         <Village
@@ -168,12 +189,13 @@ export function Scene({
           landmark={landmark}
           islandBase={islandBase}
           details={details}
+          labels={labels}
           onSelect={onSelect}
           onSelectTask={onSelectTask}
         />
-      </Suspense>
 
-      {children}
+        {children}
+      </Suspense>
     </Canvas>
   )
 }
