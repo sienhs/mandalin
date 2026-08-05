@@ -34,9 +34,10 @@ import lombok.RequiredArgsConstructor;
  * 확인한 화면이 실제 사용자의 화면과 같다고 말할 수 있는 근거다.
  *
  * <p>{@code app.test-login.enabled=false} 면 이 컨트롤러 자체가 등록되지 않아 404 가 된다.
- * 프론트는 계정 목록 조회가 실패하면 입구를 그리지 않는다.
+ * 프론트는 계정 목록 조회가 실패하거나 빈 목록이면 입구를 그리지 않는다.
  *
- * <p><b>정식 서비스 전에 반드시 끈다.</b> 인증 없이 특정 계정으로 들어올 수 있는 통로다.
+ * <p><b>정식 서비스 전에 반드시 끈다.</b> 아이디·비밀번호로 막혀 있지만, 그 비밀번호는 평가에
+ * 참여한 사람 모두가 아는 값이다.
  */
 @RestController
 @RequestMapping("/api/auth/test")
@@ -51,8 +52,9 @@ public class TestAccountController {
 
 	@GetMapping("/accounts")
 	@Operation(
-			summary = "[테스트] 테스트 계정 목록",
-			description = "로그인 화면이 입구를 그릴 때 쓴다. 이 호출로 계정이 만들어지지는 않는다."
+			summary = "[테스트] 발급된 테스트 계정 아이디 목록",
+			description = "로그인 화면이 입구를 그릴 때 쓴다. 비밀번호는 담기지 않고, "
+					+ "이 호출로 계정이 만들어지지도 않는다. 비밀번호가 설정되지 않았으면 빈 목록이다."
 	)
 	public ResponseEntity<ApiResponse<List<TestAccountResponse>>> accounts() {
 		return ResponseEntity.ok(ApiResponse.success("테스트 계정 목록", testAccountService.accounts()));
@@ -60,15 +62,15 @@ public class TestAccountController {
 
 	@PostMapping("/login")
 	@Operation(
-			summary = "[테스트] 테스트 계정으로 로그인",
-			description = "처음 호출하면 계정 세 개를 만들고 만다라트·건물·친구 관계를 심는다. "
-					+ "두 번째부터는 심지 않고 로그인만 한다."
+			summary = "[테스트] 아이디·비밀번호로 테스트 계정 로그인",
+			description = "처음 성공한 호출에서 계정 세 개를 만들고 만다라트·건물·친구 관계를 심는다. "
+					+ "두 번째부터는 심지 않고 로그인만 한다. 아이디가 없거나 비밀번호가 틀리면 같은 401 이다."
 	)
 	public ResponseEntity<ApiResponse<LoginResponse>> login(
 			@RequestBody @Valid TestLoginRequest request,
 			HttpServletResponse response
 	) {
-		Long userId = testAccountService.prepareAndGetUserId(request.slot());
+		Long userId = testAccountService.prepareAndGetUserId(request.loginId(), request.password());
 		LoginResponse loginResponse = authService.loginWithOAuth(userId);
 		// 카카오 경로와 같다 — refreshToken 은 본문에 실리지 않고 쿠키로만 나간다.
 		refreshTokenCookie.set(response, loginResponse.refreshToken());

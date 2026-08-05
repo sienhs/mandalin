@@ -1,5 +1,7 @@
 package com.ssafy.mandarin.domain.testaccount.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -10,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,8 +57,13 @@ import lombok.extern.slf4j.Slf4j;
  * 과제를 완료하고 건물을 사 둔 상태를 되돌리면 그게 더 놀랍다. 초기 상태로 되돌리는 통로는
  * 두지 않았다(DB 에서 uuid {@code tester-N} 세 행을 지우면 다음 로그인에 다시 심긴다).
  *
- * <p>{@code app.test-login.enabled} 로 켜고 끈다. <b>정식 서비스 전에 반드시 끈다</b> —
- * 주소만 알면 누구나 남의 테스트 계정으로 들어올 수 있는 통로다.
+ * <p>들어오려면 <b>아이디와 비밀번호</b>가 필요하다({@code tester1} ~ {@code tester3} +
+ * {@code TEST_LOGIN_PASSWORD}). 버튼 한 번으로 들어오게 두면 주소를 아는 누구나 이 계정을
+ * 쓸 수 있고, 남이 바꿔 놓은 상태를 내 확인 결과로 착각하게 된다.
+ *
+ * <p>{@code app.test-login.enabled} 로 켜고 끈다. 비밀번호를 설정하지 않으면 켜 두어도 열리지
+ * 않는다. <b>정식 서비스 전에는 스위치를 끈다</b> — 비밀번호를 아는 사람이 늘어날수록 이
+ * 통로는 약해진다.
  */
 @Slf4j
 @Service
@@ -95,6 +103,15 @@ public class TestAccountService {
 	 */
 	private static final int SEED_IDLE_DAYS = 10;
 
+	/**
+	 * 세 계정이 함께 쓰는 비밀번호. 비어 있으면 이 통로는 열리지 않는다.
+	 *
+	 * <p>기본값을 두지 않은 이유는 {@link #authenticate} 에 적었다. 값은 배포 환경의
+	 * {@code infra/.env}({@code TEST_LOGIN_PASSWORD})에만 있고 저장소에는 없다.
+	 */
+	@Value("${app.test-login.password:}")
+	private String configuredPassword;
+
 	private final EntityManager entityManager;
 	private final UserRepository userRepository;
 	private final BuildingItemRepository buildingItemRepository;
@@ -104,23 +121,31 @@ public class TestAccountService {
 	private final SheetService sheetService;
 	private final VillageService villageService;
 
-	/** 로그인 화면이 보여줄 목록. 계정을 만들지는 않는다 — 실제 로그인 시점에 만든다. */
+	/**
+	 * 발급된 계정 목록. 계정을 만들지는 않는다 — 실제 로그인 시점에 만든다.
+	 *
+	 * <p>비밀번호가 설정되지 않았으면 <b>빈 목록</b>이다. 로그인할 방법이 없는 계정을 목록에
+	 * 올리면, 프론트가 입력 칸을 그려 두고 무엇을 넣어도 실패하는 화면이 된다.
+	 */
 	public List<TestAccountResponse> accounts() {
+		if (!passwordConfigured()) {
+			return List.of();
+		}
 		return IntStream.rangeClosed(1, ACCOUNT_COUNT)
-				.mapToObj(slot -> new TestAccountResponse(slot, nameOf(slot), uuidOf(slot)))
+				.mapToObj(slot -> new TestAccountResponse(loginIdOf(slot), nameOf(slot), uuidOf(slot)))
 				.toList();
 	}
 
 	/**
-	 * 슬롯의 계정을 준비하고 그 userId 를 돌려준다.
+	 * 아이디·비밀번호를 확인하고 그 계정의 userId 를 돌려준다.
 	 *
-	 * @throws BusinessException 슬롯 번호가 범위를 벗어날 때
+	 * @throws BusinessException 아이디가 없거나 비밀번호가 틀렸을 때, 또는 비밀번호가 설정되지
+	 *                           않았을 때. <b>세 경우가 같은 오류다</b> — 응답이 갈리면 어떤
+	 *                           아이디가 실재하는지 알아낼 수 있다
 	 */
 	@Transactional
-	public Long prepareAndGetUserId(int slot) {
-		if (slot < 1 || slot > ACCOUNT_COUNT) {
-			throw new BusinessException(ErrorCode.INVALID_INPUT);
-		}
+	public Long prepareAndGetUserId(String loginId, String password) {
+		int slot = authenticate(loginId, password);
 
 		List<User> testers = IntStream.rangeClosed(1, ACCOUNT_COUNT)
 				.mapToObj(this::findOrSeed)
@@ -128,6 +153,52 @@ public class TestAccountService {
 
 		linkAsFriends(testers);
 		return testers.get(slot - 1).getId();
+	}
+
+	/* ─────────────────────────  인증  ───────────────────────── */
+
+	/**
+	 * 아이디에서 슬롯을 얻고 비밀번호를 확인한다.
+	 *
+	 * <p>비밀번호는 설정값 하나를 세 계정이 함께 쓴다. 계정마다 다른 비밀번호를 두면 나눠 줄
+	 * 비밀이 세 개가 되는데, 세 계정은 서로 구분하려고 이름만 다르게 둔 <b>같은 상태의 사본</b>
+	 * 이라 나눌 이유가 없다.
+	 *
+	 * <p>기본값을 두지 않았다. 예시 파일에 적힌 기본 비밀번호는 저장소를 볼 수 있는 사람 모두가
+	 * 아는 비밀번호다 — 설정하지 않으면 이 통로는 열리지 않는다.
+	 *
+	 * @return 슬롯 번호(1~)
+	 */
+	private int authenticate(String loginId, String password) {
+		if (!passwordConfigured() || !matches(password)) {
+			log.warn("[test-account] 로그인 실패: loginId={}", loginId);
+			throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+		}
+
+		for (int slot = 1; slot <= ACCOUNT_COUNT; slot++) {
+			if (loginIdOf(slot).equalsIgnoreCase(loginId.trim())) {
+				return slot;
+			}
+		}
+
+		log.warn("[test-account] 로그인 실패(없는 아이디): loginId={}", loginId);
+		throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+	}
+
+	/**
+	 * 비밀번호 비교.
+	 *
+	 * <p>{@code equals} 를 쓰지 않는다 — 문자열 비교는 처음 다른 글자에서 멈춰서, 걸린 시간으로
+	 * 앞 몇 글자가 맞았는지 알아낼 수 있다. 길이가 달라도 같은 시간이 걸리는 비교를 쓴다.
+	 */
+	private boolean matches(String password) {
+		return MessageDigest.isEqual(
+				configuredPassword.getBytes(StandardCharsets.UTF_8),
+				password.getBytes(StandardCharsets.UTF_8));
+	}
+
+	private boolean passwordConfigured() {
+		return configuredPassword != null && !configuredPassword.isBlank();
 	}
 
 	/* ─────────────────────────  계정 하나  ───────────────────────── */
@@ -387,6 +458,11 @@ public class TestAccountService {
 	 */
 	private String uuidOf(int slot) {
 		return "tester-" + slot;
+	}
+
+	/** 로그인 아이디. uuid(친구 코드)와 한 글자 다르다 — 하이픈이 없다. */
+	private String loginIdOf(int slot) {
+		return "tester" + slot;
 	}
 
 	private String nameOf(int slot) {

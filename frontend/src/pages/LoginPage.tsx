@@ -22,7 +22,10 @@ export default function Login() {
     정식 서비스에서 스위치를 끄면 이 화면도 저절로 카카오 로그인만 남는다.
   */
   const [testers, setTesters] = useState<TestAccountDto[]>([])
-  const [pendingSlot, setPendingSlot] = useState<number | null>(null)
+  const [loginId, setLoginId] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -37,12 +40,22 @@ export default function Login() {
     }
   }, [])
 
-  const enterAsTester = async (slot: number) => {
-    if (pendingSlot !== null) return
-    setPendingSlot(slot)
+  const submitTesterLogin = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (busy) return
+
+    setBusy(true)
+    setError(null)
     // 성공하면 화면이 통째로 넘어가므로 여기로 돌아오지 않는다. 실패했을 때만 잠금을 푼다.
-    const ok = await loginAsTester(slot)
-    if (!ok) setPendingSlot(null)
+    const ok = await loginAsTester(loginId, password)
+    if (!ok) {
+      /*
+        어느 쪽이 틀렸는지 말하지 않는다 — 서버가 알려주지 않고, 알려주면 어떤 아이디가
+        실재하는지 응답으로 알아낼 수 있게 된다.
+      */
+      setError('아이디 또는 비밀번호가 맞지 않아요.')
+      setBusy(false)
+    }
   }
 
   return (
@@ -159,44 +172,83 @@ export default function Login() {
             않는다 — 숨긴 기능은 켜 뒀는지 확인하려고 매번 코드를 열게 된다.
           */}
           {testers.length > 0 && (
-            <div className="mt-9 border-t pt-7" style={{ borderColor: 'var(--border-hairline)' }}>
+            <form
+              onSubmit={(event) => void submitTesterLogin(event)}
+              className="mt-9 border-t pt-7"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
               <h3 className="m-0 text-[13.5px] font-extrabold tracking-[-0.02em]">
                 테스트 계정으로 둘러보기
               </h3>
               <p className="muted m-0 mt-1.5 text-[12px] font-semibold leading-relaxed">
-                만다라트 2장과 건물이 채워진 계정입니다. 카카오 로그인과 똑같이 시작해요.
+                발급받은 아이디와 비밀번호로 들어오세요. 만다라트 2장과 건물이 채워진
+                계정이고, 카카오 로그인과 똑같이 시작합니다.
               </p>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {testers.map((tester) => {
-                  const busy = pendingSlot === tester.slot
-                  return (
-                    <button
-                      key={tester.slot}
-                      type="button"
-                      onClick={() => void enterAsTester(tester.slot)}
-                      disabled={pendingSlot !== null}
-                      title={`친구 코드 ${tester.uuid}`}
-                      className={cn(
-                        'grid h-[46px] place-items-center rounded-xl border text-[13px] font-extrabold transition',
-                        'hover:-translate-y-px hover:border-brand-400 hover:text-brand-600',
-                        'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0',
-                      )}
-                      style={{
-                        borderColor: 'var(--border-hairline)',
-                        background: 'var(--surface-sunken)',
-                      }}
-                    >
-                      {busy ? (
-                        <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-                      ) : (
-                        tester.name
-                      )}
-                    </button>
-                  )
-                })}
+              {/*
+                아이디 목록만 보여준다. 비밀번호는 서버가 내려주지 않고 계정을 나눠 주는 사람이
+                따로 전한다 — 화면에 적어 두면 로그인 절차 자체가 의미를 잃는다.
+              */}
+              <p className="muted m-0 mt-2 text-[11.5px] font-semibold">
+                아이디: {testers.map((tester) => tester.loginId).join(' · ')}
+              </p>
+
+              <div className="mt-4 flex flex-col gap-2">
+                <input
+                  name="testLoginId"
+                  value={loginId}
+                  onChange={(event) => setLoginId(event.target.value)}
+                  placeholder="아이디"
+                  autoComplete="username"
+                  aria-label="테스트 계정 아이디"
+                  className="h-[46px] w-full rounded-xl border px-3.5 text-[13.5px] font-semibold outline-none transition focus:border-brand-400"
+                  style={{
+                    borderColor: 'var(--border-hairline)',
+                    background: 'var(--surface-sunken)',
+                  }}
+                />
+                <input
+                  name="testLoginPassword"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="비밀번호"
+                  autoComplete="current-password"
+                  aria-label="테스트 계정 비밀번호"
+                  className="h-[46px] w-full rounded-xl border px-3.5 text-[13.5px] font-semibold outline-none transition focus:border-brand-400"
+                  style={{
+                    borderColor: 'var(--border-hairline)',
+                    background: 'var(--surface-sunken)',
+                  }}
+                />
               </div>
-            </div>
+
+              {error && (
+                <p className="m-0 mt-2.5 text-[12px] font-bold text-brand-600 dark:text-brand-400">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy || loginId.trim() === '' || password === ''}
+                className={cn(
+                  'mt-3 grid h-[46px] w-full place-items-center rounded-xl border text-[13.5px] font-extrabold transition',
+                  'hover:-translate-y-px hover:border-brand-400 hover:text-brand-600',
+                  'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:border-[var(--border-hairline)]',
+                )}
+                style={{
+                  borderColor: 'var(--border-hairline)',
+                  background: 'var(--surface-sunken)',
+                }}
+              >
+                {busy ? (
+                  <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                ) : (
+                  '테스트 계정으로 로그인'
+                )}
+              </button>
+            </form>
           )}
         </div>
       </section>

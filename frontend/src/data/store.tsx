@@ -64,8 +64,13 @@ type Ctx = {
   /* 세션 */
   loginWithToken: (token: string) => Promise<boolean>
   startKakaoLogin: () => void
-  /** 테스트 계정으로 로그인한다. 성공하면 화면을 통째로 /app 으로 옮긴다. */
-  loginAsTester: (slot: number) => Promise<boolean>
+  /**
+   * 테스트 계정으로 로그인한다. 성공하면 화면을 통째로 /app 으로 옮긴다.
+   *
+   * 실패해도 토스트를 띄우지 않는다 — 비밀번호를 틀렸다는 말은 입력 칸 옆에 있어야 한다.
+   * 호출한 화면이 `false` 를 받아 직접 알린다.
+   */
+  loginAsTester: (loginId: string, password: string) => Promise<boolean>
   enterMockSession: () => void
   logout: () => Promise<void>
   onboarded: boolean
@@ -357,15 +362,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         localStorage 에 'mock' 이 남아 있어서, 로그인은 됐는데 화면은 계속 목업 데이터를
         보여준다(서버 데이터를 확인하려고 들어온 것이므로 정확히 반대의 결과다).
       */
-      loginAsTester: async (slot) => {
+      loginAsTester: async (loginId, password) => {
         try {
-          const data = await auth.testLogin(slot)
+          const data = await auth.testLogin(loginId, password)
           window.localStorage.setItem(MODE_KEY, 'api')
           setAccessToken(data.accessToken)
           window.location.replace('/app')
           return true
-        } catch (cause) {
-          fail(cause, '테스트 계정으로 로그인하지 못했습니다.')
+        } catch {
+          // 실패 문구는 입력 칸 옆에 붙어야 읽힌다. 화면이 알린다.
           return false
         }
       },
