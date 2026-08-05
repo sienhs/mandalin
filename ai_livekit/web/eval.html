@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>프롬프트 평가 · 만다린</title>
+<link rel="stylesheet" href="/eval.css">
+</head>
+<body>
+<div class="shell">
+
+  <div class="top">
+    <h1>프롬프트 평가</h1>
+    <span class="badge">개발 도구</span>
+  </div>
+  <p class="lede">
+    <code>evals/golden.jsonl</code> 의 라벨된 발화를 실제 파이프라인에 태워 채점합니다.
+    실사용 로그는 하루 몇 건이라 어떤 비율도 신뢰구간이 전체를 덮습니다 — 그래서
+    같은 입력을 정해 두고 반복합니다. <b>모든 비율에 95% 신뢰구간을 같이 표시합니다.</b>
+  </p>
+
+  <section class="card">
+    <h2>실행</h2>
+    <div class="controls">
+      <div class="field">
+        <label for="prompt-dir">프롬프트 폴더</label>
+        <input id="prompt-dir" value="prompts" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="provider">백엔드</label>
+        <select id="provider">
+          <option value="">.env 설정 그대로</option>
+          <option value="gemini">gemini</option>
+          <option value="echo">echo (키 없이 배선만)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="repeat">반복 횟수</label>
+        <select id="repeat">
+          <option value="1">1회</option>
+          <option value="3">3회 (자기일관성)</option>
+          <option value="5">5회</option>
+        </select>
+      </div>
+      <button class="run" id="run">평가 실행</button>
+      <button class="run stop" id="stop" hidden>중지</button>
+    </div>
+    <p class="hint">
+      <code>temperature</code> 를 지정하지 않아 기본값(1.0)으로 돌기 때문에 1회 결과는
+      흔들립니다. 두 프롬프트 폴더를 견주는 것은 아래 <b>A/B 비교</b>에서 합니다.
+      같은 것을 CLI 로도 돌릴 수 있습니다: <code>python -m evals.runner --repeat 3</code>
+    </p>
+    <div class="progress" id="progress">
+      <div class="bar"><i id="bar"></i></div>
+      <p id="progress-text">준비 중…</p>
+    </div>
+    <div id="run-error"></div>
+  </section>
+
+  <!--
+    A/B 비교. **페이지를 열면 지난 기록이 여기 그려집니다**(`evals/ab_history/`, 최근
+    20건) — A/B 한 번이 실모델로 수백 번의 호출이라, 지난 결과를 다시 보려고 또 돌리는
+    일이 없어야 합니다. **읽는 것은 LLM 호출이 0회입니다.** 터미널에서 `--vs` 로 돌린
+    것도 같은 폴더에 쌓여 여기 목록에 나옵니다.
+  -->
+  <section class="card">
+    <h2>A/B 비교 <span style="text-transform:none;letter-spacing:0">— 같은 골든셋을 두 폴더로</span></h2>
+    <p class="hint" style="margin-top:0">
+      두 팔의 정확도를 나란히 놓고 눈으로 판정하지 않습니다. 같은 케이스를 둘 다
+      풀었으므로 <b>케이스별로 짝지어</b> 봅니다 — <b>판정이 갈린 쌍</b>만 세고 정확
+      이항검정(McNemar)을 씁니다. 이 규모에서 두 신뢰구간은 거의 항상 겹치기 때문에,
+      겹침으로 판정하면 실제 개선을 매번 놓칩니다.
+    </p>
+    <div class="controls">
+      <div class="field">
+        <label for="ab-a">A · 기준 폴더</label>
+        <input id="ab-a" value="prompts" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="ab-b">B · 새 폴더</label>
+        <input id="ab-b" value="prompts_v2" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="ab-repeat">반복 횟수</label>
+        <select id="ab-repeat">
+          <option value="3" selected>3회 (권장)</option>
+          <option value="5">5회</option>
+          <option value="1">1회</option>
+        </select>
+      </div>
+      <button class="run" id="ab-run">A/B 실행</button>
+    </div>
+    <p class="hint">
+      백엔드는 위 <b>실행</b> 칸의 값을 함께 씁니다 — 두 팔이 같은 모델로 돌아야 이 표가
+      프롬프트를 잰 것이 됩니다. 두 폴더를 <b>연달아</b> 돌리므로 시간도 호출도 두 배입니다 —
+      <b>LLM 호출 = 케이스 × 반복 × 2팔 × 2단계</b>(classify·decide). 골든셋 52건을 3회
+      반복하면 624회입니다. CLI 로는
+      <code>python -m evals.runner --vs prompts_v2 --repeat 3</code>,
+      배선만 볼 때는 <code>--provider echo</code>(호출 0회).
+    </p>
+    <!--
+      지난 기록 고르기. **돌리는 칸과 갈라 둡니다** — 목록에서 고르는 것은 파일을 읽는
+      일이고(호출 0회), 위의 버튼은 수백 번의 호출을 태우는 일입니다. 같은 줄에 두면
+      실수로 누릅니다.
+    -->
+    <div class="controls" id="ab-history-row" hidden>
+      <div class="field">
+        <label for="ab-pick">지난 기록 · LLM 호출 없이 열람</label>
+        <select id="ab-pick"></select>
+      </div>
+      <span class="hint" id="ab-count" style="margin:0 0 0.6rem"></span>
+    </div>
+    <div id="ab-body"></div>
+  </section>
+
+  <div id="report" hidden>
+    <section class="card">
+      <h2>정확도 <span style="text-transform:none;letter-spacing:0">— 점추정과 95% 신뢰구간</span></h2>
+      <div id="partial"></div>
+      <div id="measurement"></div>
+      <div id="defects"></div>
+      <div class="tiles" id="tiles"></div>
+      <p class="hint" id="ci-note"></p>
+    </section>
+
+    <section class="card">
+      <h2>intent 혼동 행렬 <span style="text-transform:none;letter-spacing:0">— 세로 기대 / 가로 실제</span></h2>
+      <div style="overflow-x:auto"><table class="matrix" id="matrix"></table></div>
+      <p class="hint">
+        요약값보다 이 표가 낫습니다 — 어느 칸으로 새는지가 곧 고칠 문장입니다.
+        <code>goal→chitchat</code> 은 프롬프트가 "가장 흔한 실수" 라고 적어 둔 자리입니다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>비용 · 위반</h2>
+      <div class="tiles" id="ops"></div>
+      <p class="hint">
+        위반은 <b>정답 라벨이 필요 없는 지표</b>입니다 — 프롬프트가 자기 규칙을 어겨
+        서버가 잡아낸 횟수입니다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>재실행</h2>
+      <p class="hint" style="margin-top:0">
+        고른 것만 다시 돕니다. <b>판정용이 아니라 분류용입니다</b> —
+        <code>temperature</code> 기본값(1.0)이라 실패 중에는 프롬프트 문제와 그날 튄
+        샘플링이 섞여 있습니다. 다시 돌려 통과하면 후자, 또 틀리면 전자입니다.
+        <b>반복 3회 이상</b>으로 돌리셔야 그 둘이 갈립니다.
+      </p>
+      <div class="filters" id="picks">
+        <button class="chip" data-pick="failed" aria-pressed="true">틀린 것</button>
+        <button class="chip" data-pick="unmeasured" aria-pressed="true">측정 실패(429 등)</button>
+        <button class="chip" data-pick="ambiguous" aria-pressed="true">모호 라벨</button>
+        <button class="chip" data-pick="unstable" aria-pressed="false">흔들린 것</button>
+      </div>
+      <div class="controls" style="margin-top:0.9rem">
+        <div class="field">
+          <label for="rerun-repeat">반복 횟수</label>
+          <select id="rerun-repeat">
+            <option value="3" selected>3회 (권장)</option>
+            <option value="5">5회</option>
+            <option value="1">1회</option>
+          </select>
+        </div>
+        <button class="run" id="rerun">골라서 다시 돌리기</button>
+        <span class="hint" id="rerun-count" style="margin:0 0 0.6rem"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>케이스</h2>
+      <div class="filters" id="filters">
+        <button class="chip" data-filter="all" aria-pressed="true">전체</button>
+        <button class="chip" data-filter="fail" aria-pressed="false">틀린 것만</button>
+        <button class="chip" data-filter="unmeasured" aria-pressed="false">미측정만</button>
+        <button class="chip" data-filter="dirty" aria-pressed="false">출력 오염</button>
+        <button class="chip" data-filter="unstable" aria-pressed="false">흔들린 것만</button>
+        <button class="chip" data-filter="ambiguous" aria-pressed="false">모호 라벨</button>
+        <button class="chip" data-filter="flipped" aria-pressed="false">판정 바뀐 것</button>
+      </div>
+      <div id="cases"></div>
+    </section>
+
+    <p class="meta-line" id="meta"></p>
+  </div>
+
+</div>
+<script src="/eval.js"></script>
+</body>
+</html>

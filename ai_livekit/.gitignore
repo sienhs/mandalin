@@ -21,6 +21,10 @@
 # 않습니다 — 기본 시트는 dev_server.py 의 DEFAULT_SHEET 에 있습니다.
 sheet.json
 
+# A/B 비교 기록(최근 20건). `/eval` 과 `--vs` 가 같은 폴더를 씁니다 — 사람마다 다른
+# 실험 결과라 공유하지 않습니다.
+evals/ab_history/
+
 # worker 가 매 기동마다 새로 쓰는 진단 로그. 전사문과 발화 내용이 들어갑니다.
 worker.log
 *.log
