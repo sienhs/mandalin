@@ -71,6 +71,7 @@ export default function Home() {
   }, [detailList])
 
   const sheet = detailList[Math.min(villageIndex, Math.max(0, detailList.length - 1))]
+  const sheetProgress = sheet?.progress ?? sheet?.achievementRate ?? 0
 
   /** 다음으로 살 수 있는 가장 싼 건물까지 몇 개를 더 해야 하는지. */
   const nextBuilding = useMemo(() => {
@@ -338,7 +339,7 @@ export default function Home() {
             <div className="min-w-0">
               <h2 className="section-title m-0">내 마을</h2>
               <p className="muted m-0 mt-1 truncate text-[12.5px] font-semibold">
-                {sheet.title} · 달성률 {sheet.achievementRate}%
+                {sheet.title} · 달성률 {sheetProgress}%
               </p>
             </div>
 
