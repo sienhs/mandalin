@@ -27,6 +27,19 @@ export type UserProfileDto = {
 
 export type LoginDto = UserProfileDto & { accessToken: string }
 
+/**
+ * 테스트 계정 한 줄.
+ *
+ * 백엔드 `app.test-login.enabled` 가 꺼져 있으면 목록 조회가 404 라서 이 타입의 값이 아예
+ * 오지 않는다 — 로그인 화면은 그때 입구를 그리지 않는다.
+ */
+export type TestAccountDto = {
+  slot: number
+  name: string
+  /** 친구 코드. 테스터끼리 친구 요청을 보내 볼 때 쓴다. */
+  uuid: string
+}
+
 /* ─────────────────────────  시트  ───────────────────────── */
 
 /** 백엔드 SubjectPeriod 와 1:1. 값을 더할 때는 서버 enum 도 함께 고쳐야 한다. */

@@ -16,6 +16,7 @@ import type {
   ShopBuildingDto,
   SubjectCompleteDto,
   TerrainDto,
+  TestAccountDto,
   TodoDto,
   UserProfileDto,
   UserSearchDto,
@@ -40,6 +41,26 @@ export const auth = {
     apiFetch<LoginDto>('/api/auth/oauth/exchange', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    }),
+
+  /**
+   * 테스트 계정 목록.
+   *
+   * <p>백엔드 스위치(`app.test-login.enabled`)가 꺼지면 컨트롤러가 등록되지 않아 404 다.
+   * 호출하는 쪽은 실패를 오류로 다루지 않고 <b>입구를 그리지 않는 신호</b>로 쓴다.
+   */
+  testAccounts: () => apiFetch<TestAccountDto[]>('/api/auth/test/accounts'),
+
+  /**
+   * 테스트 계정으로 로그인.
+   *
+   * <p>응답이 카카오 교환(`exchange`)과 같은 모양이다 — 서버가 같은 메서드를 부르기 때문이다.
+   * 리프레시 토큰은 본문에 없고 쿠키로 온다.
+   */
+  testLogin: (slot: number) =>
+    apiFetch<LoginDto>('/api/auth/test/login', {
+      method: 'POST',
+      body: JSON.stringify({ slot }),
     }),
 
   me: () => apiFetch<UserProfileDto>('/api/v1/users/me'),

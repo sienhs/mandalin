@@ -71,6 +71,15 @@ public class SecurityConfig {
 								"/api/auth/reissue", "/api/auth/oauth/exchange", "/api/auth/logout",
 								"/oauth2/**", "/login/oauth2/**")
 						.permitAll()
+						/*
+						 * 테스트 계정 로그인. 로그인 전에 부르는 통로라 인증을 요구할 수 없다.
+						 *
+						 * 경로를 열어 두는 것과 기능이 살아 있는 것은 별개다 —
+						 * app.test-login.enabled=false 면 컨트롤러가 등록되지 않아 404 가 된다.
+						 * 정식 서비스에서는 그 스위치로 닫는다.
+						 */
+						.requestMatchers("/api/auth/test/**")
+						.permitAll()
 						.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml")
 						.permitAll()
 						.anyRequest().authenticated())

@@ -85,6 +85,16 @@ app:
   catalog:
     # 기동 시 classpath:catalog/buildings.json 을 building_item 에 동기화
     seed-on-startup: ${CATALOG_SEED_ON_STARTUP:true}
+  test-login:
+    # 테스트 계정 로그인(/api/auth/test/**) 스위치.
+    #
+    # 카카오 로그인 없이 미리 채워 둔 계정(테스터1~3)으로 들어가 서비스를 직접 평가하는
+    # 통로다. 켜 두면 프론트 /login 화면에 입구가 나타나고, 끄면 컨트롤러 자체가 등록되지
+    # 않아 404 가 되며 입구도 사라진다.
+    #
+    # ⚠️ 정식 서비스 전에 반드시 false 로 바꾼다. 인증 없이 특정 계정으로 로그인할 수 있어
+    #    주소만 알면 누구나 남의 테스트 계정에 들어온다.
+    enabled: ${TEST_LOGIN_ENABLED:true}
   demo:
     # 시연용 API 전체(/api/v1/demo/**) 스위치 — 진행률 임의 지정 + 포인트 임의 지급.
     # 과제 수행 체크와 포인트 적립이 아직 없어 마을이 자라지도, 건물을 살 수도 없으니
