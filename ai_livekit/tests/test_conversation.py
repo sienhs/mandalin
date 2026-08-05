@@ -132,15 +132,15 @@ async def test_history_is_capped():
     assert len(conv._history) <= DEFAULT_HISTORY_TURNS
 
 
-async def test_replacing_the_sheet_changes_whether_a_domain_is_new():
+async def test_replacing_the_sheet_is_reflected_in_the_cell_judgment():
     """담기·삭제로 시트가 바뀌면 통째로 갈아끼웁니다.
 
     **`set_domains` 가 실제로 무엇을 바꾸는지**를 봅니다. 시트는 `_mark_new_domain`
     이 "이 칸이 새로 생기는가" 를 판단하는 근거이고, 그 판단은 모델이 아니라 서버가
     합니다 — 갈아끼운 시트가 반영되지 않으면 이미 있는 칸이 하나 더 생깁니다.
 
-    `echo` 는 입력과 무관하게 `학습` 으로 분류합니다. 그래서 시트에 `학습` 이 있는지
-    없는지만으로 두 경로가 갈립니다.
+    `echo` 는 입력과 무관하게 1단계에서 `학습` 을 냅니다(3단계는 칸을 비웁니다).
+    그래서 시트에 `학습` 이 어떤 id 로 있는지, 아예 없는지가 그대로 드러납니다.
     """
     conv = make_conversation()  # 시트: 학습(id=7)
     _, existing = await conv.respond("매일 알고리즘 문제 풀고 싶어")
@@ -148,12 +148,19 @@ async def test_replacing_the_sheet_changes_whether_a_domain_is_new():
     assert existing.data["domain_is_new"] is False
     assert existing.data["domain_id"] == 7
 
-    # 시트를 `학습` 이 없는 것으로 갈아끼웁니다.
+    # 같은 이름 다른 id 로 갈아끼웁니다 — 갈아끼운 시트를 보고 있다는 증거입니다.
+    conv.set_domains([DomainRef(id=42, title="학습", subjectCount=1, subjects=[])])
+    _, moved = await conv.respond("주 1회 블로그 정리하고 싶어")
+    assert moved is not None
+    assert moved.data["domain_id"] == 42
+
+    # `학습` 이 없는 시트로 갈아끼웁니다. **1단계 힌트로는 칸을 만들 수 없습니다** —
+    # 그 값은 후보 검색의 가점 전용이라 검증하지 않는 값이고, 그걸로 빈 칸을 메우면
+    # 검색 힌트가 `domain_is_new` 를 달고 실제 칸이 됩니다(`_settle_domain`).
     conv.set_domains([DomainRef(id=99, title="덕질", subjectCount=0, subjects=[])])
     _, fresh = await conv.respond("주 1회 굿즈 정리하고 싶어")
     assert fresh is not None
-    assert fresh.data["domain_is_new"] is True
-    # 새 칸이면 `domain_id` 가 없습니다 — 프론트가 `domain` 행을 먼저 만들라는 신호입니다.
+    assert "domain_is_new" not in fresh.data
     assert "domain_id" not in fresh.data
 
 

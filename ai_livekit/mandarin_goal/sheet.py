@@ -3,7 +3,14 @@ from __future__ import annotations
 
 import logging
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +27,29 @@ logger = logging.getLogger(__name__)
 MAX_DOMAINS = 16
 MAX_DOMAIN_TITLE_LENGTH = 40
 
+#: 만다라트의 세부 목표 **정원**. `MAX_DOMAINS`(전송 상한)와 다른 값이고 다른 일을 합니다 —
+#: 그쪽은 남용을 막는 천장이고, 이쪽은 "새 칸을 지어도 되는가" 를 가릅니다.
+#:
+#: AI 는 시트에 없는 칸을 새로 제안할 수 있습니다. 그 권한의 유일한 경계가 이 값입니다:
+#: 자리가 남았으면 지어도 되고, 8칸이 찼으면 지을 수 없습니다(담을 자리가 없으므로
+#: 담기가 취소되고 되묻게 됩니다 — `bot/goal.py` 의 `_unknown_domain`).
+#:
+#: **셀 수 있는 규칙이라 프롬프트에 넣습니다.** 셀 수 없는 규칙은 근거 없는 지시일 뿐이라
+#: 토큰만 씁니다(`_capacity_context` 의 같은 판단).
+DOMAIN_SLOTS = 8
+
 #: 칸 하나가 실어 보낼 수 있는 과제 개수와 제목 길이.
 #: 8 은 만다라트 정원(9x9 이중 3x3)과 같은 값입니다. 시트가 그보다 많이 담을 수
 #: 없으므로 이 상한에 걸리는 건 클라이언트가 잘못 보냈을 때뿐입니다.
+#:
+#: **전송 상한과 정원이 같은 값이라 하나로 씁니다.** `MAX_DOMAINS`(16) 와
+#: `DOMAIN_SLOTS`(8) 를 가른 것과 다른 경우입니다 — 그쪽은 남용 천장과 정원이 실제로
+#: 다른 값이지만, 여기는 둘 다 "3x3 한 블록의 바깥 8칸" 이라는 같은 사실입니다.
+#: 두 상수로 두면 8 이 두 곳에 적히고 한쪽만 고치는 날이 옵니다.
+#:
+#: 정원으로 쓰는 곳은 `bot/goal.py` 의 `_settle_capacity` 입니다 — 남은 자리보다 많이
+#: 만든 턴을 잘라냅니다. 프롬프트에도 같은 규칙이 있지만(`prompts/fragments/
+#: domain_capacity.md`) 프롬프트는 어겨도 조용히 통과합니다.
 MAX_SUBJECTS_PER_DOMAIN = 8
 MAX_SUBJECT_TITLE_LENGTH = 60
 
@@ -31,7 +58,66 @@ MAX_SUBJECT_TITLE_LENGTH = 60
 #: 왜 위험한가: 후보 줄에 `"frequency": "매월"` 이 실려 가면 **모델이 그걸 읽고 배웁니다.**
 #: 표현할 수 없는 주기를 따라 만들기 시작하고, 그건 에러가 아니라 품질 저하로만
 #: 드러납니다.
-FREQUENCIES: tuple[str, ...] = ("daily", "weekly", "none")
+FREQUENCIES: tuple[str, ...] = ("daily", "weekly", "monthly", "none")
+
+#: 한 주기에 몇 번까지 수행할 수 있는가 — `subject.count_per_period` 의 상한입니다.
+#:
+#: **정본은 Spring 의 `SubjectPeriod` 이고 프론트의 `PERIOD_MAX_COUNT` 와 같은 표입니다.**
+#: 1 인 값은 사용자가 정할 것이 없습니다(하루 1회, 기간 내 1회) — "고정" 이라 부르는 쪽입니다.
+#:
+#: **범위를 서버가 걸어 주지 않습니다.** `SheetCreateRequest` 의 어노테이션은
+#: `@Min(1) @Max(30)` 뿐이고(상한이 `period` 값에 달려 있어서 못 박을 수 없습니다),
+#: 주석에 *"화면이 주기에 맞는 상한을 걸어 보낸다"* 고 적혀 있습니다. AI 도 화면과 같은
+#: 자리에 있으므로 **여기서 걸어야 합니다** — 안 걸면 모델이 "주 10회" 를 내는 날
+#: 그대로 저장되고, 그건 에러가 아니라 사용자가 못 채우는 목표로만 드러납니다.
+FREQUENCY_MAX_COUNT: dict[str, int] = {
+    "daily": 1,
+    "weekly": 7,
+    "monthly": 30,
+    "none": 1,
+}
+
+# 어휘와 상한 표가 어긋나면 `normalise_count` 가 모르는 주기를 만나 조용히 1 로
+# 떨어뜨립니다. 기동 시점에 잡습니다 — `bot/subjects.py` 의 라벨 검사와 같은 이유입니다.
+assert tuple(FREQUENCY_MAX_COUNT) == FREQUENCIES, (
+    f"FREQUENCY_MAX_COUNT {tuple(FREQUENCY_MAX_COUNT)} 와 FREQUENCIES {FREQUENCIES} 가 어긋납니다"
+)
+
+
+def normalise_count(frequency: str | None, count: object) -> int | None:
+    """`count_per_period` 를 그 주기에서 **실제로 가능한 값**으로 맞춥니다.
+
+    셋을 한 함수에 모은 이유는 세 곳이 같은 규칙을 따라야 하기 때문입니다 —
+    시트로 들어오는 값(`SubjectRef`), 모델이 만든 값(`bot/goal.py`), 그리고 후보 줄에
+    실려 모델이 배우는 값(`bot/subjects.py`).
+
+      - 주기를 모르면 `None`. 횟수만 아는 것은 쓸 데가 없고, 기본값 1 을 붙이면
+        "한 번만" 인지 "모른다" 인지 구분이 사라집니다.
+      - **고정 주기는 값을 무시하고 1 입니다.** daily·none 은 사용자도 못 바꾸는
+        자리라, 모델이 3 을 내밀어도 그건 제안이 아니라 오류입니다.
+      - 나머지는 1..상한으로 **자릅니다**(거부하지 않습니다). 거부하면 횟수 하나
+        때문에 과제가 통째로 사라지는데, 자르면 사용자가 편집기에서 고칠 수 있는
+        형태로 남습니다.
+      - 값이 없거나 숫자가 아니면 1. 여기서만은 기본값을 둡니다 — 주기를 아는 이상
+        "최소 한 번" 은 확실하고, `NOT NULL DEFAULT 1` 인 컬럼이기도 합니다.
+    """
+    if not frequency or frequency not in FREQUENCY_MAX_COUNT:
+        return None
+    ceiling = FREQUENCY_MAX_COUNT[frequency]
+    if ceiling == 1:
+        return 1
+    try:
+        wanted = int(count)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 1
+    if wanted < 1:
+        return 1
+    if wanted > ceiling:
+        logger.info(
+            "%s 주기의 횟수 %d 는 상한 %d 을 넘어 잘랐습니다", frequency, wanted, ceiling
+        )
+        return ceiling
+    return wanted
 
 
 class SubjectRef(BaseModel):
@@ -75,6 +161,20 @@ class SubjectRef(BaseModel):
         default=None, validation_alias=AliasChoices("period", "frequency")
     )
 
+    #: 한 주기에 몇 번 하는가 — "주 3회" 의 3 입니다.
+    #:
+    #: **전송 이름은 `countPerPeriod` 가 정본입니다**(Spring 의 `Subject.countPerPeriod`,
+    #: 컬럼 `count_per_period`). 스네이크와 짧은 `count` 도 받습니다 — 이 봉투를 만드는
+    #: 곳이 셋(프론트·브라우저 데모·eval 픽스처)이라, 이름 하나가 어긋나면 값이 조용히
+    #: `None` 이 되고 증상은 "주 3회가 주 1회로 담긴다" 뿐입니다.
+    #:
+    #: **빈도와 짝입니다.** 이 값만으로는 아무 뜻이 없어서 `_settle_count` 가 빈도를 보고
+    #: 맞춥니다(고정 주기는 1, 나머지는 상한까지).
+    count: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("countPerPeriod", "count_per_period", "count"),
+    )
+
     @field_validator("title")
     @classmethod
     def _clean_title(cls, v: str) -> str:
@@ -104,6 +204,18 @@ class SubjectRef(BaseModel):
             )
             return None
         return cleaned
+
+    @model_validator(mode="after")
+    def _settle_count(self) -> SubjectRef:
+        """횟수를 빈도에 맞춥니다. **빈도를 본 뒤여야 하므로 모델 검증입니다.**
+
+        `field_validator` 로는 못 합니다 — 필드 하나만 보면 `weekly` 인지 `daily` 인지
+        모르고, 그러면 하루 1회짜리 과제에 "주 5회" 가 남습니다.
+        """
+        settled = normalise_count(self.frequency, self.count)
+        if settled != self.count:
+            object.__setattr__(self, "count", settled)
+        return self
 
 
 class DomainRef(BaseModel):

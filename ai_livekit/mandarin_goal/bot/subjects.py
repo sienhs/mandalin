@@ -32,8 +32,15 @@ logger = logging.getLogger(__name__)
 #: 과제를 실천하는 주기. **사용자가 정하는 축은 "얼마나 자주 하느냐" 하나입니다** —
 #: 과제 성격(달성형/태도형)과 반복 여부를 따로 두면 같은 것을 두 번 말하게 됩니다.
 #:
-#: 값은 세 개뿐입니다. **월간·분기 같은 중간 주기는 표현할 수 없습니다** — 그런
-#: 과제는 가장 가까운 값으로 내려앉습니다(월 1회 → `none`).
+#: 값은 네 개입니다 — 일간·주간·월간·한번만. **주기와 횟수가 짝입니다**: 주기는 "얼마나
+#: 자주 세느냐" 이고, 횟수(`count_per_period`)는 "그 안에서 몇 번" 입니다.
+#: 일간과 한번만은 횟수가 1 로 **고정**이라 사용자도 바꾸지 못하고, 주간(1~7)과
+#: 월간(1~30)만 범위 안에서 정할 수 있습니다(`sheet.FREQUENCY_MAX_COUNT`).
+#:
+#: **라벨에 횟수를 박아 두지 않습니다.** 예전에는 `"weekly": "주간 · 주 1회"` 였는데,
+#: 주간이 1~7회가 된 뒤로 그 문자열은 주 3회짜리 과제를 **주 1회로 표시합니다** —
+#: 값은 맞는데 화면만 틀리는, 제일 찾기 어려운 종류입니다. 횟수는
+#: `frequency_label()` 이 받아 붙입니다.
 #:
 #: `Candidate` 가 이 어휘를 쓰는 쪽이라 여기 둡니다. `goal.py` 가 스키마와 채팅
 #: 문구를 만들 때 가져다 씁니다(반대 방향으로 import 하면 순환입니다).
@@ -43,9 +50,18 @@ logger = logging.getLogger(__name__)
 #: (사람이 읽는 문구)이고, 데이터 제약은 그쪽입니다 — `SubjectRef` 가 클라이언트 입력을
 #: 검증해야 해서 어휘가 상류로 올라갔습니다.
 FREQUENCY_LABELS: dict[str, str] = {
-    "daily": "일간 · 주 7회",
-    "weekly": "주간 · 주 1회",
-    "none": "없음 · 한 번만",
+    "daily": "일간",
+    "weekly": "주간",
+    "monthly": "월간",
+    "none": "한번만",
+}
+
+#: 횟수를 붙일 때 쓰는 단위. `daily`/`none` 은 고정 1 이라 셀 것이 없어 문장으로 씁니다.
+FREQUENCY_COUNT_SUFFIX: dict[str, str] = {
+    "daily": "하루 1회",
+    "weekly": "주 {n}회",
+    "monthly": "월 {n}회",
+    "none": "기간 내 1회",
 }
 
 # 라벨과 어휘가 어긋나면 검증은 통과하는데 화면에 빈도가 안 나오는 조합이 생깁니다.
@@ -55,17 +71,33 @@ assert tuple(FREQUENCY_LABELS) == FREQUENCIES, (
     f"mandarin_goal.sheet.FREQUENCIES {FREQUENCIES} 가 어긋납니다"
 )
 
-def frequency_label(value: str | None) -> str | None:
+def frequency_label(value: str | None, count: int | None = None) -> str | None:
     """사람이 읽을 빈도 표시. 모르는 값이면 `None` 이라 호출하는 쪽이 생략합니다.
 
-    **서버에 기본값을 두지 마세요.** 모르는 값을 `none`("한 번만")으로 단정하면 매일
+    `frequency_label("weekly", 3)` → `"주간 · 주 3회"`,
+    `frequency_label("daily")` → `"일간 · 하루 1회"`.
+
+    **횟수를 모르면 주기만 씁니다** — 없는 값을 1 로 단정하지 않습니다. 주 3회짜리
+    과제를 "주 1회" 로 보여 주면 사용자는 화면을 믿고 잘못 실천합니다. 고정 주기
+    (일간·한번만)는 애초에 셀 것이 없으므로 횟수 없이도 문장이 완성됩니다.
+
+    **서버에 기본값을 두지 마세요.** 모르는 주기를 `none`("한 번만")으로 단정하면 매일
     해야 할 일이 한 번짜리로 담깁니다. 여기서 `None` 을 돌려주면 `render()` 의
     `titled()` 가 빈도 표시만 조용히 생략합니다.
 
     폴백이 필요한 곳은 브라우저 보드뿐입니다(`web/app.js`). 거기서는 칩에 무언가는
     그려야 하기 때문입니다.
     """
-    return FREQUENCY_LABELS.get((value or "").strip())
+    key = (value or "").strip()
+    label = FREQUENCY_LABELS.get(key)
+    if label is None:
+        return None
+    suffix = FREQUENCY_COUNT_SUFFIX[key]
+    if "{n}" not in suffix:
+        return f"{label} · {suffix}"
+    if count is None:
+        return label
+    return f"{label} · {suffix.format(n=count)}"
 
 
 @dataclass(frozen=True)
@@ -81,12 +113,22 @@ class Candidate:
     #: 담을 때 정한 주기. 시트에 없으면 `None` 이고, 그때는 채팅 문구에서
     #: 빈도 표시만 생략됩니다 — 모르는 값을 `none` 으로 단정하지 않습니다.
     frequency: str | None = None
+    #: 그 주기 안의 횟수("주 3회" 의 3). 주기가 없으면 이 값도 없습니다.
+    count: int | None = None
 
     def as_prompt_line(self) -> str:
+        """후보 한 줄. **횟수까지 싣습니다.**
+
+        중복 판정의 기준이 "행동과 빈도가 둘 다 같아야 겹친다" 인데, 주간이 1~7회로
+        갈라진 뒤로는 주기만으로 빈도가 정해지지 않습니다 — 횟수를 빼면 모델에게
+        "주 1회 러닝" 과 "주 5회 러닝" 이 같은 줄로 보입니다.
+        """
         parts = [f'"subject_id": {self.id}', f'"domain": "{self.domain}"']
         parts.append(f'"title": "{self.title}"')
         if self.frequency:
             parts.append(f'"frequency": "{self.frequency}"')
+            if self.count is not None:
+                parts.append(f'"count": {self.count}')
         return "- {" + ", ".join(parts) + "}"
 
 
@@ -153,6 +195,8 @@ def to_candidates(domains: Sequence[DomainRef]) -> list[Candidate]:
                     domain=domain.title,
                     title=subject.title,
                     frequency=subject.frequency,
+                    # `SubjectRef` 가 이미 주기에 맞춰 놓은 값입니다(`_settle_count`).
+                    count=subject.count,
                 )
             )
     if dropped:

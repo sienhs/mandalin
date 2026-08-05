@@ -2,8 +2,17 @@
  * 만다라트 생성 화면의 데이터 타입.
  */
 
-/** 과제의 기간 설정 */
-export type Period = 'daily' | 'weekly' | 'none'
+/**
+ * 과제의 기간 설정. **백엔드 `SubjectPeriod` 와 같은 네 값**이다.
+ *
+ * <p>주기마다 한 주기 안에 수행할 수 있는 횟수(`count_per_period`)가 다르다 —
+ * 일간 1회 고정, 주간 1~7회, 월간 1~30회, 없음 1회 고정. **이 화면은 아직 횟수를
+ * 편집하지 않는다**(`TaskDraft` 에 필드가 없고 `buildCreatePayload` 도 보내지 않는다).
+ * 그래서 주간·월간은 서버 기본값 1 로 저장된다 — "주 3회" 를 만들려면 횟수 입력이
+ * 먼저 필요하다. 값이 셋에서 넷으로 늘었을 때 함께 손본 곳은 `SheetTaskDialog` 의
+ * 선택지, `sheet.utils.ts` 의 `calcTargetCount`, `CoachDomainList` 의 칩이다.
+ */
+export type Period = 'daily' | 'weekly' | 'monthly' | 'none'
 
 /**
  * 만다라트 한 장. 기본 설정 패널이 편집하는 값은 모두 이 타입 안에만 저장한다.

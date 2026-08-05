@@ -3,9 +3,14 @@ import { cn } from '../../utils/cn'
 import SheetDialog from './SheetDialog'
 import type { Period, TaskDraft } from './sheet.types'
 
+/**
+ * 백엔드 `SubjectPeriod` 의 네 값과 1:1. 하나라도 빠지면 사용자는 그 주기를 **고를 수
+ * 없고**, 서버·다른 화면에는 있는 값이라 "왜 월간이 안 보이지" 로만 드러난다.
+ */
 const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: 'daily', label: '일간' },
   { value: 'weekly', label: '주간' },
+  { value: 'monthly', label: '월간' },
   { value: 'none', label: '없음' },
 ]
 

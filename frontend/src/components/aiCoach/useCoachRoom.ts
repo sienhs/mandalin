@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Room, RoomEvent } from 'livekit-client'
+import { ParticipantKind, Room, RoomEvent, type RemoteParticipant } from 'livekit-client'
 import { apiFetch, ApiError } from '../../api/client'
-import type { Period } from '../sheet/sheet.types'
 
 /*
  * `ai_livekit/web/app.js` 를 React 로 옮긴 것.
@@ -24,6 +23,17 @@ const TALK_WINDOW_MS = 10_000
 /** 오조작 가드. 켜자마자 끄면 전사도 못 얻고 STT 연결 비용만 낸다. */
 const MISCLICK_GUARD_MS = 300
 
+/**
+ * 이 참가자가 에이전트인가.
+ *
+ * `kind` 를 먼저 본다 — LiveKit 이 참가자 종류를 알려주는 정본이다. identity 접두는
+ * 보조다: 서버가 붙이는 이름(`agent-AJ_…`)이라 규칙이 바뀔 수 있고, `kind` 를 못 채우는
+ * 옛 SDK 조합에서만 쓰인다. 둘 다 틀려도 **연결 상태는 켜진다**(`welcome` 주석) —
+ * 여기서 고르는 것은 문구뿐이다.
+ */
+const isAgent = (participant: RemoteParticipant) =>
+  participant.kind === ParticipantKind.AGENT || participant.identity.startsWith('agent-')
+
 export type CoachState = 'idle' | 'thinking' | 'answering'
 
 export type ChatMessage = {
@@ -32,13 +42,51 @@ export type ChatMessage = {
   text: string
 }
 
+/**
+ * 에이전트가 보내는 주기 어휘.
+ *
+ * **`sheet.types.ts` 의 `Period` 를 그대로 쓰지 않는다.** 값은 지금 같지만 두 타입이
+ * 뜻하는 것이 다르다 — 저쪽은 편집기가 다루는 화면 상태이고 이쪽은 **다른 프로세스가
+ * 보내는 와이어 포맷**(`ai_livekit` 의 `FREQUENCIES` = 백엔드 `SubjectPeriod` 의
+ * `@JsonValue`)이다. 묶어 두면 편집기 사정으로 이 union 을 좁히는 날 에이전트가 보내는
+ * 값이 조용히 타입에서 빠진다.
+ */
+export type GoalFrequency = 'daily' | 'weekly' | 'monthly' | 'none'
+
+export type GoalTask = {
+  title?: string
+  frequency?: GoalFrequency
+  /**
+   * 왜 이 과제인지 한 문장. 제안 카드의 설명 줄에 그대로 들어간다
+   * (`GOAL_SCHEMA.generated_tasks[].description`, 40자 상한).
+   *
+   * `matched_task` 에는 없다 — 그쪽은 이미 시트에 있는 과제를 지목한 것이라 서버가
+   * 제목·주기·횟수만 시트에서 채운다.
+   */
+  description?: string
+  /**
+   * 한 주기 안의 횟수("주 3회" 의 3).
+   *
+   * **서버가 주기에 맞춰 확정해서 보낸다**(`bot/goal.py` 의 `_settle_counts`) — 일간·
+   * 한번만은 1 고정이고 주간은 1~7, 월간은 1~30 으로 잘려서 온다. 화면에서 다시
+   * 판단하지 않고 그대로 쓴다.
+   */
+  count?: number | null
+}
+
 /** 에이전트가 `mandarin.goal` 로 보내는 구조화 결과 중 화면이 쓰는 부분 */
 export type GoalPayload = {
   action?: string
   domain?: string
   domain_is_new?: boolean
-  generated_task?: { title?: string; frequency?: Period } | null
-  matched_task?: { title?: string; frequency?: Period } | null
+  /**
+   * **배열이다.** 한 턴이 같은 칸에 담을 과제를 3개까지 낸다
+   * (`GOAL_SCHEMA.generated_tasks`). 단수 `generated_task` 를 읽으면 `undefined` 를
+   * 받고, 증상은 에러가 아니라 "제안 카드가 안 그려진다" 뿐이다.
+   */
+  generated_tasks?: GoalTask[] | null
+  /** 중복 알림. 지목이라 언제나 한 건이고, 제목·주기·횟수는 서버가 시트에서 채운다. */
+  matched_task?: GoalTask | null
   reasoning?: unknown
 }
 
@@ -75,8 +123,38 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
   const [voiceAvailable, setVoiceAvailable] = useState(false)
   const [listening, setListening] = useState(false)
   const [talkLeft, setTalkLeft] = useState(0)
+  /**
+   * `setMicrophoneEnabled` 이 오가는 동안 참. **버튼을 잠그는 데 쓴다**
+   * (`web/app.js` 의 `$('mic').disabled = true` 짝).
+   *
+   * 이 창이 열려 있는 사이의 두 번째 클릭은 `isMicrophoneEnabled` 가 아직 옛 값이라
+   * 같은 분기로 또 들어간다 — 켜는 중에 한 번 더 누르면 `startTalking` 이 두 번 돌아
+   * 타이머가 둘 생기고, 먼저 걸린 쪽이 창을 일찍 닫는다. `MISCLICK_GUARD_MS` 는
+   * **켠 뒤**의 오조작을 막는 것이라 이 구간을 덮지 못한다.
+   */
+  const [micBusy, setMicBusy] = useState(false)
 
   const roomRef = useRef<Room | null>(null)
+  /**
+   * `connect()` 가 도는 중인지. **`roomRef` 로는 이 구간을 막을 수 없다.**
+   *
+   * `roomRef.current` 는 토큰을 받아온 **뒤**에 채워지는데, 그 앞에 `await apiFetch` 가
+   * 있다. 즉 첫 호출이 토큰을 기다리는 동안 `roomRef.current` 는 아직 `null` 이라
+   * 두 번째 호출이 가드를 그냥 통과하고, **같은 identity 로 두 번 입장한다.**
+   *
+   * LiveKit 은 같은 identity 의 새 참가자가 오면 이전 것을 끊는다
+   * (`reason: DUPLICATE_IDENTITY`). 쫓겨난 쪽의 PeerConnection 이 협상 중에 무너지면서
+   * livekit-client 가 `could not establish pc connection` 을 던지므로, 증상이 **서버가
+   * 안 떠 있는 것처럼** 보인다. 실제 관측(2026-08-05):
+   *
+   *     00:37:58.385  removing duplicate participant  PA_ZzfUPyHfeBqY
+   *     00:37:58.400  removing duplicate participant  PA_dAmFDjAb9wYg   ← 15ms 뒤
+   *
+   * 두 번 부르는 것은 개발 모드의 `StrictMode`(`main.tsx`)다 — effect 를
+   * mount → cleanup → mount 로 돌린다. 운영에서도 "다시 연결" 을 빠르게 두 번 누르거나
+   * 화면을 빨리 오가면 같은 일이 난다. 그래서 StrictMode 를 끄는 것이 아니라 여기를 막는다.
+   */
+  const connectingRef = useRef(false)
   const aiLabel = useRef('AI')
   const talkTimer = useRef<number | null>(null)
   const countdownTimer = useRef<number | null>(null)
@@ -102,17 +180,31 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     countdownTimer.current = null
   }, [])
 
+  /**
+   * 화면을 떠났는지. **입장이 끝난 뒤에 확인해야 한다.**
+   *
+   * 아래 cleanup 은 `roomRef.current` 를 끊는데, 입장 도중(토큰 대기 중)에 떠나면 그
+   * 값이 아직 `null` 이라 아무것도 끊지 못한다. 그러고 나서 입장이 완료되면 **아무도
+   * 소유하지 않은 참가자가 방에 남는다.** `livekit.yaml` 의 `max_participants: 2`
+   * (사용자 1 + 에이전트 1)에 걸려 다음 입장이나 에이전트 배정이 막힐 수 있다.
+   *
+   * effect 진입에서 `false` 로 되돌리는 것이 `StrictMode` 대응이다 — 가짜 cleanup 이
+   * `true` 로 만들어 둔 것을 두 번째 mount 가 지운다.
+   */
+  const disposedRef = useRef(false)
+
   // 화면을 떠날 때 방을 끊는다. 안 끊으면 참가자가 남아 다음 접속이 방을 재사용한다.
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    disposedRef.current = false
+    return () => {
+      disposedRef.current = true
       clearTalkTimers()
       void roomRef.current?.disconnect()
-    },
-    [clearTalkTimers],
-  )
+    }
+  }, [clearTalkTimers])
 
-  const connect = useCallback(async () => {
-    if (roomRef.current) return
+  /** 실제 입장 절차. **직접 부르지 않는다** — 중복 입장을 막는 `connect()` 를 쓴다. */
+  const openRoom = useCallback(async () => {
     setConnection('busy')
     setStatus('연결 중…')
 
@@ -230,12 +322,31 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       }
     }
 
-    room.on(RoomEvent.ParticipantConnected, (participant) => {
-      push('sys', `참가자 입장: ${participant.identity}`)
+    /**
+     * 누군가 들어왔다. **입장 사실을 사용자 말로 알린다.**
+     *
+     * 예전에는 `참가자 입장: ${identity}` 였다 — 화면에 `참가자 입장:
+     * agent-AJ_Z9gKWuDmFz7u` 가 뜬다. 사용자에게 저 문자열은 아무 뜻이 없고, 정작
+     * 알아야 할 것("이제 말을 걸 수 있다")은 안 적혀 있었다.
+     *
+     * **`connection` 은 상대가 누구든 켠다.** 이 방은 사람 1 + 에이전트 1 이라
+     * (`livekit.yaml` 의 `max_participants: 2`) 들어올 수 있는 원격 참가자는 에이전트뿐인데,
+     * 그렇다고 `isAgent` 로 걸러 버리면 종류 판별이 틀리는 날 입력창이 영원히 잠긴다 —
+     * 문구만 고르고 상태는 무조건 켠다.
+     */
+    const welcome = (participant: RemoteParticipant) => {
+      push(
+        'sys',
+        isAgent(participant)
+          ? `${aiLabel.current} 가 들어왔어요 — 이제 말을 걸 수 있습니다`
+          : `참가자 입장: ${participant.identity}`,
+      )
       setConnection('on')
       setStatus('에이전트 연결됨')
       void pushSheet()
-    })
+    }
+
+    room.on(RoomEvent.ParticipantConnected, welcome)
 
     room.on(RoomEvent.Disconnected, () => {
       roomRef.current = null
@@ -260,18 +371,44 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       return
     }
 
+    // 입장하는 사이에 화면을 떠났다면 여기서 정리한다(`disposedRef` 주석). cleanup 은
+    // 이미 지나갔고 그때는 끊을 방이 없었다.
+    if (disposedRef.current) {
+      roomRef.current = null
+      void room.disconnect()
+      return
+    }
+
     setConnection('busy')
     setStatus('방 접속됨 · 에이전트 대기')
     push('sys', `방 "${info.roomId}" 에 접속했습니다`)
 
-    // 에이전트가 이미 들어와 있을 수도 있다(재접속 등). 그때는 입장 이벤트가 안 오므로
-    // 시트도 여기서 보낸다.
-    if (room.remoteParticipants.size > 0) {
-      setConnection('on')
-      setStatus('에이전트 연결됨')
-      await pushSheet()
+    // 에이전트가 이미 들어와 있을 수도 있다(재접속 등). 그때는 `ParticipantConnected` 가
+    // 안 오므로 같은 처리를 여기서 한다 — 입장 안내와 시트 전송 둘 다.
+    //
+    // **재접속이 흔하다.** 개발 중에는 HMR 이, 운영에서는 새로고침이 방을 다시 잡는데
+    // 에이전트 job 은 방 단위라 이미 들어와 있다. 이 갈래를 빼면 그 경우에만 입력창이
+    // 안 열린다.
+    for (const participant of room.remoteParticipants.values()) {
+      welcome(participant)
     }
   }, [clearTalkTimers, push])
+
+  /**
+   * 입장. **두 번 겹쳐 부를 수 없다**(`connectingRef` 주석의 DUPLICATE_IDENTITY).
+   *
+   * 깃발을 **첫 `await` 앞에서** 세우는 것이 요점이다. 뒤로 밀면 막으려던 구간이 그대로
+   * 열린다 — `openRoom()` 은 토큰을 받으러 바로 await 로 들어간다.
+   */
+  const connect = useCallback(async () => {
+    if (roomRef.current || connectingRef.current) return
+    connectingRef.current = true
+    try {
+      await openRoom()
+    } finally {
+      connectingRef.current = false
+    }
+  }, [openRoom])
 
   const disconnect = useCallback(async () => {
     await roomRef.current?.disconnect()
@@ -302,10 +439,13 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       const room = roomRef.current
       clearTalkTimers()
       setTalkLeft(0)
+      setMicBusy(true)
       try {
         await room?.localParticipant.setMicrophoneEnabled(false)
       } catch (cause) {
         push('warn', `마이크를 끄지 못했습니다: ${cause instanceof Error ? cause.message : cause}`)
+      } finally {
+        setMicBusy(false)
       }
       setListening(false)
       setCaption('')
@@ -317,6 +457,7 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
   const startTalking = useCallback(async () => {
     const room = roomRef.current
     if (!room) return
+    setMicBusy(true)
     try {
       await room.localParticipant.setMicrophoneEnabled(true)
     } catch (cause) {
@@ -324,6 +465,8 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       // getUserMedia 가 동작하지만, 다른 기기에서 열면 HTTPS 가 필요하다.
       push('warn', `마이크를 켤 수 없습니다: ${cause instanceof Error ? cause.message : cause}`)
       return
+    } finally {
+      setMicBusy(false)
     }
 
     talkStartedAt.current = Date.now()
@@ -341,7 +484,9 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
 
   const toggleTalk = useCallback(async () => {
     const room = roomRef.current
-    if (!room || !voiceAvailable) return
+    // `micBusy` 도 여기서 막는다. 버튼이 `disabled` 라도 키보드·프로그램 호출로 들어올
+    // 수 있고, 그 경로가 열려 있으면 위 `micBusy` 주석의 타이머 중복이 그대로 난다.
+    if (!room || !voiceAvailable || micBusy) return
     if (!room.localParticipant.isMicrophoneEnabled) {
       await startTalking()
       return
@@ -352,7 +497,7 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       return
     }
     await stopTalking('직접 멈춤')
-  }, [push, startTalking, stopTalking, voiceAvailable])
+  }, [micBusy, push, startTalking, stopTalking, voiceAvailable])
 
   return {
     connection,
@@ -364,6 +509,7 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     voiceAvailable,
     listening,
     talkLeft,
+    micBusy,
     connect,
     disconnect,
     sendChat,
