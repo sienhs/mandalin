@@ -60,10 +60,35 @@ const DOMAIN_COLORS = [
 ]
 const domainColor = (index) => DOMAIN_COLORS[((index % 8) + 8) % 8]
 
+//: 주기 라벨. `mandarin_goal/bot/subjects.py` 의 `FREQUENCY_LABELS` 와 같은 문자열입니다.
+//:
+//: **횟수를 라벨에 박지 않습니다.** 주간은 1~7회, 월간은 1~30회라 문자열 하나로는
+//: 표현할 수 없습니다 — 예전 `weekly: '주간 · 주 1회'` 는 주 3회짜리 과제를 주 1회로
+//: 보여 줬습니다. 횟수는 `frequencyLabel()` 이 붙입니다.
 const FREQUENCY_LABELS = {
-  daily: '일간 · 주 7회',
-  weekly: '주간 · 주 1회',
-  none: '없음 · 한 번만',
+  daily: '일간',
+  weekly: '주간',
+  monthly: '월간',
+  none: '한번만',
+}
+
+//: 고정 주기(일간·한번만)는 셀 것이 없어 문장으로 씁니다. 서버의
+//: `FREQUENCY_COUNT_SUFFIX` 와 같은 표입니다.
+const FREQUENCY_SUFFIX = {
+  daily: '하루 1회',
+  weekly: '주 {n}회',
+  monthly: '월 {n}회',
+  none: '기간 내 1회',
+}
+
+/** `weekly` + 3 → `"주간 · 주 3회"`. 횟수를 모르면 주기만 — 1 로 단정하지 않습니다. */
+function frequencyLabel(frequency, count) {
+  const label = FREQUENCY_LABELS[frequency]
+  if (!label) return null
+  const suffix = FREQUENCY_SUFFIX[frequency]
+  if (!suffix.includes('{n}')) return `${label} · ${suffix}`
+  if (count === null || count === undefined) return label
+  return `${label} · ${suffix.replace('{n}', count)}`
 }
 
 //: 마크업에 끼워 넣는 아이콘. `index.html` 의 것과 같은 규격입니다(24 그리드, 굵기 1.8).
@@ -199,7 +224,11 @@ function renderSheet() {
       // `nextLocalSubjectId()` 가 `id ?? subjectId` 를 보는 것과 같은 이유이고,
       // 한쪽만 읽으면 빈도 칩만 조용히 사라집니다(서버도 양쪽을 받습니다 —
       // `mandarin_goal/sheet.py`).
-      const freq = FREQUENCY_LABELS[subject.period ?? subject.frequency]
+      // 횟수도 두 이름입니다 — Spring 은 `countPerPeriod`, 모델 payload 는 `count`.
+      const freq = frequencyLabel(
+        subject.period ?? subject.frequency,
+        subject.countPerPeriod ?? subject.count,
+      )
       li.innerHTML =
         ICON_CHECK +
         `<span class="body"><span class="title">${escapeHtml(subject.title)}</span>` +
@@ -253,7 +282,9 @@ function renderGoal(data) {
   box.className = 'goal'
 
   const action = data.action ?? '?'
-  const task = data.generated_task ?? data.matched_task ?? null
+  // **과제는 배열입니다.** 한 턴이 같은 칸에 담을 과제를 3개까지 냅니다
+  // (`GOAL_SCHEMA.generated_tasks`). `recommend` 는 지목이라 언제나 한 건입니다.
+  const tasks = data.generated_tasks ?? (data.matched_task ? [data.matched_task] : [])
   const domain = data.domain ?? null
 
   if (domain) {
@@ -265,8 +296,9 @@ function renderGoal(data) {
     box.appendChild(label)
   }
 
-  if (task?.title) {
-    const freq = FREQUENCY_LABELS[task.frequency]
+  for (const task of tasks) {
+    if (!task?.title) continue
+    const freq = frequencyLabel(task.frequency, task.count)
     const card = document.createElement('div')
     card.className = 'sug'
     card.innerHTML =
@@ -295,7 +327,10 @@ function renderGoal(data) {
     if (action === 'generate' && domain) {
       btn.className = 'btn btn-secondary btn-sm'
       btn.textContent = `담기${data.domain_is_new ? ' (새 칸)' : ''}`
-      btn.addEventListener('click', () => keep(data, btn))
+      // **카드마다 자기 과제를 넘깁니다.** 예전에는 `keep(data, btn)` 이 payload 에서
+      // 과제를 다시 꺼냈는데, 과제가 여러 개가 된 뒤로는 어느 카드를 눌러도 첫 과제가
+      // 담깁니다 — 버튼은 비활성으로 바뀌니 사용자는 담긴 줄 압니다.
+      btn.addEventListener('click', () => keep(data, task, btn))
     } else {
       // 담을 것이 없다는 것을 알려줘야 합니다. 버튼만 없으면 사용자는 "왜 담기가
       // 안 나오지" 로 읽습니다.
@@ -342,13 +377,24 @@ function nextLocalSubjectId() {
 }
 
 // ── 담기 → 시트 갱신 → 에이전트에 통째로 재전송 ──────────────────────
-async function keep(data, btn) {
-  const title = (data.generated_task ?? data.matched_task)?.title
-  const frequency = (data.generated_task ?? data.matched_task)?.frequency ?? null
+async function keep(data, task, btn) {
+  const title = task?.title
+  const frequency = task?.frequency ?? null
+  // 횟수는 서버가 이미 주기에 맞춰 놓은 값입니다(`_settle_counts`) — 여기서 다시
+  // 판단하지 않고 그대로 싣습니다. 안 실으면 다음 턴 후보 줄에서 빠져 모델이
+  // "주 3회" 를 담아 둔 것을 모르고 같은 과제를 또 만듭니다.
+  const count = task?.count ?? null
   if (!title || !data.domain) return
 
   let domain = sheet.domains.find((d) => d.title === data.domain)
   if (!domain) {
+    // 새 칸입니다. **자리가 남았는지 먼저 봅니다** — 서버의 `_unknown_domain` 이 같은
+    // 경계(`DOMAIN_SLOTS`)를 지키지만, 그건 제안을 막는 층이고 여기는 담기를 막는
+    // 층입니다. 없으면 9번째 칸이 로컬 시트에만 생겨 다음 턴에 서버가 거부합니다.
+    if (sheet.domains.length >= DOMAIN_SLOTS) {
+      log('시스템', `세부 목표가 ${DOMAIN_SLOTS}칸으로 꽉 차 새 칸을 만들 수 없습니다`, 'warn')
+      return
+    }
     domain = { id: null, title: data.domain, subjectCount: 0, subjects: [] }
     sheet.domains.push(domain)
   }
@@ -364,7 +410,7 @@ async function keep(data, btn) {
   // 진짜 PK 는 Spring 담기 API 가 정하는 값인데 아직 없으므로 **로컬 일련번호**를
   // 씁니다 — 모델이 후보를 지목하고 서버가 같은 요청 안에서
   // 되짚어 보는 데에만 쓰이므로 이 범위에서 유일하면 충분합니다.
-  domain.subjects.push({ id: nextLocalSubjectId(), title, frequency })
+  domain.subjects.push({ id: nextLocalSubjectId(), title, frequency, count })
   domain.subjectCount = domain.subjects.length
 
   btn.disabled = true

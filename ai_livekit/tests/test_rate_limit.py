@@ -149,6 +149,88 @@ async def test_retry_after_header_is_read_as_seconds(
         await backend.aclose()
 
 
+def _quota_body(*details: dict) -> dict:
+    """Gemini 429 본문 모양. `details` 에 구조체 여러 개가 섞여 옵니다."""
+    return {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "details": list(details)}}
+
+
+RETRY_INFO = "type.googleapis.com/google.rpc.RetryInfo"
+QUOTA_FAILURE = "type.googleapis.com/google.rpc.QuotaFailure"
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        # 정상. **Gemini 는 `Retry-After` 헤더를 주지 않고 여기에 넣습니다** — 이걸
+        # 안 읽으면 호출부가 게이트웨이의 실제 값 대신 추측값만 씁니다.
+        (_quota_body({"@type": RETRY_INFO, "retryDelay": "23s"}), 23.0),
+        # protobuf Duration 은 소수를 허용합니다.
+        (_quota_body({"@type": RETRY_INFO, "retryDelay": "3.5s"}), 3.5),
+        # 실제 응답은 QuotaFailure 가 먼저 오고 RetryInfo 가 뒤에 붙습니다.
+        (
+            _quota_body(
+                {"@type": QUOTA_FAILURE, "violations": [{"quotaMetric": "generate"}]},
+                {"@type": RETRY_INFO, "retryDelay": "7s"},
+            ),
+            7.0,
+        ),
+        # RetryInfo 가 없으면 호출부 기본값으로. 429 자체는 그대로 올라갑니다.
+        (_quota_body({"@type": QUOTA_FAILURE, "violations": []}), None),
+        (_quota_body(), None),
+        ({"error": {"code": 429}}, None),
+        # 모양이 달라졌을 때 죽지 않아야 합니다 — 대기 시간을 못 읽는 것이
+        # 요청을 실패시킬 이유는 안 됩니다.
+        (_quota_body({"@type": RETRY_INFO, "retryDelay": "곧"}), None),
+        (_quota_body({"@type": RETRY_INFO}), None),
+        (_quota_body({"@type": RETRY_INFO, "retryDelay": "-5s"}), None),
+        ({"error": "문자열입니다"}, None),
+        ([], None),
+    ],
+)
+async def test_the_retry_delay_in_the_body_is_read_too(
+    body: object, expected: float | None
+) -> None:
+    backend = _backend(lambda r: httpx.Response(429, json=body))
+    try:
+        with pytest.raises(LlmRateLimitedError) as caught:
+            await backend.reply_json("s", [], {"properties": {}})
+        assert caught.value.retry_after == expected
+    finally:
+        await backend.aclose()
+
+
+async def test_the_header_wins_over_the_body() -> None:
+    """둘 다 있으면 헤더. HTTP 규격의 자리가 그쪽입니다.
+
+    `Retry-After: 0` 이 본문으로 밀리지 않는 것도 같이 봅니다 — `or` 로 이었다면
+    `0.0` 이 거짓으로 접혀 본문 값이 나옵니다. "서버가 0 이라고 했다" 와 "서버가
+    말하지 않았다" 는 다릅니다.
+    """
+    body = _quota_body({"@type": RETRY_INFO, "retryDelay": "23s"})
+    backend = _backend(
+        lambda r: httpx.Response(429, json=body, headers={"Retry-After": "0"})
+    )
+    try:
+        with pytest.raises(LlmRateLimitedError) as caught:
+            await backend.reply_json("s", [], {"properties": {}})
+        assert caught.value.retry_after == 0.0
+    finally:
+        await backend.aclose()
+
+
+async def test_a_body_that_is_not_json_does_not_mask_the_429() -> None:
+    """프록시가 HTML 오류 페이지를 주는 경우. 429 는 여전히 429 여야 합니다."""
+    backend = _backend(
+        lambda r: httpx.Response(429, text="<html>Too Many Requests</html>")
+    )
+    try:
+        with pytest.raises(LlmRateLimitedError) as caught:
+            await backend.reply_json("s", [], {"properties": {}})
+        assert caught.value.retry_after is None
+    finally:
+        await backend.aclose()
+
+
 # -- _step 층 ---------------------------------------------------------------
 
 
