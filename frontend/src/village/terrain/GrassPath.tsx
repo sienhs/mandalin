@@ -1,7 +1,7 @@
 import { Instances, Instance } from '@react-three/drei'
 import { PALETTE } from '../palette'
 import { GAP, SPAN } from '../layout'
-import { RoadStrips, intersections, useRoadScatter } from './common'
+import { RoadStrips, STRIP_LIFT, intersections, roadLayerY, useRoadScatter } from './common'
 
 /**
  * 푸른 초원의 다져진 길.
@@ -72,18 +72,35 @@ function Shrubs() {
   )
 }
 
+/**
+ * 길 스트립 스택의 바닥.
+ *
+ * <p>초원은 지형 넷 중 유일하게 스트립을 **두 겹** 쌓는다(혼합 띠 + 흙길). `RoadStrips` 는 한
+ * 번에 두 겹을 쓰므로 층 간격을 직접 적지 말고 `roadLayerY` 로 뽑는다 — 예전에는 `-0.047` ·
+ * `-0.045` 로 적어서 아래 층 가로와 위 층 세로가 둘 다 `-0.045` 에 놓였고, 길 교차점 16곳에서
+ * 초록 띠가 깜빡였다.
+ *
+ * <p>대지는 이 값보다 `STRIP_LIFT` 만큼 아래에 둔다. 같은 높이면 대지와 첫 겹이 싸운다.
+ */
+const ROAD_BASE = -0.05
+const GROUND_Y = ROAD_BASE - STRIP_LIFT
+
 export function GrassPath() {
   return (
     <group>
       {/* 초원 */}
-      <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[0, GROUND_Y, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[SPAN, SPAN]} />
         <meshStandardMaterial color={PALETTE.grass} roughness={1} />
       </mesh>
 
       {/* 흙길을 좁게 내고 그 밖으로 잔디와 섞이는 띠를 한 겹 더 깔아 경계를 흐린다 */}
-      <RoadStrips y={-0.047} width={ROAD_W * 1.5} color={PALETTE.grass.clone().lerp(PALETTE.path, 0.35)} />
-      <RoadStrips y={-0.045} width={ROAD_W} color={PALETTE.path} />
+      <RoadStrips
+        y={roadLayerY(ROAD_BASE, 0)}
+        width={ROAD_W * 1.5}
+        color={PALETTE.grass.clone().lerp(PALETTE.path, 0.35)}
+      />
+      <RoadStrips y={roadLayerY(ROAD_BASE, 1)} width={ROAD_W} color={PALETTE.path} />
 
       <SteppingStones />
       <Wildflowers />

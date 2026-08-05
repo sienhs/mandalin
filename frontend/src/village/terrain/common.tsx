@@ -13,9 +13,37 @@ export interface StripProps {
 }
 
 /**
+ * `RoadStrips` 한 번이 점유하는 y 두께.
+ *
+ * <p>가로·세로 스트립은 교차점에서 겹치는데, 같은 높이에 두면 깊이 테스트가 승자를 정하지
+ * 못해 카메라를 돌릴 때마다 깜빡인다(z-fighting). 그래서 가로만 이만큼 올린다.
+ *
+ * <p><b>그래서 `RoadStrips(y)` 는 y 한 겹이 아니라 `[y, y + STRIP_LIFT]` 두 겹을 쓴다.</b>
+ * 층을 쌓을 때는 이 사실을 알아야 해서 상수로 내보낸다 — {@link roadLayerY} 를 쓰면 직접
+ * 계산하지 않아도 된다.
+ */
+export const STRIP_LIFT = 0.002
+
+/**
+ * 길 스트립을 여러 겹 쌓을 때 각 층에 줄 y.
+ *
+ * <p>층을 손으로 적으면 `RoadStrips` 가 두 겹을 쓴다는 것을 모른 채 `STRIP_LIFT` 간격으로
+ * 적게 되고, 그러면 <b>아래 층의 가로와 위 층의 세로가 정확히 같은 높이</b>에 놓여 깜빡인다.
+ * 초원이 실제로 그랬다 — `-0.047` 과 `-0.045` 로 두 번 불러서 둘 다 `-0.045` 에 면을 놓았고,
+ * 길 교차점 16곳에서 초록 띠가 깨져 보였다.
+ *
+ * @param base 가장 아래 층의 y. 지형 대지보다 최소 `STRIP_LIFT` 위여야 한다.
+ * @param index 0 부터. 0 이 가장 아래 층.
+ */
+export function roadLayerY(base: number, index: number): number {
+  return base + index * STRIP_LIFT * 2
+}
+
+/**
  * 가로·세로 길 스트립.
- * 교차점은 두 겹으로 겹치는데 같은 색이라 티가 안 나고, 세로줄을 아주 살짝 위에 둬서
- * 같은 높이 두 면이 깜빡이는(z-fighting) 것만 막는다.
+ *
+ * <p>⚠️ 이 컴포넌트는 y 를 <b>두 겹</b> 쓴다 — `[y, y + STRIP_LIFT]`. 여러 겹을 쌓으려면
+ * {@link roadLayerY} 로 y 를 뽑을 것. 겹 간격을 `STRIP_LIFT` 로 잡으면 층끼리 면이 겹친다.
  */
 export function RoadStrips({ y, width, color, roughness = 1 }: StripProps) {
   return (
@@ -27,7 +55,12 @@ export function RoadStrips({ y, width, color, roughness = 1 }: StripProps) {
         </mesh>
       ))}
       {ALL_ROAD_CENTERS.map((c) => (
-        <mesh key={`h${c}`} position={[0, y + 0.002, c]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <mesh
+          key={`h${c}`}
+          position={[0, y + STRIP_LIFT, c]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+        >
           <planeGeometry args={[SPAN, width]} />
           <meshStandardMaterial color={color} roughness={roughness} />
         </mesh>
