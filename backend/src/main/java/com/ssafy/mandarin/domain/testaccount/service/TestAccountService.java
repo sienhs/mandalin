@@ -96,6 +96,20 @@ public class TestAccountService {
 	private static final int UNLOCKED_PER_THEME = 9;
 
 	/**
+	 * 구역(세부 목표) 순서대로 입힐 테마.
+	 *
+	 * <p>여덟 개다 — 구역이 여덟이고 한 구역이 한 테마를 쓴다. 값은 카탈로그
+	 * ({@code resources/catalog/buildings.json})의 {@code theme} 와 같아야 한다. 이름이 어긋나면
+	 * 그 구역만 기본 스킨이 되므로 {@link #placements} 가 로그를 남긴다.
+	 *
+	 * <p>서로 확실히 달라 보이는 것들로 골랐다(벚꽃·사이버·서울·서부·중세·산토리니·SF·열대).
+	 * 남은 다섯 종(BASIC·노르딕·스팀펑크·이집트·아르데코)도 인벤토리에 있으니 직접 바꿔 볼 수
+	 * 있다.
+	 */
+	private static final List<String> VILLAGE_THEMES = List.of(
+			"SAKURA", "CYBER", "SEOUL", "WEST", "MEDIEVAL", "SANTORINI", "SCIFI", "TROPICAL");
+
+	/**
 	 * 심은 과제를 며칠 전에 손댄 것으로 둘지.
 	 *
 	 * <p>주간 과제의 기준이 이번 주 월~일이라, 이번 주 밖으로 나가려면 최대 7일이 필요하다.
@@ -295,13 +309,20 @@ public class TestAccountService {
 	}
 
 	/**
-	 * 미리 세워 둘 건물.
+	 * 미리 세워 둘 건물 — <b>한 구역은 한 테마로, 구역끼리는 다른 테마로</b> 깐다.
 	 *
-	 * <p><b>일부만 세운다.</b> 전 칸을 채우면 "마을을 꾸민다" 를 해 볼 자리가 없고, 하나도 안
-	 * 세우면 기본 스킨만 늘어선 마을이 되어 배치 기능이 있는지조차 모른다. 정중앙 랜드마크와
-	 * 진행률이 높은 두 구역만 채우고 나머지 60여 칸은 비워 둔다.
+	 * <p>구역 안에서 테마를 섞으면 마을이 잡화점처럼 보인다. 반대로 마을 전체를 한 테마로 깔면
+	 * 테마마다 모양이 어떻게 다른지 한 화면에서 비교할 수 없다. 구역이 곧 세부 목표라 경계도
+	 * 뚜렷해서, 구역 단위로 테마를 나누면 둘을 같이 얻는다 — 여덟 구역이 여덟 동네가 된다.
+	 *
+	 * <p>구역 안 여덟 칸에는 <b>같은 테마의 서로 다른 건물</b>을 세운다. 같은 건물 여덟 채를
+	 * 세우면 성장 단계 차이만 남고 모양이 한 종류가 된다.
+	 *
+	 * <p>바꿀 자리는 남는다. 세워 둔 건물은 언제든 다른 것으로 교체할 수 있고, 인벤토리에는
+	 * 여기서 쓰지 않은 테마가 다섯 종 더 있다.
 	 *
 	 * <p>진행률 0인 시트에는 아무것도 세우지 않는다 — 갓 만든 마을의 첫인상을 그대로 봐야 한다.
+	 * (진행률이 0이면 건물이 어차피 빈 땅으로 그려진다.)
 	 */
 	private List<SheetCreateRequest.ItemSpotCreateRequest> placements(
 			TestSheetBlueprint.SheetSpec spec, List<UserBuilding> unlocked) {
@@ -315,51 +336,61 @@ public class TestAccountService {
 		List<SheetCreateRequest.ItemSpotCreateRequest> spots = new ArrayList<>();
 
 		// 정중앙(랜드마크 구역)에는 랜드마크만 설 수 있다.
-		ownedOf(unlocked, BuildingType.LANDMARK, 0).ifPresent(landmark ->
-				spots.add(SheetCreateRequest.ItemSpotCreateRequest.builder()
-						.domainPosition(MandalartGrid.CENTER)
-						.itemPosition(MandalartGrid.CENTER)
-						.invenId(landmark)
-						.build()));
+		landmarkInvenId(unlocked).ifPresent(landmark ->
+				spots.add(spot(MandalartGrid.CENTER, MandalartGrid.CENTER, landmark)));
 
-		/*
-		 * 진행률이 높은 두 구역(만다라트 번호 0·1)의 과제 칸에 서로 다른 테마를 섞어 세운다.
-		 * 한 테마로만 채우면 테마 렌더링 차이를 눈으로 비교할 수 없다.
-		 */
-		int picked = 0;
-		for (int domainIndex = 0; domainIndex <= 1; domainIndex++) {
-			Integer gridDomain = MandalartGrid.toGrid(domainIndex);
-			for (int taskIndex = 0; taskIndex < 3; taskIndex++) {
-				Integer gridItem = MandalartGrid.toGrid(taskIndex);
-				int offset = picked++;
-				ownedOf(unlocked, BuildingType.NORMAL, offset * UNLOCKED_PER_THEME).ifPresent(building ->
-						spots.add(SheetCreateRequest.ItemSpotCreateRequest.builder()
-								.domainPosition(gridDomain)
-								.itemPosition(gridItem)
-								.invenId(building)
-								.build()));
+		Map<String, List<Long>> byTheme = normalInvenIdsByTheme(unlocked);
+
+		for (int domainIndex = 0; domainIndex < MandalartGrid.SLOTS; domainIndex++) {
+			String theme = VILLAGE_THEMES.get(domainIndex % VILLAGE_THEMES.size());
+			List<Long> pool = byTheme.getOrDefault(theme, List.of());
+			if (pool.isEmpty()) {
+				// 카탈로그에서 테마 이름이 바뀌면 조용히 기본 스킨이 된다. 로그로 드러낸다.
+				log.warn("[test-account] 테마 {} 의 보유 건물이 없어 {}번 구역을 비워 둔다", theme, domainIndex);
+				continue;
+			}
+
+			for (int taskIndex = 0; taskIndex < MandalartGrid.SLOTS; taskIndex++) {
+				spots.add(spot(
+						MandalartGrid.toGrid(domainIndex),
+						MandalartGrid.toGrid(taskIndex),
+						pool.get(taskIndex % pool.size())));
 			}
 		}
 
 		return spots;
 	}
 
-	/**
-	 * 지급한 인벤토리에서 종류가 맞는 것을 하나 고른다.
-	 *
-	 * <p>{@code skip} 은 테마를 흩기 위한 것이다 — 지급 목록이 진열 순서라서 테마별로 뭉쳐 있고,
-	 * 테마 크기만큼 건너뛰면 매번 다른 테마가 잡힌다.
-	 */
-	private Optional<Long> ownedOf(List<UserBuilding> unlocked, BuildingType type, int skip) {
-		List<UserBuilding> candidates = unlocked.stream()
-				.filter(owned -> owned.getBuildingItem().getType() == type)
-				.sorted(Comparator.comparingInt((UserBuilding owned) -> owned.getBuildingItem().getSortOrder()))
-				.toList();
+	private SheetCreateRequest.ItemSpotCreateRequest spot(int gridDomain, int gridItem, Long invenId) {
+		return SheetCreateRequest.ItemSpotCreateRequest.builder()
+				.domainPosition(gridDomain)
+				.itemPosition(gridItem)
+				.invenId(invenId)
+				.build();
+	}
 
-		if (candidates.isEmpty()) {
-			return Optional.empty();
-		}
-		return Optional.of(candidates.get(skip % candidates.size()).getId());
+	/**
+	 * 테마별 일반 건물의 인벤토리 아이디.
+	 *
+	 * <p>진열 순서({@code sortOrder})로 정렬해 둔다. 무작위로 고르면 계정마다 마을 모양이 달라져
+	 * "셋이 모두 같은 상태" 가 깨진다.
+	 */
+	private Map<String, List<Long>> normalInvenIdsByTheme(List<UserBuilding> unlocked) {
+		Map<String, List<Long>> byTheme = new LinkedHashMap<>();
+		unlocked.stream()
+				.filter(owned -> owned.getBuildingItem().getType() == BuildingType.NORMAL)
+				.sorted(Comparator.comparingInt((UserBuilding owned) -> owned.getBuildingItem().getSortOrder()))
+				.forEach(owned -> byTheme
+						.computeIfAbsent(owned.getBuildingItem().getTheme(), key -> new ArrayList<>())
+						.add(owned.getId()));
+		return byTheme;
+	}
+
+	private Optional<Long> landmarkInvenId(List<UserBuilding> unlocked) {
+		return unlocked.stream()
+				.filter(owned -> owned.getBuildingItem().getType() == BuildingType.LANDMARK)
+				.min(Comparator.comparingInt(owned -> owned.getBuildingItem().getSortOrder()))
+				.map(UserBuilding::getId);
 	}
 
 	/**
