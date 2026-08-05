@@ -6,7 +6,9 @@ import { at, around, mirrorX, podium } from './_helpers'
  *
  * 모티브: 격자 철탑(에펠), 삼엽 초고층(부르즈), 항만 오페라하우스(시드니),
  *         대피라미드 군(기자).
- * 높이로 승부하는 종류라 다른 랜드마크보다 y 상한이 높다(최고 ~5.6 ref ≈ 월드 13).
+ * 높이로 승부하는 종류라 다른 랜드마크보다 y 상한이 높다 — 삼엽 초고층이 6.83 ref,
+ * `BUILD_SCALE`(2.4)를 곱해 월드 약 16 이다. 폭 상한(`LANDMARK_REF` 3.0)과 달리 높이에는
+ * 상한이 없다. 옆 블록을 덮지 않으므로 `check:landmarks` 도 높이는 재기만 한다.
  */
 
 const IRON = '#6E5A46'
@@ -77,9 +79,16 @@ export const TOWER_LANDMARKS = {
         { k: 'box', w: 1.9, h: 0.02, d: 0.46, z: 1.24, y: 0.05, color: LAWN, rough: 1 },
         { k: 'panel', w: 0.7, h: 0.14, pos: [0, 1.0, 0.76], color: CAP_GOLD, glow: 0.25 },
       ]),
-      // 8단계 — 안테나·항공장애등 + 야간 조명
+      // 8단계 — 첨탑 마감 + 안테나·항공장애등 + 야간 조명
       ...at(8, [
-        { k: 'antenna', y: 5.07, h: 0.5 },
+        /*
+          첨탑 최상단 마감. **이 단계에 실루엣을 만드는 부품이 하나는 있어야 한다** —
+          나머지가 전부 `antenna`·`panel`(= DETAIL_KINDS)이라, 디테일을 끄고 그리는
+          작은 미리보기(`VillagePreview` 의 details=false)에서 7단계와 완전히 같은 그림이
+          나왔다. 만다라트를 다 채운 순간이 안 보이는 셈이다.
+        */
+        { k: 'cyl', rt: 0.028, rb: 0.075, h: 0.22, y: 5.07, color: IRON2, seg: 6 },
+        { k: 'antenna', y: 5.29, h: 0.5 },
         { k: 'panel', w: 0.3, h: 0.3, pos: [0, 1.28, 0.66], color: 'glassWarm', glow: 0.6 },
         ...around(8, 0.9, 0.9, (x, z) => ({
           k: 'panel', w: 0.12, h: 0.12, pos: [x, 0.3, z], color: 'accent', glow: 0.9,
@@ -141,9 +150,12 @@ export const TOWER_LANDMARKS = {
           k: 'box', w: 0.1, h: 0.22, d: 0.1, x, z, y: 0.05, color: 'bush', rough: 1,
         })),
       ]),
-      // 8단계 — 항공등·분수 조명 + 야간 커튼월 발광
+      // 8단계 — 스파이어 왕관 + 항공등·분수 조명 + 야간 커튼월 발광
       ...at(8, [
-        { k: 'antenna', y: 6.2, h: 0.4 },
+        // 스파이어 최상단 왕관. 격자 철탑과 같은 이유로 둔다 — 이 단계에 비디테일 부품이
+        // 없으면 details=false 로 그리는 미리보기에서 7단계와 구별되지 않는다.
+        { k: 'cyl', rt: 0.014, rb: 0.055, h: 0.2, y: 6.2, color: SKY_STEEL, seg: 8 },
+        { k: 'antenna', y: 6.4, h: 0.4 },
         ...around(3, 0.52, 0.52, (x, z) => ({
           k: 'panel', w: 0.3, h: 1.0, pos: [x, 1.0, z], color: SKY_GLASS, glow: 0.55,
         })),

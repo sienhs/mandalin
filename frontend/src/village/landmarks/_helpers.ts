@@ -61,11 +61,57 @@ export function archRing(
   }))
 }
 
-/** x 부호를 반전한 사본을 덧붙인다(좌우 대칭 매스). x 를 쓰는 부품만 대상. */
+/**
+ * `mirrorX` 가 아무것도 못 뒤집은 호출의 기록.
+ *
+ * **console.warn 이 아니라 배열인 이유:** config 는 모듈이 적재되는 순간 만들어지고, 정적
+ * import 는 검사 스크립트의 본문보다 먼저 실행된다. 그래서 스크립트가 console 을 가로채려
+ * 하면 이미 늦어 있다(`check-landmarks.mjs` 가 `export-catalog.mjs` 를 통해 config 를 먼저
+ * 끌어온다). 남겨 둔 배열은 언제 읽어도 남아 있다.
+ */
+export const MIRROR_NOOPS: string[] = []
+
+/**
+ * x 부호를 반전한 사본을 덧붙인다(좌우 대칭 매스).
+ *
+ * **좌표가 `x` 인 부품과 `pos` 인 부품을 모두 다룬다.** 예전에는 `x` 만 봤는데, `panel` ·
+ * `shell` · `floodlight` · `parasol` 은 좌표를 `pos` 에 담아서 조용히 걸러졌다 — 개선문 광장의
+ * 측면 부조가 오른쪽에만 붙어 있었고(`civic.ts` 7단계) 예외도 경고도 없었다.
+ *
+ * 회전(`rotY`·`rot`)도 같이 뒤집는다. 안 뒤집으면 거울상이 아니라 **같은 방향으로 돌아간
+ * 사본**이 나와서, 아치나 쉘처럼 앞뒤가 있는 부품이 한쪽만 이상하게 보인다.
+ *
+ * 뒤집을 것이 하나도 없으면 경고한다. `mirrorX` 를 부른 것 자체가 "짝을 만들어 달라"는
+ * 뜻이라, 결과가 입력과 같다면 부르는 쪽이 좌표를 안 준 것이다 —
+ * `npm run check:landmarks` 가 이 경고를 실패로 잡는다.
+ */
 export function mirrorX(parts: Part[]): Part[] {
-  const flipped = parts
-    .filter((p) => 'x' in p && typeof p.x === 'number' && p.x !== 0)
-    .map((p) => ({ ...p, x: -(p as { x: number }).x }) as Part)
+  const flipped: Part[] = []
+
+  for (const p of parts) {
+    // 회전이 있으면 같이 반전한다. 없는 부품에 키를 새로 만들지 않도록 조건부로 넣는다.
+    const spin: Record<string, number> = {}
+    if ('rotY' in p && typeof p.rotY === 'number' && p.rotY !== 0) spin.rotY = -p.rotY
+    if ('rot' in p && typeof p.rot === 'number' && p.rot !== 0) spin.rot = -p.rot
+
+    if ('x' in p && typeof p.x === 'number' && p.x !== 0) {
+      flipped.push({ ...p, ...spin, x: -p.x } as Part)
+      continue
+    }
+    if ('pos' in p && Array.isArray(p.pos) && p.pos[0] !== 0) {
+      flipped.push({ ...p, ...spin, pos: [-p.pos[0], p.pos[1], p.pos[2]] } as Part)
+    }
+  }
+
+  if (flipped.length === 0) {
+    const message =
+      `mirrorX 가 아무것도 못 뒤집었다 — x 도 pos[0] 도 없거나 0 이다: ` +
+      parts.map((p) => p.k).join(', ')
+    MIRROR_NOOPS.push(message)
+    // 브라우저에서 만졌을 때도 바로 보이게 같이 남긴다. 검사의 근거는 위 배열이다.
+    console.warn(`[landmarks] ${message}`)
+  }
+
   return [...parts, ...flipped]
 }
 
