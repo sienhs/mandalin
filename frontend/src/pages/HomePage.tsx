@@ -183,13 +183,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/*
-        두 카드는 높이를 맞춘다(그리드 기본 stretch). 대신 <b>할 일 목록이 남는 공간을
-        직접 채우게</b> 해서 여백이 생기지 않도록 한다 — 목록 높이를 고정해 두면 카드만
-        늘어나고 아래가 텅 비는데, 앞서 그 문제로 items-start 를 썼다가 이번엔 두 카드
-        높이가 어긋났다. 늘어나는 쪽을 목록으로 바꾸면 둘 다 해결된다.
-      */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      {/* 열 너비만 공유하고 각 카드는 내용 높이를 유지한다. */}
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         {/* ───────── 오늘의 할 일 ───────── */}
         <section className="card animate-rise flex flex-col p-6" style={{ animationDelay: '.06s' }}>
           <div className="flex items-start justify-between gap-3">
@@ -214,25 +209,8 @@ export default function Home() {
               }
             />
           ) : (
-            /*
-              <b>마을 카드가 높이의 기준이고, 이 목록이 거기에 맞춘다.</b>
-
-              앞서 `flex-1 + minHeight` 로 뒀더니 반대가 됐다 — 할 일이 많으면 목록이
-              길어지고, 그리드는 더 큰 쪽에 맞추므로 마을 카드가 따라 늘어났다.
-              flex-1 만으로는 못 막는다. 그리드 행 높이는 각 칸의 <i>내용</i> 높이로
-              정해지는데, flex 자식은 flex-basis 가 0 이어도 내용 높이를 그대로 보태기
-              때문이다.
-
-              그래서 목록을 <b>absolute</b> 로 띄운다. 절대 위치는 부모 높이 계산에서
-              아예 빠지므로, 이 카드의 내용 높이는 '머리말 + 버튼'뿐이 된다.
-              늘 마을 카드가 더 커서 행 높이를 정하고, 목록은 남는 만큼만 차지한 뒤
-              넘치면 안에서 스크롤한다.
-
-              창을 1024px 아래로 좁히면 한 컬럼이 되어 옆에 기준이 될 카드가 없어진다.
-              그때는 342px(5줄)로 고정한다 — 절대 위치라 그냥 두면 높이가 0이 되어
-              할 일이 통째로 사라진다.
-            */
-            <div className="relative mt-5 h-[342px] lg:h-auto lg:min-h-0 lg:flex-1">
+            /* 다섯 줄 높이를 유지하고, 나머지 항목은 카드 안에서 스크롤한다. */
+            <div className="relative mt-5 h-[342px]">
               <ul className="no-scrollbar absolute inset-0 m-0 flex list-none flex-col gap-2 overflow-y-auto p-0">
                 {rows.map((row) => {
                   const color = domainColor(row.domainPosition)
@@ -323,14 +301,6 @@ export default function Home() {
             </div>
           )}
 
-          <div className="mt-5 grid shrink-0 gap-2">
-            <Button to="/app/coach" variant="secondary" full>
-              <IconSparkle className="size-[18px]" /> AI 코치에게 과제 받기
-            </Button>
-            <Button to="/app/sheets/new" variant="quiet" full>
-              새 만다라트 만들기
-            </Button>
-          </div>
         </section>
 
         {/* ───────── 내 마을 ───────── */}
@@ -400,8 +370,6 @@ export default function Home() {
 
               완충을 둔 이유는 요약 카드가 이름 길이나 문구 줄바꿈에 따라 조금씩
               높아지기 때문이다. 딱 맞게 계산하면 그때마다 버튼이 잘린다.
-
-              이 카드가 행 높이를 정하므로, 옆 할 일 카드도 같은 높이로 따라온다.
             */}
             <VillagePreview
               sheet={sheet}
@@ -416,12 +384,6 @@ export default function Home() {
             <Button to={`/app/sheets/${sheet.id}`} size="sm" variant="secondary">
               만다라트 열기
             </Button>
-            <Link
-              to="/app/report"
-              className="muted ml-auto text-[12.5px] font-bold no-underline hover:text-brand-600"
-            >
-              이번 주 리포트 →
-            </Link>
           </div>
         </section>
       </div>
