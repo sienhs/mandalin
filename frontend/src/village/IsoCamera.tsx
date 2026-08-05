@@ -284,10 +284,45 @@ export function IsoCamera({ handleRef, onFacingChange, initialZoom = DEFAULT_ZOO
   // 세로로 담으려면 이만큼, 가로로 담으려면 이만큼 — 둘 중 큰 값을 쓴다.
   const half = Math.max(WORLD_HEIGHT / 2, WORLD_WIDTH / 2 / aspect)
 
+  /*
+    절두체를 매번 네 값 전부 다시 쓰고 투영행렬을 직접 갱신한다.
+
+    **prop 으로만 넘기면 안 된다.** R3F 는 바뀐 prop 만 카메라에 반영하는데(applyProps 가
+    diff 한다), `half` 는 aspect 가 1.238 이상이면 항상 WORLD_HEIGHT/2 로 고정이라
+    `top`·`bottom` 이 "안 바뀐 prop" 이 된다. 그래서 창 비율만 달라지면 left·right 만
+    갱신되고 top·bottom 은 그 순간 카메라에 남아 있던 값을 그대로 쓴다.
+
+    그 남아 있던 값이 문제였다. `manual` 이 없으면 R3F 가 리사이즈마다 네 값을 **픽셀
+    단위**로 덮어쓰는데(updateCamera: left=-width/2, top=height/2 …), 그 뒤 left·right 만
+    월드 값으로 바뀌면 **가로는 월드(±26) 세로는 픽셀(±557)** 인 절두체가 된다. 세로 범위가
+    20배 넓으니 마을이 가로로만 늘어난 얇은 띠로 짜부라진다. Ctrl+휠(브라우저 확대)에서
+    유독 잘 드러난 것은 그때 aspect 와 devicePixelRatio 가 같이 흔들리기 때문이다.
+
+    그래서 두 가지를 같이 한다.
+      1. `manual` — R3F 가 절두체에 손대지 않게 한다(updateCamera 가 즉시 반환한다).
+      2. 여기서 네 값을 전부 쓰고 updateProjectionMatrix 를 부른다. `manual` 이면 drei 도
+         갱신을 건너뛰므로(OrthographicCamera.js) 부를 사람이 우리뿐이다.
+  */
+  useLayoutEffect(() => {
+    const camera = cameraRef.current
+    if (!camera || !ready) return
+
+    camera.left = -half * aspect
+    camera.right = half * aspect
+    camera.top = half
+    camera.bottom = -half
+    camera.updateProjectionMatrix()
+  }, [ready, half, aspect])
+
   return (
     <OrthographicCamera
       ref={cameraRef}
       makeDefault
+      /*
+        절두체는 위 useLayoutEffect 가 소유한다. R3F 가 픽셀 단위로 덮어쓰면 월드 좌표와
+        섞여 화면이 짜부라진다.
+      */
+      manual
       left={-half * aspect}
       right={half * aspect}
       top={half}
