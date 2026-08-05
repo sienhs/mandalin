@@ -25,6 +25,8 @@ function SheetCard({
   detail: Sheet | undefined
   onDelete: () => void
 }) {
+  const progress = sheet.progress ?? sheet.achievementRate
+
   return (
     <article className="card group relative flex flex-col overflow-hidden transition-transform duration-300 hover:-translate-y-1">
       <Link
@@ -51,7 +53,7 @@ function SheetCard({
               <Badge tone={sheet.isOpen ? 'brand' : 'neutral'}>
                 {sheet.isOpen ? '공개' : '비공개'}
               </Badge>
-              {sheet.achievementRate >= 100 && <Badge tone="success">완성</Badge>}
+              {progress >= 100 && <Badge tone="success">완성</Badge>}
             </div>
             <h3 className="m-0 mt-2 truncate text-[15.5px] font-extrabold tracking-[-0.03em]">
               {sheet.title}
@@ -66,11 +68,11 @@ function SheetCard({
           <div className="mb-2 flex items-baseline justify-between">
             <span className="muted text-[11.5px] font-bold">달성률</span>
             <strong className="text-[15px] font-black tabular-nums">
-              {sheet.achievementRate}%
+              {progress}%
             </strong>
           </div>
           <ProgressBar
-            value={sheet.achievementRate}
+            value={progress}
             color={domainColor(0)}
             label={`${sheet.title} 달성률`}
           />
