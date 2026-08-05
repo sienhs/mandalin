@@ -186,6 +186,18 @@ export default function MandalartGrid({
         // 중앙 핵심 목표·세부 목표 칸은 잠겨 있어도 색을 흐리지 않는다.
         const visuallyLocked =
           locked && (cell.ref.kind === 'subject' || cell.ref.kind === 'empty')
+        const lockedTitle =
+          cell.ref.kind === 'domain'
+            ? '핵심 목표를 먼저 작성해주세요.'
+            : '세부 목표를 먼저 작성해주세요.'
+        const title = locked ? lockedTitle : !mini && filled ? cell.label : undefined
+        const background = cell.isCore
+          ? 'linear-gradient(140deg, var(--color-brand-500), var(--color-brand-700))'
+          : cell.isBlockCenter
+            ? color
+            : cell.ref.kind === 'domain' || filled
+              ? `color-mix(in oklab, ${color}, var(--surface-card) 84%)`
+              : 'var(--surface-sunken)'
 
         /*
           강조 테두리 색. 배경이 진한 칸(핵심 목표·블록 중앙)에 같은 색 테두리를 그리면
@@ -202,15 +214,7 @@ export default function MandalartGrid({
               칸이 좁아 글자가 세 줄에서 잘린다(line-clamp-3). 예전에는 hover 확대가 그걸
               메우는 역할을 겸했는데, 확대를 걷어냈으므로 전체 문구는 툴팁으로 보여 준다.
             */
-            title={
-              locked
-                ? cell.ref.kind === 'domain'
-                  ? '핵심 목표를 먼저 작성해주세요.'
-                  : '세부 목표를 먼저 작성해주세요.'
-                : !mini && filled
-                  ? cell.label
-                  : undefined
-            }
+            title={title}
             aria-label={
               cell.isCore
                 ? `핵심 목표 ${cell.label}`
@@ -241,15 +245,7 @@ export default function MandalartGrid({
             )}
             style={{
               ['--cell-ring' as string]: ring,
-              background: cell.isCore
-                ? 'linear-gradient(140deg, var(--color-brand-500), var(--color-brand-700))'
-                : cell.isBlockCenter
-                  ? color
-                  : cell.ref.kind === 'domain'
-                    ? `color-mix(in oklab, ${color}, var(--surface-card) 84%)`
-                  : filled
-                    ? `color-mix(in oklab, ${color}, var(--surface-card) 84%)`
-                    : 'var(--surface-sunken)',
+              background,
               /* 선택된 칸은 hover 보다 굵게. inline 이라 hover 클래스를 덮는다 — 의도한 우선순위다. */
               boxShadow: active ? `inset 0 0 0 3px ${ring}` : undefined,
             }}

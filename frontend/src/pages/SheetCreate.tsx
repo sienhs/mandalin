@@ -404,6 +404,34 @@ function SubjectRow({
   )
 }
 
+type SettingsRowProps = {
+  label: string
+  hint: string
+  children: ReactNode
+  htmlFor?: string
+}
+
+/** 기본 설정의 라벨·컨트롤·안내 문구 간격을 동일하게 유지한다. */
+function SettingsRow({ label, hint, children, htmlFor }: SettingsRowProps) {
+  const labelClassName = 'w-16 shrink-0 text-[12.5px] font-bold text-[var(--text-muted)]'
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-4">
+        {htmlFor ? (
+          <label htmlFor={htmlFor} className={labelClassName}>
+            {label}
+          </label>
+        ) : (
+          <span className={labelClassName}>{label}</span>
+        )}
+        <div className="w-[190px] shrink-0">{children}</div>
+      </div>
+      <span className="text-[11.5px] font-medium text-[var(--text-muted)]">{hint}</span>
+    </div>
+  )
+}
+
 export default function SheetCreate() {
   const { createSheet } = useStore()
   const navigate = useNavigate()
@@ -1134,50 +1162,31 @@ export default function SheetCreate() {
             >
               <div className="overflow-hidden">
                 <div className="mt-4 flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-4">
-                      <label
-                        htmlFor="sheet-expired-at"
-                        className="w-16 shrink-0 text-[12.5px] font-bold text-[var(--text-muted)]"
-                      >
-                        마감일
-                      </label>
-                      <div className="w-[190px] shrink-0">
-                        <Input
-                          id="sheet-expired-at"
-                          type="date"
-                          value={expiredAt}
-                          min={TODAY}
-                          onChange={(e) => setExpiredAt(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-[11.5px] font-medium text-[var(--text-muted)]">
-                      이 날짜까지를 한 주기로 봅니다.
-                    </span>
-                  </div>
+                  <SettingsRow
+                    label="마감일"
+                    hint="이 날짜까지를 한 주기로 봅니다."
+                    htmlFor="sheet-expired-at"
+                  >
+                    <Input
+                      id="sheet-expired-at"
+                      type="date"
+                      value={expiredAt}
+                      min={TODAY}
+                      onChange={(e) => setExpiredAt(e.target.value)}
+                    />
+                  </SettingsRow>
 
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-4">
-                      <span className="w-16 shrink-0 text-[12.5px] font-bold text-[var(--text-muted)]">
-                        공개 여부
-                      </span>
-                      <div className="flex w-[190px] items-center">
-                        <Segmented
-                          className="w-full [&>button]:min-w-0 [&>button]:flex-1 [&>button]:px-0"
-                          value={isOpen ? 'public' : 'private'}
-                          onChange={(v) => setIsOpen(v === 'public')}
-                          options={[
-                            { value: 'public', label: '공개' },
-                            { value: 'private', label: '비공개' },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-[11.5px] font-medium text-[var(--text-muted)]">
-                      나중에 변경 가능합니다.
-                    </span>
-                  </div>
+                  <SettingsRow label="공개 여부" hint="나중에 변경 가능합니다.">
+                    <Segmented
+                      className="w-full [&>button]:min-w-0 [&>button]:flex-1 [&>button]:px-0"
+                      value={isOpen ? 'public' : 'private'}
+                      onChange={(v) => setIsOpen(v === 'public')}
+                      options={[
+                        { value: 'public', label: '공개' },
+                        { value: 'private', label: '비공개' },
+                      ]}
+                    />
+                  </SettingsRow>
                 </div>
               </div>
             </div>
