@@ -37,19 +37,27 @@ const DETAIL_PERIOD_LABEL: Record<Period, string> = {
  */
 function lockedReason(sub: Subject): string | null {
   if (sub.isDone) return '목표를 다 채운 과제입니다'
-
-  // 서버의 canExecute 값과 조합이 어긋나더라도 하루 중복 수행은 화면에서 먼저 막는다.
   if (sub.isDoneToday) return '오늘 이미 수행한 과제입니다'
-  if (sub.canExecute) return null
-
-  const byPeriod: Record<Period, string> = {
-    DAILY: '오늘 이미 수행한 과제입니다',
-    WEEKLY: '이번 주에 목표 횟수를 채웠어요',
-    MONTHLY: '이번 달에 목표 횟수를 채웠어요',
-    NONE: '이미 수행한 과제입니다',
+  if (sub.isDonePeriod) {
+    const byPeriod: Record<Period, string> = {
+      DAILY: '오늘 이미 수행한 과제입니다',
+      WEEKLY: '이번 주에 목표 횟수를 채웠어요',
+      MONTHLY: '이번 달에 목표 횟수를 채웠어요',
+      NONE: '이미 수행한 과제입니다',
+    }
+    return byPeriod[sub.period] ?? '주기별 목표를 달성했습니다'
+  }
+  if (!sub.canExecute) {
+    const byPeriod: Record<Period, string> = {
+      DAILY: '오늘 이미 수행한 과제입니다',
+      WEEKLY: '이번 주에 목표 횟수를 채웠어요',
+      MONTHLY: '이번 달에 목표 횟수를 채웠어요',
+      NONE: '이미 수행한 과제입니다',
+    }
+    return byPeriod[sub.period] ?? '이미 수행한 과제입니다'
   }
 
-  return byPeriod[sub.period]
+  return null
 }
 
 export default function SheetDetail({ readOnly = false }: Props) {
@@ -115,7 +123,35 @@ export default function SheetDetail({ readOnly = false }: Props) {
     setPending(subjectId)
     try {
       const ok = await completeSubjects(sheet.id, [subjectId])
-      if (ok) await reload()
+      if (ok) {
+        setSheet((prev) => {
+          if (!prev || !prev.domains) return prev
+          return {
+            ...prev,
+            domains: prev.domains.map((d) => ({
+              ...d,
+              subjects: (d.subjects ?? []).map((s) => {
+                if (s.id !== subjectId) return s
+                const newTryCount = s.tryCount + 1
+                const isDoneNow = s.targetCount > 0 && newTryCount >= s.targetCount
+                const newPeriodCount = s.currentPeriodCount + 1
+                const isDonePeriodNow = newPeriodCount >= s.countPerPeriod
+                return {
+                  ...s,
+                  tryCount: newTryCount,
+                  currentPeriodCount: newPeriodCount,
+                  isDoneToday: true,
+                  isDonePeriod: isDonePeriodNow,
+                  isDone: isDoneNow,
+                  canExecute: false,
+                  progress: s.targetCount > 0 ? Math.round((newTryCount / s.targetCount) * 100) : 100,
+                }
+              }),
+            })),
+          }
+        })
+        await reload()
+      }
     } finally {
       inFlight.current = false
       setPending(null)
@@ -375,7 +411,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
                                 <Button
                                   size="xs"
                                   variant={locked ? 'quiet' : 'primary'}
-                                  className="shrink-0"
+                                  className="w-[130px] shrink-0 justify-center"
                                   disabled={Boolean(locked) || busy}
                                   /* 잠긴 이유는 툴팁으로도 남긴다 — 아래 안내가 접혀도 읽을 수 있게. */
                                   title={locked ?? `한 번 완료하면 ${sub.point}P 를 받습니다`}
