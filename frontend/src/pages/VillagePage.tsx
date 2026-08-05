@@ -1,32 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Scene } from '../village/Scene'
-import { cn } from '../utils/cn'
 import { useStore } from '../data/store'
 import type { OwnedBuilding as ModelOwnedBuilding, Sheet as ModelSheet } from '../data/types'
 import { TERRAIN_LABEL } from '../data/types'
 import { toMandalartFromModel } from '../village/mandalart'
-import { CENTER_BLOCK_INDEX, PITCH } from '../village/layout'
+import { PITCH } from '../village/layout'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 import { AUTO_LANDMARK, type LandmarkOverride } from '../village/Landmark'
+import { BUILD_PANEL_WIDTH, BuildPanel } from '../village/BuildPanel'
 import { useIsoCamera } from '../village/IsoCamera'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
-import { BuildingImage } from '../village/BuildingImage'
 import { buildOwnedCatalog } from '../village/ownedCatalog'
 import type { OwnedBuilding, Terrain, VillageData } from '../village/villageApi'
 import { TERRAINS } from '../village/villageApi'
 import { ALL_CONFIGS } from '../village/localCatalog'
 import Button from '../components/common/ActionButton'
-import {
-  Badge,
-  EmptyState,
-  ErrorState,
-  ProgressBar,
-  Segmented,
-  Skeleton,
-  domainColor,
-} from '../components/common/Primitives'
+import { Badge, EmptyState, ErrorState, Segmented, Skeleton } from '../components/common/Primitives'
 import { IconArrowLeft, IconArrowRight } from '../components/common/Icons'
+import { useToast } from '../components/common/Toast'
 
 /**
  * 보유 건물에 3D 부품을 붙인다.
@@ -52,11 +44,6 @@ function withParts(b: ModelOwnedBuilding): OwnedBuilding | null {
     size: b.size,
     parts: config.parts,
   }
-}
-
-/** 블록 인덱스(0~8, 4=중앙) → 도메인 번호(0~7). 색을 고를 때 쓴다. */
-function domainIndexOf(blockIndex: number): number {
-  return blockIndex < CENTER_BLOCK_INDEX ? blockIndex : blockIndex - 1
 }
 
 const FACING_LABEL = ['남동', '남서', '북서', '북동'] as const
@@ -87,12 +74,23 @@ function backTarget(from: unknown): { to: string; label: string } {
 /**
  * 마을 화면.
  *
- * <p><b>3D 위에는 아무 UI 도 얹지 않는다.</b> 예전에는 타이틀·도메인 패널·지형 스위처가
- * 캔버스 위에 떠 있었는데, 그 좌표가 화면(vw/vh) 기준이라 셸 안으로 들어오면서 서로 겹치고
- * 잘려 화면이 뭉개졌다. 조작은 전부 캔버스 <b>아래</b> 패널에서 한다 — 3D 는 보여 주기만 한다.
+ * <p><b>3D 위에 얹는 UI 는 반드시 캔버스 컨테이너 기준(`absolute`)이어야 한다.</b>
+ *
+ * <p>예전 규칙은 "3D 위에는 아무 UI 도 얹지 않는다" 였다. 타이틀·도메인 패널·지형 스위처가
+ * 캔버스 위에 떠 있다가 셸 안으로 들어오면서 서로 겹치고 잘려 화면이 뭉개졌기 때문인데,
+ * <b>원인은 오버레이가 아니라 좌표계</b>였다 — 화면(vw/vh) 기준이라 셸 크기가 바뀌면 같이
+ * 어긋났다. 그래서 규칙을 "얹지 않는다" 에서 "컨테이너 기준으로 얹는다" 로 좁혔다.
+ *
+ * <p>지금 얹혀 있는 것은 건물 배치 패널({@link BuildPanel}) 하나다. 캔버스 `section` 이
+ * `relative`·`overflow-hidden` 이고 패널이 `absolute inset` 이라 셸 크기와 무관하다.
+ * 시점·확대·지형은 그대로 캔버스 <b>아래</b> 바에 있다 — 마을을 가릴 이유가 없다.
+ *
+ * <p>패널이 마을을 덮는 만큼은 카메라가 절두체를 옮겨 비켜 준다(`occludedLeft`). 그래서
+ * 패널을 열고 닫을 때 마을이 부드럽게 미끄러진다.
  */
 export default function VillagePage() {
   const { gateway, sheets: sheetList, details, setTerrain: saveTerrain } = useStore()
+  const toast = useToast()
   const camera = useIsoCamera()
   const back = backTarget((useLocation().state as { from?: string } | null)?.from)
 
@@ -106,7 +104,24 @@ export default function VillagePage() {
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
 
   const [overrides, setOverrides] = useState<Record<string, CellOverride>>({})
-  const [landmark] = useState<LandmarkOverride>(AUTO_LANDMARK)
+  const [landmark, setLandmark] = useState<LandmarkOverride>(AUTO_LANDMARK)
+  /**
+   * 중앙 랜드마크 칸의 격자 좌표.
+   *
+   * <p>서버가 `SheetService.createSheet` 에서 정하는 자리(현재 5·5)를 여기 적어두지 않고
+   * 배치 응답에서 받아 기억한다 — 좌표 규칙을 프론트에 복제하면 서버가 자리를 옮길 때
+   * 조용히 엉뚱한 칸에 저장된다. 못 받았으면 저장을 건너뛴다.
+   */
+  const [landmarkSpot, setLandmarkSpot] = useState<{
+    domainPosition: number
+    itemPosition: number
+  } | null>(null)
+
+  /**
+   * 건물 배치 패널을 펼쳤는지. **기본 열림** — 건물 배치가 이 페이지의 목적이라, 닫혀 있으면
+   * 기능이 있는 줄 모른다. 마을을 온전히 보고 싶을 때 접으면 마을이 중앙으로 돌아온다.
+   */
+  const [panelOpen, setPanelOpen] = useState(true)
 
   const [terrainPending, setTerrainPending] = useState<Terrain | null>(null)
   /** 'now' = 지금 진행도, 'done' = 다 채웠을 때의 모습. */
@@ -186,6 +201,10 @@ export default function VillagePage() {
    *
    * <p>서버는 "격자 좌표 → 건물"로 저장하고, 3D 는 "task id → 건물"로 그린다.
    * 응답에 `subjectId` 가 함께 오므로 그걸로 이어 붙인다.
+   *
+   * <p><b>중앙 랜드마크 칸은 이 규칙에서 빠진다.</b> 과제에 매달린 칸이 아니라 `subjectId` 가
+   * 없어서, task id 로 잇는 위 규칙에 걸리지 않는다. 그래서 `isLandmarkSlot` 로 따로 집어
+   * `landmark` 로 넘긴다 — 이걸 빼면 서버에 무엇을 저장해도 화면은 보유 목록 첫 종을 그린다.
    */
   useEffect(() => {
     if (!sheet || sheet === 'none') return
@@ -196,7 +215,17 @@ export default function VillagePage() {
       .then((layout) => {
         if (!alive) return
         const next: Record<string, CellOverride> = {}
+        let center: LandmarkOverride = AUTO_LANDMARK
+        let centerSpot: { domainPosition: number; itemPosition: number } | null = null
+
         for (const spot of layout.spots) {
+          if (spot.isLandmarkSlot) {
+            centerSpot = { domainPosition: spot.domainPosition, itemPosition: spot.itemPosition }
+            // itemKey 가 없으면 아직 고르지 않은 것 — 'auto' 로 두어 보유 첫 종이 선다.
+            // 표시 단계는 서버가 저장하지 않는다(진행률에서 계산되므로) 늘 'auto' 다.
+            if (spot.itemKey) center = { building: spot.itemKey, stage: 'auto' }
+            continue
+          }
           if (spot.subjectId != null && spot.itemKey) {
             next[String(spot.subjectId)] = {
               building: spot.itemKey,
@@ -204,7 +233,10 @@ export default function VillagePage() {
             }
           }
         }
+
         setOverrides(next)
+        setLandmark(center)
+        setLandmarkSpot(centerSpot)
       })
       // 배치를 못 받아도 마을은 진행률만으로 그릴 수 있다. 화면 전체를 막지 않는다.
       .catch(() => undefined)
@@ -237,30 +269,20 @@ export default function VillagePage() {
     }
   }, [mandalart, preview])
 
-  /** 지금 고른 블록의 도메인. 중앙은 랜드마크라 건물 목록이 없다. */
-  const domain = mandalart ? mandalart.domains[block] : null
-  const isCenter = block === CENTER_BLOCK_INDEX
-  const task = domain?.tasks.find((t) => t.id === selectedTask) ?? null
-
-  /** 테마 필터를 거친 보유 건물. 이미지로 고르는 목록이다. */
-  const pickable = useMemo(() => {
-    const list = catalog.list.filter((b) => b.type !== 'LANDMARK')
-    return themeFilter === 'all' ? list : list.filter((b) => b.theme === themeFilter)
-  }, [catalog, themeFilter])
-
-  /** 왼쪽 목록에 쓸 테마별 보유 개수. 랜드마크는 배치 대상이 아니라 빼고 센다. */
-  const themeCounts = useMemo(() => {
-    const normal = catalog.list.filter((b) => b.type !== 'LANDMARK')
-    const counted = catalog.themes
-      .map((t) => ({
-        id: t.id,
-        label: t.label,
-        count: normal.filter((b) => b.theme === t.id).length,
-      }))
-      // 랜드마크만 있던 테마는 고를 게 없으니 목록에서 뺀다.
-      .filter((t) => t.count > 0)
-    return [{ id: 'all', label: '전체', count: normal.length }, ...counted]
-  }, [catalog])
+  /**
+   * 3D 에 넘길 랜드마크 설정.
+   *
+   * <p>완성형 미리보기에서는 <b>표시 단계 override 를 무시한다.</b> `shown` 이 진행률을 100 으로
+   * 올려도 `override.stage` 가 숫자면 `Landmark` 가 그 값을 먼저 보므로, "완성형" 을 켰는데
+   * 랜드마크만 예전 단계로 남는다. 8칸 오브젝트는 stage override 를 쓰는 곳이 없어(`place` 는
+   * building 만 바꾼다) 이 어긋남이 랜드마크에서만 생긴다.
+   *
+   * <p>끄면 고른 단계로 돌아온다 — 사본만 바꾸고 `landmark` 는 건드리지 않기 때문이다.
+   */
+  const shownLandmark = useMemo<LandmarkOverride>(
+    () => (preview === 'done' ? { ...landmark, stage: 'auto' } : landmark),
+    [landmark, preview],
+  )
 
   /**
    * 카메라가 바라볼 지점 — 확대할수록 고른 세부 목표 쪽으로 옮겨 간다.
@@ -319,6 +341,62 @@ export default function VillagePage() {
     [sheet, gateway, catalog],
   )
 
+  /**
+   * 정중앙에 세울 랜드마크를 고른다.
+   *
+   * <p>칸이 하나뿐이라 `place` 처럼 task id 로 자리를 찾을 필요가 없다 — 좌표는 배치 응답에서
+   * 이미 받아 뒀다(`landmarkSpot`). 서버는 이 자리에 LANDMARK 만 받는다
+   * (`ITEM_SPOT_LANDMARK_ONLY`).
+   *
+   * <p><b>실패하면 되돌리고 알린다.</b> 8칸(`place`)은 저장이 실패해도 화면을 그대로 두는데,
+   * 그쪽 근거는 "되돌리면 사용자가 무엇을 눌렀는지 잃는다" 였다. 랜드마크에서는 그 근거가
+   * 성립하지 않는다 — 저장이 안 됐으면 새로고침이 어차피 되돌리므로, 화면만 그대로 두면
+   * <b>지금은 거짓을 보여주고 나중에 잃는다</b>. 되돌리는 쪽이 잃는 것이 같고 정직하다.
+   * 대신 왜 되돌아갔는지 토스트로 말해 준다.
+   *
+   * <p>좌표를 아직 못 받았으면(배치 조회 실패) 여기서 한 번 더 받아 본다. 조용히 건너뛰면
+   * 화면은 바뀌는데 저장은 안 되는 정확히 그 상태가 된다.
+   */
+  const placeLandmark = useCallback(
+    async (itemKey: string | 'auto') => {
+      if (!sheet || sheet === 'none') return
+
+      const previous = landmark
+      setLandmark((prev) => ({ ...prev, building: itemKey }))
+
+      try {
+        let spot = landmarkSpot
+        if (!spot) {
+          const layout = await gateway.villageLayout(sheet.id)
+          const found = layout.spots.find((s) => s.isLandmarkSlot)
+          if (!found) throw new Error('중앙 랜드마크 자리를 찾을 수 없습니다.')
+          spot = { domainPosition: found.domainPosition, itemPosition: found.itemPosition }
+          setLandmarkSpot(spot)
+        }
+
+        // 'auto' 는 칸을 비우는 것(invenId=null)이다 — 비운 칸에는 보유 목록 첫 종이 선다.
+        const owned =
+          itemKey === 'auto' ? null : catalog.landmarks.find((b) => b.itemKey === itemKey)
+        if (itemKey !== 'auto' && !owned) throw new Error('보유하지 않은 랜드마크입니다.')
+
+        await gateway.placeBuilding(
+          sheet.id,
+          spot.domainPosition,
+          spot.itemPosition,
+          owned?.invenId ?? null,
+        )
+      } catch (e: unknown) {
+        setLandmark(previous)
+        toast.show({
+          tone: 'warn',
+          title: '랜드마크를 저장하지 못했어요',
+          body: e instanceof Error ? e.message : '잠시 후 다시 시도해 주세요.',
+        })
+      }
+    },
+    [sheet, gateway, catalog, landmarkSpot, landmark, toast],
+  )
+
   const changeTerrain = async (terrain: Terrain) => {
     if (!village || village.terrain === terrain) return
     if (!sheet || sheet === 'none') return
@@ -361,29 +439,42 @@ export default function VillagePage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    /*
+      `lg:min-h-0 lg:flex-1` — AppShell 이 이 경로에서만 본문을 `h-dvh flex flex-col` 로 두므로,
+      여기서 그 높이를 받아 채운다. 아래 캔버스가 `flex-1` 로 남은 만큼 가져간다.
+    */
+    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
       <ThumbnailBakery />
 
-      <div>
+      <div className="shrink-0">
         <Button variant="quiet" size="sm" to={back.to}>
           <IconArrowLeft className="size-[18px]" /> {back.label}
         </Button>
       </div>
 
-      {/* ───────── 3D 뷰. 위에 아무것도 얹지 않는다 ───────── */}
+      {/* ───────── 3D 뷰 + 건물 배치 오버레이 ───────── */}
       {/*
-        3D 를 키우되 <b>바로 아래 조작 바까지가 첫 화면에 들어오게</b> 높이를 잡는다.
+        캔버스가 <b>남은 높이를 전부</b> 가져간다(`flex-1`).
 
-        빼는 210px 의 내역: 헤더 64 + 본문 위 여백 24 + 카드 사이 간격 16 + 조작 바 약 68,
-        그리고 바 아래가 살짝 보이도록 남기는 여유 38. 이 여유가 없으면 바가 화면 맨
-        아래 선에 딱 붙어 잘린 것처럼 보인다.
+        예전에는 `100dvh - 228px` 처럼 뺄셈으로 맞췄다. 그러면 아래 요소 높이를 하나라도 잘못
+        세는 순간 그만큼 어긋나 미세하게 스크롤된다 — 실제로 조작 바의 `card` 테두리 2px 과
+        이동 버튼의 `h-11`(기본 size 는 md 다, sm 이 아니다)을 놓쳤다. 두 번 고쳐도 또 남았다.
 
-        vh 가 아니라 dvh 를 쓰는 이유는 모바일 주소창이 접혔다 펴질 때 vh 가 따라오지
-        않아 바가 화면 밖으로 밀려나기 때문이다.
+        지금은 AppShell 이 본문을 `h-dvh flex flex-col` 로 두고 여기가 `flex-1` 로 나머지를
+        받는다. <b>산수가 없으므로 어긋날 곳도 없다</b> — 뒤로 버튼·조작 바·이동 버튼이 얼마든
+        브라우저가 정확히 남은 만큼을 준다.
+
+        `min-h-[360px]` 는 창이 아주 낮을 때의 하한이다. 그때는 넘쳐서 스크롤되지만(스크롤바는
+        숨겨도 휠은 듣는다) 캔버스가 0 으로 붕괴하는 것보다 낫다.
+
+        모바일(lg 아래)에서는 AppShell 이 높이를 고정하지 않으므로 예전처럼 dvh 로 잡는다.
       */}
       <section
-        className="card overflow-hidden p-0"
-        style={{ height: 'clamp(360px, calc(100dvh - 210px), 1000px)' }}
+        /*
+          인라인 `height` 를 쓰지 않는다 — flex-basis 와 height 중 무엇이 이기는지가 미묘해서,
+          `lg:flex-1` 이 확실히 먹도록 `lg:h-auto` 로 명시적으로 넘긴다.
+        */
+        className="card relative h-[clamp(360px,calc(100dvh-228px),1000px)] min-h-[360px] overflow-hidden p-0 lg:h-auto lg:min-h-0 lg:flex-1"
       >
         <Scene
           mandalart={shown ?? mandalart}
@@ -393,11 +484,16 @@ export default function VillagePage() {
           terrain={village.terrain}
           catalog={catalog}
           selectedTaskId={selectedTask}
-          landmark={landmark}
+          landmark={shownLandmark}
           cameraRef={camera.ref}
           initialZoom={camera.zoom}
           onFacingChange={camera.setFacing}
           focus={focus}
+          /*
+            패널이 덮은 폭을 카메라에 알린다. 마을이 남은 영역 중앙으로 미끄러진다.
+            좌우 여백(left-4)까지 더해야 실제로 가려지는 폭이 된다.
+          */
+          occludedLeft={panelOpen ? BUILD_PANEL_WIDTH + 32 : 0}
           onSelect={(i) => {
             if (i < 0) return
             setBlock(i)
@@ -405,6 +501,45 @@ export default function VillagePage() {
           }}
           onSelectTask={setSelectedTask}
         />
+
+        {/*
+          3D 위 UI.
+
+          예전 주석은 "3D 위에는 아무 UI 도 얹지 않는다" 였다. 그때 걷어낸 이유는 오버레이
+          자체가 아니라 <b>좌표가 화면(vw/vh) 기준</b>이라 셸 안으로 들어오면서 서로 겹치고
+          잘렸던 것이다. 이 패널은 이 `section`(relative) 기준 `absolute` 라 셸 크기와
+          무관하고, `overflow-hidden` 이 삐져나감도 막는다.
+
+          패널을 클릭해도 블록 선택이 풀리지 않는다 — Scene 의 `onPointerMissed` 는 캔버스
+          이벤트라, 형제 DOM 인 패널의 클릭은 캔버스에 닿지 않는다.
+        */}
+        {panelOpen ? (
+          <BuildPanel
+            mandalart={mandalart}
+            catalog={catalog}
+            block={block}
+            onBlockChange={setBlock}
+            selectedTask={selectedTask}
+            onSelectTask={setSelectedTask}
+            overrides={overrides}
+            onPlace={(taskId, itemKey) => void place(taskId, itemKey)}
+            themeFilter={themeFilter}
+            onThemeFilter={setThemeFilter}
+            landmark={landmark}
+            onPlaceLandmark={(itemKey) => void placeLandmark(itemKey)}
+            preview={preview}
+            onClose={() => setPanelOpen(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            className="card absolute top-4 left-4 flex items-center gap-2 px-4 py-2.5 text-[13px] font-extrabold shadow-lg transition-transform hover:-translate-y-0.5"
+          >
+            <span aria-hidden="true">🏗</span>
+            건물 배치
+          </button>
+        )}
       </section>
 
       {/* ───────── 시점 · 지형 ───────── */}
@@ -500,216 +635,6 @@ export default function VillagePage() {
         <span className="muted ml-auto truncate text-[11.5px] font-semibold">
           {mandalart.center}
         </span>
-      </section>
-
-      {/* ───────── 건물 배치 ───────── */}
-      <section className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="section-title m-0">건물 배치</h2>
-            <p className="muted m-0 mt-1 text-[12.5px] font-semibold">
-              세부 목표 → 칸 → 건물 순으로 고르면 마을에 바로 세워집니다.
-            </p>
-          </div>
-          <Badge>{catalog.list.length}종 보유</Badge>
-        </div>
-
-        {/* 세부 목표 8개 */}
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {mandalart.domains.map((d, i) => {
-            if (i === CENTER_BLOCK_INDEX) return null
-            const active = block === i
-            const color = domainColor(domainIndexOf(i))
-            return (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => {
-                  setBlock(i)
-                  setSelectedTask(null)
-                }}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors',
-                  active ? 'text-white' : 'text-[var(--text-muted)]',
-                )}
-                style={{ background: active ? color : 'var(--surface-sunken)' }}
-              >
-                {d.title || `세부 목표 ${domainIndexOf(i) + 1}`}
-              </button>
-            )
-          })}
-        </div>
-
-        {isCenter ? null : (
-          <>
-            {/* 블록 안 8칸 */}
-            <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {(domain?.tasks ?? []).slice(0, 8).map((t) => {
-                const current = overrides[t.id]?.building
-                const built = current && current !== 'auto' ? catalog.byKey.get(current) : undefined
-                const active = selectedTask === t.id
-
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedTask(t.id)}
-                    className={cn(
-                      'flex items-center gap-3 rounded-2xl p-3 text-left transition-all',
-                      active && 'ring-2 ring-brand-400/60',
-                    )}
-                    style={{ background: 'var(--surface-sunken)' }}
-                  >
-                    <span
-                      className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl"
-                      style={{ background: 'var(--surface-card)' }}
-                    >
-                      {built ? (
-                        <BuildingImage
-                          k={built.itemKey}
-                          remoteUrl={built.thumbnailUrl}
-                          parts={built.parts}
-                          size={44}
-                          alt={built.name}
-                        />
-                      ) : (
-                        <span className="muted text-[10px] font-bold">자동</span>
-                      )}
-                    </span>
-
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12.5px] font-bold">{t.title}</span>
-                      <span className="mt-1 block">
-                        <ProgressBar
-                          value={t.progress}
-                          size="sm"
-                          color={domainColor(domainIndexOf(block))}
-                          label={`${t.title} 진행률`}
-                        />
-                      </span>
-                      <span className="muted mt-1 block truncate text-[11px] font-semibold">
-                        {built ? built.name : '진행률에 맞춰 자동'}
-                      </span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* 건물 고르기 — 왼쪽 테마 목록 / 오른쪽 건물 사진 */}
-            {task ? (
-              <div
-                className="mt-5 overflow-hidden rounded-2xl border"
-                style={{ borderColor: 'var(--border-hairline)' }}
-              >
-                <div
-                  className="flex flex-wrap items-center justify-between gap-3 border-b p-4"
-                  style={{ borderColor: 'var(--border-hairline)' }}
-                >
-                  <div className="min-w-0">
-                    <p className="m-0 truncate text-[13.5px] font-extrabold">{task.title}</p>
-                    <p className="muted m-0 mt-0.5 text-[11.5px] font-semibold">
-                      이 칸에 세울 건물을 고르세요
-                    </p>
-                  </div>
-                  <Button variant="quiet" size="sm" onClick={() => void place(task.id, 'auto')}>
-                    자동으로
-                  </Button>
-                </div>
-
-                {/*
-                  좌우 분할. 예전에는 테마가 <Select> 하나였는데, 13개 테마를 펼쳐 보지 않으면
-                  뭐가 있는지 알 수 없었고 보유 개수도 드러나지 않았다. 왼쪽에 목록으로
-                  세워 두면 어느 테마를 얼마나 모았는지가 고르는 동안 계속 보인다.
-
-                  좁은 화면에서는 세로로 쌓는다 — 나란히 두면 양쪽 다 못 쓸 만큼 좁아진다.
-                */}
-                {/*
-                  테마 목록은 이름 한 줄과 개수만 있으면 된다. 34%(≈140px 이상)를 주니
-                  글자 옆이 비고 정작 주인공인 건물 그리드가 좁아 한 줄에 6개밖에 못 놨다.
-                  132px 로 줄이면 '사이버펑크' 같은 긴 이름도 들어가면서 그리드가 넓어진다.
-                */}
-                <div className="grid md:grid-cols-[132px_1fr]">
-                  {/* 왼쪽: 테마 + 보유 개수 */}
-                  <div
-                    className="no-scrollbar max-h-[300px] overflow-y-auto border-b p-1.5 md:border-r md:border-b-0"
-                    style={{ borderColor: 'var(--border-hairline)' }}
-                  >
-                    {themeCounts.map((t) => {
-                      const active = themeFilter === t.id
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setThemeFilter(t.id)}
-                          aria-pressed={active}
-                          className={cn(
-                            'flex w-full items-center justify-between gap-1.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                            active
-                              ? 'bg-brand-500/12 text-brand-600 dark:text-brand-400'
-                              : 'text-[var(--text-strong)] hover:bg-[var(--surface-sunken)]',
-                          )}
-                        >
-                          <span className="truncate text-[12.5px] font-bold">{t.label}</span>
-                          <span
-                            className={cn(
-                              'shrink-0 text-[11.5px] font-black tabular-nums',
-                              !active && 'muted',
-                            )}
-                          >
-                            {t.count}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {/* 오른쪽: 건물 사진 */}
-                  {pickable.length === 0 ? (
-                    <p className="muted m-0 p-4 text-[12.5px] font-semibold">
-                      이 테마에 보유한 건물이 없어요. 상점에서 먼저 구매해 주세요.
-                    </p>
-                  ) : (
-                    <ul className="no-scrollbar m-0 grid max-h-[300px] list-none grid-cols-3 gap-2 overflow-y-auto p-3 sm:grid-cols-5 lg:grid-cols-8 xl:grid-cols-9">
-                      {pickable.map((b) => {
-                        const chosen = overrides[task.id]?.building === b.itemKey
-                        return (
-                          <li key={b.itemKey}>
-                            <button
-                              type="button"
-                              onClick={() => void place(task.id, b.itemKey)}
-                              title={b.name}
-                              className={cn(
-                                'flex w-full flex-col items-center gap-1 rounded-xl p-2 transition-all hover:-translate-y-0.5',
-                                chosen && 'ring-2 ring-brand-400/70',
-                              )}
-                              style={{ background: 'var(--surface-sunken)' }}
-                            >
-                              <BuildingImage
-                                k={b.itemKey}
-                                remoteUrl={b.thumbnailUrl}
-                                parts={b.parts}
-                                size={64}
-                                alt={b.name}
-                              />
-                              <span className="w-full truncate text-[10.5px] font-bold">
-                                {b.name}
-                              </span>
-                            </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="muted m-0 mt-4 text-[12px] font-medium">
-                위에서 칸을 하나 고르면 건물 목록이 나옵니다.
-              </p>
-            )}
-          </>
-        )}
       </section>
 
       <div className="flex flex-wrap gap-2">

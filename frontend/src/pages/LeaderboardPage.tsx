@@ -154,10 +154,7 @@ export default function Leaderboard() {
             </nav>
           )}
 
-          <p className="muted m-0 px-1 text-[12px] font-medium">
-            좋아요는 만다라트 상세 화면에서 누를 수 있습니다. 리더보드 응답에는 좋아요 여부가
-            없어서 여기서는 개수만 보여줘요.
-          </p>
+
         </>
       )}
     </div>

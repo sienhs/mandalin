@@ -7,11 +7,15 @@
  *    자란다. `s` 가 아니다 — `cross` 부품이 이미 `s`(십자 크기)를 쓰고 있어 뜻이 겹친다.
  *  - 배치 자리도 다르다. 마을 정중앙 블록(만다라트 중심 목표) 하나뿐이다.
  *
- * ⚠️ 이 모듈도 `/village` 에서 import 하면 안 된다. 마을은 서버가 내려준 보유 건물의
- * parts 만 그린다 — 카탈로그가 번들에 실리면 미보유 랜드마크까지 세울 수 있게 된다.
- * 개발용 페이지(/premium, /inspect, /thumbnails)와 시드 덤프 스크립트만 여기를 본다.
+ * ⚠️ **여기를 고쳐도 화면과 DB 는 자동으로 안 맞는다.** 백엔드는 `buildings.json` 스냅샷을
+ * `building_item` 에 적재하고, 프론트는 (지금은) 서버가 준 `parts` 를 쓰지 않고 이 모듈을
+ * 다시 붙인다. 그래서 모델을 만졌으면 **`npm run export:catalog` 로 시드를 다시 뽑아 함께
+ * 커밋**해야 두 쪽이 같은 건물을 말한다.
  *
- * 건물을 추가·수정했으면 `npm run export:catalog` 로 백엔드 시드를 다시 뽑을 것.
+ * ⚠️ 원래는 "`/village` 에서 import 하지 않는다"가 규칙이었지만 지금은 지켜지지 않는다 —
+ * `localCatalog` 를 통해 실서비스 경로가 이 카탈로그를 번들에 싣는다. 그 대가와 되돌리는
+ * 방법은 `localCatalog.tsx` 머리주석에 적어 두었다. 미보유 랜드마크를 세울 수 있게 되는
+ * 위험은 없다 — 마을은 서버가 준 보유 목록에서만 key 를 꺼낸다(`ownedCatalog.partsOf`).
  */
 import type { BuildingConfig } from '../partTypes'
 import { STADIUM_LANDMARKS } from './stadium'

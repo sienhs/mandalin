@@ -1,3 +1,5 @@
+import { landmarkStageFromPercent, type LandmarkStage } from './partTypes'
+
 /**
  * 만다라트 → 마을 데이터 모델.
  *
@@ -42,19 +44,14 @@ export function progressStage(progress: number): 0 | 1 | 2 | 3 {
  * 중앙 블록 랜드마크의 표시 단계 0~8.
  *
  * 중앙 블록의 8개 "과제"는 실제 과제가 아니라 **8개 도메인의 평균 진행률**이다
- * (mandalart.ts 가 그렇게 만든다). 그래서 그 평균 = 만다라트 전체 진행률이고,
- * 12.5%(=100/8) 구간마다 한 단계씩 올린다 — 도메인 8개와 단계 8개가 1:1로 읽힌다.
+ * (mandalart.ts 가 그렇게 만든다). 그래서 그 평균 = 만다라트 전체 진행률이다.
  *
- *  0%          → 0 (공사 부지)
- *  0 초과~12.5 → 1
- *  ...
- *  87.5~100    → 8 (완성)
+ * 진행률을 단계로 바꾸는 규칙 자체는 여기 두지 않는다 — 2D 마을(`IsoVillage`)도 같은 규칙을
+ * 써야 하므로 `partTypes.landmarkStageFromPercent` 가 정본이다. 이 함수가 하는 일은
+ * "중앙 블록에서 진행률을 꺼내는 것" 뿐이다.
  */
-export function landmarkStageOf(center: Domain): 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 {
-  const percent = urbanLevelOf(center) * 100
-  if (percent <= 0) return 0
-  const stage = Math.floor(percent / 12.5) + 1
-  return Math.min(8, stage) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+export function landmarkStageOf(center: Domain): LandmarkStage {
+  return landmarkStageFromPercent(urbanLevelOf(center) * 100)
 }
 
 /** 블록의 도시화 정도 0~1 (평균 진행률). 마을풍↔도시풍 보간에 사용. */

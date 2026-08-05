@@ -82,7 +82,7 @@ export type Gateway = {
   completeSubjects(
     sheetId: number,
     subjectIds: number[],
-  ): Promise<{ earned: number; totalPoint: number }>
+  ): Promise<{ completedSubjectIds: number[]; earned: number; totalPoint: number }>
 
   shopList(): Promise<ShopItem[]>
   purchase(itemId: number): Promise<{ remainingPoint: number; paidPoint: number }>
@@ -188,6 +188,7 @@ export const apiGateway: Gateway = {
   completeSubjects: async (sheetId, subjectIds) => {
     const res = await api.subjects.complete(sheetId, subjectIds)
     return {
+      completedSubjectIds: res.completedSubjectIds ?? [],
       earned: Number(res.totalEarnedPoint ?? 0),
       totalPoint: Number(res.totalUserPoint ?? 0),
     }

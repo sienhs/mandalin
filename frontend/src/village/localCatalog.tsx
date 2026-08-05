@@ -1,9 +1,22 @@
 /**
- * 로컬 카탈로그 어댑터 — **개발용 페이지 전용** (/gallery, /premium, /thumbnails, /inspect).
+ * 로컬 카탈로그 어댑터 — 전체 카탈로그(기본 15종 + 프리미엄 241종 + 랜드마크 13종)를 묶는
+ * 유일한 곳.
  *
- * 실서비스 경로(/village)는 보유 건물을 서버에서 받으므로 이 모듈을 import 하지 않는다.
- * 전체 카탈로그(기본 15종 + 프리미엄 241종)를 묶는 곳이 여기뿐이라, 이 파일을 건드리는
- * 페이지만 무거운 카탈로그 청크를 지고 간다.
+ * ⚠️ **개발용 페이지 전용이 아니다.** 원래 의도는 그랬고 위 줄에도 그렇게 적혀 있었지만,
+ * 실서비스 경로가 이미 둘이나 이 모듈을 본다.
+ *
+ *   `pages/VillagePage`     `withParts` 가 서버의 `parts` 를 버리고 여기 것을 붙인다
+ *   `village/VillagePreview`  같은 이유. 그리고 이쪽이 `pages/HomePage` 에서 정적 import 된다
+ *
+ * <p>그 결과 카탈로그와 three.js 가 <b>lazy 청크가 아니라 메인 청크</b>에 들어간다(측정: index
+ * 약 1.66MB, VillagePage 청크 약 19KB). 랜딩만 보러 온 방문자도 전부 내려받는다.
+ *
+ * <p>의도된 대가이긴 하다 — 덕분에 목업 모드에서도 마을이 그려진다(백엔드가 없으면 `parts` 를
+ * 받을 길이 없다). 되돌리려면 목업·로컬 카탈로그 경로를 동적 import 로 떼어내야 하고, 그건
+ * `data/gateway`·`data/store` 까지 걸치는 별건이다.
+ *
+ * <p>미보유 건물을 세울 수 있게 되는 위험은 없다 — 마을은 서버가 준 보유 목록에서만 key 를
+ * 꺼낸다(`ownedCatalog.partsOf`). 남은 대가는 번들 크기뿐이다.
  */
 import { BUILDING_CONFIGS } from './catalog'
 import { PREMIUM_CONFIGS } from './premium'

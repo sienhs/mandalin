@@ -99,6 +99,31 @@ export type Stage = 1 | 2 | 3
  */
 export type LandmarkStage = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 
+/**
+ * 전체 진행률(0~100) → 랜드마크 단계. **이 규칙의 유일한 정본이다.**
+ *
+ * <p>`ceil` 이다. 도메인 8개가 각각 12.5% 를 지고 있어서, <b>완료한 도메인 수 = 단계</b>가
+ * 되어야 문서가 말하는 "도메인 8개와 단계 8개가 1:1" 이 성립한다.
+ *
+ * <pre>
+ *   완료 도메인   0     1      2     …     7        8
+ *   진행률        0%    12.5%  25%   …     87.5%    100%
+ *   단계          0     1      2     …     7        8(완성)
+ * </pre>
+ *
+ * <p>예전에는 두 곳이 서로 다른 공식을 썼다. 3D 마을은 `floor(p/12.5)+1` 이라 <b>87.5% 에서
+ * 이미 "완성" 이 떴다</b> — 도메인 하나를 손도 안 댔는데 완성된 랜드마크가 서 있었다.
+ * 2D 마을(`IsoVillage`)은 `floor(p/12.5)` 라 0 초과 12.5 미만이 전부 공사 부지였다.
+ * 같은 규칙에 답이 셋이면 어느 것도 근거가 되지 못하므로 여기로 모았다.
+ *
+ * <p>0 은 "아직 시작 안 함"(공사 부지)이라 별도로 둔다 — `ceil` 만으로는 0 과 0.1% 를
+ * 가르지 못한다.
+ */
+export function landmarkStageFromPercent(percent: number): LandmarkStage {
+  if (!(percent > 0)) return 0
+  return Math.min(8, Math.ceil(percent / 12.5)) as LandmarkStage
+}
+
 /** 랜드마크 단계 라벨. 12.5% 구간마다 한 단계씩 오른다. */
 export const LANDMARK_STAGE_LABELS: Record<LandmarkStage, string> = {
   0: '공사 부지',
