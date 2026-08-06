@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.friend.entity;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.ssafy.mandarin.domain.user.entity.User;
 
@@ -45,7 +46,7 @@ public class Friends {
 
     @Column(nullable = false, updatable = false)
     @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 
     /**
      * 특정 유저가 이 친구 관계에 속해 있는지 확인합니다.

@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.friend.entity;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.ssafy.mandarin.domain.user.entity.User;
 
@@ -48,7 +49,7 @@ public class FriendRequest {
 
     @Column(nullable = false, updatable = false)
     @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 
     // 상태 변경 메서드
     public void accept() {
@@ -67,6 +68,6 @@ public class FriendRequest {
 
     public void resetToPending() {
         this.progress = RequestProgress.NOT_READ;
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 }

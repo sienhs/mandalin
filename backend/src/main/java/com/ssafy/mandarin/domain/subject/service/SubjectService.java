@@ -3,6 +3,7 @@ package com.ssafy.mandarin.domain.subject.service;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,7 @@ public class SubjectService {
                 user.getId(), List.of(SubjectPeriod.DAILY, SubjectPeriod.WEEKLY));
 
         List<TodoListResponse> responses = new ArrayList<>();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
@@ -143,7 +144,7 @@ public class SubjectService {
 
         List<Long> completedSubjectIds = new ArrayList<>();
         long totalEarnedPoint = 0L;
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
 
         LocalDateTime todayStart = today.atStartOfDay();
         LocalDateTime todayEnd = today.atTime(23, 59, 59);
