@@ -185,6 +185,40 @@ export const IconCoin = ({ className }: IconProps) => (
   </Svg>
 )
 
+/** 마일스톤 보상 — 아직 열지 않은 구간. */
+export const IconGift = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M4 11h16v8.2a1.3 1.3 0 0 1-1.3 1.3H5.3A1.3 1.3 0 0 1 4 19.2V11Z" />
+    <path d="M3 7.6h18V11H3V7.6Z" />
+    <path d="M12 7.6v13" />
+    <path d="M12 7.6S10.8 3.5 8.6 3.5a2 2 0 0 0 0 4.1H12Z" />
+    <path d="M12 7.6s1.2-4.1 3.4-4.1a2 2 0 0 1 0 4.1H12Z" />
+  </Svg>
+)
+
+/** 아직 도달하지 못한 구간. */
+export const IconLock = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <rect x="4.8" y="10.2" width="14.4" height="10.3" rx="2.2" />
+    <path d="M8.3 10.2V7.6a3.7 3.7 0 0 1 7.4 0v2.6" />
+    <path d="M12 14.2v2.4" />
+  </Svg>
+)
+
+/**
+ * 랜드마크 — 마을 정중앙 3x3 거대 건물.
+ *
+ * <p>{@link IconVillage}(마름모)와 다르다. 저쪽은 "마을 전체" 를 가리키고 이쪽은
+ * 그 안의 한 종류를 가리킨다. 기둥과 박공이 13종의 공통 실루엣이다.
+ */
+export const IconLandmark = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M3.5 9.2 12 4l8.5 5.2" />
+    <path d="M6 9.6v8.2M10 9.6v8.2M14 9.6v8.2M18 9.6v8.2" />
+    <path d="M3.8 20.4h16.4" />
+  </Svg>
+)
+
 export const IconTrash = ({ className }: IconProps) => (
   <Svg className={className}>
     <path d="M4.5 7h15" />

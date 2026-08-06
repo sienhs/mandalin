@@ -22,6 +22,8 @@ import type {
   AppNotification,
   Friend,
   FriendRequest,
+  RewardClaimResult,
+  RewardTrack,
   Sheet,
   ShopItem,
   Terrain,
@@ -115,6 +117,14 @@ type Ctx = {
   acceptRequest: (requestId: number) => Promise<boolean>
   rejectRequest: (requestId: number) => Promise<boolean>
   removeFriend: (friendRelationId: number) => Promise<boolean>
+
+  /**
+   * 마일스톤 보상 수령. 성공하면 받은 것을 그대로 돌려준다 — 화면이 공개 연출에 쓴다.
+   *
+   * <p>성공 토스트를 띄우지 않는다. 무엇을 받았는지는 모달이 보여주고, 토스트까지 겹치면
+   * 같은 말을 두 곳에서 한다.
+   */
+  claimReward: (milestone: number) => Promise<RewardClaimResult | null>
 
   resetMockData: () => void
 }
@@ -591,6 +601,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
 
+      claimReward: async (milestone) => {
+        try {
+          const res = await gatewayRef.current.claimReward(milestone)
+          /*
+            서버가 지급 후 잔액을 함께 준다. 그 값을 그대로 쓴다 — 여기서 더하면
+            크레딧 대체 지급(fallbackFromLandmark)처럼 금액이 종류와 다른 경우에 어긋난다.
+          */
+          setUser((prev) => (prev ? { ...prev, point: res.currentPoint } : prev))
+          return res
+        } catch (cause) {
+          fail(cause, '보상을 받지 못했습니다.')
+          return null
+        }
+      },
+
       resetMockData: () => {
         resetMock()
         void reloadSheets()
@@ -669,6 +694,48 @@ export function useSheetDetail(sheetId: number | null) {
   }, [reload, session])
 
   return { sheet, loading, error, reload, setSheet }
+}
+
+/* ─────────────────────────  보상 트랙  ───────────────────────── */
+
+/**
+ * 마일스톤 보상 트랙.
+ *
+ * <p>공통 데이터(`store` 의 슬라이스)에 두지 않은 이유: 지금 이걸 쓰는 화면이 만다라트 상세
+ * 하나뿐인데, 슬라이스로 두면 로그인할 때마다 어느 화면에서도 안 쓰는 요청이 한 번 더 나간다.
+ *
+ * <p>과제를 수행하면 진행률이 올라 구간이 열릴 수 있으므로, 부르는 화면이 <b>수행 완료 뒤에
+ * `reload` 를 불러야 한다.</b> 안 부르면 방금 넘긴 구간이 새로고침 전까지 잠긴 채로 남는다.
+ *
+ * @param enabled 꺼 두면 요청을 보내지 않는다. 친구 시트(읽기 전용)처럼 <b>남의 화면에
+ *   내 계정 트랙을 그릴 수 없는</b> 자리에서 쓴다 — 훅은 조건부로 호출할 수 없으므로
+ *   호출을 빼는 대신 여기서 끈다.
+ */
+export function useRewardTrack(enabled = true) {
+  const { gateway, session } = useStore()
+  const [track, setTrack] = useState<RewardTrack | null>(null)
+  const [loading, setLoading] = useState(enabled)
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    if (!enabled) return
+    setLoading(true)
+    try {
+      setTrack(await gateway.rewardTrack())
+      setError(null)
+    } catch (cause) {
+      setError(messageOf(cause, '보상 트랙을 불러오지 못했습니다.'))
+    } finally {
+      setLoading(false)
+    }
+  }, [enabled, gateway])
+
+  useEffect(() => {
+    if (!enabled || session !== 'authed') return
+    void reload()
+  }, [enabled, reload, session])
+
+  return { track, loading, error, reload, setTrack }
 }
 
 /* ─────────────────────────  파생 계산  ───────────────────────── */

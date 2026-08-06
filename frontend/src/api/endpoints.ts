@@ -9,6 +9,8 @@ import type {
   NotificationDto,
   PointHistoryDto,
   PurchaseDto,
+  RewardClaimDto,
+  RewardTrackDto,
   SheetCreateBody,
   SheetDetailDto,
   SheetLikeDto,
@@ -241,4 +243,25 @@ export const reports = {
 
   create: (signal?: AbortSignal) =>
     apiFetch<WeeklyReportDto>('/api/v1/reports', { method: 'POST', signal }),
+}
+
+/* ─────────────────────────  마일스톤 보상  ───────────────────────── */
+
+export const rewards = {
+  /**
+   * 보상 트랙. 구간 8개의 보상 종류·도달·수령 여부가 <b>한 번에</b> 온다.
+   *
+   * <p>시트별이 아니라 <b>계정별</b> 조회다 — 판정에 쓰는 시트를 서버가 골라 `sheetId` 로
+   * 알려준다(가장 먼저 만든 시트). 그래서 경로에 시트 번호가 없다.
+   */
+  track: () => apiFetch<RewardTrackDto>('/api/v1/rewards/track'),
+
+  /**
+   * 구간 하나 수령. <b>계정당 구간별 1회.</b>
+   *
+   * <p>이미 받았으면 409, 아직 못 미쳤으면 400 이다. 도달 여부는 서버가 다시 확인하므로
+   * 화면이 잠긴 상자를 눌러도 보상이 새지 않는다.
+   */
+  claim: (milestone: number) =>
+    apiFetch<RewardClaimDto>(`/api/v1/rewards/track/${milestone}/claim`, { method: 'POST' }),
 }

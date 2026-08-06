@@ -24,6 +24,8 @@ import type {
   OwnedBuilding,
   Period,
   PointLog,
+  RewardClaimResult,
+  RewardTrack,
   Sheet,
   ShopItem,
   Terrain,
@@ -117,6 +119,11 @@ export type Gateway = {
 
   weeklyReport(signal?: AbortSignal): Promise<WeeklyReport | null>
   createReport(signal?: AbortSignal): Promise<WeeklyReport>
+
+  /** 마일스톤 보상 트랙. 시트가 아니라 계정 단위다 — 판정 시트는 서버가 고른다. */
+  rewardTrack(): Promise<RewardTrack>
+  /** 구간 하나 수령. 계정당 구간별 1회이며 도달 여부는 서버가 다시 확인한다. */
+  claimReward(milestone: number): Promise<RewardClaimResult>
 }
 
 /* ─────────────────────────  실제 백엔드  ───────────────────────── */
@@ -273,4 +280,35 @@ export const apiGateway: Gateway = {
     return dto ? toReport(dto) : null
   },
   createReport: async (signal) => toReport(await api.reports.create(signal)),
+
+  rewardTrack: async () => {
+    const res = await api.rewards.track()
+    return {
+      sheetId: res.sheetId ?? null,
+      achievementRate: res.achievementRate ?? 0,
+      milestones: (res.milestones ?? []).map((m) => ({
+        milestone: m.milestone,
+        percent: m.percent,
+        kind: m.kind,
+        creditAmount: m.creditAmount ?? null,
+        reached: m.reached ?? false,
+        claimed: m.claimed ?? false,
+        grantedPoint: m.grantedPoint ?? null,
+        // null 을 그대로 흘리면 그리는 쪽이 매번 빈 배열로 바꿔야 한다.
+        grantedNames: m.grantedNames ?? [],
+      })),
+    }
+  },
+
+  claimReward: async (milestone) => {
+    const res = await api.rewards.claim(milestone)
+    return {
+      milestone: res.milestone,
+      kind: res.kind,
+      grantedPoint: res.grantedPoint ?? null,
+      landmarks: res.landmarks ?? [],
+      currentPoint: res.currentPoint ?? 0,
+      fallbackFromLandmark: res.fallbackFromLandmark ?? false,
+    }
+  },
 }
