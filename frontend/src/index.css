@@ -193,7 +193,7 @@
   }
 
   ::selection {
-    background: var(--color-brand-200);
+    background: #3867D2;
     color: var(--color-ink-900);
   }
 

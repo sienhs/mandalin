@@ -146,7 +146,11 @@ export default function Home() {
     <div className="flex flex-col gap-5">
       {/* ───────── 요약 ───────── */}
       <section className="card animate-rise flex flex-wrap items-center gap-6 p-6 sm:p-7">
-        <ProgressRing value={overall} size={96}>
+        <ProgressRing
+          value={overall}
+          size={96}
+          hint="내 만다라트 전체의 실천 과제 달성률이에요. 과제를 체크할 때마다 올라갑니다."
+        >
           <div className="text-center leading-none">
             <strong className="block text-xl font-black tracking-[-0.04em]">{overall}%</strong>
             <span className="muted mt-1 block text-[10.5px] font-bold">전체</span>
