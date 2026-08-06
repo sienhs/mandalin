@@ -146,7 +146,11 @@ export default function Home() {
     <div className="flex flex-col gap-5">
       {/* ───────── 요약 ───────── */}
       <section className="card animate-rise flex flex-wrap items-center gap-6 p-6 sm:p-7">
-        <ProgressRing value={overall} size={96}>
+        <ProgressRing
+          value={overall}
+          size={96}
+          hint="내 만다라트 전체의 실천 과제 달성률이에요. 과제를 체크할 때마다 올라갑니다."
+        >
           <div className="text-center leading-none">
             <strong className="block text-xl font-black tracking-[-0.04em]">{overall}%</strong>
             <span className="muted mt-1 block text-[10.5px] font-bold">전체</span>
@@ -183,10 +187,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 열 너비만 공유하고 각 카드는 내용 높이를 유지한다. */}
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      {/* 모바일은 내용 높이를 유지하고, 2열에서는 두 카드의 하단을 맞춘다. */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-stretch">
         {/* ───────── 오늘의 할 일 ───────── */}
-        <section className="card animate-rise flex flex-col p-6" style={{ animationDelay: '.06s' }}>
+        <section
+          className="card animate-rise flex flex-col p-6 lg:h-full"
+          style={{ animationDelay: '.06s' }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="section-title m-0">오늘의 할 일</h2>
@@ -209,9 +216,9 @@ export default function Home() {
               }
             />
           ) : (
-            /* 다섯 줄 높이를 유지하고, 나머지 항목은 카드 안에서 스크롤한다. */
-            <div className="relative mt-5 h-[342px]">
-              <ul className="no-scrollbar absolute inset-0 m-0 flex list-none flex-col gap-2 overflow-y-auto p-0">
+            /* 모바일은 자연 높이, 2열에서는 마을 카드와 맞춘 높이 안에서 목록만 스크롤한다. */
+            <div className="mt-5 lg:relative lg:min-h-0 lg:flex-1">
+              <ul className="m-0 flex list-none flex-col gap-2 p-0 lg:absolute lg:inset-0 lg:overflow-y-auto lg:pr-1">
                 {rows.map((row) => {
                   const color = domainColor(row.domainPosition)
                   const busy = pending === row.todo.subjectId
