@@ -166,6 +166,14 @@ export default function Coach() {
 
   const [input, setInput] = useState('')
   const [basket, setBasket] = useState<Basket[]>(seed.basket)
+  /**
+   * 핵심 목표. **사용자가 직접 적는다 — 첫 발화로 자동으로 채우지 않는다.**
+   *
+   * 예전에는 "핵심 목표 = 첫 사용자 발화" 가 규칙이었고 에이전트도 같은 전제로 읽었지만,
+   * 지금은 서버가 시트의 `title` 을 `<final_goal>` 로 직접 받는다(`Conversation.set_goal`).
+   * 근거가 사라진 뒤에도 남아 있던 자동 채움은 **목표가 아닌 첫 발화까지 넣었다** —
+   * "뭐부터 해야 할지 모르겠어" 가 핵심 목표로 들어앉고 그대로 서버까지 갔다.
+   */
   const [goal, setGoal] = useState(seed.goal)
   const [proposal, setProposal] = useState<Proposal | null>(null)
   /** 담은 과제에 붙일 번호. **에이전트가 중복을 지목할 때 쓰는 id 라 유일하면 된다.** */
@@ -177,12 +185,6 @@ export default function Coach() {
    * 덮으면 편집기에서 정해 둔 값이 조용히 사라진다.
    */
   const draftMeta = useRef({ expiredAt: seed.expiredAt, isOpen: seed.isOpen })
-  /**
-   * 핵심 목표를 **자동으로 채운 적이 있는가.** 초안에서 온 목표가 있으면 처음부터 참이다.
-   *
-   * 이게 없으면 사용자가 칸을 지울 때마다 첫 발화가 다시 들어앉는다.
-   */
-  const goalFilled = useRef(Boolean(seed.goal))
   /** 목표 타이핑 디바운스. 글자마다 시트를 보내면 서버가 한 글자씩 다 받는다. */
   const sheetTimer = useRef<number | null>(null)
 
@@ -326,28 +328,6 @@ export default function Coach() {
       domains,
     })
   }, [basket, goal])
-
-  /**
-   * 핵심 목표 칸이 비어 있으면 **첫 사용자 발화로 채워 준다.**
-   *
-   * **에이전트를 위한 것이 아니다.** 에이전트는 이제 이 값을 `getSheet()` 의 `title` 로
-   * 받는다(`<final_goal>`) — 여기서 채우는 것은 그 입력칸을 대신 적어 주는 편의이고,
-   * 사용자가 고치면 그 값이 그대로 서버로 간다.
-   *
-   * `send()` 안이 아니라 대화에서 읽는 이유는 **음성**이다. 마이크로 시작하면 발화가
-   * `send()` 를 지나지 않고 전사 토픽으로 들어와서, 그쪽에만 두면 말로 시작한 사용자는
-   * 핵심 목표 칸이 빈 채로 남는다. 길면 비워 둔다 — 30자를 넘는 문장은 제목이 아니다.
-   */
-  useEffect(() => {
-    // **한 번만 채운다.** `if (goal) return` 만 두면 사용자가 칸을 **지울 때마다** 다시
-    // 채워진다. 실제로 그렇게 됐다 — 목표를 비우고 `"핵심 목표를 이루기 위한 활동
-    // 추천해줘"` 라고 말했더니 그 발화가 핵심 목표로 들어앉았고, 그대로 서버까지 갔다.
-    if (goalFilled.current || goal) return
-    const first = messages.find((m) => m.who === 'me')?.text.trim()
-    if (!first) return
-    goalFilled.current = true
-    setGoal(first.length <= 30 ? first : '')
-  }, [messages, goal])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -859,13 +839,18 @@ export default function Coach() {
             style={{ borderColor: 'var(--border-hairline)' }}
           >
             {/*
+              아래 버튼이 왜 잠겨 있는지를 여기서 말한다. 핵심 목표를 먼저 보는 이유는 그것이
+              자동으로 채워지지 않게 된 뒤로(그 상태 선언 주석) 비어 있기 쉬워졌기 때문이다.
+
               만다라트는 81칸을 모두 채워야 저장된다(서버가 8 x 8 을 강제한다). 편집기에 가서야
               알게 되면 늦으므로 여기서 미리 말해 둔다.
             */}
             <p className="muted m-0 mb-3 text-[11.5px] font-medium leading-relaxed">
-              {basket.length === 0
-                ? '과제를 담으면 세부 목표별로 배치된 채 편집기가 열려요.'
-                : `남은 ${64 - totalItems}칸은 편집기에서 이어 채우면 돼요. 81칸을 다 채워야 저장됩니다.`}
+              {!goal.trim()
+                ? '핵심 목표를 적어야 편집기로 가져갈 수 있어요 — 만다라트 가운데 칸이 됩니다.'
+                : basket.length === 0
+                  ? '과제를 담으면 세부 목표별로 배치된 채 편집기가 열려요.'
+                  : `남은 ${64 - totalItems}칸은 편집기에서 이어 채우면 돼요. 81칸을 다 채워야 저장됩니다.`}
             </p>
 
             {/*

@@ -373,7 +373,7 @@ async def entrypoint(ctx: JobContext) -> None:
     # 입장 로그에만 씁니다 — 다시 모델에게 보내려면 발화 텍스트가 아니라 프롬프트 슬롯으로
     # 넣으세요.
     # **최종목표와 칸 목록을 함께 받습니다.** 목표는 프롬프트의 `<final_goal>` 로 가고
-    # (`Conversation.set_goal`), 없으면 모델이 첫 목표 발화를 중심 목표로 씁니다.
+    # (`Conversation.set_goal`), 없으면 모델이 지어내지 않고 되묻습니다.
     joined = sheet_envelope_from_participant(
         participant.metadata, dict(participant.attributes or {})
     )
