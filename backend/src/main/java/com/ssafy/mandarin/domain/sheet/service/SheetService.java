@@ -3,6 +3,7 @@ package com.ssafy.mandarin.domain.sheet.service;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 
@@ -91,7 +92,7 @@ public class SheetService {
         // 3. 시작일은 시트 생성일(LocalDate.now()), 종료일(expiredAt)과의 총 일수(totalDays) 계산
         long totalDays = 30; // 기본값 30일
         if (savedSheet.getExpiredAt() != null) {
-            LocalDate startDate = LocalDate.now(); // 시작일은 생성 날짜
+            LocalDate startDate = LocalDate.now(ZoneId.of("Asia/Seoul")); // 시작일은 생성 날짜
             LocalDate endDate = savedSheet.getExpiredAt().toLocalDate();
             totalDays = ChronoUnit.DAYS.between(startDate, endDate) + 1;
             if (totalDays <= 0) {
@@ -342,7 +343,7 @@ public class SheetService {
             List<Subject> subjects = subjectRepository.findByDomainIdOrderByPositionAsc(domain.getId());
             List<SheetDetailResponse.SubjectDetailResponse> subjectResponses = new ArrayList<>();
 
-            LocalDate today = LocalDate.now();
+            LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
             LocalDateTime mondayStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
             LocalDateTime sundayEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).atTime(23, 59, 59);
             LocalDateTime monthStart = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();

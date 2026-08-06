@@ -26,7 +26,7 @@ class AlwaysRateLimited:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+    async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
         self.calls += 1
         raise LlmRateLimitedError("429: quota", retry_after=None)
 
@@ -42,7 +42,7 @@ class RateLimitedOnce:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+    async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
         self.calls += 1
         if self.calls == 1:
             raise LlmRateLimitedError("429: burst", retry_after=None)
@@ -134,7 +134,7 @@ def test_the_backoff_actually_retries(monkeypatch):
 class _AlwaysBusy:
     """`_with_backoff` 가 받는 파이프라인 모양. 항상 429."""
 
-    async def run(self, turns, domains):
+    async def run(self, turns, domains, **_):
         raise LlmRateLimitedError("429: quota", retry_after=None)
 
 
@@ -154,7 +154,7 @@ async def _backoff_waits(monkeypatch, *, is_paced: bool, retry_after=None) -> li
     monkeypatch.setattr(runner, "RETRY_WAITS", (1.0, 2.0))
 
     class Busy(_AlwaysBusy):
-        async def run(self, turns, domains):
+        async def run(self, turns, domains, **_):
             raise LlmRateLimitedError("429: quota", retry_after=retry_after)
 
     with pytest.raises(LlmRateLimitedError):
@@ -338,7 +338,7 @@ class AlwaysTruncated:
 
     name = "truncated"
 
-    async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+    async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
         raise LlmTruncatedError("응답이 토큰 상한(512)에서 잘렸습니다")
 
     async def aclose(self) -> None:

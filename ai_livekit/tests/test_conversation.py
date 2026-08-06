@@ -267,7 +267,7 @@ async def test_the_final_goal_reaches_the_pipeline():
     await conv.respond("공부 계획 짜줘")
     assert seen[-1] == "정보처리기사 취득"
 
-    # 빈 문자열·공백은 **없는 것**이다. 그때는 모델이 첫 목표 발화를 중심 목표로 쓴다.
+    # 빈 문자열·공백은 **없는 것**이다. 그때는 모델이 지어내지 않고 되묻는다.
     conv.set_goal("   ")
     await conv.respond("또 뭐 할까")
     assert seen[-1] is None

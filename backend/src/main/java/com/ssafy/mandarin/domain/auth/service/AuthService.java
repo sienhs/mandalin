@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.UUID;
 
@@ -54,7 +55,7 @@ public class AuthService {
 				.uuid(user.getUuid())
 				.deviceId(deviceId)
 				.token(hashToken(refreshToken))
-				.expiresAt(LocalDateTime.now().plusDays(REFRESH_TOKEN_DAYS))
+				.expiresAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(REFRESH_TOKEN_DAYS))
 				.build());
 
 		log.info("Login succeeded: userId={}, deviceId={}", user.getId(), deviceId);
@@ -92,7 +93,7 @@ public class AuthService {
 			throw new BusinessException(ErrorCode.INVALID_TOKEN);
 		}
 
-		if (session.getExpiresAt().isBefore(LocalDateTime.now())) {
+		if (session.getExpiresAt().isBefore(LocalDateTime.now(ZoneId.of("Asia/Seoul")))) {
 			throw new BusinessException(ErrorCode.EXPIRED_TOKEN);
 		}
 
@@ -102,7 +103,7 @@ public class AuthService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_TOKEN));
 
 		String rotated = jwtUtil.generateRefreshToken(uuid, deviceId);
-		session.updateToken(hashToken(rotated), LocalDateTime.now().plusDays(REFRESH_TOKEN_DAYS));
+		session.updateToken(hashToken(rotated), LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(REFRESH_TOKEN_DAYS));
 
 		return new ReissuedTokens(jwtUtil.generateAccessToken(uuid), rotated);
 	}

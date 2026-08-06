@@ -42,9 +42,11 @@
   .sheet-card {
     /* 카드 색을 공통 진행 바(components/common/ProgressBar)의 변수로 넘긴다. */
     --progress-accent: var(--sheet-accent);
-    @apply flex flex-col overflow-hidden rounded-[18px] bg-white;
-    border: 1px solid #e7eaee;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -18px rgba(15, 23, 42, 0.15);
+    @apply flex flex-col overflow-hidden rounded-[18px];
+    background: var(--surface-card);
+    color: var(--text-strong);
+    border: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-card);
     transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
   }
 
@@ -68,6 +70,21 @@
     --sheet-accent: #d9a437;
   }
 
+  .dark .sheet-card--green {
+    --sheet-thumb: #23472a;
+    --sheet-accent: #6cbf7f;
+  }
+
+  .dark .sheet-card--blue {
+    --sheet-thumb: #242b54;
+    --sheet-accent: #6a7ad4;
+  }
+
+  .dark .sheet-card--amber {
+    --sheet-thumb: #453b17;
+    --sheet-accent: #d9a437;
+  }
+
   /* 썸네일 영역 */
   .sheet-card-thumb {
     @apply relative flex h-[130px] items-center justify-center;
@@ -80,20 +97,21 @@
 
   /* 공개 / 비공개 배지 */
   .sheet-card-badge {
-    @apply absolute left-3 top-3 inline-flex items-center rounded-lg bg-white px-[10px] py-[3px] text-[11.5px] font-bold;
-    color: #334155;
+    @apply absolute left-3 top-3 inline-flex items-center rounded-lg px-[10px] py-[3px] text-[11.5px] font-bold;
+    background: var(--surface-card);
+    color: var(--text-strong);
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
   }
 
   /* 삭제(X) 버튼 */
   .sheet-card-remove {
     @apply absolute right-2.5 top-2.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[17px] font-bold leading-none transition-colors duration-150;
-    color: #8fa0ad;
+    color: var(--text-muted);
   }
 
   .sheet-card-remove:hover {
-    background: rgba(255, 255, 255, 0.55);
-    color: #475569;
+    background: var(--surface-sunken);
+    color: var(--text-strong);
   }
 
   /* 본문 */
@@ -103,12 +121,12 @@
 
   .sheet-card-title {
     @apply m-0 text-[15.5px] font-extrabold tracking-[-0.01em];
-    color: #0f172a;
+    color: var(--text-strong);
   }
 
   .sheet-card-period {
     @apply m-0 text-[12.5px] font-semibold;
-    color: #64748b;
+    color: var(--text-muted);
   }
 
   .sheet-card-meta {
@@ -117,7 +135,7 @@
 
   .sheet-card-goals {
     @apply text-[12.5px] font-semibold;
-    color: #64748b;
+    color: var(--text-muted);
   }
 
   .sheet-card-percent {
@@ -129,9 +147,11 @@
   .sheet-group-card {
     --sheet-accent: #8b7fe3;
     --progress-accent: var(--sheet-accent);
-    @apply flex items-center gap-5 rounded-[18px] bg-white px-6 py-5;
-    border: 1px solid #e7eaee;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -18px rgba(15, 23, 42, 0.15);
+    @apply flex items-center gap-5 rounded-[18px] px-6 py-5;
+    background: var(--surface-card);
+    color: var(--text-strong);
+    border: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-card);
   }
 
   .sheet-group-main {
@@ -140,12 +160,12 @@
 
   .sheet-group-title {
     @apply m-0 truncate text-[16.5px] font-extrabold tracking-[-0.01em];
-    color: #0f172a;
+    color: var(--text-strong);
   }
 
   .sheet-group-sub {
     @apply m-0 text-[12.5px] font-semibold;
-    color: #64748b;
+    color: var(--text-muted);
   }
 
   .sheet-group-percent {
@@ -156,13 +176,15 @@
   /* ---------- 팝업 ---------- */
   .sheet-list-overlay {
     @apply fixed inset-0 z-[999] flex items-center justify-center p-4;
-    background: rgba(15, 23, 42, 0.4);
+    background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(2px);
   }
 
   .sheet-list-dialog {
-    @apply relative flex w-full flex-col rounded-[24px] bg-white;
-    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.2);
+    @apply relative flex w-full flex-col rounded-[24px];
+    background: var(--surface-card);
+    color: var(--text-strong);
+    box-shadow: var(--shadow-pop);
   }
 
   /* 생성 · 삭제 확인 팝업 */
@@ -189,22 +211,22 @@
 
   .sheet-list-dialog-title {
     @apply m-0 text-[18px] font-extrabold tracking-[-0.01em];
-    color: #0f172a;
+    color: var(--text-strong);
   }
 
   .sheet-list-dialog-desc {
     @apply m-0 text-[13px] font-semibold leading-[1.6];
-    color: #8b95a5;
+    color: var(--text-muted);
   }
 
   .sheet-list-dialog-close {
     @apply absolute right-[18px] top-[18px] flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[18px] font-bold leading-none transition-colors duration-150;
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 
   .sheet-list-dialog-close:hover {
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--surface-sunken);
+    color: var(--text-strong);
   }
 
   .sheet-list-dialog-actions {
@@ -213,23 +235,24 @@
 
   /* ---------- 초대 항목 ---------- */
   .invite-item {
-    @apply flex flex-col gap-3 rounded-[16px] bg-white p-3.5;
-    border: 1px solid #e2e8f0;
+    @apply flex flex-col gap-3 rounded-[16px] p-3.5;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-hairline);
   }
 
   .invite-title {
     @apply m-0 truncate text-[14.5px] font-extrabold tracking-[-0.01em];
-    color: #0f172a;
+    color: var(--text-strong);
   }
 
   .invite-from {
     @apply m-0 mt-[3px] text-[12px] font-semibold;
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 
   .invite-from b {
     @apply font-extrabold;
-    color: #475569;
+    color: var(--text-strong);
   }
 
   .invite-actions {
@@ -239,16 +262,16 @@
   /* ---------- 섹션 제목 ---------- */
   .sheet-list-heading {
     @apply m-0 text-[21px] font-extrabold tracking-[-0.02em];
-    color: #0f172a;
+    color: var(--text-strong);
   }
 
   .sheet-list-subheading {
     @apply m-0 text-[17px] font-extrabold tracking-[-0.02em];
-    color: #0f172a;
+    color: var(--text-strong);
   }
 
   .sheet-list-caption {
     @apply m-0 mt-1 text-[12.5px] font-semibold;
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 }

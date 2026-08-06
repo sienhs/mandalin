@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.group.entity;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.ssafy.mandarin.domain.user.entity.User;
 
@@ -57,7 +58,7 @@ public class GroupRequest {
     @PrePersist
     public void prePersist() {
         if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
+            this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         }
     }
 
@@ -77,6 +78,6 @@ public class GroupRequest {
 
     public void resetToPending() {
         this.progress = GroupRequestProgress.NOT_READ;
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 }

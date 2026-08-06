@@ -20,10 +20,9 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconCheck,
-  IconChevronDown,
   IconSparkle,
 } from '../components/common/Icons'
-import { Field, Input, ProgressBar, Segmented, domainColor } from '../components/common/Primitives'
+import { Field, Input, Segmented, domainColor } from '../components/common/Primitives'
 import { cn } from '../utils/cn'
 import { fromNow } from '../utils/format'
 
@@ -404,34 +403,6 @@ function SubjectRow({
   )
 }
 
-type SettingsRowProps = {
-  label: string
-  hint: string
-  children: ReactNode
-  htmlFor?: string
-}
-
-/** 기본 설정의 라벨·컨트롤·안내 문구 간격을 동일하게 유지한다. */
-function SettingsRow({ label, hint, children, htmlFor }: SettingsRowProps) {
-  const labelClassName = 'w-16 shrink-0 text-[12.5px] font-bold text-[var(--text-muted)]'
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-4">
-        {htmlFor ? (
-          <label htmlFor={htmlFor} className={labelClassName}>
-            {label}
-          </label>
-        ) : (
-          <span className={labelClassName}>{label}</span>
-        )}
-        <div className="w-[190px] shrink-0">{children}</div>
-      </div>
-      <span className="text-[11.5px] font-medium text-[var(--text-muted)]">{hint}</span>
-    </div>
-  )
-}
-
 export default function SheetCreate() {
   const { createSheet } = useStore()
   const navigate = useNavigate()
@@ -471,8 +442,6 @@ export default function SheetCreate() {
   const [title, setTitle] = useState(restored?.title ?? seeded?.title ?? '')
   const [expiredAt, setExpiredAt] = useState(restored?.expiredAt || IN_SIX_MONTHS)
   const [isOpen, setIsOpen] = useState(restored?.isOpen ?? true)
-  /** 기본 설정 접힘. 처음 한 번 정하면 다시 볼 일이 드물어 펼친 채로 시작한다. */
-  const [settingsOpen, setSettingsOpen] = useState(true)
 
   const [domains, setDomains] = useState<DraftDomain[]>(
     () => restored?.domains ?? (seeded ? fromCoach(seeded) : emptyDomains()),
@@ -484,6 +453,25 @@ export default function SheetCreate() {
 
   /** 도메인을 넘길 때 과제 목록을 1번으로 되돌리고, 격자에서 누른 과제 입력에 초점을 준다. */
   const subjectListRef = useRef<HTMLDivElement>(null)
+  /**
+   * 핵심 목표 없이 다른 칸을 누른 적이 있는가. 빨간 테두리와 안내를 띄운다.
+   *
+   * <p>제목을 채우면 저절로 사라진다(그릴 때 `!title.trim()` 을 함께 본다) — 상태를 따로
+   * 꺼 주지 않아도 되고, 지웠다가 다시 비면 경고가 되살아나는 것이 맞다.
+   */
+  const [coreRejected, setCoreRejected] = useState(false)
+  /** 흔들림 한 번. 애니메이션이 끝나면 스스로 꺼져 다음 거절에 다시 켤 수 있다. */
+  const [coreShaking, setCoreShaking] = useState(false)
+
+  /**
+   * 세부 목표 없이 과제 칸을 눌러 거절당한 <b>세부 목표 번호</b>. 없으면 null.
+   *
+   * <p>참/거짓이 아닌 번호인 이유: 세부 목표는 8개다. 불리언으로 두면 3번에서 거절당한 뒤
+   * 5번으로 옮겼을 때, 5번은 아무 잘못이 없는데도 빨간 테두리를 그대로 이고 있게 된다.
+   */
+  const [domainRejected, setDomainRejected] = useState<number | null>(null)
+  const [domainShaking, setDomainShaking] = useState(false)
+
   const subjectInputRef = useRef<HTMLInputElement>(null)
   const domainInputRef = useRef<HTMLInputElement>(null)
   const coreInputRef = useRef<HTMLInputElement>(null)
@@ -502,6 +490,29 @@ export default function SheetCreate() {
     input.setSelectionRange(end, end)
   }
 
+  /**
+   * 핵심 목표가 비어 거절당했다는 신호.
+   *
+   * <p>예전에는 다른 칸을 눌러도 <b>말없이</b> 가운데 칸으로 되돌려 보내기만 했다. 누른 칸이
+   * 열리지 않으니 클릭이 먹지 않은 것처럼 보였고, 왜 안 되는지도 화면 어디에도 없었다.
+   *
+   * <p>흔들림을 두 단계로 켜는 이유: 같은 클래스를 계속 달아 두면 두 번째 클릭에서 애니메이션이
+   * <b>다시 시작하지 않는다</b>(이미 끝난 애니메이션이라 브라우저가 무시한다). 한 프레임 껐다
+   * 켜야 다시 돈다. 요소를 remount 시키는 방법도 있지만 그러면 입력이 초점을 잃는다.
+   */
+  const nudgeCore = () => {
+    setCoreRejected(true)
+    setCoreShaking(false)
+    window.requestAnimationFrame(() => setCoreShaking(true))
+  }
+
+  /** 세부 목표가 비어 과제를 열지 못했다는 신호. `nudgeCore` 와 같은 규칙이다. */
+  const nudgeDomain = (domainIndex: number) => {
+    setDomainRejected(domainIndex)
+    setDomainShaking(false)
+    window.requestAnimationFrame(() => setDomainShaking(true))
+  }
+
   const selectCell = (cell: CellRef) => {
     if (cell.kind === 'core') {
       setSelected(cell)
@@ -512,6 +523,7 @@ export default function SheetCreate() {
     // 핵심 목표가 없으면 나머지 80칸보다 먼저 가운데 칸을 작성하게 안내한다.
     if (!title.trim()) {
       setSelected({ kind: 'core' })
+      nudgeCore()
       window.requestAnimationFrame(() => focusAtEnd(coreInputRef.current))
       return
     }
@@ -525,6 +537,7 @@ export default function SheetCreate() {
     // 과제의 부모인 세부 목표가 비어 있으면 그 입력으로 먼저 보낸다.
     if (!domains[cell.domainIndex]?.title.trim()) {
       setSelected({ kind: 'domain', domainIndex: cell.domainIndex })
+      nudgeDomain(cell.domainIndex)
       window.requestAnimationFrame(() => focusAtEnd(domainInputRef.current))
       return
     }
@@ -765,15 +778,6 @@ export default function SheetCreate() {
     navigate('/app/sheets')
   }
 
-  const jumpToIncomplete = () => {
-    const first = status.incomplete[0]
-    if (!title.trim()) {
-      setSelected({ kind: 'core' })
-      return
-    }
-    if (first) setSelected({ kind: 'domain', domainIndex: first.index })
-  }
-
   /** 과제 한 칸 수정. 도메인 편집과 단일 칸 편집이 함께 쓴다. */
   const patchSubject = (domainIndex: number, subjectIndex: number, patch: Partial<DraftSubject>) =>
     setDomains((prev) =>
@@ -814,18 +818,49 @@ export default function SheetCreate() {
         "가운데" 세 글자를 넣으려니 28px 배지에서 글자가 잘렸다. 어느 칸인지는 바로 옆
         caption("가운데 칸")이 이미 말해 준다.
       */
+      /* 제목을 채우면 경고가 저절로 걷힌다 — 상태를 따로 끄지 않고 그릴 때 함께 본다. */
+      const rejected = coreRejected && !title.trim()
+
       return (
         <PanelShell title="핵심 목표" caption="가운데 칸">
-          <Field label="이루고 싶은 큰 목표 하나" hint="30자까지 쓸 수 있어요.">
-            <Input
-              ref={coreInputRef}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="예) 건강한 몸 만들기"
-              maxLength={30}
-              autoFocus
-            />
-          </Field>
+          <div
+            className={cn(rejected && coreShaking && 'animate-shake')}
+            /* 흔들림이 끝나면 스스로 끈다. 켜 둔 채로 두면 다음 거절에 다시 시작하지 않는다. */
+            onAnimationEnd={() => setCoreShaking(false)}
+          >
+            <Field label="이루고 싶은 큰 목표 하나" hint="30자까지 쓸 수 있어요.">
+              <Input
+                ref={coreInputRef}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="예) 건강한 몸 만들기"
+                maxLength={30}
+                autoFocus
+                aria-invalid={rejected}
+                aria-describedby={rejected ? 'core-required' : undefined}
+                /*
+                  클래스가 아니라 인라인 style 로 준다. Input 은 안에서 style 로 테두리 색을
+                  칠하는데(`var(--border-hairline)`), 인라인 style 은 클래스를 항상 이기므로
+                  `border-red-500` 을 붙여도 먹지 않는다. rest 로 넘긴 style 이 컴포넌트의
+                  style 보다 뒤에 놓여 이쪽이 이긴다.
+
+                  <p>평소 색까지 여기서 함께 정한다. 거절이 아닐 때 `undefined` 를 넘기면
+                  <b>컴포넌트의 style 자체를 덮어써</b> 기본 테두리색이 사라진다.
+                */
+                style={{ borderColor: rejected ? '#ef4444' : 'var(--border-hairline)' }}
+              />
+            </Field>
+          </div>
+
+          {rejected && (
+            <p
+              id="core-required"
+              role="alert"
+              className="m-0 rounded-xl bg-red-500/10 px-3 py-2 text-center text-[11.5px] font-bold text-red-600 dark:text-red-400"
+            >
+              핵심 목표를 먼저 입력해 주세요.
+            </p>
+          )}
 
           <p className="muted m-0 text-[12.5px] font-medium leading-relaxed">
             핵심 목표를 정하면 둘레 8칸에 세부 목표를, 그 바깥에 실천 과제를 채웁니다.
@@ -850,41 +885,101 @@ export default function SheetCreate() {
       const domain = domains[index]
       const done = domain.subjects.filter((s) => s.title.trim()).length
 
-      return (
-        <PanelShell
-          title={domain.title.trim() || `세부 목표 ${index + 1}`}
-          caption={`실천 과제 ${done}/8`}
-          chip={{ label: `${index + 1}`, color: domainColor(index) }}
-          done={done === 8 && Boolean(domain.title.trim())}
-        >
-          <Field label="세부 목표" hint="핵심 목표를 이루기 위한 갈래 하나입니다.">
-            <Input
-              ref={domainInputRef}
-              value={domain.title}
-              onChange={(e) =>
-                setDomains((prev) =>
-                  prev.map((d, i) => (i === index ? { ...d, title: e.target.value } : d)),
-                )
-              }
-              placeholder="예) 규칙적인 운동"
-              maxLength={20}
-            />
-          </Field>
+      /*
+        <b>머리말 박스를 두지 않는다.</b> 다른 모드는 PanelShell 로 제목·안내를 이고 있지만,
+        세부 목표 모드에서는 그 자리가 하는 말이 바로 아래 입력과 겹친다 — 머리말의 제목이
+        곧 입력칸의 값이고, "실천 과제 0/8" 은 아래 8줄을 보면 알 수 있다. 대신 번호 배지를
+        입력 줄 왼쪽으로 옮겨, 지금 몇 번째 목표를 쓰는지는 그대로 남긴다.
 
-          <div>
-            <p className="muted m-0 mb-2 text-[12px] font-bold">실천 과제 8개</p>
-            {/*
-              8줄이 한 번에 보이면 패널이 화면을 넘어가 저장 버튼까지 밀린다.
-              스크롤 영역으로 묶고 스크롤바는 숨긴다.
-            */}
-            {!domain.title.trim() && (
-              <p className="m-0 mb-2 rounded-xl bg-amber-500/10 px-3 py-2 text-center text-[11.5px] font-bold text-amber-700 dark:text-amber-300">
-                세부 목표를 먼저 작성해주세요.
-              </p>
-            )}
+        <p>이 화면에서 가장 오래 머무는 모드라 한 줄이라도 위로 당기면 과제 8줄이 더 보인다.
+      */
+      /* 핵심 목표와 같은 규칙 — 제목을 채우면 경고가 저절로 걷힌다. */
+      const rejected = domainRejected === index && !domain.title.trim()
+
+      return (
+        <div className="flex h-full flex-col gap-4">
+          <div
+            className={cn(rejected && domainShaking && 'animate-shake')}
+            onAnimationEnd={() => setDomainShaking(false)}
+          >
+            <p className="mb-1.5 text-[12.5px] font-bold text-[var(--text-muted)]">세부 목표</p>
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className="grid size-9 shrink-0 place-items-center rounded-xl text-[13px] font-black text-white"
+                style={{ background: domainColor(index) }}
+              >
+                {index + 1}
+              </span>
+              <Input
+                ref={domainInputRef}
+                value={domain.title}
+                onChange={(e) =>
+                  setDomains((prev) =>
+                    prev.map((d, i) => (i === index ? { ...d, title: e.target.value } : d)),
+                  )
+                }
+                placeholder="예) 규칙적인 운동"
+                maxLength={20}
+                aria-label={`세부 목표 ${index + 1}`}
+                aria-invalid={rejected}
+                aria-describedby={rejected ? 'domain-required' : undefined}
+                /* 평소 색까지 함께 준다 — undefined 를 넘기면 Input 의 style 을 덮어써
+                   기본 테두리색이 사라진다(핵심 목표 입력과 같은 이유). */
+                style={{ borderColor: rejected ? '#ef4444' : 'var(--border-hairline)' }}
+              />
+              {done === 8 && domain.title.trim() && (
+                <span
+                  aria-label="채움"
+                  className="grid size-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 text-white"
+                >
+                  <IconCheck className="size-3.5" />
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/*
+            같은 자리에서 톤만 바꾼다. 과제를 눌러 거절당한 경우와 그냥 빈 목표에 들어온
+            경우는 <b>사용자가 방금 무엇을 했는지</b>가 다르다 — 앞은 시도가 막힌 것이라
+            빨강으로 알리고, 뒤는 아직 아무것도 안 한 것이라 안내로 둔다. 문구는 같으므로
+            둘을 따로 띄우면 같은 말이 두 줄로 겹친다.
+          */}
+          {!domain.title.trim() && (
+            <p
+              id={rejected ? 'domain-required' : undefined}
+              role={rejected ? 'alert' : undefined}
+              className={cn(
+                'm-0 rounded-xl px-3 py-2 text-center text-[11.5px] font-bold',
+                rejected
+                  ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+              )}
+            >
+              세부 목표를 먼저 작성해주세요.
+            </p>
+          )}
+
+          {/*
+            <b>격자 카드가 높이의 기준이고, 이 목록이 남는 공간을 채운다.</b>
+
+            <p>예전에는 `max-h-[368px]` 로 묶여 있었다. 카드는 옆 격자 카드 높이만큼 늘어나는데
+            목록은 368px 에서 멈추니 8줄 중 4줄만 보이고 그 아래가 통째로 비었다. 이동 버튼은
+            PanelNav 의 `mt-auto` 때문에 그 빈 공간 건너 맨 아래에 홀로 떨어져 있었다.
+
+            <p>그런데 `flex-1` 만으로는 안 된다. 격자 행 높이는 각 칸의 <i>내용</i> 높이로
+            정해지는데, flex 자식은 flex-basis 가 0 이어도 내용 높이를 그대로 보탠다 — 8줄이
+            그대로 더해져 이번엔 오른쪽 카드가 격자 카드를 밀어 올린다. 그래서 목록을
+            <b>absolute</b> 로 띄운다. 절대 위치는 부모 높이 계산에서 빠지므로 이 카드의 내용
+            높이는 '머리말 + 이동 버튼'뿐이 되고, 늘 격자 카드가 행 높이를 정한다.
+
+            <p>1024px 아래로 좁히면 한 컬럼이 되어 기준이 될 카드가 없다. 그때는 368px 로
+            고정한다 — 절대 위치라 그냥 두면 높이가 0 이 되어 과제가 통째로 사라진다.
+          */}
+          <div className="relative h-[368px] lg:h-auto lg:min-h-0 lg:flex-1">
             <div
               ref={subjectListRef}
-              className="no-scrollbar flex max-h-[368px] flex-col gap-2 overflow-y-auto pr-0.5"
+              className="no-scrollbar absolute inset-0 flex flex-col gap-2 overflow-y-auto pr-0.5"
             >
               {domain.subjects.map((sub, j) => (
                 <SubjectRow
@@ -909,7 +1004,7 @@ export default function SheetCreate() {
               index < 7 ? () => setSelected({ kind: 'domain', domainIndex: index + 1 }) : undefined
             }
           />
-        </PanelShell>
+        </div>
       )
     }
 
@@ -984,15 +1079,64 @@ export default function SheetCreate() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="page-title">새 만다라트</h1>
-          <p className="page-caption">
-            가운데에 핵심 목표, 둘레에 세부 목표 8개, 그 바깥에 실천 과제 64개를 적습니다.
-          </p>
+      {/*
+        제목 · 기본 설정 · 동작을 한 줄에 둔다.
+
+        <p>예전에는 제목 아래 설명 한 줄, 그 아래 완성도 카드, 그리고 오른쪽 컬럼에 접이식
+        '기본 설정' 카드까지 네 덩어리가 격자 위를 차지했다. 정작 이 화면에서 계속 보는 것은
+        <b>격자</b>인데 그게 화면 아래로 밀려났다. 마감일과 공개 여부는 한 번 정하면 끝이라
+        접었다 펴는 카드를 줄 만큼 무겁지 않다 — 머리말에 얹으면 한눈에 보이고 자리도 덜 쓴다.
+      */}
+      {/*
+        각 묶음에 `shrink-0` 을 준다. 없으면 자리가 모자랄 때 flex 가 묶음을 <b>줄여서</b>
+        맞추려 들고, 그 압력이 가장 먼저 라벨 글자를 접는다 — "마감일" 이 "마감 / 일" 로
+        쪼개져 머리말 높이까지 밀어 올렸다. 줄이지 못하게 하면 대신 flex-wrap 이 묶음
+        단위로 다음 줄에 내려 보내므로, 좁아져도 글자는 온전히 남는다.
+      */}
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <h1 className="page-title m-0 shrink-0">새 만다라트</h1>
+
+        <div className="flex shrink-0 items-center gap-2.5">
+          <label
+            htmlFor="sheet-expired-at"
+            className="whitespace-nowrap text-[12.5px] font-bold text-[var(--text-muted)]"
+          >
+            마감일
+          </label>
+          {/*
+            폭은 감싸는 칸이 정한다. Input 에 직접 `w-[172px]` 을 줘도 CONTROL 의 `w-full` 이
+            함께 남아 어느 쪽이 이길지 CSS 순서에 달리고, 실제로 100% 로 잡혀 옆 라벨을
+            짓눌렀다(Primitives 의 CONTROL 주석이 경고하는 바로 그 함정이다).
+            부모에 폭을 주면 w-full 이 그 폭을 채우므로 다투지 않는다.
+          */}
+          <div className="w-[168px] shrink-0">
+            <Input
+              id="sheet-expired-at"
+              type="date"
+              value={expiredAt}
+              min={TODAY}
+              onChange={(e) => setExpiredAt(e.target.value)}
+              className="h-10"
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2.5">
+          <span className="whitespace-nowrap text-[12.5px] font-bold text-[var(--text-muted)]">
+            공개 여부
+          </span>
+          <Segmented
+            size="sm"
+            value={isOpen ? 'public' : 'private'}
+            onChange={(v) => setIsOpen(v === 'public')}
+            options={[
+              { value: 'public', label: '공개' },
+              { value: 'private', label: '비공개' },
+            ]}
+          />
+        </div>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <Button
             variant="ghost"
             onClick={() =>
@@ -1015,15 +1159,6 @@ export default function SheetCreate() {
           </Button>
         </div>
       </header>
-
-      {/*
-        수정 불가 안내. 예전에는 우측 사이드바에 노란 경고 박스로 있었는데, 정작 보라는
-        시점(저장 직전)에는 스크롤 밖이었고 색만 강해 화면을 어지럽혔다.
-        제목 바로 아래 한 줄로 두면 만들기 시작할 때 자연스럽게 읽힌다.
-      */}
-      <p className="muted m-0 text-center text-[12px] font-bold">
-        저장하면 내용을 고칠 수 없어요 · 공개 여부만 나중에 바꿀 수 있습니다
-      </p>
 
       {/*
         되살렸다는 사실을 말해 준다. 아무 말 없이 지난 내용이 채워져 있으면 "왜 이게 여기
@@ -1055,48 +1190,6 @@ export default function SheetCreate() {
         </div>
       )}
 
-      {/*
-        완성도. 예전에는 상태에 따라 테두리·배경색이 통째로 바뀌는 색 박스였는데,
-        그 색이 아래 카드들과 겹쳐 화면이 시끄러웠고 진행 막대까지 들어가 높이도 컸다.
-        흰 카드 한 줄에 숫자 셋과 얇은 막대만 남긴다 — 필요한 정보는 "몇 칸 남았나"뿐이다.
-      */}
-      <section className="card flex flex-wrap items-center gap-x-6 gap-y-4 p-5">
-        <div className="flex items-baseline gap-2">
-          <strong className="text-2xl font-black tabular-nums tracking-[-0.04em]">
-            {status.filled}
-          </strong>
-          <span className="muted text-[13px] font-bold">/ 81칸</span>
-        </div>
-
-        <div className="min-w-[200px] flex-1">
-          <ProgressBar value={(status.filled / 81) * 100} label="만다라트 완성도" />
-          <p className="muted m-0 mt-2 text-[11.5px] font-semibold">
-            핵심 목표 {title.trim() ? 1 : 0}/1 · 세부 목표 {status.domainDone}/8 · 실천 과제{' '}
-            {status.subjectDone}/64
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {status.complete ? (
-            <span className="flex items-center gap-1.5 text-[12.5px] font-extrabold text-emerald-600 dark:text-emerald-400">
-              <IconCheck className="size-4" /> 모두 채웠어요
-            </span>
-          ) : (
-            <Button variant="secondary" size="sm" onClick={jumpToIncomplete}>
-              덜 채운 칸으로
-            </Button>
-          )}
-
-          {/*
-            방식 선택 팝업을 다시 부르는 유일한 자리. 팝업은 처음 한 번만 뜨므로 이 버튼이
-            없으면 "직접 채우기" 를 고른 뒤 방식을 다시 볼 길이 사라진다.
-          */}
-          <Button variant="quiet" size="sm" onClick={() => setPickerOpen(true)}>
-            만드는 방법
-          </Button>
-        </div>
-      </section>
-
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <section className="card p-4 sm:p-6">
           <MandalartGrid
@@ -1105,95 +1198,10 @@ export default function SheetCreate() {
             onSelect={selectCell}
             isLocked={isCellLocked}
           />
-
-          {/* 블록별 완성 상태 */}
-          <div className="mt-5 flex flex-wrap gap-1.5">
-            {domains.map((d, i) => {
-              const done = d.subjects.filter((s) => s.title.trim()).length
-              const full = Boolean(d.title.trim()) && done === 8
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setSelected({ kind: 'domain', domainIndex: i })}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-colors',
-                    full ? 'text-white' : 'text-[var(--text-muted)]',
-                  )}
-                  style={{
-                    background: full ? domainColor(i) : 'var(--surface-sunken)',
-                  }}
-                >
-                  <span className="max-w-[120px] truncate">
-                    {d.title.trim() || `목표 ${i + 1}`}
-                  </span>
-                  <span className="tabular-nums opacity-80">{done}/8</span>
-                </button>
-              )
-            })}
-          </div>
         </section>
 
-        <div className="flex flex-col gap-5">
-          <section className="card p-6">
-            <button
-              type="button"
-              onClick={() => setSettingsOpen((v) => !v)}
-              aria-expanded={settingsOpen}
-              className="flex w-full items-center justify-between gap-3 text-left"
-            >
-              <h2 className="section-title m-0">기본 설정</h2>
-              <span className="muted flex items-center gap-2 text-[11.5px] font-bold">
-                {!settingsOpen && <span>{isOpen ? '공개' : '비공개'}</span>}
-                <IconChevronDown
-                  className={cn(
-                    'size-4 transition-transform duration-200 motion-reduce:transition-none',
-                    settingsOpen && 'rotate-180',
-                  )}
-                />
-              </span>
-            </button>
-
-            <div
-              className={cn(
-                'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
-                settingsOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
-              )}
-            >
-              <div className="overflow-hidden">
-                <div className="mt-4 flex flex-col gap-4">
-                  <SettingsRow
-                    label="마감일"
-                    hint="이 날짜까지를 한 주기로 봅니다."
-                    htmlFor="sheet-expired-at"
-                  >
-                    <Input
-                      id="sheet-expired-at"
-                      type="date"
-                      value={expiredAt}
-                      min={TODAY}
-                      onChange={(e) => setExpiredAt(e.target.value)}
-                    />
-                  </SettingsRow>
-
-                  <SettingsRow label="공개 여부" hint="나중에 변경 가능합니다.">
-                    <Segmented
-                      className="w-full [&>button]:min-w-0 [&>button]:flex-1 [&>button]:px-0"
-                      value={isOpen ? 'public' : 'private'}
-                      onChange={(v) => setIsOpen(v === 'public')}
-                      options={[
-                        { value: 'public', label: '공개' },
-                        { value: 'private', label: '비공개' },
-                      ]}
-                    />
-                  </SettingsRow>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="card flex-1 p-6">{editor}</section>
-        </div>
+        {/* 마감일·공개 여부가 머리말로 올라가, 오른쪽 컬럼에는 편집기만 남는다. */}
+        <section className="card p-6">{editor}</section>
       </div>
 
       {/* 만드는 방식 선택 */}

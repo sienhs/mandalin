@@ -15,7 +15,6 @@ import {
   IconSun,
   IconVillage,
 } from '../components/common/Icons'
-import IsoVillage from '../features/village/IsoVillage'
 import Reveal from '../features/landing/Reveal'
 import { BrowserFrame } from '../features/landing/DeviceFrame'
 import {
@@ -55,12 +54,10 @@ import { cn } from '../utils/cn'
 function Section({
   children,
   className,
-  tone = 'page',
   pad = 'both',
 }: {
   children: ReactNode
   className?: string
-  tone?: 'page' | 'sunken'
   /** 다음 구간과 이어 붙일 때 한쪽 여백을 접는다. */
   pad?: 'both' | 'top' | 'bottom'
 }) {
@@ -71,7 +68,14 @@ function Section({
     <section
       className={cn('px-6', className)}
       style={{
-        background: tone === 'sunken' ? 'var(--surface-sunken)' : 'var(--surface-page)',
+        /*
+          구간마다 색을 갈아 끼우지 않는다. 앱과 같은 바탕(흰색)으로 끝까지 가야
+          로그인 버튼을 누르는 순간 배경이 바뀌지 않는다 — 소개 페이지와 앱이
+          한 제품으로 읽히는 것은 그 연속성에서 온다.
+
+          <p>구간을 나누는 일은 여백(위 `full`·`short`)과 큰 글자가 이미 하고 있다.
+        */
+        background: 'var(--surface-page)',
         paddingTop: pad === 'bottom' ? short : full,
         paddingBottom: pad === 'top' ? short : full,
       }}
@@ -250,7 +254,7 @@ function stepScreens(sheet: ReturnType<typeof showcaseSheet>) {
     <CoachScreen key="coach" />,
     // 체크가 하나씩 켜진 상태를 보여 준다.
     <HomeScreen key="home" sheet={sheet} doneCount={3} todoCount={4} />,
-    <ShopScreen key="shop" sheet={sheet} />,
+    <ShopScreen key="shop" />,
   ]
 }
 
@@ -482,7 +486,7 @@ export default function Landing() {
       </div>
 
       {/* ───────── 문제 제기 ───────── */}
-      <Section tone="sunken">
+      <Section>
         <Headline
           align="center"
           title={
@@ -495,10 +499,10 @@ export default function Landing() {
         />
       </Section>
 
-      {/* ───────── 세 단계 (큰 화면: 고정 / 작은 화면: 쌓기) ───────── */}
+      {/* ───────── 네 단계 (큰 화면: 고정 / 작은 화면: 쌓기) ───────── */}
       <div style={{ background: 'var(--surface-page)' }}>
         <Section pad="top">
-          <Headline eyebrow="어떻게 쓰나요" title="세 단계면 충분합니다." />
+          <Headline eyebrow="어떻게 쓰나요" title="네 단계면 충분합니다." />
         </Section>
 
         {/* 큰 화면 — 기기를 고정해 두고 설명만 바뀐다 */}
@@ -534,7 +538,7 @@ export default function Landing() {
       </div>
 
       {/* ───────── 오늘의 할 일 ───────── */}
-      <Section tone="sunken">
+      <Section>
         <div className="grid items-center gap-[clamp(32px,5vw,72px)] md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
           <div>
             <Headline
@@ -571,7 +575,7 @@ export default function Landing() {
           </div>
 
           <Reveal variant="right" delay={0.1}>
-            <BrowserFrame url="mandarin.app/app">
+            <BrowserFrame>
               <TodoScreen sheet={showcase} count={6} doneCount={2} />
             </BrowserFrame>
           </Reveal>
@@ -598,35 +602,33 @@ export default function Landing() {
             className="card mx-auto mt-[clamp(40px,6vh,72px)] max-w-[860px] overflow-hidden p-0"
             style={{ boxShadow: 'var(--shadow-pop)' }}
           >
-            <IsoVillage sheet={showcase} compact className="aspect-[16/10] w-full" />
+            {/*
+              3D 대신 그림 한 장. 이 자리는 "마을이 이렇게 남는다" 를 <b>보여주기만</b> 하면
+              되는데, 실시간 렌더는 카탈로그와 three.js 를 랜딩까지 끌고 들어온다.
+
+              <p>2배 크기(1720×1075)로 굽고 표시 폭은 860px 이라 레티나에서도 뭉개지지 않는다.
+              PNG 는 같은 크기에서 2.5MB 라 첫 화면을 무겁게 만든다 — WebP 로 234KB.
+            */}
+            <img
+              src="/images/landing-village.webp"
+              alt="벚꽃에 둘러싸인 마을. 만다라트 배치를 따라 건물이 구역별로 들어서 있다."
+              width={1720}
+              height={1075}
+              /* 첫 화면 아래라 미리 받지 않는다. 부모가 비율을 잡고 있어 늦게 와도 밀리지 않는다. */
+              loading="lazy"
+              decoding="async"
+              className="aspect-[16/10] w-full object-cover"
+            />
           </div>
         </Reveal>
 
-        <Reveal delay={0.16}>
-          <div className="mx-auto mt-8 flex max-w-[820px] flex-wrap justify-center gap-x-7 gap-y-3 text-[13px] font-bold">
-            {[
-              ['#e8590c', '완공'],
-              ['#f4a261', '공사 중'],
-              ['#c9d3da', '빈 땅'],
-            ].map(([color, label]) => (
-              <span key={label} className="flex items-center gap-2">
-                <span
-                  className="size-2.5 rounded-sm"
-                  style={{ background: color }}
-                  aria-hidden="true"
-                />
-                {label}
-              </span>
-            ))}
-          </div>
-        </Reveal>
       </Section>
 
       {/* ───────── 리포트 ───────── */}
-      <Section tone="sunken">
+      <Section>
         <div className="grid items-center gap-[clamp(32px,5vw,72px)] md:grid-cols-2">
           <Reveal variant="left">
-            <BrowserFrame url="mandarin.app/app/report">
+            <BrowserFrame>
               <ReportScreen sheet={showcase} />
             </BrowserFrame>
           </Reveal>
@@ -661,7 +663,7 @@ export default function Landing() {
           />
 
           <Reveal variant="right" delay={0.08}>
-            <BrowserFrame url="mandarin.app/app/leaderboard">
+            <BrowserFrame>
               <LeaderboardScreen />
             </BrowserFrame>
           </Reveal>
@@ -669,7 +671,7 @@ export default function Landing() {
       </Section>
 
       {/* ───────── 기능 요약 ───────── */}
-      <Section tone="sunken">
+      <Section>
         <Headline align="center" eyebrow="더 있어요" title="이런 것도 준비했습니다." />
 
         <div className="mt-[clamp(36px,5vh,64px)] grid gap-4 sm:grid-cols-2">
@@ -760,7 +762,7 @@ export default function Landing() {
       </Section>
 
       {/* ───────── 자주 묻는 질문 ───────── */}
-      <Section tone="sunken">
+      <Section>
         <Headline align="center" title="자주 묻는 질문" />
 
         <div className="mx-auto mt-[clamp(32px,5vh,56px)] max-w-[720px] flex flex-col gap-3">
@@ -789,28 +791,68 @@ export default function Landing() {
         </div>
       </Section>
 
-      {/* ───────── 마무리 ───────── */}
-      <Section>
-        <div className="text-center">
-          <Reveal>
-            <h2 className="m-0 text-[clamp(30px,4.6vw,52px)] font-black leading-[1.2] tracking-[-0.05em]">
-              첫 칸을 채워 볼까요?
-            </h2>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <p className="muted mx-auto mt-5 max-w-[460px] text-[clamp(15px,1.5vw,18px)] font-semibold leading-[1.75]">
-              카카오 계정만 있으면 바로 시작할 수 있어요.
-            </p>
-          </Reveal>
-          <Reveal delay={0.14}>
-            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <Button size="lg" to={home}>
-                {authed ? '내 도시로 가기' : '무료로 시작하기'}
-              </Button>
-            </div>
-          </Reveal>
-        </div>
-      </Section>
+      {/*
+        마무리. 여기만 사진을 배경으로 깐다 — 앞 구간들이 전부 "제품 화면" 이라, 마지막에
+        <b>그 화면을 실제로 쓰는 장면</b>을 두면 읽던 것이 현실로 넘어온다.
+
+        <p>`Section` 을 쓰지 않고 직접 짠 이유: 그 컴포넌트는 배경을 토큰 두 가지(page·sunken)
+        중에서만 고르고, 여기 필요한 것은 이미지 + 스크림 + 흰 글자라는 다른 층위다. 옵션을
+        하나 더 뚫으면 다른 구간에서도 쓸 수 있는 것처럼 보이는데 쓸 자리가 여기뿐이다.
+        여백 값은 `Section` 과 같은 값을 그대로 쓴다.
+      */}
+      <div className="relative isolate overflow-hidden">
+        {/* alt 를 비운다 — 뜻을 나르지 않는 배경이라 읽어 주면 방해만 된다. */}
+        <img
+          src="/images/landing-cta.webp"
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 -z-10 size-full object-cover"
+          /* 화면이 넓을수록 위아래가 잘린다. 가운데보다 조금 위를 잡아야 노트북 화면이 남는다. */
+          style={{ objectPosition: 'center 38%' }}
+        />
+
+        {/*
+          스크림. 사진 위에 글자를 그냥 얹으면 밝은 책상과 어두운 벽 위에서 읽힘이 제각각이라,
+          어느 지점에 글자가 놓이든 대비가 확보되도록 전면을 한 겹 덮는다.
+        */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(12,14,18,.74) 0%, rgba(12,14,18,.62) 55%, rgba(12,14,18,.74) 100%)',
+          }}
+        />
+
+        <section
+          className="px-6"
+          style={{
+            paddingTop: 'clamp(84px, 13vh, 150px)',
+            paddingBottom: 'clamp(56px, 8vh, 96px)',
+          }}
+        >
+          <div className="mx-auto w-full max-w-[1080px] text-center">
+            <Reveal>
+              <h2 className="m-0 text-[clamp(30px,4.6vw,52px)] font-black leading-[1.2] tracking-[-0.05em] text-white">
+                첫 칸을 채워 볼까요?
+              </h2>
+            </Reveal>
+            <Reveal delay={0.08}>
+              <p className="mx-auto mt-5 max-w-[460px] text-[clamp(15px,1.5vw,18px)] font-semibold leading-[1.75] text-white/80">
+                카카오 계정만 있으면 바로 시작할 수 있어요.
+              </p>
+            </Reveal>
+            <Reveal delay={0.14}>
+              <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+                <Button size="lg" to={home}>
+                  {authed ? '내 도시로 가기' : '무료로 시작하기'}
+                </Button>
+              </div>
+            </Reveal>
+          </div>
+        </section>
 
       {/*
         만든 사람들. 로고 하나 아래에 소속 한 줄과 이름 여섯 개만 둔다 — 페이지 마지막이라
@@ -819,44 +861,41 @@ export default function Landing() {
         이름은 칩으로 끊어 놓는다. 한 줄에 가운뎃점으로 이으면 좁은 화면에서 아무 데서나
         줄이 바뀌어 이름이 두 동강 나는데, 칩은 각자 통째로 다음 줄로 내려간다.
       */}
-      <footer className="border-t px-6 py-14" style={{ borderColor: 'var(--border-hairline)' }}>
-        <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center gap-7 text-center">
-          <Reveal>
-            <LogoLockup />
-          </Reveal>
+        {/*
+          푸터도 같은 사진 위에 얹는다. 배경을 따로 칠하지 않고 위 CTA 와 한 컨테이너를
+          공유하므로 사진이 끊기지 않고 페이지 끝까지 이어진다.
 
-          <Reveal delay={0.06}>
-            <div className="flex flex-col items-center gap-4">
-              <span
-                className="rounded-full px-3.5 py-1.5 text-[12px] font-black tracking-[0.01em] text-brand-600 dark:text-brand-400"
-                style={{ background: 'color-mix(in oklab, var(--color-brand-500), transparent 88%)' }}
-              >
-                SSAFY 15기 · 구미 1반 · D106
-              </span>
+          <p>칩은 반투명 흰색이다. 불투명 흰 칩을 쓰면 사진 위에 스티커를 붙인 것처럼 뜨고,
+          "사진이 보이게" 하려던 것이 칩 자리에서만 막힌다. 흰 글자 + 흰 테두리로 대비를
+          만들고 배경은 사진이 비치게 둔다.
+        */}
+        <footer className="px-6 pb-14">
+          <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center gap-7 text-center">
+            <Reveal>
+              {/* 심볼은 브랜드색을 유지하고 글자만 흰색으로 — 어두운 사진 위에서 읽혀야 한다. */}
+              <LogoLockup className="text-white" />
+            </Reveal>
 
-              <ul className="m-0 flex list-none flex-wrap justify-center gap-x-2 gap-y-2 p-0">
-                {TEAM.map((name) => (
-                  <li key={name}>
-                    {/*
-                      배경은 카드색으로 둔다. sunken 은 라이트 모드에서 페이지 배경과 같은
-                      값이라 칩이 통째로 사라진다.
-                    */}
-                    <span
-                      className="block rounded-full border px-3 py-1.5 text-[12.5px] font-bold"
-                      style={{
-                        background: 'var(--surface-card)',
-                        borderColor: 'var(--border-hairline)',
-                      }}
-                    >
-                      {name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </Reveal>
-        </div>
-      </footer>
+            <Reveal delay={0.06}>
+              <div className="flex flex-col items-center gap-4">
+                <span className="rounded-full bg-white/15 px-3.5 py-1.5 text-[12px] font-black tracking-[0.01em] text-white">
+                  SSAFY 15기 · 구미 1반 · D106
+                </span>
+
+                <ul className="m-0 flex list-none flex-wrap justify-center gap-x-2 gap-y-2 p-0">
+                  {TEAM.map((name) => (
+                    <li key={name}>
+                      <span className="block rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-[12.5px] font-bold text-white">
+                        {name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+          </div>
+        </footer>
+      </div>
     </div>
   )
 }

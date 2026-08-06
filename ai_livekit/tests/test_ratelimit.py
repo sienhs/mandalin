@@ -276,7 +276,7 @@ def _pipeline(rpm: float, step_timeout: float, delay: float):
     class Slow:
         name = "slow"
 
-        async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+        async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
             await asyncio.sleep(delay)
             return {"intent": "goal"}
 

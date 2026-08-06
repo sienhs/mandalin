@@ -14,6 +14,7 @@ import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -144,7 +145,7 @@ class ReportCacheIntegrationTest {
 
 		Long actual = redisTemplate.getExpire(cacheKey(), TimeUnit.SECONDS);
 
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 		long expected = Duration.between(
 				now,
 				now.toLocalDate().with(TemporalAdjusters.next(DayOfWeek.MONDAY)).atStartOfDay()
@@ -156,7 +157,7 @@ class ReportCacheIntegrationTest {
 	}
 
 	private String cacheKey() {
-		LocalDate monday = LocalDate.now().minusWeeks(1)
+		LocalDate monday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(1)
 				.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
 		return "report:weekly:" + USER_ID + ":" + monday;
 	}

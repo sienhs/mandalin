@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     # 텍스트만 파이프라인에 닿습니다(`agent/listen.py`).
     bot_classify_model: str | None = None
     bot_decide_model: str | None = None
+    #: 단계별 표집 온도. 비우면 모델 기본값(2.5 계열은 1.0)이라 같은 발화가 매번 다르게
+    #: 처리된다 — 실측(2026-08-06)에서 `"취미 활동 추천해줘"` 가 `generate` 와
+    #: `out_of_scope` 로 갈렸다. 값은 골든셋으로 다시 재야 한다(`evals/runner.py --repeat`).
+    bot_classify_temperature: float | None = 0.0
+    bot_decide_temperature: float | None = 0.3
     # 단계마다 따로 겁니다. bot_timeout_seconds 는 체인 전체를 덮는 값이라,
     # 그것만으로는 어느 단계가 느린지 알 수 없습니다.
     bot_step_timeout_seconds: float = 15.0

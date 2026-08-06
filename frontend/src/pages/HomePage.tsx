@@ -146,7 +146,11 @@ export default function Home() {
     <div className="flex flex-col gap-5">
       {/* ───────── 요약 ───────── */}
       <section className="card animate-rise flex flex-wrap items-center gap-6 p-6 sm:p-7">
-        <ProgressRing value={overall} size={96}>
+        <ProgressRing
+          value={overall}
+          size={96}
+          hint="내 만다라트 전체의 실천 과제 달성률이에요. 과제를 체크할 때마다 올라갑니다."
+        >
           <div className="text-center leading-none">
             <strong className="block text-xl font-black tracking-[-0.04em]">{overall}%</strong>
             <span className="muted mt-1 block text-[10.5px] font-bold">전체</span>
@@ -183,10 +187,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 열 너비만 공유하고 각 카드는 내용 높이를 유지한다. */}
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      {/* 모바일은 내용 높이를 유지하고, 2열에서는 두 카드의 하단을 맞춘다. */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-stretch">
         {/* ───────── 오늘의 할 일 ───────── */}
-        <section className="card animate-rise flex flex-col p-6" style={{ animationDelay: '.06s' }}>
+        <section
+          className="card animate-rise flex flex-col p-6 lg:h-full"
+          style={{ animationDelay: '.06s' }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="section-title m-0">오늘의 할 일</h2>
@@ -209,9 +216,9 @@ export default function Home() {
               }
             />
           ) : (
-            /* 다섯 줄 높이를 유지하고, 나머지 항목은 카드 안에서 스크롤한다. */
-            <div className="relative mt-5 h-[342px]">
-              <ul className="no-scrollbar absolute inset-0 m-0 flex list-none flex-col gap-2 overflow-y-auto p-0">
+            /* 모바일은 자연 높이, 2열에서는 마을 카드와 맞춘 높이 안에서 목록만 스크롤한다. */
+            <div className="mt-5 lg:relative lg:min-h-0 lg:flex-1">
+              <ul className="m-0 flex list-none flex-col gap-2 p-0 lg:absolute lg:inset-0 lg:overflow-y-auto lg:pr-1">
                 {rows.map((row) => {
                   const color = domainColor(row.domainPosition)
                   const busy = pending === row.todo.subjectId
@@ -223,12 +230,17 @@ export default function Home() {
                         type="button"
                         onClick={() => void complete(row)}
                         disabled={busy || done}
+                        /*
+                          바탕은 라이트에서만 #f5f5f5 로 못 박는다. 다크에서 그대로 두면
+                          어두운 카드 위에 밝은 회색 덩어리가 떠 버리므로 그쪽은 토큰에 맡긴다.
+                          인라인 style 로 주면 클래스를 이겨 dark: 변형이 먹지 않으니 클래스로 준다.
+                        */
                         className={cn(
                           'group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-all duration-200',
                           'hover:-translate-y-px disabled:cursor-not-allowed',
+                          'bg-[#f5f5f5] dark:bg-[var(--surface-sunken)]',
                           done && 'opacity-65',
                         )}
-                        style={{ background: 'var(--surface-sunken)' }}
                         title={done ? '이번 주기에는 이미 완료했어요' : undefined}
                       >
                         <span
@@ -404,10 +416,10 @@ export default function Home() {
           <ul className="m-0 mt-4 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
             {sheets.data.slice(0, 3).map((s) => (
               <li key={s.id}>
+                {/* 할 일 줄과 같은 바탕 — 같은 화면의 목록 두 개가 서로 다른 회색이면 어긋나 보인다. */}
                 <Link
                   to={`/app/sheets/${s.id}`}
-                  className="flex items-center gap-3 rounded-2xl p-4 no-underline transition-transform hover:-translate-y-0.5"
-                  style={{ background: 'var(--surface-sunken)' }}
+                  className="flex items-center gap-3 rounded-2xl bg-[#f5f5f5] p-4 no-underline transition-transform hover:-translate-y-0.5 dark:bg-[var(--surface-sunken)]"
                 >
                   <ProgressRing value={s.achievementRate} size={44} stroke={5}>
                     <span className="text-[10px] font-black tabular-nums">{s.achievementRate}</span>

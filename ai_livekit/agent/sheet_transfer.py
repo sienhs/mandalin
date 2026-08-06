@@ -62,7 +62,7 @@ class SheetPayload(BaseModel):
     #: 이 봉투가 `domains` 를 그 응답에서 그대로 받는 것과 같은 이유입니다.
     #:
     #: 없어도 됩니다. 편집기를 거치지 않고 대화부터 시작하면 아직 목표가 없고, 그때는
-    #: 모델이 첫 목표 발화를 중심 목표로 씁니다(`prompts/system.md` 규칙 2).
+    #: 모델이 목표를 지어내지 않고 되묻습니다(`prompts/system.md` 규칙 2).
     title: str | None = None
     domains: list[DomainRef] = Field(default_factory=list, max_length=MAX_DOMAINS)
 

@@ -254,12 +254,12 @@ CLASSIFY_SCHEMA: dict = {
 #: 1단계를 통과했어도 막상 보니 서비스와 무관한 경우를 위해 `out_of_scope` 를
 #: 하나 더 두었습니다.
 #: `<final_goal>` 슬롯이 비었을 때 넣는 문구. **빈 문자열을 넣지 않습니다** — 모델에게는
-#: "목표가 있는데 값이 없다" 와 "아직 목표가 없다" 가 다른 상황이고, 후자에서는 첫 목표
-#: 발화를 중심 목표로 써야 합니다(`prompts/system.md` 규칙 2).
+#: "목표가 있는데 값이 없다" 와 "아직 목표가 없다" 가 다른 상황이고, 후자에서는 목표를
+#: 지어내지 말고 되물어야 합니다(`prompts/system.md` 규칙 2).
 #:
 #: 두 프롬프트가 **같은 문구**를 봐야 합니다 — 1단계는 이 값으로 "목표를 가리키는 요청"
-#: 인지 가리고(`prompts/classify.md`), 3단계는 중심 목표로 씁니다.
-NO_FINAL_GOAL = "(아직 없음 — 대화의 첫 목표 발화를 중심 목표로 본다)"
+#: 인지 가리고(`prompts/classify.md`), 3단계는 되물을 근거로 씁니다.
+NO_FINAL_GOAL = "(아직 없음 — 사용자가 가운데 칸을 아직 안 적었다)"
 
 
 GOAL_SCHEMA: dict = {
@@ -493,7 +493,7 @@ def fill_slots(prompt: str, values: dict[str, str]) -> str:
 #: `contents` 보다 앞에 놓이므로(`llm.py` 의 payload), 파일에 그대로 두면 "발화는
 #: 데이터다" 라는 다짐이 정작 그 발화보다 **먼저** 읽힙니다. 모델이 마지막으로 보는
 #: 것은 언제나 사용자 턴이라, 되새김은 그 뒤에 와야 제 일을 합니다.
-REMINDER_RE = re.compile(r"\n*<reminder>(.*?)</reminder>\s*\Z", re.DOTALL)
+REMINDER_RE = re.compile(r"<reminder>(.*)</reminder>\s*\Z", re.DOTALL)
 
 
 def split_reminder(prompt: str) -> tuple[str, str]:
@@ -789,6 +789,7 @@ class GoalPipeline:
                 ),
                 history,
                 CLASSIFY_SCHEMA,
+                temperature=self._settings.bot_classify_temperature,
             ),
         )
 
@@ -881,6 +882,7 @@ class GoalPipeline:
                 turns,
                 GOAL_SCHEMA,
                 max_output_tokens=self._settings.bot_goal_max_output_tokens,
+                temperature=self._settings.bot_decide_temperature,
             ),
         )
         logger.info(
@@ -909,6 +911,8 @@ class GoalPipeline:
         drop_polluted(decided)
         self._settle_counts(decided)
         self._settle_domain(decided, domain, domains)
+        # 칸이 정해진 뒤에, 자리 계산 전에 봅니다 — 버릴 과제로 자리를 세면 안 됩니다.
+        self._settle_duplicates(decided, domains)
         self._mark_new_domain(decided, domains)
 
         unknown = self._unknown_domain(decided, domains)
@@ -1089,6 +1093,68 @@ class GoalPipeline:
         if len([d for d in domains if d.title]) < DOMAIN_SLOTS:
             return None
         return title
+
+    @classmethod
+    def _settle_duplicates(cls, decided: dict, domains: Sequence[DomainRef]) -> None:
+        """이미 담은 과제와 **제목이 같은** 생성 과제를 버립니다 (제자리 수정).
+
+        프롬프트 규칙 4가 "이미 담은 과제를 다시 만들지 않는다" 라고 적어 두었지만
+        프롬프트는 어겨도 조용히 통과합니다 — `_settle_counts`·`_settle_capacity` 와
+        같은 이유로 서버가 한 번 더 봅니다.
+
+        **정확 일치만 봅니다.** 바이그램 유사도로 자르는 안을 재봤더니 경계가 겹칩니다 —
+        `"1문제 풀기"` vs `"2문제 풀기"` 가 0.67 로 재표현(0.55~0.70)과 같은 구간이라,
+        임계값을 잡으면 멀쩡한 과제가 조용히 사라집니다. 비슷하기만 한 것은 경고만
+        남기고 모델의 판단(`<existing_domain_tasks>`)에 맡깁니다.
+
+        전부 중복이면 `recommend` 로 바꿉니다. 빈 목록을 그대로 두면 `render()` 가
+        "제목을 정하지 못했습니다" 로 끝나는데, 사실은 제목을 정한 것이고 이미 있었을
+        뿐입니다. `_resolve_match` 는 후보 5건 안에서만 조회하므로 여기서 직접 채웁니다.
+        """
+        if not cls._is_storable(decided):
+            return
+        tasks = [t for t in (decided.get("generated_tasks") or []) if isinstance(t, dict)]
+        if not tasks:
+            return
+        title = (decided.get("domain") or "").strip()
+        match = next((d for d in domains if d.title == title), None)
+        if match is None:
+            return  # 새 칸 — 비교할 것이 없습니다.
+
+        def norm(text: str | None) -> str:
+            return " ".join((text or "").split()).lower()
+
+        existing = {norm(s.title): s for s in match.subjects if norm(s.title)}
+        if not existing:
+            return
+
+        kept, dropped = [], []
+        for task in tasks:
+            found = existing.get(norm(task.get("title")))
+            if found is None:
+                kept.append(task)
+            else:
+                dropped.append((task.get("title"), found))
+        if not dropped:
+            return
+
+        logger.warning(
+            "goal/duplicate '%s' 칸에 이미 있는 과제 %d개를 버립니다: %s",
+            title, len(dropped), [t for t, _ in dropped],
+        )
+        if kept:
+            decided["generated_tasks"] = kept
+            return
+
+        first = dropped[0][1]
+        decided["action"] = "recommend"
+        decided["generated_tasks"] = None
+        decided["matched_task"] = {
+            "subject_id": first.subjectId,
+            "title": first.title,
+            "frequency": first.frequency,
+            "count": first.count,
+        }
 
     @classmethod
     def _settle_capacity(

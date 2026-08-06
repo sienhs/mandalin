@@ -71,8 +71,8 @@ public class OAuthLoginService {
 		Map<String, Object> profile = optionalMap(account.get("profile"));
 		Map<String, Object> properties = optionalMap(attributes.get("properties"));
 
-		Object nickname = firstPresent(profile.get("nickname"), properties.get("nickname"), "user");
-		return new OAuthUserProfile(idValue, idValue, normalizeName(nickname.toString()));
+		String nickname = firstPresent(profile.get("nickname"), properties.get("nickname"), "user");
+		return new OAuthUserProfile(idValue, idValue, normalizeName(nickname));
 	}
 
 	private User requireActive(User user) {
@@ -106,13 +106,13 @@ public class OAuthLoginService {
 		return Map.of();
 	}
 
-	private Object firstPresent(Object... values) {
+	private String firstPresent(Object... values) {
 		for (Object value : values) {
 			if (value != null && !value.toString().isBlank()) {
-				return value;
+				return value.toString();
 			}
 		}
-		return null;
+		return "user";
 	}
 
 	private record OAuthUserProfile(String providerUserId, String uuid, String name) { }

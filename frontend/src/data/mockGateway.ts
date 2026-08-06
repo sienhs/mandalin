@@ -1107,7 +1107,7 @@ export const mockGateway: Gateway = {
 
     // 마지막 구간(100%)은 남은 전종, 그 외에는 무작위 1종.
     const granted =
-      milestone === MILESTONE_COUNT ? pool : [pool[Math.floor(Math.random() * pool.length)]]
+      milestone === MILESTONE_COUNT ? pool : [pool[Math.floor(Math.random() * pool.length)]] // NOSONAR
 
     /*
       보유 목록을 건드리지 않는다 — 목업은 처음부터 13종을 다 보유한 상태다(`initial()`).

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState } from 'react'
+import { forwardRef, useEffect, useId, useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { cn } from '../../utils/cn'
 
@@ -57,25 +57,43 @@ export function ProgressBar({
   )
 }
 
-/** 원형 진행률. 홈·상세 헤더에서 달성률을 한눈에 보여준다. */
-export function ProgressRing({
-  value,
-  size = 92,
-  stroke = 9,
-  children,
-}: {
+/**
+ * 원형 진행률. 홈·상세 헤더에서 달성률을 한눈에 보여준다.
+ *
+ * <p>{@link ProgressRingProps.hint} 를 주면 마우스를 올렸을 때 위로 말풍선이 뜬다.
+ * 숫자만으로는 "이 %가 무엇의 %인지"가 안 읽히는 자리에 쓴다.
+ */
+type ProgressRingProps = {
   value: number
   size?: number
   stroke?: number
   children?: ReactNode
-}) {
+  /**
+   * 마우스를 올리면 위에 뜨는 한 줄 설명.
+   *
+   * <p>없으면 말풍선도, 초점 받기도 만들지 않는다 — 설명이 없는 링까지 탭 순서에 끼면
+   * 키보드 사용자가 아무 정보도 없는 자리를 지나게 된다.
+   *
+   * <p><b>링이 링크나 버튼 안에 있을 때는 주지 않는다.</b> 초점 받는 요소 안에 또 초점
+   * 받는 요소가 생겨 탭이 두 번 멈춘다.
+   */
+  hint?: string
+}
+
+export function ProgressRing({ value, size = 92, stroke = 9, children, hint }: ProgressRingProps) {
   const clamped = Math.max(0, Math.min(100, value))
   const r = (size - stroke) / 2
   const circumference = 2 * Math.PI * r
   const offset = circumference * (1 - clamped / 100)
+  const tipId = useId()
 
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div
+      className="group relative shrink-0"
+      style={{ width: size, height: size }}
+      tabIndex={hint ? 0 : undefined}
+      aria-describedby={hint ? tipId : undefined}
+    >
       <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
         <circle
           cx={size / 2}
@@ -105,6 +123,47 @@ export function ProgressRing({
         />
       </svg>
       <div className="absolute inset-0 grid place-items-center">{children}</div>
+
+      {hint && (
+        /*
+          숨길 때 display:none 이나 조건부 렌더가 아니라 opacity 를 쓴다. aria-describedby 로
+          가리키는 대상이 문서에서 사라지면 스크린리더가 읽을 것이 없어진다.
+
+          pointer-events-none: 말풍선이 링 위로 겹치는데, 이게 없으면 커서가 말풍선에 닿는
+          순간 링에서 벗어난 것이 되어 말풍선이 꺼지고, 꺼지면 다시 링에 닿아 켜지기를
+          반복하며 깜빡인다.
+
+          z-[60] 은 임의로 큰 수가 아니라 이 앱의 겹침 순서에서 고른 자리다.
+          헤더(30) · 사이드바/하단바(40) · 모바일 서랍(50) 위, 알림 패널(70) ·
+          건너뛰기 링크(100) 아래. 이 둘까지 이기면 안 된다 — 알림이 열려 있는데 그 위로
+          말풍선이 뜨거나, 키보드 사용자가 맨 처음 만나야 할 건너뛰기 링크가 가려진다.
+
+          bottom-[calc(100%-30px)]: 링 위로 펴되 <b>링의 위쪽 30px 을 덮으며</b> 앉는다.
+          이 링은 페이지 맨 위 요약 카드에 있어서(헤더 65 + 본문 24 + 카드 28 = 링 상단 117),
+          링 바깥으로 완전히 빼면 세 줄짜리 말풍선(약 70px)이 헤더를 28px 침범한다.
+          z 를 올려 헤더 위에 얹는 것보다 링을 조금 가리는 편이 낫다 — 가려지는 30px 은
+          링의 빈 위쪽이고, 가운데 숫자(48px 자리)는 건드리지 않는다.
+
+          max-w 를 300 으로 넓힌 것도 같은 이유다. 240 이면 이 문구가 세 줄이 되어 그만큼
+          더 위로 뻗는다.
+        */
+        <span
+          id={tipId}
+          role="tooltip"
+          className="pointer-events-none absolute bottom-[calc(100%-30px)] left-1/2 z-[60] w-max max-w-[300px] -translate-x-1/2 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold leading-[1.55] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+          style={{
+            background: 'var(--surface-raised)',
+            borderColor: 'var(--border-hairline)',
+            boxShadow: 'var(--shadow-pop)',
+          }}
+        >
+          {hint}
+          {/*
+            꼬리를 두지 않는다. 말풍선이 링에 겹쳐 앉으므로 가리킬 거리가 없고, 꼬리를
+            달면 링의 테두리 위에 마름모 하나가 떠 있는 모양이 된다.
+          */}
+        </span>
+      )}
     </div>
   )
 }
@@ -229,9 +288,7 @@ export function Segmented<T extends string>({
     <div
       role="tablist"
       className={cn(
-        // self-start 가 없으면 세로 flex(예: Field) 안에서 stretch 로 늘어나, 버튼 두 개
-        // 오른쪽이 텅 빈 알약이 된다. inline-flex 라는 이름과 실제 폭이 어긋나던 자리다.
-        'inline-flex items-center gap-1 self-start rounded-full p-1',
+        'inline-flex flex-wrap items-center gap-1 self-start rounded-2xl p-1 sm:rounded-full',
         'bg-[var(--surface-sunken)]',
         className,
       )}
@@ -246,7 +303,7 @@ export function Segmented<T extends string>({
             aria-selected={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              'rounded-full font-bold transition-all duration-200',
+              'shrink-0 whitespace-nowrap rounded-full font-bold transition-all duration-200',
               size === 'sm' ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-4 text-[13px]',
               active
                 ? 'bg-[var(--surface-card)] text-[var(--text-strong)] shadow-[0_1px_2px_rgba(0,0,0,.08),0_6px_16px_-8px_rgba(0,0,0,.25)]'

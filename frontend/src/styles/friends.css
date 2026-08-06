@@ -18,12 +18,21 @@
 
   /* 친구 페이지의 세 탭 콘텐츠를 담는 공통 카드 */
   .friends-panel {
-    @apply min-h-[540px] rounded-[24px] bg-white px-6 py-7 sm:px-10 sm:py-8 lg:px-12;
+    @apply min-h-[540px] rounded-[24px] px-6 py-7 sm:px-10 sm:py-8 lg:px-12;
+    background: var(--surface-card);
+    color: var(--text-strong);
+    border: 1px solid var(--border-hairline);
   }
 
   /* 선택 상태와 알림 점을 표시할 수 있는 알약형 탭 */
   .friends-tab {
-    @apply relative shrink-0 cursor-pointer rounded-full border-0 bg-slate-200 px-5 py-2.5 text-sm font-extrabold text-slate-500 transition-colors hover:bg-slate-300;
+    @apply relative shrink-0 cursor-pointer rounded-full border-0 px-5 py-2.5 text-sm font-extrabold transition-colors;
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+  }
+
+  .friends-tab:hover {
+    color: var(--text-strong);
   }
 
   .friends-tab-active {
@@ -41,11 +50,14 @@
 
   /* 정상 조회 결과가 빈 배열일 때 표시하는 친구 없음 안내 */
   .friends-empty {
-    @apply mt-10 grid min-h-72 place-items-center rounded-2xl bg-slate-50 px-6 text-center text-sm font-semibold text-slate-400;
+    @apply mt-10 grid min-h-72 place-items-center rounded-2xl px-6 text-center text-sm font-semibold;
+    background: var(--surface-sunken);
+    color: var(--text-muted);
   }
 
   .friend-row {
-    @apply flex min-h-20 items-center gap-4 border-b border-slate-200 px-1 py-3 last:border-b-0 sm:gap-5 sm:px-5;
+    @apply flex min-h-20 items-center gap-4 border-b px-1 py-3 last:border-b-0 sm:gap-5 sm:px-5;
+    border-color: var(--border-hairline);
   }
 
   .friend-avatar {
@@ -54,6 +66,7 @@
 
   .friend-name {
     @apply min-w-0 flex-1 truncate text-lg font-extrabold sm:text-xl;
+    color: var(--text-strong);
   }
 
   .friend-actions {
@@ -66,7 +79,15 @@
   }
 
   .friends-secondary-action {
-    @apply cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-400 transition hover:border-alert hover:text-alert sm:px-4 sm:text-sm;
+    @apply cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-bold transition sm:px-4 sm:text-sm;
+    background: var(--surface-card);
+    border-color: var(--border-hairline);
+    color: var(--text-muted);
+  }
+
+  .friends-secondary-action:hover {
+    color: var(--color-alert);
+    border-color: var(--color-alert);
   }
 
   /* 친구 목록과 요청 목록에서 공유하는 페이지네이션 */
@@ -75,7 +96,14 @@
   }
 
   .friends-page-button {
-    @apply grid size-9 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-sm font-extrabold text-slate-700 transition hover:border-success disabled:cursor-not-allowed disabled:opacity-40;
+    @apply grid size-9 cursor-pointer place-items-center rounded-xl border text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-40;
+    background: var(--surface-card);
+    border-color: var(--border-hairline);
+    color: var(--text-strong);
+  }
+
+  .friends-page-button:hover:not(:disabled) {
+    border-color: var(--color-success);
   }
 
   .friends-page-button-active {
@@ -88,7 +116,15 @@
   }
 
   .friends-uid {
-    @apply inline-flex shrink-0 cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 transition hover:border-brand hover:text-brand;
+    @apply inline-flex shrink-0 cursor-pointer items-center rounded-lg border px-3 py-2 text-xs font-bold transition;
+    background: var(--surface-sunken);
+    border-color: var(--border-hairline);
+    color: var(--text-muted);
+  }
+
+  .friends-uid:hover {
+    color: var(--color-brand);
+    border-color: var(--color-brand);
   }
 
   .friends-search-form {
@@ -96,7 +132,10 @@
   }
 
   .friends-search-input {
-    @apply h-12 min-w-0 flex-1 rounded-xl border-0 bg-slate-100 px-4 text-sm font-semibold text-slate-950 outline-none transition focus:ring-2 focus:ring-brand;
+    @apply h-12 min-w-0 flex-1 rounded-xl border px-4 text-sm font-semibold outline-none transition focus:ring-2 focus:ring-brand;
+    background: var(--surface-sunken);
+    border-color: var(--border-hairline);
+    color: var(--text-strong);
   }
 
   .friends-search-result {

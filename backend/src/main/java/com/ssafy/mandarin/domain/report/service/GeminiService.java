@@ -70,7 +70,11 @@ public class GeminiService {
 
     // SSAFY GMS 는 쿼리스트링 키를 요구한다 (ai_livekit 의 BOT_API_KEY_IN_QUERY=true)
     private String generateContentUrl() {
-        return baseUrl.replaceAll("/+$", "")
+        String cleanBaseUrl = baseUrl;
+        while (cleanBaseUrl.endsWith("/")) {
+            cleanBaseUrl = cleanBaseUrl.substring(0, cleanBaseUrl.length() - 1);
+        }
+        return cleanBaseUrl
                 + "/v1beta/models/" + model + ":generateContent"
                 + "?key=" + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
     }
