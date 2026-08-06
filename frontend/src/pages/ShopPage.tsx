@@ -193,7 +193,7 @@ export default function Shop() {
               value: t,
               label: t === 'all' ? '전체' : themeLabel(t),
             }))}
-            className="max-w-full self-start overflow-x-auto no-scrollbar"
+            className="max-w-full flex-wrap"
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
