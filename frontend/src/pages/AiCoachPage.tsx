@@ -10,12 +10,11 @@ import {
   IconSend,
   IconTrash,
 } from '../components/common/Icons'
-import { Badge, Field, Input, domainColor } from '../components/common/Primitives'
+import { Badge, Field, domainColor } from '../components/common/Primitives'
 import { cn } from '../utils/cn'
 import { useToast } from '../components/common/Toast'
 import {
   MAX_DOMAIN_TITLE,
-  MAX_SHEET_TITLE,
   MAX_SUBJECT_TITLE,
   emptyDomains,
   loadDraft,
@@ -156,14 +155,6 @@ const micTitle = (voiceAvailable: boolean) =>
 /** 세부 목표 하나에 담을 수 있는 과제 수, 그리고 세부 목표 칸 수. 서버 규칙(8 x 8)과 같다. */
 const SLOTS = 8
 
-/**
- * 시트 전송을 모으는 시간. 핵심 목표는 타이핑으로 바뀌므로 글자마다 보내면 안 된다.
- *
- * 400ms 는 "치는 중" 과 "멈췄다" 를 가르는 값이다. 더 짧으면 낱글자가 새어 나가고, 더
- * 길면 목표를 고치고 곧바로 말했을 때 **옛 목표로 판단**한다.
- */
-const SHEET_DEBOUNCE_MS = 400
-
 export default function Coach() {
   const navigate = useNavigate()
   const toast = useToast()
@@ -203,8 +194,6 @@ export default function Coach() {
    * 덮으면 편집기에서 정해 둔 값이 조용히 사라진다.
    */
   const draftMeta = useRef({ expiredAt: seed.expiredAt, isOpen: seed.isOpen })
-  /** 목표 타이핑 디바운스. 글자마다 시트를 보내면 서버가 한 글자씩 다 받는다. */
-  const sheetTimer = useRef<number | null>(null)
 
   /**
    * 에이전트에게 넘길 시트 — **담은 과제가 곧 시트다.**
@@ -287,30 +276,10 @@ export default function Coach() {
    * `getSheet()` 가 직전 목록을 만든다. 방금 담은 과제가 빠진 시트가 가고, 증상은
    * "담았는데 또 추천한다" 뿐이다.
    */
-  /*
-   * `goal` 도 의존성이다 — 최종목표를 고치면 다시 보내야 에이전트가 새 목표로 판단한다
-   * (`getSheet` 가 `title` 로 싣는다).
-   *
-   * **디바운스가 필요하다.** 목표는 타이핑으로 바뀌므로 글자마다 보내면 서버 로그가
-   * 이렇게 된다(실측) —
-   *
-   *     시트 수신 최종목표='IT 프로젝트 달'
-   *     시트 수신 최종목표='IT 프로젝트 달서'
-   *     시트 수신 최종목표='IT 프로젝트 달성'      ← 1초에 10번
-   *
-   * 데이터 메시지가 그만큼 나가고, 서버는 매번 파싱하고, 판단 캐시 키도 매번 달라진다
-   * (`_cache_key` 가 목표를 포함한다). 담기는 클릭이라 즉시 보내도 되지만 그쪽까지 같은
-   * 타이머를 지나게 둔다 — 두 경로를 가르면 "담았는데 안 갔다" 를 디버깅할 자리가 둘로 는다.
-   */
   useEffect(() => {
     if (!ready) return
-    if (sheetTimer.current) window.clearTimeout(sheetTimer.current)
-    sheetTimer.current = window.setTimeout(() => void sendSheet(), SHEET_DEBOUNCE_MS)
-    return () => {
-      if (sheetTimer.current) window.clearTimeout(sheetTimer.current)
-      sheetTimer.current = null
-    }
-  }, [basket, goal, ready, sendSheet])
+    void sendSheet()
+  }, [basket, ready, sendSheet])
 
   /**
    * 코치 화면의 편집을 **편집기 초안에 되돌려 쓴다.**
@@ -411,10 +380,6 @@ export default function Coach() {
    * 코치는 초안까지만 만들고 나머지는 편집기에서 마무리한다.
    */
   const handoff = () => {
-    if (!goal.trim()) {
-      toast.show({ tone: 'warn', title: '핵심 목표를 한 줄로 적어주세요' })
-      return
-    }
     if (basket.length === 0) {
       toast.show({ tone: 'warn', title: '담은 과제가 없어요' })
       return
@@ -753,14 +718,23 @@ export default function Coach() {
               <Badge tone={totalItems > 0 ? 'brand' : 'neutral'}>과제 {totalItems}/64</Badge>
             </div>
 
+            {/*
+              여기서는 못 고친다. 들어올 때 팝업으로 정하고(`CoachGoalPrompt`) 세션 내내
+              그 값을 쓴다 — 대화 도중 바뀌면 앞 턴의 제안이 다른 목표 기준이 된다.
+              입력칸 대신 값만 보여준다. 잠긴 입력칸은 왜 안 되는지를 설명하지 못한다.
+            */}
             <div className="mt-3">
-              <Field label="핵심 목표">
-                <Input
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
-                  placeholder="예) 건강한 몸 만들기"
-                  maxLength={MAX_SHEET_TITLE}
-                />
+              <Field label="핵심 목표" hint="편집기에서 고칠 수 있어요.">
+                <p
+                  className="m-0 truncate rounded-xl border px-3.5 py-2.5 text-[13.5px] font-bold"
+                  style={{
+                    borderColor: 'var(--border-hairline)',
+                    background: 'var(--surface-sunken)',
+                  }}
+                  title={goal}
+                >
+                  {goal}
+                </p>
               </Field>
             </div>
 
@@ -920,11 +894,9 @@ export default function Coach() {
               (서버가 8 x 8 을 강제한다) 편집기에 가서야 알게 되면 늦다.
             */}
             <p className="muted m-0 mb-3 text-[11.5px] font-medium leading-relaxed">
-              {!goal.trim()
-                ? '핵심 목표를 적어야 편집기로 가져갈 수 있어요 — 만다라트 가운데 칸이 됩니다.'
-                : basket.length === 0
-                  ? '과제를 담으면 세부 목표별로 배치된 채 편집기가 열려요.'
-                  : `남은 ${64 - totalItems}칸은 편집기에서 이어 채우면 돼요. 81칸을 다 채워야 저장됩니다.`}
+              {basket.length === 0
+                ? '과제를 담으면 세부 목표별로 배치된 채 편집기가 열려요.'
+                : `남은 ${64 - totalItems}칸은 편집기에서 이어 채우면 돼요. 81칸을 다 채워야 저장됩니다.`}
             </p>
 
             {/*
@@ -935,7 +907,7 @@ export default function Coach() {
               편집기에서 <b>AI 코치로 이어 만들기</b>를 누르면 쓰던 내용을 두고 다시 여기로 올 수
               있어요. 돌아갈 때 빈 칸에만 채워 넣습니다.
             </p>
-            <Button full disabled={basket.length === 0 || !goal.trim()} onClick={handoff}>
+            <Button full disabled={basket.length === 0} onClick={handoff}>
               편집기로 가져가기
             </Button>
             <Button variant="quiet" full size="sm" className="mt-2" to="/app/sheets/new">
