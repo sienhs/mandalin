@@ -8,6 +8,11 @@ export type DraftSubject = {
 }
 export type DraftDomain = { title: string; subjects: DraftSubject[] }
 
+/** 저장 상한. 코치 제안도 같은 값으로 자른다(`AiCoachPage` 의 `toSuggestion`). */
+export const MAX_SHEET_TITLE = 30
+export const MAX_DOMAIN_TITLE = 20
+export const MAX_SUBJECT_TITLE = 40
+
 export type SheetDraft = {
   title: string
   expiredAt: string
@@ -80,7 +85,7 @@ function normalize(raw: unknown): SheetDraft | null {
     const subjectsRaw = Array.isArray(d.subjects) ? d.subjects : []
 
     return {
-      title: typeof d.title === 'string' ? d.title.slice(0, 20) : '',
+      title: typeof d.title === 'string' ? d.title.slice(0, MAX_DOMAIN_TITLE) : '',
       subjects: slot.subjects.map((subSlot, j) => {
         const s = subjectsRaw[j]
         if (!s || typeof s !== 'object') return subSlot
@@ -88,7 +93,7 @@ function normalize(raw: unknown): SheetDraft | null {
         const period = isPeriod(sub.period) ? sub.period : 'DAILY'
         const count = typeof sub.countPerPeriod === 'number' ? sub.countPerPeriod : 1
         return {
-          title: typeof sub.title === 'string' ? sub.title.slice(0, 40) : '',
+          title: typeof sub.title === 'string' ? sub.title.slice(0, MAX_SUBJECT_TITLE) : '',
           period,
           // 주기 상한을 넘는 횟수는 저장 단계에서 서버에 거절당한다. 읽을 때 잘라 둔다.
           countPerPeriod: Math.min(Math.max(1, Math.round(count)), PERIOD_MAX_COUNT[period]),
@@ -98,7 +103,7 @@ function normalize(raw: unknown): SheetDraft | null {
   })
 
   return {
-    title: typeof value.title === 'string' ? value.title.slice(0, 30) : '',
+    title: typeof value.title === 'string' ? value.title.slice(0, MAX_SHEET_TITLE) : '',
     expiredAt: typeof value.expiredAt === 'string' ? value.expiredAt : '',
     isOpen: typeof value.isOpen === 'boolean' ? value.isOpen : true,
     domains,

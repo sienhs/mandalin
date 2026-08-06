@@ -15,13 +15,39 @@ const TRANSCRIPT_TOPIC = 'mandarin.transcript'
 const HELLO_TOPIC = 'mandarin.hello'
 
 /**
- * 푸시투토크 창. 켜 둔 시간이 곧 STT 요금이라 사람이 열고 닫는다.
- * `web/app.js` 의 `TALK_WINDOW_MS` 와 같은 값이다.
+ * 푸시투토크 창. `web/app.js` 의 `TALK_WINDOW_MS` 와 같은 값이다.
+ *
+ * 창이 길어서 **무음 과금은 사람이 막지 않는다** — 서버의 `SpeechGate` 가 말하지 않는
+ * 동안 프레임을 보내지 않고(발화가 없으면 Deepgram 소켓을 아예 열지 않는다) 무음이
+ * 길어지면 스트림을 닫는다. 이 창은 잊고 켜둔 마이크를 끊는 상한이다.
+ *
+ * 창은 **응답을 만드는 동안 잠시 멈춘다**(`stopTalking` 의 `resumable`). 답이 도착하면
+ * 남은 시간만큼 다시 열리므로, 한 번 눌러 여러 턴을 대화할 수 있다.
  */
-const TALK_WINDOW_MS = 10_000
+const TALK_WINDOW_MS = 15 * 60_000
+
+/**
+ * 응답 뒤 자동 재개의 최소 잔여 시간. 이보다 적게 남았으면 재개하지 않는다.
+ *
+ * 켰다가 곧바로 상한에 걸려 끄면 전사도 못 얻고 STT 연결 비용만 낸다 —
+ * `MISCLICK_GUARD_MS` 가 사람의 오조작에 대해 막는 것과 같은 이유다.
+ */
+const RESUME_MIN_MS = 3_000
 
 /** 오조작 가드. 켜자마자 끄면 전사도 못 얻고 STT 연결 비용만 낸다. */
 const MISCLICK_GUARD_MS = 300
+
+/**
+ * 응답 생성 잠금이 저절로 풀리는 시간. **잠금이 영구히 남지 않게 하는 보험이다.**
+ *
+ * 에이전트는 실패해도 답을 보낸다(`FAILURE_REPLY`·`TIMEOUT_REPLY`) — 정상 경로에서는
+ * 이 타이머가 걸리지 않는다. 하지만 worker 프로세스가 죽으면 아무것도 오지 않고, 그때
+ * 이게 없으면 말하기 버튼이 영원히 안 열린다.
+ *
+ * 서버의 `BOT_TIMEOUT_SECONDS`(20초)보다 넉넉히 크게 둔다 — 작게 두면 정상적으로 늦은
+ * 응답을 기다리는 동안 잠금이 풀려 마이크가 열린다.
+ */
+const GENERATION_LOCK_MS = 60_000
 
 /**
  * 이 참가자가 에이전트인가.
@@ -159,6 +185,35 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
   const talkTimer = useRef<number | null>(null)
   const countdownTimer = useRef<number | null>(null)
   const talkStartedAt = useRef(0)
+  /**
+   * 답이 도착하면 창을 다시 열어야 하는가.
+   *
+   * **응답 생성 때문에 멈춘 창에만 참이다.** 사람이 직접 멈췄거나 15분 상한에 걸린 창을
+   * 다시 열면 끈 마이크가 저절로 켜지는 셈이다.
+   */
+  const resumeAfterReplyRef = useRef(false)
+  /**
+   * 마이크 창이 열려 있는가. **`listening` 상태로는 이 판정을 못 한다** — setState 가
+   * 비동기라 같은 tick 에 두 경로가 들어오면 둘 다 옛 값을 본다.
+   *
+   * 창을 닫는 경로가 셋이다(사람이 다시 누르기 · 응답 생성 시작 · 15분 상한). 이 깃발이
+   * 없으면 겹칠 때 "듣기를 멈췄습니다" 가 두 줄 남고 `setMicrophoneEnabled(false)` 도
+   * 두 번 나간다 — 음성 발화와 텍스트 전송이 앞뒤로 붙으면 실제로 겹친다.
+   */
+  const talkingRef = useRef(false)
+  /**
+   * 에이전트가 답을 만드는 중인가. **이 동안에는 마이크를 열지 않는다.**
+   *
+   * 서버는 이미 이 구간을 막고 있다 — 생성 중에 들어온 발화는 `Conversation` 이 버리고
+   * (락), `listen.py` 가 STT 스트림을 닫는다("생성 중"). 그런데 브라우저가 마이크를
+   * 열어두면 **버려질 오디오를 계속 올려보내고**, 생성이 끝나는 순간 스트림이 다시
+   * 열린다. 창을 닫는 쪽이 확실하다.
+   *
+   * `coachState` 를 쓰지 않는 이유는 그것이 화면 표현이라서다 — 페이지가 `'answering'`
+   * 을 애니메이션에 쓰고 `'idle'` 로 되돌리지 않으므로 잠금의 근거가 될 수 없다.
+   */
+  const generatingRef = useRef(false)
+  const generatingTimer = useRef<number | null>(null)
   const messageId = useRef(0)
 
   // 콜백은 매 렌더 새로 만들어진다. 핸들러를 등록할 때 잡아두면 옛 시트를 보게 되므로
@@ -173,12 +228,40 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     setMessages((prev) => [...prev, { id: messageId.current, who, text }])
   }, [])
 
+  /** 창에 걸린 타이머(상한 · 카운트다운)를 놓는다. */
   const clearTalkTimers = useCallback(() => {
     if (talkTimer.current) window.clearTimeout(talkTimer.current)
     if (countdownTimer.current) window.clearInterval(countdownTimer.current)
     talkTimer.current = null
     countdownTimer.current = null
   }, [])
+
+  /** 응답 생성 잠금을 푼다. 답이 도착했을 때와 방을 놓을 때 부른다. */
+  const endGenerating = useCallback(() => {
+    generatingRef.current = false
+    if (generatingTimer.current) window.clearTimeout(generatingTimer.current)
+    generatingTimer.current = null
+  }, [])
+
+  /** 최종 전사 시점 = 생성 시작. 마이크를 열지 않는 구간이 여기서 시작된다. */
+  const beginGenerating = useCallback(() => {
+    generatingRef.current = true
+    if (generatingTimer.current) window.clearTimeout(generatingTimer.current)
+    generatingTimer.current = window.setTimeout(endGenerating, GENERATION_LOCK_MS)
+  }, [endGenerating])
+
+  /**
+   * `openRoom` 의 핸들러가 부를 `stopTalking`.
+   *
+   * **직접 참조하면 안 된다.** `stopTalking` 은 이 아래에서 선언되므로 `openRoom` 의
+   * 의존성 배열에 넣는 순간 렌더 중에 초기화 전 값을 읽는다(TDZ). 위 `getSheetRef` 와
+   * 같은 패턴이다.
+   */
+  const stopTalkingRef = useRef<
+    ((reason: string, opts?: { quiet?: boolean; resumable?: boolean }) => Promise<void>) | null
+  >(null)
+  /** 같은 이유로 ref 를 거치는 `resumeTalking`(답이 도착하면 다시 듣기). */
+  const resumeTalkingRef = useRef<(() => Promise<void>) | null>(null)
 
   /**
    * 화면을 떠났는지. **입장이 끝난 뒤에 확인해야 한다.**
@@ -199,9 +282,10 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     return () => {
       disposedRef.current = true
       clearTalkTimers()
+      endGenerating()
       void roomRef.current?.disconnect()
     }
-  }, [clearTalkTimers])
+  }, [clearTalkTimers, endGenerating])
 
   /** 실제 입장 절차. **직접 부르지 않는다** — 중복 입장을 막는 `connect()` 를 쓴다. */
   const openRoom = useCallback(async () => {
@@ -259,8 +343,12 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       // 스트림을 다 읽고 나서 상태를 바꾼다. 열리자마자 바꾸면 아직 글자가 안 뜬 화면에서
       // 캐릭터만 먼저 답한 얼굴이 된다.
       const text = await reader.readAll()
+      // 답이 도착했으니 잠금을 풀고, 생성 때문에 멈춘 창이면 **남은 시간만큼 다시 연다.**
+      // 그래야 버튼 한 번으로 여러 턴을 대화할 수 있다.
+      endGenerating()
       push('ai', text)
       setCoachState('answering')
+      void resumeTalkingRef.current?.()
     })
 
     /*
@@ -285,6 +373,18 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
         setCaption('')
         push('me', payload.text ?? '')
         setCoachState('thinking')
+        /*
+         * **최종 전사 = 생성 시작.** 여기서 마이크 창을 잠시 멈춘다.
+         *
+         * 이 동안의 발화는 서버가 버리므로(`Conversation` 의 락) 열어 둘 이유가 없고,
+         * 열어 두면 버려질 오디오를 계속 올려보낸 뒤 생성이 끝나는 순간 STT 스트림이
+         * 다시 열린다.
+         *
+         * `resumable` 로 닫으므로 답이 도착하면 남은 창이 다시 열린다 — 사용자가 발화마다
+         * 버튼을 누를 필요는 없다.
+         */
+        beginGenerating()
+        void stopTalkingRef.current?.('AI 응답 중', { quiet: true, resumable: true })
       } else {
         setCaption(payload.text ?? '')
       }
@@ -351,6 +451,11 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     room.on(RoomEvent.Disconnected, () => {
       roomRef.current = null
       clearTalkTimers()
+      // 방이 끊기면 답은 오지 않는다. 안 풀면 재접속 뒤에도 말하기가 잠겨 있다.
+      endGenerating()
+      talkingRef.current = false
+      // 끊긴 방의 창을 재개하지 않는다 — 재접속 후 답이 오면 마이크가 저절로 켜진다.
+      resumeAfterReplyRef.current = false
       setConnection('off')
       setStatus('연결 끊김')
       setCaption('')
@@ -392,7 +497,7 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     for (const participant of room.remoteParticipants.values()) {
       welcome(participant)
     }
-  }, [clearTalkTimers, push])
+  }, [beginGenerating, clearTalkTimers, endGenerating, push])
 
   /**
    * 입장. **두 번 겹쳐 부를 수 없다**(`connectingRef` 주석의 DUPLICATE_IDENTITY).
@@ -420,9 +525,13 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       if (!room || !text.trim()) return
       push('me', text)
       setCoachState('thinking')
+      // 텍스트로 물어도 생성은 생성이다 — 음성 경로와 같은 구간을 잠근다. 듣고 있었다면
+      // 창도 멈추고(그 발화는 어차피 버려진다), 답이 오면 남은 창이 다시 열린다.
+      beginGenerating()
+      void stopTalkingRef.current?.('AI 응답 중', { quiet: true, resumable: true })
       await room.localParticipant.sendText(text, { topic: CHAT_TOPIC })
     },
-    [push],
+    [beginGenerating, push],
   )
 
   /** 시트가 바뀌면 통째로 다시 보낸다. 증분은 하나 유실되면 서버와 조용히 갈라진다. */
@@ -434,9 +543,23 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     })
   }, [])
 
+  /**
+   * 마이크 창을 닫는다.
+   *
+   * `quiet` 는 대화에 한 줄 남기지 않는다 — 응답 생성 때문에 잠시 멈추는 것은 한 턴에
+   * 한 번씩 일어나므로, 그때마다 "듣기를 멈췄습니다" 를 남기면 로그가 그것만 남는다.
+   * 그 상태는 상태줄("생각하는 중")과 버튼 글자가 이미 보여준다.
+   *
+   * `resumable` 은 **답이 도착하면 이 창을 다시 열어도 되는가**다. 사람이 직접 멈췄거나
+   * 15분 상한에 걸린 창을 다시 열면 안 된다 — 끈 마이크가 저절로 켜지는 셈이다.
+   */
   const stopTalking = useCallback(
-    async (reason: string) => {
+    async (reason: string, { quiet = false, resumable = false } = {}) => {
       const room = roomRef.current
+      // 닫는 경로가 여럿이라 겹친다(`talkingRef` 주석). 이미 닫혔으면 조용히 돌아간다.
+      if (!talkingRef.current) return
+      talkingRef.current = false
+      resumeAfterReplyRef.current = resumable
       clearTalkTimers()
       setTalkLeft(0)
       setMicBusy(true)
@@ -449,38 +572,85 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       }
       setListening(false)
       setCaption('')
-      push('sys', `듣기를 멈췄습니다 (${reason})`)
+      if (!quiet) push('sys', `듣기를 멈췄습니다 (${reason})`)
     },
     [clearTalkTimers, push],
   )
 
+  // `openRoom` 의 전사 핸들러와 `sendChat` 이 이걸 통해 창을 닫는다(위 주석의 TDZ).
+  stopTalkingRef.current = stopTalking
+
+  /**
+   * 마이크를 켜고 창에 타이머를 건다. `remaining` 은 **이 창에 남은 시간**이다.
+   *
+   * 응답 뒤 자동 재개(`resumeTalking`)가 처음 누른 시점부터의 15분을 이어 쓰기 때문에
+   * 인자로 받는다 — 턴마다 15분을 새로 주면 상한이 상한이 아니게 된다.
+   */
+  const openWindow = useCallback(
+    async (remaining: number, note: string | null) => {
+      const room = roomRef.current
+      if (!room) return
+      setMicBusy(true)
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true)
+      } catch (cause) {
+        // 권한 거부·장치 없음이 여기로 온다. localhost 는 secure context 로 취급되어
+        // getUserMedia 가 동작하지만, 다른 기기에서 열면 HTTPS 가 필요하다.
+        push('warn', `마이크를 켤 수 없습니다: ${cause instanceof Error ? cause.message : cause}`)
+        return
+      } finally {
+        setMicBusy(false)
+      }
+
+      // **먼저 지운다.** 자동 재개와 사람의 누름이 겹칠 수 있다 — 답이 도착해
+      // `endGenerating()` 이 잠금을 푼 직후, `resumeTalking` 이 `await` 에 들어가 있는
+      // 사이의 누름은 `talkingRef` 가 아직 거짓이라 통과한다. 그러면 카운트다운과 상한
+      // 타이머가 둘씩 생기고, 먼저 걸린 상한이 창을 일찍 닫는다.
+      clearTalkTimers()
+      talkingRef.current = true
+      setListening(true)
+      setTalkLeft(Math.ceil(remaining / 1000))
+      if (note) push('sys', note)
+
+      // 1초 주기다. 남은 시간을 초 단위로 보여주므로 그보다 잦은 setState 는 15분 동안
+      // 리렌더만 늘린다. **기준은 처음 누른 시각이라** 재개해도 값이 이어진다.
+      countdownTimer.current = window.setInterval(() => {
+        const left = Math.ceil((TALK_WINDOW_MS - (Date.now() - talkStartedAt.current)) / 1000)
+        if (left > 0) setTalkLeft(left)
+      }, 1000)
+
+      talkTimer.current = window.setTimeout(() => void stopTalking('시간 종료'), remaining)
+    },
+    [clearTalkTimers, push, stopTalking],
+  )
+
   const startTalking = useCallback(async () => {
-    const room = roomRef.current
-    if (!room) return
-    setMicBusy(true)
-    try {
-      await room.localParticipant.setMicrophoneEnabled(true)
-    } catch (cause) {
-      // 권한 거부·장치 없음이 여기로 온다. localhost 는 secure context 로 취급되어
-      // getUserMedia 가 동작하지만, 다른 기기에서 열면 HTTPS 가 필요하다.
-      push('warn', `마이크를 켤 수 없습니다: ${cause instanceof Error ? cause.message : cause}`)
-      return
-    } finally {
-      setMicBusy(false)
-    }
-
     talkStartedAt.current = Date.now()
-    setListening(true)
-    setTalkLeft(TALK_WINDOW_MS / 1000)
-    push('sys', '말하세요 (10초 후 자동으로 멈춥니다)')
+    await openWindow(TALK_WINDOW_MS, '말하세요 (응답을 만드는 동안에는 잠시 멈춥니다 · 최대 15분)')
+  }, [openWindow])
 
-    countdownTimer.current = window.setInterval(() => {
-      const left = Math.ceil((TALK_WINDOW_MS - (Date.now() - talkStartedAt.current)) / 1000)
-      if (left > 0) setTalkLeft(left)
-    }, 250)
+  /**
+   * 답이 도착해서 다시 듣는다. **처음 누른 창을 이어 쓴다.**
+   *
+   * 조용히 한다 — 버튼 글자가 `듣는 중 M:SS` 로 돌아오고, 에이전트도 `listening` 을
+   * 보내 상태줄이 바뀐다(`TRANSCRIPT_TOPIC`). 턴마다 한 줄씩 남길 일이 아니다.
+   */
+  const resumeTalking = useCallback(async () => {
+    if (!resumeAfterReplyRef.current) return
+    resumeAfterReplyRef.current = false
+    // 이미 열려 있거나(사람이 먼저 눌렀다) 방을 놓았으면 할 일이 없다.
+    if (talkingRef.current || disposedRef.current || !roomRef.current || !voiceAvailable) return
+    const left = TALK_WINDOW_MS - (Date.now() - talkStartedAt.current)
+    if (left < RESUME_MIN_MS) {
+      // 남은 창이 없으면 여기서 끝낸다. 굳이 켰다가 곧바로 끄면 STT 연결 비용만 낸다.
+      push('sys', '듣기 창이 끝났습니다 (15분) — 더 말하려면 다시 눌러 주세요')
+      return
+    }
+    await openWindow(left, null)
+  }, [openWindow, push, voiceAvailable])
 
-    talkTimer.current = window.setTimeout(() => void stopTalking('시간 종료'), TALK_WINDOW_MS)
-  }, [push, stopTalking])
+  // `openRoom` 의 답 핸들러가 이걸 통해 다시 듣는다(위 주석의 TDZ).
+  resumeTalkingRef.current = resumeTalking
 
   const toggleTalk = useCallback(async () => {
     const room = roomRef.current
@@ -488,6 +658,23 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     // 수 있고, 그 경로가 열려 있으면 위 `micBusy` 주석의 타이머 중복이 그대로 난다.
     if (!room || !voiceAvailable || micBusy) return
     if (!room.localParticipant.isMicrophoneEnabled) {
+      /*
+       * **응답 생성 중에는 열지 않는다.** 열어도 그 발화는 서버가 버리므로
+       * (`Conversation` 의 락) 사용자는 "말했는데 아무 일도 안 일어난다" 만 겪고, 그
+       * 오디오를 올려보낸 값은 나간다.
+       *
+       * 대신 이 누름을 **자동 재개 취소**로 받는다. 안 그러면 응답 중에 그만하려고 눌러도
+       * 답이 오는 순간 마이크가 저절로 켜진다.
+       */
+      if (generatingRef.current) {
+        if (resumeAfterReplyRef.current) {
+          resumeAfterReplyRef.current = false
+          push('sys', '듣기를 멈췄습니다 (직접 멈춤) — 답이 와도 다시 듣지 않습니다')
+        } else {
+          push('sys', 'AI가 답하는 중입니다 — 끝나면 말해 주세요')
+        }
+        return
+      }
       await startTalking()
       return
     }

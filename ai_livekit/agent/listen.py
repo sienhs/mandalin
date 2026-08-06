@@ -1,18 +1,25 @@
 """오디오 트랙 → 텍스트. Deepgram 스트리밍 STT.
 
 **"언제 말이 끝났는가" 는 Deepgram 이 정합니다** — 스트리밍이라 그 판단을 자기가
-합니다(`endpointing_ms`). 그래서 silero VAD 를 따로 붙이지 않습니다. 배치
-STT(Whisper 계열)를 골랐다면 VAD 가 필수였을 자리입니다.
+합니다(`endpointing_ms`). 배치 STT(Whisper 계열)를 골랐다면 VAD 가 필수였을 자리입니다.
 
-푸시투토크(`web/app.js` 의 10초 창)와 **다른 층입니다.** 창은 *듣는 구간*을 정해 침묵
-과금을 막고, 발화 경계는 그 안에서 Deepgram 이 나눕니다 — 창 하나에 문장이 둘이면
-FINAL 도 두 번 옵니다. 창이 생겼다고 이 파일이 할 일이 줄지 않습니다.
+**"언제 소리가 났는가" 는 이 파일이 정합니다**(`SpeechGate`). 마이크 창이 15분이 되면서
+필요해진 층입니다 — 10초 창에서는 사람이 창을 열고 닫는 것으로 충분했습니다.
 
 ```
-오디오 트랙 ─rtc.AudioStream─▶ push_frame ─▶ Deepgram ─▶ SpeechEvent
-                                                          ├─ INTERIM  → 실시간 캡션
-                                                          └─ FINAL    → Conversation.respond()
+오디오 트랙 ─rtc.AudioStream─▶ SpeechGate ─▶ push_frame ─▶ Deepgram ─▶ SpeechEvent
+                            (무음은 버립니다)                          ├─ INTERIM  → 캡션
+                                                                       └─ FINAL    → respond()
 ```
+
+Deepgram 은 **WebSocket 이 열려 있는 시간**으로 과금합니다(플러그인 주석: "Deepgram
+bills WebSocket lifetime, not just audio frames pushed"). 그래서 게이트는 무음
+프레임을 버리는 것으로 끝내지 않고 **무음이 길어지면 스트림을 닫습니다** — 안 그러면
+15분 창에서 말한 20초가 아니라 900초가 청구됩니다.
+
+무음 구간에도 최근 오디오를 링버퍼에 들고 있다가(`PREBUFFER_MS`) 발화가 시작되면
+그것부터 밀어 넣습니다. 온셋 판정과 스트림 재연결에 걸리는 시간만큼 첫 음절이
+사라지는 것을 막습니다.
 
 ## STT 는 선택 기능입니다
 
@@ -31,11 +38,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
+import time
+from collections import deque
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 from livekit import rtc
 from livekit.agents import stt as stt_api
 
@@ -92,6 +104,151 @@ MULTI_LANGUAGES = (
 #: 스트리밍 STT 에 넘길 샘플레이트. Deepgram 플러그인 기본값과 같습니다.
 #: 사람 음성의 주요 성분이 4kHz 아래라 16kHz 면 충분합니다.
 SAMPLE_RATE = 16_000
+
+#: 무음 게이트 기본값. 전부 `.env` 로 덮을 수 있습니다(`SpeechGate.from_env`).
+#:
+#: `SILENCE_DBFS` 는 브라우저가 잡음 억제·AGC 를 거쳐 보내는 것을 전제한 값입니다 —
+#: 조용한 방의 무음은 -55dBFS 아래, 말소리는 -35dBFS 위로 옵니다. `HANGOVER_MS` 구간의
+#: 무음은 **보냅니다**(Deepgram 이 문장 끝을 판정하는 근거). `IDLE_CLOSE_SECONDS` 는
+#: 짧을수록 아끼지만 다음 발화의 첫 전사가 연결 시간만큼 늦습니다.
+FRAME_SIZE_MS = 20
+SILENCE_DBFS = -45.0
+ONSET_MS = 120
+HANGOVER_MS = 800
+PREBUFFER_MS = 300
+IDLE_CLOSE_SECONDS = 5.0
+
+#: 스트림을 닫기 전에 마지막 FINAL 을 기다리는 시간(`STT_FINALIZE_SECONDS`).
+#:
+#: **짧게 두는 것이 요금입니다.** 스트림이 스스로 끝나기를 기다리면 플러그인 keepalive
+#: 주기(5초)만큼 WS 가 더 열려 있고 실측으로 발화당 약 5초가 그렇게 청구됐습니다. 그래서
+#: 유예만 주고 소켓을 직접 닫습니다.
+#:
+#: 0 으로 두지는 마세요. 닫는 두 경로(무음·생성 중) 모두 FINAL 이 이미 온 뒤라 1.5초면
+#: 넉넉하지만, 네트워크가 느린 순간에 마지막 발화가 빠질 수 있습니다 — 그때는 경고가
+#: 찍힙니다(`_Segment.aclose`).
+FINALIZE_SECONDS = 1.5
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("%s=%r 를 숫자로 읽을 수 없습니다 — %s 를 씁니다", name, raw, default)
+        return default
+
+
+def frame_dbfs(frame: rtc.AudioFrame) -> float:
+    """프레임의 RMS 를 dBFS 로. 완전한 무음(mute 된 트랙)은 `-inf` 입니다."""
+    samples = np.frombuffer(bytes(frame.data), dtype=np.int16)
+    if samples.size == 0:
+        return -math.inf
+    rms = float(np.sqrt(np.mean(np.square(samples.astype(np.float32)))))
+    if rms <= 0.0:
+        return -math.inf
+    return 20.0 * math.log10(rms / 32768.0)
+
+
+@dataclass(frozen=True)
+class Gated:
+    """게이트의 판정. `frames` 가 비어 있으면 이 프레임은 보내지 않습니다."""
+
+    frames: tuple[rtc.AudioFrame, ...]
+    started: bool = False
+    ended: bool = False
+
+
+class SpeechGate:
+    """에너지 기반 무음 게이트. **프레임을 받아 보낼 것만 돌려줍니다.**
+
+    silero VAD 를 쓰지 않는 이유는 t3.micro 입니다 — 모델이 job 프로세스마다 CPU·메모리를
+    먹는데, 필요한 판정은 "사람이 말하는가" 가 아니라 "보낼 만한 소리가 있는가" 뿐입니다.
+    잡음을 말소리로 오인하면 요금이 새고, 반대(말을 놓침)는 `ONSET_MS`·`PREBUFFER_MS` 가
+    막습니다.
+    """
+
+    def __init__(
+        self,
+        *,
+        silence_dbfs: float = SILENCE_DBFS,
+        onset_ms: float = ONSET_MS,
+        hangover_ms: float = HANGOVER_MS,
+        prebuffer_ms: float = PREBUFFER_MS,
+    ) -> None:
+        self._silence_dbfs = silence_dbfs
+        self._onset = onset_ms / 1000.0
+        self._hangover = hangover_ms / 1000.0
+        # 온셋 판정에 쓴 구간까지 들고 있어야 그 오디오가 안 잘립니다.
+        self._prebuffer_limit = (prebuffer_ms + onset_ms) / 1000.0
+        self._prebuffer: deque[rtc.AudioFrame] = deque()
+        self._prebuffered = 0.0
+        self._speaking = False
+        self._voiced = 0.0
+        self._silence = 0.0
+        self._sent_seconds = 0.0
+        self._window_seconds = 0.0
+
+    @classmethod
+    def from_env(cls) -> SpeechGate:
+        return cls(
+            silence_dbfs=_env_float("STT_SILENCE_DBFS", SILENCE_DBFS),
+            onset_ms=_env_float("STT_ONSET_MS", ONSET_MS),
+            hangover_ms=_env_float("STT_HANGOVER_MS", HANGOVER_MS),
+            prebuffer_ms=_env_float("STT_PREBUFFER_MS", PREBUFFER_MS),
+        )
+
+    @property
+    def speaking(self) -> bool:
+        return self._speaking
+
+    @property
+    def silence_seconds(self) -> float:
+        """마지막 유성 프레임 이후 흐른 무음. 발화 중이면 0 입니다."""
+        return self._silence
+
+    @property
+    def sent_seconds(self) -> float:
+        return self._sent_seconds
+
+    @property
+    def window_seconds(self) -> float:
+        return self._window_seconds
+
+    def feed(self, frame: rtc.AudioFrame) -> Gated:
+        duration = frame.duration
+        self._window_seconds += duration
+        loud = frame_dbfs(frame) > self._silence_dbfs
+
+        if self._speaking:
+            self._silence = 0.0 if loud else self._silence + duration
+            ended = self._silence >= self._hangover
+            if ended:
+                self._speaking = False
+                self._voiced = 0.0
+            self._sent_seconds += duration
+            return Gated(frames=(frame,), ended=ended)
+
+        self._silence += duration
+        self._voiced = self._voiced + duration if loud else 0.0
+        self._prebuffer.append(frame)
+        self._prebuffered += duration
+        while self._prebuffered > self._prebuffer_limit and len(self._prebuffer) > 1:
+            self._prebuffered -= self._prebuffer.popleft().duration
+
+        if self._voiced < self._onset:
+            return Gated(frames=())
+
+        frames = tuple(self._prebuffer)
+        self._prebuffer.clear()
+        self._prebuffered = 0.0
+        self._speaking = True
+        self._voiced = 0.0
+        self._silence = 0.0
+        self._sent_seconds += sum(f.duration for f in frames)
+        return Gated(frames=frames, started=True)
 
 
 def build_stt() -> stt_api.STT | None:
@@ -201,6 +358,65 @@ class TranscriptionRegistry:
                 await task
 
 
+class _Segment:
+    """발화 하나를 받는 STT 스트림과 그것을 읽는 태스크."""
+
+    def __init__(
+        self,
+        stream: stt_api.SpeechStream,
+        read: Callable[[_Segment], Coroutine[Any, Any, None]],
+    ) -> None:
+        self._stream = stream
+        #: INTERIM 만 받고 아직 FINAL 을 못 받은 상태. 이때 닫으면 방금 한 말이 빠집니다.
+        self.awaiting_final = False
+        #: 소켓이 열려 있던 시간이 **과금 단위**입니다. 플러그인의 `stt usage` 는 자기
+        #: 정리가 끝나야 나오는데 우리는 그 전에 닫으므로 여기서 직접 잽니다.
+        self._opened = time.monotonic()
+        self._reader = asyncio.create_task(read(self))
+
+    @property
+    def done(self) -> bool:
+        return self._reader.done()
+
+    def push(self, frame: rtc.AudioFrame) -> None:
+        self._stream.push_frame(frame)
+
+    def finalize(self) -> None:
+        """발화가 끝났다고 Deepgram 에 알립니다.
+
+        무음을 더 안 보내므로 이걸 빼면 Deepgram 이 끝을 판정할 입력이 끊긴 채
+        기다립니다 — 마지막 FINAL 이 다음 발화까지 밀립니다.
+        """
+        with suppress(Exception):
+            self._stream.flush()
+
+    async def aclose(self, grace: float) -> None:
+        """**소켓을 직접 닫습니다.** 오는 중인 전사가 있을 때만 `grace` 만큼 기다립니다.
+
+        스트림이 스스로 끝나기를 기다리면 안 됩니다 — 플러그인 keepalive 가 소켓이
+        닫힌 것을 다음 전송(5초 주기)에서야 알아채고, 그 시간이 그대로 과금됩니다.
+        닫는 두 경로(무음·생성 중) 모두 FINAL 이 이미 온 뒤라 보통은 기다릴 것도 없습니다.
+        """
+        with suppress(Exception):
+            self._stream.end_input()
+        # 취소 중에도 정리는 끝까지 갑니다(`run()` 의 finally 와 같은 이유).
+        if self.awaiting_final:
+            with suppress(Exception, asyncio.CancelledError):
+                await asyncio.wait_for(asyncio.shield(self._reader), grace)
+        if self.awaiting_final:
+            # 조용히 넘기면 "가끔 마지막 말이 사라진다" 로만 드러납니다.
+            logger.warning(
+                "FINAL 을 %.1fs 안에 못 받고 닫습니다 — 방금 한 말이 빠집니다 "
+                "(STT_FINALIZE_SECONDS 를 늘리세요)", grace,
+            )
+        self._reader.cancel()
+        with suppress(Exception, asyncio.CancelledError):
+            await self._reader
+        with suppress(Exception, asyncio.CancelledError):
+            await self._stream.aclose()
+        logger.info("STT 소켓 닫힘 — %.1fs (과금 단위)", time.monotonic() - self._opened)
+
+
 class TrackListener:
     """오디오 트랙 하나를 받아 전사문을 콜백으로 흘려보냅니다.
 
@@ -209,8 +425,8 @@ class TrackListener:
     하나를 만들어 재사용합니다. 이 방에는 사용자 마이크 트랙 하나뿐이라 지금은 겹칠
     일이 없지만, 그 사실에 기대고 있는 코드는 없습니다.
 
-    스트림은 발화가 끝나도 계속 살아 있습니다 — Deepgram 이 발화 경계를 알아서
-    나눕니다. 닫히는 것은 mute(취소)와 job 종료 때뿐입니다.
+    STT 스트림은 **발화 단위로 열리고 닫힙니다**(`SpeechGate`). 트랙이 살아 있는 15분
+    동안 연결을 붙잡고 있으면 말하지 않는 시간까지 과금됩니다.
     """
 
     def __init__(
@@ -220,10 +436,14 @@ class TrackListener:
         on_final: Callable[[str], Awaitable[None]],
         on_interim: Callable[[str], Awaitable[None]] | None = None,
         on_started: Callable[[], Awaitable[None]] | None = None,
+        is_busy: Callable[[], bool] | None = None,
     ) -> None:
         self._stt = stt
         self._on_final = on_final
         self._on_interim = on_interim
+        #: 응답 생성 중인가(`Conversation.busy`). 그 동안의 발화는 `Conversation` 이
+        #: 버리므로 전사하면 요금만 나갑니다 — 스트림을 닫고 프레임을 버립니다.
+        self._is_busy = is_busy
         #: 전사 배선이 끝났음을 알립니다. **오디오 유실 방지와 무관합니다** —
         #: `push_frame` 은 무제한 채널에 넣고 Deepgram WebSocket 이 열린 뒤
         #: `send_task` 가 비우므로, 연결 전에 말해도 잘리지 않습니다(지연만 생깁니다).
@@ -237,33 +457,78 @@ class TrackListener:
         """트랙이 끝날 때까지 돕니다. 태스크로 띄우고 강한 참조를 보관하세요.
 
         **취소가 정상 종료 경로입니다.** 마이크가 mute 되면 호출하는 쪽이 이 태스크를
-        취소하고, 그때 아래 `finally` 가 STT 스트림과 오디오 스트림을 닫습니다 —
-        열어둔 채 프레임만 건너뛰면 Deepgram 이 유휴 연결을 끊어 버립니다.
+        취소하고, 그때 아래 `finally` 가 열려 있는 STT 스트림과 오디오 스트림을 닫습니다.
         """
-        audio = rtc.AudioStream(track, sample_rate=SAMPLE_RATE, num_channels=1)
-        stream = self._stt.stream()
+        audio = rtc.AudioStream(
+            track, sample_rate=SAMPLE_RATE, num_channels=1, frame_size_ms=FRAME_SIZE_MS
+        )
+        gate = SpeechGate.from_env()
+        idle_close = _env_float("STT_IDLE_CLOSE_SECONDS", IDLE_CLOSE_SECONDS)
+        grace = _env_float("STT_FINALIZE_SECONDS", FINALIZE_SECONDS)
+        segment: _Segment | None = None
+        #: 닫는 중인 스트림들. **정리를 오디오 루프 밖에서 합니다** — `FINALIZE_TIMEOUT`
+        #: 만큼 루프를 세우면 그 사이 시작된 발화의 첫 전사가 그만큼 늦습니다.
+        closing: set[asyncio.Task[None]] = set()
 
-        async def pump() -> None:
-            """오디오 프레임을 STT 로 밀어 넣습니다."""
-            try:
-                async for event in audio:
-                    stream.push_frame(event.frame)
-            finally:
-                # 이걸 빠뜨리면 마지막 발화의 최종 전사가 오지 않습니다 — Deepgram 이
-                # 입력이 더 올 것으로 보고 기다립니다.
-                with suppress(Exception):
-                    stream.end_input()
+        def log_close(reason: str) -> None:
+            # **닫기로 결정한 순간에 남깁니다.** 정리가 끝난 뒤에 찍으면 keepalive 주기만큼
+            # 늦게 나와 로그 순서가 실제 순서와 어긋나고, 그 사이 다음 발화가 더한 값이
+            # 이 줄에 섞입니다.
+            logger.info(
+                "STT 스트림 닫기(%s) — 보낸 오디오 %.1fs / 마이크 %.1fs",
+                reason, gate.sent_seconds, gate.window_seconds,
+            )
 
-        pump_task = asyncio.create_task(pump())
+        def close_later(done: _Segment, reason: str) -> None:
+            log_close(reason)
+            task = asyncio.create_task(done.aclose(grace))
+            closing.add(task)
+            task.add_done_callback(closing.discard)
+
         if self._on_started is not None:
             # 실패해도 전사를 막지 않습니다 — 확인 신호일 뿐입니다.
             with suppress(Exception):
                 await self._on_started()
         try:
-            async for event in stream:
-                await self._handle(event)
+            async for event in audio:
+                gated = gate.feed(event.frame)
+
+                if segment is not None and segment.done:
+                    # 재연결까지 소진한 스트림입니다. 안 버리면 아래 push 가 계속 터집니다.
+                    logger.warning("STT 스트림이 먼저 끝났습니다 — 다시 엽니다")
+                    close_later(segment, "스트림 종료")
+                    segment = None
+
+                # **응답 생성 중에는 듣지 않습니다.** 이때 들어온 발화는 `Conversation` 이
+                # 버리므로(그쪽 락) 전사해도 쓰이지 않고 요금만 나갑니다. 게이트에는
+                # 계속 먹여서(위 `feed`) 무음 회계와 프리버퍼가 이어지게 합니다.
+                if self._is_busy is not None and self._is_busy():
+                    if segment is not None:
+                        segment.finalize()
+                        close_later(segment, "생성 중")
+                        segment = None
+                    continue
+
+                if gated.frames and segment is None:
+                    segment = self._open()
+                if segment is None:
+                    continue
+
+                try:
+                    for frame in gated.frames:
+                        segment.push(frame)
+                except Exception:
+                    logger.exception("STT 로 프레임을 보내지 못했습니다 — 스트림을 닫습니다")
+                    close_later(segment, "전송 실패")
+                    segment = None
+                    continue
+
+                if gated.ended:
+                    segment.finalize()
+                if not gate.speaking and gate.silence_seconds >= idle_close:
+                    close_later(segment, "무음")
+                    segment = None
         finally:
-            pump_task.cancel()
             # **취소 중에도 반드시 닫습니다.** `finally` 안의 `await` 는 이미 취소된
             # 태스크에서 즉시 `CancelledError` 를 다시 낼 수 있는데, 그러면 뒤쪽 정리가
             # 건너뛰어져 STT 연결이 새어 나갑니다 — mute/unmute 를 반복하면 연결이
@@ -271,12 +536,41 @@ class TrackListener:
             #
             # `BaseException` 을 삼키지는 않습니다. `KeyboardInterrupt`·`SystemExit` 까지
             # 먹으면 Ctrl+C 가 안 듣습니다 — 필요한 것은 `CancelledError` 뿐입니다.
-            with suppress(Exception, asyncio.CancelledError):
-                await pump_task
-            with suppress(Exception, asyncio.CancelledError):
-                await stream.aclose()
+            if segment is not None:
+                # **여기서는 태스크로 미루지 않습니다.** 취소당한 경우 바로 아래에서
+                # 남은 태스크를 취소하므로, 미루면 소켓이 안 닫힌 채 끝납니다.
+                log_close("종료")
+                await segment.aclose(grace)
+            if closing:
+                # 트랙이 그냥 끝난 경우는 정리가 마무리되기를 기다립니다. mute 로
+                # 취소당했으면 이 await 가 즉시 되돌아오고(취소 전파), 남은 태스크는
+                # 아래에서 취소해야 `Task was destroyed but it is pending` 이 안 남습니다.
+                with suppress(Exception, asyncio.CancelledError):
+                    await asyncio.wait(closing, timeout=grace + 2.0)
+                for task in list(closing):
+                    task.cancel()
             with suppress(Exception, asyncio.CancelledError):
                 await audio.aclose()
+
+    def _open(self) -> _Segment:
+        stream = self._stt.stream()
+
+        async def read(segment: _Segment) -> None:
+            try:
+                async for event in stream:
+                    if event.type == stt_api.SpeechEventType.INTERIM_TRANSCRIPT:
+                        segment.awaiting_final = True
+                    elif event.type == stt_api.SpeechEventType.FINAL_TRANSCRIPT:
+                        segment.awaiting_final = False
+                    await self._handle(event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # 조용히 죽으면 전사만 멈추고 로그에 아무것도 안 남습니다.
+                logger.exception("STT 스트림 읽기가 실패했습니다")
+
+        logger.debug("STT 스트림 열기")
+        return _Segment(stream, read)
 
     async def _handle(self, event: stt_api.SpeechEvent) -> None:
         text = _first_text(event)

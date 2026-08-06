@@ -7,6 +7,14 @@ import { Badge, Field, Input, domainColor } from '../components/common/Primitive
 import { cn } from '../utils/cn'
 import { useToast } from '../components/common/Toast'
 import {
+  MAX_DOMAIN_TITLE,
+  MAX_SHEET_TITLE,
+  MAX_SUBJECT_TITLE,
+  emptyDomains,
+  loadDraft,
+  saveDraft,
+} from '../features/sheet/draftStorage'
+import {
   useCoachRoom,
   type GoalFrequency,
   type GoalPayload,
@@ -55,7 +63,8 @@ const periodText = (period: Period, count: number) =>
  * 붙이면 매일 해야 할 일이 한 번짜리로 굳는다 — 서버가 같은 이유로 기본값을 두지 않는다.
  */
 const toSuggestion = (task: GoalTask): Suggestion[] => {
-  const title = (task.title ?? '').trim()
+  // 여기서 자른다. `loadDraft()` 에만 맡기면 새로고침 전까지 긴 제목이 그대로 남는다.
+  const title = (task.title ?? '').trim().slice(0, MAX_SUBJECT_TITLE)
   const frequency = task.frequency
   if (!title || !frequency || !(frequency in PERIOD_BY_FREQUENCY)) return []
   const period = PERIOD_BY_FREQUENCY[frequency]
@@ -71,6 +80,48 @@ type Proposal = { key: number; domain: string; domainIsNew: boolean; items: Sugg
 type Basket = { domain: string; items: BasketItem[] }
 
 /**
+ * 편집기 초안에서 시작 상태를 만든다. 에이전트의 `set_domains()` 가 받은 시트로 **통째로
+ * 교체**하므로 빈 `basket` 으로 시작하면 초안이 지워진다 — 매번 전체를 실어야 한다.
+ */
+function seedFromDraft(): {
+  goal: string
+  basket: Basket[]
+  nextId: number
+  expiredAt: string
+  isOpen: boolean
+} {
+  const draft = loadDraft()
+  // 초안이 없을 때의 `isOpen` 은 `draftStorage` 의 기본값과 같아야 한다 — 다르면 코치를
+  // 거쳐 만든 시트만 공개 설정이 뒤집힌다.
+  if (!draft) return { goal: '', basket: [], nextId: 1, expiredAt: '', isOpen: true }
+
+  let id = 1
+  const basket = draft.domains
+    .filter((d) => d.title.trim())
+    .map((d) => ({
+      domain: d.title.trim(),
+      items: d.subjects
+        .filter((s) => s.title.trim())
+        .map((s) => ({
+          title: s.title.trim(),
+          period: s.period,
+          count: s.countPerPeriod,
+          why: '',
+          id: id++,
+        })),
+    }))
+    .filter((b) => b.items.length > 0)
+
+  return {
+    goal: draft.title.trim(),
+    basket,
+    nextId: id,
+    expiredAt: draft.expiredAt,
+    isOpen: draft.isOpen,
+  }
+}
+
+/**
  * 말하기 버튼에 쓸 글자. **`ai_livekit/web/app.js` 의 `setMicLabel` 짝이다.**
  *
  * 아이콘만 두지 않고 글자를 붙이는 이유는 이 버튼이 **토글이면서 시한부**라서다 —
@@ -79,7 +130,10 @@ type Basket = { domain: string; items: BasketItem[] }
  */
 const micLabel = (voiceAvailable: boolean, listening: boolean, talkLeft: number) => {
   if (!voiceAvailable) return '음성 꺼짐'
-  return listening ? `듣는 중 ${talkLeft}s` : '말하기'
+  if (!listening) return '말하기'
+  // 창이 15분이라 `900s` 로는 남은 시간을 못 읽는다(`app.js` 의 `clock`).
+  const left = Math.max(0, talkLeft)
+  return `듣는 중 ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
 }
 
 /**
@@ -88,23 +142,49 @@ const micLabel = (voiceAvailable: boolean, listening: boolean, talkLeft: number)
  */
 const micTitle = (voiceAvailable: boolean) =>
   voiceAvailable
-    ? '누르면 10초간 듣습니다'
+    ? '누르면 15분간 듣습니다 (응답을 만드는 동안에는 잠시 멈춥니다)'
     : '서버에 음성이 꺼져 있습니다 (DEEPGRAM_API_KEY 없음)'
 
 /** 세부 목표 하나에 담을 수 있는 과제 수, 그리고 세부 목표 칸 수. 서버 규칙(8 x 8)과 같다. */
 const SLOTS = 8
+
+/**
+ * 시트 전송을 모으는 시간. 핵심 목표는 타이핑으로 바뀌므로 글자마다 보내면 안 된다.
+ *
+ * 400ms 는 "치는 중" 과 "멈췄다" 를 가르는 값이다. 더 짧으면 낱글자가 새어 나가고, 더
+ * 길면 목표를 고치고 곧바로 말했을 때 **옛 목표로 판단**한다.
+ */
+const SHEET_DEBOUNCE_MS = 400
 
 export default function Coach() {
   const navigate = useNavigate()
   const toast = useToast()
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // 초안은 첫 렌더 전에 읽는다. `useEffect` 로 늦게 넣으면 그 전에 빈 시트가 나간다.
+  const [seed] = useState(seedFromDraft)
+
   const [input, setInput] = useState('')
-  const [basket, setBasket] = useState<Basket[]>([])
-  const [goal, setGoal] = useState('')
+  const [basket, setBasket] = useState<Basket[]>(seed.basket)
+  const [goal, setGoal] = useState(seed.goal)
   const [proposal, setProposal] = useState<Proposal | null>(null)
   /** 담은 과제에 붙일 번호. **에이전트가 중복을 지목할 때 쓰는 id 라 유일하면 된다.** */
-  const nextId = useRef(1)
+  const nextId = useRef(seed.nextId)
+  /**
+   * 이 화면에 입력이 없는 초안 필드. **되돌려 쓸 때 지우지 않기 위해** 들고 있는다.
+   *
+   * `SheetDraft` 에는 만료일·공개 여부도 있는데 코치 화면에는 그 입력이 없다. 기본값으로
+   * 덮으면 편집기에서 정해 둔 값이 조용히 사라진다.
+   */
+  const draftMeta = useRef({ expiredAt: seed.expiredAt, isOpen: seed.isOpen })
+  /**
+   * 핵심 목표를 **자동으로 채운 적이 있는가.** 초안에서 온 목표가 있으면 처음부터 참이다.
+   *
+   * 이게 없으면 사용자가 칸을 지울 때마다 첫 발화가 다시 들어앉는다.
+   */
+  const goalFilled = useRef(Boolean(seed.goal))
+  /** 목표 타이핑 디바운스. 글자마다 시트를 보내면 서버가 한 글자씩 다 받는다. */
+  const sheetTimer = useRef<number | null>(null)
 
   /**
    * 에이전트에게 넘길 시트 — **담은 과제가 곧 시트다.**
@@ -115,6 +195,16 @@ export default function Coach() {
    */
   const getSheet = useCallback(
     () => ({
+      /*
+       * **최종목표를 함께 보낸다.** 이름이 `title` 인 이유는 서버가 Spring 의
+       * `GET /api/v1/sheets/{sheetId}` 응답 모양을 그대로 받기 때문이다
+       * (`ai_livekit/agent/sheet_transfer.py` 의 `SheetPayload.title`).
+       *
+       * 빼면 에이전트가 중심 목표를 **모른다.** 예전에는 "대화의 첫 목표 발화" 로
+       * 추론하게 했는데, 히스토리 창(`BOT_HISTORY_TURNS`)이 두 왕복이라 그 발화가
+       * 곧 창 밖으로 밀려나 근거가 사라졌다.
+       */
+      title: goal.trim(),
       domains: basket.map((b) => ({
         title: b.domain,
         subjects: b.items.map((i) => ({
@@ -125,7 +215,7 @@ export default function Coach() {
         })),
       })),
     }),
-    [basket],
+    [basket, goal],
   )
 
   /**
@@ -137,7 +227,7 @@ export default function Coach() {
    */
   const handleGoal = useCallback((payload: GoalPayload) => {
     if (payload.action !== 'generate') return
-    const domain = (payload.domain ?? '').trim()
+    const domain = (payload.domain ?? '').trim().slice(0, MAX_DOMAIN_TITLE)
     const items = (payload.generated_tasks ?? []).flatMap(toSuggestion)
     // 칸 이름이나 과제가 비어 있으면 담을 수 없다. 서버가 이미 같은 검사를 하지만
     // (`_unknown_domain`), 빈 카드를 그려 놓고 담기가 안 되는 쪽이 더 나쁘다.
@@ -177,22 +267,86 @@ export default function Coach() {
    * `getSheet()` 가 직전 목록을 만든다. 방금 담은 과제가 빠진 시트가 가고, 증상은
    * "담았는데 또 추천한다" 뿐이다.
    */
+  /*
+   * `goal` 도 의존성이다 — 최종목표를 고치면 다시 보내야 에이전트가 새 목표로 판단한다
+   * (`getSheet` 가 `title` 로 싣는다).
+   *
+   * **디바운스가 필요하다.** 목표는 타이핑으로 바뀌므로 글자마다 보내면 서버 로그가
+   * 이렇게 된다(실측) —
+   *
+   *     시트 수신 최종목표='IT 프로젝트 달'
+   *     시트 수신 최종목표='IT 프로젝트 달서'
+   *     시트 수신 최종목표='IT 프로젝트 달성'      ← 1초에 10번
+   *
+   * 데이터 메시지가 그만큼 나가고, 서버는 매번 파싱하고, 판단 캐시 키도 매번 달라진다
+   * (`_cache_key` 가 목표를 포함한다). 담기는 클릭이라 즉시 보내도 되지만 그쪽까지 같은
+   * 타이머를 지나게 둔다 — 두 경로를 가르면 "담았는데 안 갔다" 를 디버깅할 자리가 둘로 는다.
+   */
   useEffect(() => {
-    if (ready) void sendSheet()
-  }, [basket, ready, sendSheet])
+    if (!ready) return
+    if (sheetTimer.current) window.clearTimeout(sheetTimer.current)
+    sheetTimer.current = window.setTimeout(() => void sendSheet(), SHEET_DEBOUNCE_MS)
+    return () => {
+      if (sheetTimer.current) window.clearTimeout(sheetTimer.current)
+      sheetTimer.current = null
+    }
+  }, [basket, goal, ready, sendSheet])
 
   /**
-   * 핵심 목표는 **첫 사용자 발화**다 — 에이전트도 같은 규칙으로 읽는다
-   * (`prompts/system.md`: "중심 목표는 대화의 첫 목표 발화").
+   * 코치 화면의 편집을 **편집기 초안에 되돌려 쓴다.**
+   *
+   * 예전에는 핸드오프 버튼(`handoff`)만 초안 쪽으로 값을 넘겼다. 그래서 최종목표를
+   * 고치고 버튼을 누르지 않은 채 시트로 돌아가면 그 수정이 사라졌다 — 화면에는 남아
+   * 있으니 저장된 줄 알게 되는 종류의 손실이다.
+   *
+   * **8칸 골격에 채워 넣는다.** 편집기는 항상 8칸을 그리므로(`emptyDomains`) 담은 것만
+   * 성기게 저장하면 그쪽에서 칸 수가 줄어 보인다.
+   */
+  useEffect(() => {
+    const domains = emptyDomains()
+    basket.slice(0, domains.length).forEach((b, index) => {
+      const subjects = domains[index].subjects
+      domains[index] = {
+        title: b.domain,
+        subjects: subjects.map((empty, slot) => {
+          const item = b.items[slot]
+          return item
+            ? { title: item.title, period: item.period, countPerPeriod: item.count }
+            : empty
+        }),
+      }
+    })
+    // **편집기가 쓰는 다른 필드를 지우지 않는다.** `SheetDraft` 에는 만료일·공개 여부도
+    // 있고 이 화면에는 그 입력이 없다 — 기본값으로 덮으면 편집기에서 정해 둔 값이
+    // 조용히 사라진다.
+    saveDraft({
+      title: goal,
+      expiredAt: draftMeta.current.expiredAt,
+      isOpen: draftMeta.current.isOpen,
+      domains,
+    })
+  }, [basket, goal])
+
+  /**
+   * 핵심 목표 칸이 비어 있으면 **첫 사용자 발화로 채워 준다.**
+   *
+   * **에이전트를 위한 것이 아니다.** 에이전트는 이제 이 값을 `getSheet()` 의 `title` 로
+   * 받는다(`<final_goal>`) — 여기서 채우는 것은 그 입력칸을 대신 적어 주는 편의이고,
+   * 사용자가 고치면 그 값이 그대로 서버로 간다.
    *
    * `send()` 안이 아니라 대화에서 읽는 이유는 **음성**이다. 마이크로 시작하면 발화가
    * `send()` 를 지나지 않고 전사 토픽으로 들어와서, 그쪽에만 두면 말로 시작한 사용자는
    * 핵심 목표 칸이 빈 채로 남는다. 길면 비워 둔다 — 30자를 넘는 문장은 제목이 아니다.
    */
   useEffect(() => {
-    if (goal) return
+    // **한 번만 채운다.** `if (goal) return` 만 두면 사용자가 칸을 **지울 때마다** 다시
+    // 채워진다. 실제로 그렇게 됐다 — 목표를 비우고 `"핵심 목표를 이루기 위한 활동
+    // 추천해줘"` 라고 말했더니 그 발화가 핵심 목표로 들어앉았고, 그대로 서버까지 갔다.
+    if (goalFilled.current || goal) return
     const first = messages.find((m) => m.who === 'me')?.text.trim()
-    if (first) setGoal(first.length <= 30 ? first : '')
+    if (!first) return
+    goalFilled.current = true
+    setGoal(first.length <= 30 ? first : '')
   }, [messages, goal])
 
   useEffect(() => {
@@ -512,7 +666,7 @@ export default function Coach() {
             >
               <IconMic className="size-[19px]" />
               {/* 남은 초가 글자로 들어오므로 폭이 흔들린다. 숫자만 tabular 로 두면
-                  "듣는 중 9s" → "듣는 중 10s" 에서 버튼이 덜 튄다. */}
+                  "듣는 중 9:59" → "듣는 중 10:00" 에서 버튼이 덜 튄다. */}
               <span className="tabular-nums">{micLabel(voiceAvailable, listening, talkLeft)}</span>
             </button>
 
@@ -567,7 +721,7 @@ export default function Coach() {
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
                   placeholder="예) 건강한 몸 만들기"
-                  maxLength={30}
+                  maxLength={MAX_SHEET_TITLE}
                 />
               </Field>
             </div>
