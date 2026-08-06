@@ -100,6 +100,10 @@ def test_the_emergency_text_still_carries_the_safety_rules():
 #: 테스트가 계약을 **독립적으로** 다시 적는 자리라 일부러 복사해 둡니다.
 SLOTS = {
     "bot_system_prompt_file": (
+        # 사용자의 최종목표(만다라트 가운데 칸). **모델에게 묻지 않고 서버가 넘깁니다** —
+        # 규칙 2가 "중심 목표는 <final_goal> 이다" 로 이 값에 매달려 있고, 빠지면 모델이
+        # 최근 발화를 중심 목표로 오인합니다(히스토리 창이 첫 발화를 밀어냅니다).
+        "final_goal",
         "domain_list",
         # 8칸 중 몇 칸이 찼는지. **`domain_list` 로 대신할 수 없습니다** — 목록은
         # "무엇이 있는가" 이고 이쪽은 "새 칸을 지어도 되는가" 라, 빠지면 모델이
@@ -108,7 +112,10 @@ SLOTS = {
         "existing_domain_tasks",
         "existing_subjects",
     ),
-    "bot_classify_prompt_file": ("domain_list",),
+    # 1단계도 최종목표를 받습니다. **없으면 "핵심 목표 이루기 위한 활동 추천해줘" 가
+    # 내용 없는 대행 요청으로 보여 `chitchat` 으로 빠지고, 그 순간 대화가 고정 거절
+    # 문구로 끝납니다**(3단계의 되묻기까지 못 갑니다 — 실측 2026-08-05).
+    "bot_classify_prompt_file": ("final_goal", "domain_list"),
 }
 
 
@@ -136,6 +143,26 @@ def test_every_slot_is_filled_where_the_data_actually_goes():
         assert "{{" not in filled, (
             f"{path.name} 에 안 채워진 슬롯이 남았습니다 — 본문의 슬롯 언급을 "
             "이스케이프하지 않아 그쪽이 먼저 채워졌을 수 있습니다"
+        )
+        # **위 두 검사가 못 잡는 자리가 있습니다.** 정규식이 `<tag>(.*?)</tag>` + DOTALL
+        # 이므로, 본문에 여는 태그를 이스케이프 없이 적으면 **거기서 진짜 닫는 태그까지
+        # 통째로 사라집니다.** 그러면 슬롯은 정확히 한 번 채워지고 `{{` 도 남지 않아
+        # 둘 다 통과하는데, 그 사이의 규칙·표·다른 슬롯이 전부 날아갑니다.
+        #
+        # 2026-08-05 에 `classify.md` 가 그렇게 됐습니다 — 3,812자 중 2,559자(판단 기준
+        # 표와 `<domain_list>` 슬롯 포함)가 사라진 채로 모델에게 갔고, 증상은 "목표를
+        # 가리키는 요청이 chitchat 으로 분류된다" 뿐이었습니다.
+        raw = path.read_text(encoding="utf-8")
+        for heading in [ln for ln in raw.splitlines() if ln.startswith("#")]:
+            assert heading in filled, (
+                f"{path.name} 의 '{heading}' 절이 슬롯 치환에 삼켜졌습니다 — 본문의 "
+                "여는 태그를 &lt;tag&gt; 로 이스케이프하세요"
+            )
+        # 길이로도 못 박습니다. 절 제목이 없는 구간(표 행 등)이 사라지는 경우까지 봅니다.
+        # 줄어드는 것은 플레이스홀더 설명뿐이라 슬롯당 200자면 넉넉합니다.
+        assert len(filled) >= len(raw) - 200 * len(tags), (
+            f"{path.name} 이 치환 후 {len(raw) - len(filled)}자 줄었습니다 — "
+            "본문의 슬롯 언급이 뒤쪽을 삼켰습니다"
         )
 
 

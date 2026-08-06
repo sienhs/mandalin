@@ -100,6 +100,28 @@ def frequency_label(value: str | None, count: int | None = None) -> str | None:
     return f"{label} · {suffix.format(n=count)}"
 
 
+def compact_frequency(value: str | None, count: int | None = None) -> str:
+    """빈도를 **짧게**. `"daily"` → `"일간"`, `("weekly", 3)` → `"주3"`.
+
+    `frequency_label()` 과 같은 어휘를 쓰지만 길이가 다릅니다. 저쪽은 사람이 읽는
+    말풍선용이라 `"주간 · 주 3회"` 로 풀어 쓰는데, 이 함수가 쓰이는 자리는 **시트
+    전체를 프롬프트에 싣는 목록**(`_capacity_context`)이라 과제 하나에 몇 글자가
+    64배로 늘어납니다. 그래서 주기 이름 + 횟수만 붙입니다.
+
+    모르는 주기는 빈 문자열입니다 — `frequency_label()` 처럼 `None` 으로 두고 호출하는
+    쪽에서 갈라 쓰게 하면 목록 조립이 지저분해지고, 여기서 빠지는 것은 괄호 한 짝뿐입니다.
+    """
+    key = (value or "").strip()
+    label = FREQUENCY_LABELS.get(key)
+    if label is None:
+        return ""
+    # 고정 주기(일간·한번만)는 셀 것이 없어 주기 이름이 곧 빈도입니다.
+    if "{n}" not in FREQUENCY_COUNT_SUFFIX[key]:
+        return label
+    # 주간·월간은 횟수가 빈도의 일부입니다 — 빼면 "주 1회" 와 "주 5회" 가 같은 줄이 됩니다.
+    return label if count is None else f"{label[0]}{count}"
+
+
 @dataclass(frozen=True)
 class Candidate:
     """후보 한 건 — 사용자 시트의 과제 하나입니다."""

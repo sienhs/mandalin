@@ -76,9 +76,28 @@ class Conversation:
         self._history_turns = max(1, history_turns)
         self._history: list[Turn] = []
         self._domains: list[DomainRef] = []
+        #: 사용자의 최종목표(`set_goal`). 없을 수 있습니다.
+        self._goal: str | None = None
         #: 생성 중에 들어온 발화를 **버리기** 위한 락. 큐에 쌓으면 한참 뒤에 답변이
         #: 몰려 나와 대화 흐름이 깨집니다. **버리는 것이 기능입니다.**
         self._lock = asyncio.Lock()
+
+    def clear_history(self) -> None:
+        """사용자가 방에 들어올 때마다 부릅니다(`entrypoint.py` 의 재입장 핸들러).
+
+        **목표와 칸은 남깁니다.** 대화가 아니라 시트에서 온 상태라, 같이 비우면 재입장
+        직후의 발화가 목표도 칸도 없이 판단됩니다 — 프론트의 시트 재전송은 그보다 뒤입니다.
+        """
+        self._history.clear()
+
+    @property
+    def busy(self) -> bool:
+        """지금 응답을 만들고 있는가. **이 동안의 발화는 버려집니다**(`respond`).
+
+        `listen.py` 가 이걸 보고 STT 스트림을 닫습니다 — 버릴 오디오를 전사하면
+        Deepgram 요금만 나갑니다.
+        """
+        return self._lock.locked()
 
     def set_domains(self, domains: list[DomainRef]) -> None:
         """시트를 갈아끼웁니다. 증분이 아니라 통째로 받습니다.
@@ -88,6 +107,19 @@ class Conversation:
         작습니다.
         """
         self._domains = list(domains)
+
+    def set_goal(self, title: str | None) -> None:
+        """사용자의 **최종목표**(만다라트 가운데 칸)를 갈아끼웁니다.
+
+        `set_domains` 와 따로 둔 이유는 출처가 같아도 **없을 수 있는 값**이기 때문입니다 —
+        편집기를 거치지 않고 대화부터 시작하면 아직 목표가 없습니다. 그때는 `None` 이고,
+        프롬프트의 `<final_goal>` 슬롯이 "없음" 으로 채워집니다.
+
+        **모델에게 묻지 않습니다.** 예전에는 규칙 2가 "중심 목표는 대화의 첫 목표 발화"
+        라고 추론하게 했는데, 히스토리 창(`BOT_HISTORY_TURNS`)이 두 왕복이면 그 발화가
+        창 밖으로 밀려나 근거 자체가 사라집니다. 서버가 아는 값은 서버가 넘깁니다.
+        """
+        self._goal = (title or "").strip() or None
 
     async def respond(self, text: str) -> tuple[str, GoalResult | None]:
         """발화 하나에 대한 응답. 두 번째 값은 과제 카드를 그릴 구조화 결과입니다.
@@ -106,7 +138,7 @@ class Conversation:
             self._append(Turn(role="user", text=text))
             try:
                 result = await asyncio.wait_for(
-                    self._pipeline.run(list(self._history), self._domains),
+                    self._pipeline.run(list(self._history), self._domains, goal=self._goal),
                     timeout=self._timeout,
                 )
             except TimeoutError:

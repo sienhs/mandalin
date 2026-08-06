@@ -87,7 +87,11 @@ from agent.reuse import (
     get_settings,
     normalize_provider,
 )
-from agent.sheet_transfer import SHEET_TOPIC, parse_sheet, sheet_from_participant
+from agent.sheet_transfer import (
+    SHEET_TOPIC,
+    parse_sheet_envelope,
+    sheet_envelope_from_participant,
+)
 
 logger = logging.getLogger("mandarin.agent")
 
@@ -166,6 +170,24 @@ def llm_status(provider: str, api_key: str | None) -> str:
     if not (api_key or "").strip():
         return "missing_key"
     return "ok"
+
+
+#: 라이브러리의 종료 사유 → 사람 말.
+#:
+#: `parent process shutdown` 은 worker 가 **사유 없이** 종료를 지시했을 때의 기본 문자열
+#: 이라(`job_proc_lazy_main.py`) worker 가 죽은 것처럼 읽힙니다. 실제로는 방이 닫혀 job 이
+#: 회수된 정상 경로가 대부분입니다. 실관측(2026-08-06): 사용자 퇴장 20초 뒤 서버가
+#: `closing idle room {reason: departure timeout}` 을 남기고 이 사유로 job 이 끝났습니다.
+#: 둘을 구분할 단서가 사유에 없으므로 양쪽을 다 적습니다.
+SHUTDOWN_REASONS = {
+    "parent process shutdown": "worker 가 job 을 회수했습니다(방이 닫혔거나 worker 가 내려가는 중)",
+    "room disconnected": "방과의 연결이 끊겼습니다",
+}
+
+
+def shutdown_reason(reason: str) -> str:
+    """모르는 값은 그대로 돌려줍니다 — 라이브러리가 사유를 늘려도 삼키지 않습니다."""
+    return SHUTDOWN_REASONS.get(reason, reason)
 
 
 def sender_is_the_user(identity: str, expected: str, what: str) -> bool:
@@ -301,6 +323,13 @@ async def entrypoint(ctx: JobContext) -> None:
     # 그래서 아래 `track_subscribed` 배선은 그대로 돕니다.
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
+    # job 이 왜 끝났는지 우리 로거에도 한 줄 남깁니다. 라이브러리 쪽은 DEBUG 라
+    # 운영에서는 안 보이고, 보이더라도 사유 문자열이 오해를 부릅니다.
+    async def log_shutdown(reason: str) -> None:
+        logger.info("job 종료 — %s", shutdown_reason(reason))
+
+    ctx.add_shutdown_callback(log_shutdown)
+
     settings = get_settings()
     if settings.bot_mode != "goal":
         # 조용히 chat 모드로 도는 것보다 세게 알립니다. 이 프로젝트의 존재 이유가
@@ -343,9 +372,13 @@ async def entrypoint(ctx: JobContext) -> None:
     # 것이 없어서 `Turn` 에서 뺐습니다(그 docstring 에 근거가 있습니다). 여기서는 위
     # 입장 로그에만 씁니다 — 다시 모델에게 보내려면 발화 텍스트가 아니라 프롬프트 슬롯으로
     # 넣으세요.
-    conversation.set_domains(
-        sheet_from_participant(participant.metadata, dict(participant.attributes or {}))
+    # **최종목표와 칸 목록을 함께 받습니다.** 목표는 프롬프트의 `<final_goal>` 로 가고
+    # (`Conversation.set_goal`), 없으면 모델이 첫 목표 발화를 중심 목표로 씁니다.
+    joined = sheet_envelope_from_participant(
+        participant.metadata, dict(participant.attributes or {})
     )
+    conversation.set_goal(joined.title)
+    conversation.set_domains(joined.domains)
 
     # `asyncio.create_task` 가 돌려주는 Task 를 아무도 참조하지 않으면 GC 가 수거할 수
     # 있습니다. 실행 중인 태스크가 조용히 사라지고 예외도 안 나고 응답만 안 옵니다 —
@@ -396,7 +429,11 @@ async def entrypoint(ctx: JobContext) -> None:
 
         async def run() -> None:
             raw = await reader.read_all()
-            conversation.set_domains(parse_sheet(raw, source=f"topic:{SHEET_TOPIC}"))
+            sheet = parse_sheet_envelope(raw, source=f"topic:{SHEET_TOPIC}")
+            # **목표도 갈아끼웁니다.** 사용자가 코치 화면에서 최종목표를 고치면 이 경로로
+            # 옵니다 — 칸만 갱신하면 모델은 옛 목표를 계속 봅니다.
+            conversation.set_goal(sheet.title)
+            conversation.set_domains(sheet.domains)
 
         spawn(run())
 
@@ -444,6 +481,9 @@ async def entrypoint(ctx: JobContext) -> None:
             on_final=on_final,
             on_interim=on_interim,
             on_started=lambda: on_listening(True),
+            # 생성 중에는 STT 스트림을 닫습니다. 그 동안의 발화는 `Conversation` 이
+            # 버리므로(락) 전사하면 쓰이지도 않고 Deepgram 요금만 나갑니다.
+            is_busy=lambda: conversation.busy,
         )
 
         #: 트랙 sid → 전사 태스크. **mute 되면 취소하고 unmute 되면 다시 띄웁니다.**
@@ -455,9 +495,11 @@ async def entrypoint(ctx: JobContext) -> None:
         #:     (마이크 끔)
         #:     stt usage RecognitionUsage(audio_duration=5.04999..., ...)   ← 5초마다 계속
         #:
-        #: 프레임만 건너뛰는 방식은 쓰지 않습니다. 스트림을 열어둔 채 입력이 없으면
-        #: Deepgram 이 유휴 연결을 끊고, 그 뒤 unmute 하면 죽은 스트림에 밀어 넣게 됩니다.
         #: 태스크를 취소하면 `run()` 의 `finally` 가 스트림과 오디오를 함께 닫습니다.
+        #:
+        #: **창 안의 무음은 이 층이 못 막습니다** — 마이크 창이 15분이라 그동안 사용자는
+        #: 대부분 말하지 않습니다. 그쪽은 `listen.py` 의 `SpeechGate` 가 프레임을 걸러내고
+        #: 무음이 길어지면 스트림을 닫습니다.
         #:
         #: 완료 콜백의 경합(mute 직후 unmute 하면 옛 콜백이 새 태스크를 지움)은
         #: `TranscriptionRegistry` 가 compare-and-remove 로 막습니다.
@@ -563,9 +605,10 @@ async def entrypoint(ctx: JobContext) -> None:
         # attributes 변경에도 뜰 수 있습니다 — 경고로 남기면 잡음이 됩니다.
         if p.identity != user_identity:
             return
-        domains = sheet_from_participant(None, changed)
-        if domains:
-            conversation.set_domains(domains)
+        sheet = sheet_envelope_from_participant(None, changed)
+        if sheet.domains:
+            conversation.set_goal(sheet.title)
+            conversation.set_domains(sheet.domains)
 
     # **능력을 먼저 알립니다.** 참가자가 이미 방에 있으므로(위 `wait_for_participant`)
     # 핸들러가 등록된 상태이고, 이 알림을 놓칠 일이 없습니다.
@@ -583,7 +626,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     @ctx.room.on("participant_connected")
     def _on_participant_connected(p: rtc.RemoteParticipant) -> None:
-        """사용자가 **다시 들어오면 알림을 다시 보냅니다.**
+        """사용자가 **다시 들어오면 대화를 초기화하고 알림을 다시 보냅니다.**
 
         텍스트 스트림은 보내는 순간 방에 있는 참가자에게만 갑니다. 위의 첫 `announce()`
         는 job 이 시작될 때 있던 참가자에게만 닿으므로, 브라우저가 재접속하면 **그 세션은
@@ -601,7 +644,12 @@ async def entrypoint(ctx: JobContext) -> None:
         """
         if p.identity != user_identity:
             return
-        logger.info("사용자 재입장 identity=%s — 입장 알림을 다시 보냅니다", p.identity)
+        # 들어올 때마다 새 대화로 시작합니다. 안 지우면 AI 만 이전 대화를 기억하고
+        # 화면은 비어 있습니다 — 브라우저의 로그는 새로고침에 사라지니까요.
+        conversation.clear_history()
+        logger.info(
+            "사용자 재입장 identity=%s — 대화를 초기화하고 알림을 다시 보냅니다", p.identity
+        )
         spawn(announce())
 
     logger.info(
