@@ -14,6 +14,8 @@ import {
 import Logo from '../../components/common/Logo'
 import MandalartGrid from '../sheet/MandalartGrid'
 import IsoVillage from '../village/IsoVillage'
+import { BuildingImage } from '../../village/BuildingImage'
+import { themeStyleOf } from '../../components/shop/shop.data'
 import { cn } from '../../utils/cn'
 
 /**
@@ -475,15 +477,35 @@ export function SheetScreen({ sheet, point = 1_240 }: { sheet: Sheet; point?: nu
   )
 }
 
-/** 상점. 포인트로 건물을 사는 화면. */
-export function ShopScreen({ sheet, point = 1_240 }: { sheet: Sheet; point?: number }) {
-  const items = [
-    { name: '벽돌 주택', theme: '기본', price: 120, owned: true },
-    { name: '유리 사옥', theme: '도심', price: 480, owned: false },
-    { name: '풍차 방앗간', theme: '전원', price: 320, owned: false },
-    { name: '시계탑', theme: '랜드마크', price: 900, owned: false },
-  ]
+/**
+ * 상점에 진열할 건물 8종.
+ *
+ * <p><b>실제 카탈로그의 key·이름·테마</b>다(`data/shopCatalog.ts`). 지어낸 이름을 쓰면
+ * 소개 페이지에서 본 건물이 정작 상점에 없고, 썸네일도 부를 수 없다 — 이미지는 key 로
+ * 조립한 주소에서 온다({@link BuildingImage}).
+ *
+ * <p>가격을 상수로 적지 않고 한 값(300P)으로 두는 이유: 기본 지급분(0P)을 뺀 카탈로그의
+ * 모든 건물이 300P 다. 카드마다 다른 값을 지어내면 "얼마를 모아야 하나" 가 흐려진다.
+ *
+ * <p>테마는 여덟 개를 서로 다르게 골랐다. 같은 테마가 겹치면 "테마별로 모은다" 는 것이
+ * 한 줄에서 드러나지 않는다.
+ */
+const SHOP_ITEMS = [
+  { key: 'sakura_pagoda_tower', name: '사쿠라 오층탑', theme: 'SAKURA' },
+  { key: 'seoul_namsan_tower', name: '남산 전망타워', theme: 'SEOUL' },
+  { key: 'santorini_bluedome_church', name: '블루돔 교회', theme: 'SANTORINI' },
+  { key: 'medieval_cathedral', name: '대성당', theme: 'MEDIEVAL' },
+  { key: 'cyber_megacorp', name: '메가코프 본사', theme: 'CYBER' },
+  { key: 'nordic_aurora_tower', name: '오로라 전망탑', theme: 'NORDIC' },
+  { key: 'egypt_great_pyramid', name: '대피라미드', theme: 'EGYPT' },
+  { key: 'artdeco_chrysler_tower', name: '크라이슬러 타워', theme: 'ARTDECO' },
+] as const
 
+/** 카탈로그의 일반 건물은 모두 같은 값이다(기본 지급분만 0P). */
+const BUILDING_PRICE = 300
+
+/** 상점. 포인트로 건물을 사는 화면. */
+export function ShopScreen({ point = 1_240 }: { point?: number }) {
   return (
     <div>
       <TopBar point={point} />
@@ -491,48 +513,49 @@ export function ShopScreen({ sheet, point = 1_240 }: { sheet: Sheet; point?: num
         <CardHead title="상점" caption="과제로 모은 포인트로 건물을 삽니다" />
 
         {/*
-          액자가 넓어지면 4칸이 그만큼 커지고, 썸네일이 정사각형이라 세로도 같이 자라
+          액자가 넓어지면 칸이 그만큼 커지고, 썸네일이 정사각형이라 세로도 같이 자라
           화면 전체가 액자를 넘긴다. 상품 줄만 폭을 묶어 둔다.
         */}
         <div className="mx-auto mt-3 grid max-w-[620px] grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {items.map((item, i) => (
-            <Card key={item.name} className="p-2.5">
-              {/* 건물 자리 — 마을과 같은 색 체계로 칠한다. */}
-              <div
-                className="grid aspect-[4/3] place-items-center rounded-xl"
-                style={{
-                  background: `color-mix(in oklab, ${domainColor(i)}, var(--surface-sunken) 78%)`,
-                }}
-                aria-hidden="true"
-              >
-                <span
-                  className="block rounded-[3px]"
-                  style={{
-                    width: 26,
-                    height: 26 + i * 5,
-                    background: domainColor(i),
-                    boxShadow: `0 4px 0 color-mix(in oklab, ${domainColor(i)}, black 32%)`,
-                  }}
-                />
-              </div>
-              <p className="m-0 mt-2 truncate text-[11.5px] font-black">{item.name}</p>
-              <p className="muted m-0 mt-0.5 text-[10px] font-semibold">{item.theme}</p>
-              <p
-                className={cn(
-                  'm-0 mt-1.5 flex items-center gap-1 text-[11px] font-black tabular-nums',
-                  item.owned ? 'muted' : 'text-brand-600 dark:text-brand-400',
-                )}
-              >
-                {item.owned ? '보유 중' : `${item.price.toLocaleString('ko-KR')}P`}
-              </p>
-            </Card>
-          ))}
+          {SHOP_ITEMS.map((item) => {
+            const style = themeStyleOf(item.theme)
+            return (
+              <Card key={item.key} className="p-2.5">
+                <div
+                  className="grid aspect-[4/3] place-items-center overflow-hidden rounded-xl"
+                  style={{ background: style.background }}
+                >
+                  {/*
+                    실제 상점과 같은 그림이다 — 서버 썸네일 → S3 → 로컬 순으로 내려간다.
+                    소개 페이지에만 있는 그림을 따로 두면 상점이 바뀔 때 같이 낡는다.
+
+                    <p>`fallback` 을 반드시 준다. 이 페이지에는 `<ThumbnailBakery/>` 가 없고
+                    `parts` 도 넘기지 않으므로, 그림을 못 구하면 기본값인 "이미지 없음" <b>글자</b>가
+                    카드에 박힌다. 첫 인상 화면에 그 문구가 뜨는 것보다 실루엣이 낫다.
+                  */}
+                  <BuildingImage
+                    k={item.key}
+                    size={64}
+                    alt={item.name}
+                    fallback={
+                      <span
+                        aria-hidden="true"
+                        className="block size-full rounded-md opacity-25"
+                        style={{ background: 'var(--text-muted)' }}
+                      />
+                    }
+                  />
+                </div>
+                <p className="m-0 mt-2 truncate text-[11.5px] font-black">{item.name}</p>
+                <p className="muted m-0 mt-0.5 text-[10px] font-semibold">{style.label}</p>
+                <p className="m-0 mt-1.5 text-[11px] font-black tabular-nums text-brand-600 dark:text-brand-400">
+                  {BUILDING_PRICE.toLocaleString('ko-KR')}P
+                </p>
+              </Card>
+            )
+          })}
         </div>
 
-        {/*
-          마을 SVG 는 4:3 비율을 지키며 높이에 맞춰 줄어든다 — 넓은 액자에 그냥 두면
-          가운데 우표처럼 작게 떠 보인다. 폭을 채우는 패널 안에 담아 "구획"으로 읽히게 한다.
-        */}
         <div
           className="mt-3 rounded-2xl border px-4 py-3"
           style={{ borderColor: 'var(--border-hairline)', background: 'var(--surface-sunken)' }}
@@ -540,8 +563,6 @@ export function ShopScreen({ sheet, point = 1_240 }: { sheet: Sheet; point?: num
           <p className="muted m-0 text-[10.5px] font-bold">
             산 건물은 내 마을의 원하는 칸에 세울 수 있어요
           </p>
-          {/* 패널 배경(sunken)과 마을 하늘색이 부딪히므로 하늘을 끄고 패널색을 그대로 쓴다. */}
-          <IsoVillage sheet={sheet} compact transparent className="mt-1 h-[110px] w-full" />
         </div>
       </div>
     </div>
@@ -621,10 +642,10 @@ export function ReportScreen({ sheet }: { sheet: Sheet }) {
 /** 리더보드. 공개한 만다라트가 좋아요 순으로 줄을 선다. */
 export function LeaderboardScreen() {
   const rows = [
-    ['1일 1커밋 챌린지', '김서연', 128],
-    ['건강한 몸 만들기', '정희성', 96],
-    ['토익 900 만들기', '박도윤', 74],
-    ['반년 안에 이직하기', '이하준', 51],
+    ['1일 1커밋 챌린지', '이은영', 128],
+    ['건강한 몸 만들기', '김나은', 96],
+    ['토익 900 만들기', '심성우', 74],
+    ['반년 안에 이직하기', '김미혜', 51],
   ] as const
 
   return (
