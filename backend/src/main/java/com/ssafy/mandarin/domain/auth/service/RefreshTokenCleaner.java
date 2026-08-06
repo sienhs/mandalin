@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.auth.service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -28,7 +29,7 @@ public class RefreshTokenCleaner {
 	@Scheduled(cron = "0 0 4 * * *")
 	@Transactional
 	public void purgeExpired() {
-		int deleted = refreshTokenRepository.deleteExpired(LocalDateTime.now());
+		int deleted = refreshTokenRepository.deleteExpired(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
 		if (deleted > 0) {
 			log.info("Purged {} expired refresh tokens", deleted);
 		}

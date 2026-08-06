@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.village.entity;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.ssafy.mandarin.domain.sheet.entity.Sheet;
 
@@ -61,7 +62,7 @@ public class ItemSpot {
     @PrePersist
     public void prePersist() {
         if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
+            this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         }
         if (this.dir == null) {
             this.dir = ItemDir.DEG_0;

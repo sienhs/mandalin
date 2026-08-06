@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.sheet.entity;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.ssafy.mandarin.domain.user.entity.User;
 
@@ -44,7 +45,7 @@ public class Likes {
     @PrePersist
     public void prePersist() {
         if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
+            this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         }
     }
 }

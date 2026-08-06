@@ -1,6 +1,7 @@
 package com.ssafy.mandarin.domain.user.entity;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.ssafy.mandarin.global.entity.BaseEntity;
 import com.ssafy.mandarin.global.exception.BusinessException;
@@ -85,7 +86,7 @@ public class User extends BaseEntity {
      */
     public void withdraw() {
         this.name = "withdrawn user";
-        this.deletedAt = LocalDateTime.now();
+        this.deletedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 
     public boolean isWithdrawn() {

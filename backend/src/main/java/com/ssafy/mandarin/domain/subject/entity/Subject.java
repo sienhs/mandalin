@@ -23,6 +23,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "subject")
@@ -103,8 +104,8 @@ public class Subject extends BaseEntity {
     @PrePersist
     public void prePersist() {
         // 엔티티가 처음 저장될 때, updatedAt을 하루 전으로 초기화
-        if (getUpdatedAt() == null || getUpdatedAt().isAfter(LocalDateTime.now().minusHours(1))) {
-            initUpdatedAt(LocalDateTime.now().minusDays(1));
+        if (getUpdatedAt() == null || getUpdatedAt().isAfter(LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusHours(1))) {
+            initUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(1));
         }
     }
 }
