@@ -64,6 +64,13 @@ type Ctx = {
   /* 세션 */
   loginWithToken: (token: string) => Promise<boolean>
   startKakaoLogin: () => void
+  /**
+   * 테스트 계정으로 로그인한다. 성공하면 화면을 통째로 /app 으로 옮긴다.
+   *
+   * 실패해도 토스트를 띄우지 않는다 — 비밀번호를 틀렸다는 말은 입력 칸 옆에 있어야 한다.
+   * 호출한 화면이 `false` 를 받아 직접 알린다.
+   */
+  loginAsTester: (loginId: string, password: string) => Promise<boolean>
   enterMockSession: () => void
   logout: () => Promise<void>
   onboarded: boolean
@@ -342,6 +349,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       startKakaoLogin: () => {
         window.location.href = auth.kakaoLoginUrl()
+      },
+
+      /*
+        테스트 계정 로그인.
+
+        카카오와 달리 리다이렉트가 없어 콜백 화면(`OAuthCallbackPage`)을 지나지 않는다. 그래서
+        그 화면이 하던 두 가지를 여기서 한다 — 토큰 저장, 그리고 새로고침하며 /app 진입.
+        상태만 바꿔 들어가면 세션 복원이 다시 돌지 않아 사용자·시트가 비어 있는 첫 화면이 뜬다.
+
+        모드를 'api' 로 되돌리는 것이 중요하다. 목업으로 화면을 보다가 테스트 계정으로 들어오면
+        localStorage 에 'mock' 이 남아 있어서, 로그인은 됐는데 화면은 계속 목업 데이터를
+        보여준다(서버 데이터를 확인하려고 들어온 것이므로 정확히 반대의 결과다).
+      */
+      loginAsTester: async (loginId, password) => {
+        try {
+          const data = await auth.testLogin(loginId, password)
+          window.localStorage.setItem(MODE_KEY, 'api')
+          setAccessToken(data.accessToken)
+          window.location.replace('/app')
+          return true
+        } catch {
+          // 실패 문구는 입력 칸 옆에 붙어야 읽힌다. 화면이 알린다.
+          return false
+        }
       },
 
       enterMockSession: () => {

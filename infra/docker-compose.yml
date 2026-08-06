@@ -46,6 +46,12 @@ services:
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       REFRESH_COOKIE_SECURE: "true"
+      # 테스트 계정 로그인(tester1~3). **이 두 줄이 없으면 배포에서만 동작하지 않는다** —
+      # 여기 적힌 것만 컨테이너에 들어가므로, .env 에 값을 넣어도 앱은 못 본다. 그러면
+      # 비밀번호가 빈 값이 되어 로그인이 401 이고 계정 목록도 빈 배열이라, 프론트에 입구가
+      # 그려지지 않는다(로컬에서는 되는데 배포에서만 안 되는 모양으로 드러난다).
+      TEST_LOGIN_ENABLED: ${TEST_LOGIN_ENABLED:-true}
+      TEST_LOGIN_PASSWORD: ${TEST_LOGIN_PASSWORD:-}
     depends_on:
       - postgres
       - redis

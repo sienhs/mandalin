@@ -154,7 +154,8 @@ export default function Profile() {
           ) : (
             <ul className="m-0 mt-5 flex list-none flex-col gap-4 p-0">
               {sheets.data.map((s) => {
-                const rate = details.data[s.id]?.achievementRate ?? s.achievementRate
+                const detail = details.data[s.id]
+                const rate = detail?.progress ?? detail?.achievementRate ?? s.progress ?? s.achievementRate ?? 0
                 return (
                   <li key={s.id}>
                     <div className="mb-1.5 flex items-baseline justify-between gap-2">
