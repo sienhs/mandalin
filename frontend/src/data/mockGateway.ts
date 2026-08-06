@@ -8,6 +8,8 @@ import type {
   ItemSpot,
   Period,
   PointLog,
+  RewardKind,
+  RewardLandmark,
   Sheet,
   ShopItem,
   Subject,
@@ -34,8 +36,11 @@ import type {
  *
  * <p>v3: 보유 목록에 랜드마크 13종 추가(`LANDMARK_CATALOG`). v2 저장분에는 랜드마크가 없어
  * 마을 정중앙이 계속 공사 부지로 남는다.
+ *
+ * <p>v4: 마일스톤 보상 수령 기록(`rewardClaims`) 추가. v3 저장분에는 그 필드가 없어
+ * `state.rewardClaims[m]` 이 터진다.
  */
-const KEY = 'mandarin.mock.v3'
+const KEY = 'mandarin.mock.v4'
 
 let seq = 1000
 const nextId = () => (seq += 1)
@@ -244,6 +249,13 @@ function devSheet(): Sheet {
 }
 
 
+/** 수령한 구간 하나. 실제 `reward_claim` + `reward_claim_item` 을 흉내 낸다. */
+type MockRewardClaim = {
+  kind: RewardKind
+  grantedPoint: number | null
+  landmarks: RewardLandmark[]
+}
+
 type MockState = {
   user: User
   sheets: Sheet[]
@@ -254,6 +266,13 @@ type MockState = {
   /** "{sheetId}:{domainPosition}:{itemPosition}" → invenId. 실제 item_spot 을 흉내 낸다. */
   placements: Record<string, number>
   pointLogs: PointLog[]
+  /**
+   * 구간 번호(1~8) → 수령 기록.
+   *
+   * <p><b>시트를 갖지 않는다</b> — 서버와 같다(`reward_claim` 에 sheet_id 가 없다).
+   * 그래서 시트를 새로 만들어도 이미 받은 구간은 다시 열리지 않는다.
+   */
+  rewardClaims: Record<number, MockRewardClaim>
 }
 
 
@@ -417,6 +436,7 @@ function initial(): MockState {
       },
     ],
     placements,
+    rewardClaims: {},
     pointLogs: [
       {
         logId: 9001,
@@ -575,6 +595,69 @@ const delay = <T,>(value: T, ms = 180): Promise<T> =>
 
 function recalc(sheet: Sheet) {
   sheet.achievementRate = sheetProgressOf(sheet)
+}
+
+/* ─────────────────────────  마일스톤 보상  ───────────────────────── */
+
+/**
+ * 보상표 — 서버 `RewardTrack.java` 를 옮긴 것이다.
+ *
+ * <p>이 상수들은 <b>목업 안에서만</b> 쓴다. 화면은 트랙 응답의 `milestones` 배열만 그리고
+ * 진행률에서 구간을 다시 계산하지 않는다 — 표가 화면에도 있으면 서버 표를 고쳤을 때
+ * "열려 보이는데 눌러도 못 받는" 상자가 생긴다.
+ */
+const MILESTONE_COUNT = 8
+const STEP_PERCENT = 100 / MILESTONE_COUNT
+const CREDIT_AMOUNT = 1000
+
+/** 구간별 보상 종류. 인덱스 0 = 1구간. 앞 두 구간이 크레딧이고 마지막 둘이 랜드마크다. */
+const REWARD_KINDS: RewardKind[] = [
+  'CREDIT',
+  'CREDIT',
+  'LANDMARK',
+  'CREDIT',
+  'LANDMARK',
+  'CREDIT',
+  'LANDMARK',
+  'LANDMARK',
+]
+
+/**
+ * 보상 판정에 쓰는 시트 — <b>가장 먼저 만든 것.</b> 서버와 같은 규칙이다.
+ *
+ * <p>가장 높은 시트로 하면 시트를 여러 개 만들어 쉬운 구간만 골라 넘길 수 있다.
+ * `createdAt` 은 'YYYY-MM-DDTHH:mm:ss' 라 문자열 비교로도 시간순이 맞는다.
+ */
+function boundSheet(): Sheet | undefined {
+  return [...state.sheets].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]
+}
+
+/**
+ * 보상으로 줄 수 있는 랜드마크.
+ *
+ * <p>⚠️ <b>서버와 판정 기준이 다르다.</b> 서버는 "아직 보유하지 않은 랜드마크"를 뽑지만,
+ * 목업은 화면 확인 편의를 위해 13종을 처음부터 전부 보유 상태로 둔다(`initial()`). 그 기준을
+ * 그대로 옮기면 후보가 항상 비어서 <b>언제나 크레딧으로 대체 지급</b>되고, 랜덤 랜드마크
+ * 공개 연출을 목업에서 확인할 길이 사라진다 — 목업을 두는 이유가 바로 그 확인이다.
+ *
+ * <p>그래서 목업은 "<b>보상으로 아직 준 적 없는</b> 랜드마크"를 후보로 삼는다. 전종을 다 준
+ * 뒤에는 후보가 비어 크레딧 대체(`fallbackFromLandmark`)로 넘어가므로, 그 경로도 끝까지
+ * 받아 보면 확인할 수 있다.
+ */
+function rewardLandmarkPool(): RewardLandmark[] {
+  const given = new Set(
+    Object.values(state.rewardClaims).flatMap((claim) =>
+      claim.landmarks.map((landmark) => landmark.itemKey),
+    ),
+  )
+  return state.shop
+    .filter((item) => item.type === 'LANDMARK' && !given.has(item.itemKey))
+    .map((item) => ({
+      itemId: item.itemId,
+      itemKey: item.itemKey,
+      name: item.name,
+      thumbnailUrl: item.thumbnailUrl,
+    }))
 }
 
 export function resetMock() {
@@ -947,6 +1030,101 @@ export const mockGateway: Gateway = {
 
   weeklyReport: async () => delay(buildMockReport()),
   createReport: async () => delay(buildMockReport(), 1200),
+
+  rewardTrack: async () => {
+    const bound = boundSheet()
+    const rate = bound?.achievementRate ?? 0
+
+    return delay({
+      sheetId: bound?.id ?? null,
+      achievementRate: rate,
+      milestones: REWARD_KINDS.map((kind, i) => {
+        const milestone = i + 1
+        const percent = STEP_PERCENT * milestone
+        const claim = state.rewardClaims[milestone]
+        return {
+          milestone,
+          percent,
+          kind,
+          creditAmount: kind === 'CREDIT' ? CREDIT_AMOUNT : null,
+          reached: rate >= percent,
+          claimed: claim != null,
+          grantedPoint: claim?.grantedPoint ?? null,
+          grantedNames: claim?.landmarks.map((landmark) => landmark.name) ?? [],
+        }
+      }),
+    })
+  },
+
+  claimReward: async (milestone) => {
+    /*
+      서버가 막는 것을 여기서도 막는다. 목업이 무엇이든 내주면 목업으로 확인한 화면이
+      실제 서버에서 처음 오류를 만난다 — 잠긴 상자를 눌렀을 때 무슨 문구가 뜨는지가
+      그 오류 경로에 달려 있다.
+    */
+    if (milestone < 1 || milestone > MILESTONE_COUNT) {
+      throw new Error('없는 보상 구간입니다.')
+    }
+    if (state.rewardClaims[milestone]) {
+      throw new Error('이미 수령한 보상입니다.')
+    }
+
+    const bound = boundSheet()
+    if (!bound) throw new Error('만다라트를 먼저 만들어 주세요.')
+    if (bound.achievementRate < STEP_PERCENT * milestone) {
+      throw new Error('아직 이 구간에 도달하지 않았습니다.')
+    }
+
+    const kind = REWARD_KINDS[milestone - 1]
+    const pool = kind === 'LANDMARK' ? rewardLandmarkPool() : []
+
+    // 크레딧 구간이거나, 랜드마크 구간인데 줄 것이 남지 않은 경우.
+    if (kind === 'CREDIT' || pool.length === 0) {
+      /*
+        서버는 일일 포인트 상한을 거치지 않는 경로로 지급한다(상한과 보상액이 같은 1000P 라
+        상한을 타면 그날 과제를 한 사람이 0원을 받는다). 목업에는 상한이 없어 그냥 더한다.
+
+        포인트 내역(pointLogs)에도 남기지 않는다 — 서버가 과제 적립 경로를 타지 않으므로
+        point_log 행이 생기지 않는다. 여기서 남기면 목업에만 있는 줄이 된다.
+      */
+      state.user = { ...state.user, point: state.user.point + CREDIT_AMOUNT }
+      state.rewardClaims[milestone] = {
+        kind: 'CREDIT',
+        grantedPoint: CREDIT_AMOUNT,
+        landmarks: [],
+      }
+      save()
+
+      return delay({
+        milestone,
+        kind: 'CREDIT' as RewardKind,
+        grantedPoint: CREDIT_AMOUNT,
+        landmarks: [],
+        currentPoint: state.user.point,
+        fallbackFromLandmark: kind === 'LANDMARK',
+      })
+    }
+
+    // 마지막 구간(100%)은 남은 전종, 그 외에는 무작위 1종.
+    const granted =
+      milestone === MILESTONE_COUNT ? pool : [pool[Math.floor(Math.random() * pool.length)]]
+
+    /*
+      보유 목록을 건드리지 않는다 — 목업은 처음부터 13종을 다 보유한 상태다(`initial()`).
+      서버는 여기서 user_building 행을 만든다.
+    */
+    state.rewardClaims[milestone] = { kind: 'LANDMARK', grantedPoint: null, landmarks: granted }
+    save()
+
+    return delay({
+      milestone,
+      kind: 'LANDMARK' as RewardKind,
+      grantedPoint: null,
+      landmarks: granted,
+      currentPoint: state.user.point,
+      fallbackFromLandmark: false,
+    })
+  },
 }
 
 function buildMockReport(): WeeklyReport {

@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { completedCells, domainProgress, useSheetDetail, useStore } from '../data/store'
-import type { Period, Subject } from '../data/types'
+import {
+  completedCells,
+  domainProgress,
+  useRewardTrack,
+  useSheetDetail,
+  useStore,
+} from '../data/store'
+import type { Period, RewardClaimResult, Subject } from '../data/types'
 import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
+import RewardClaimModal from '../features/reward/RewardClaimModal'
+import RewardTrackStrip from '../features/reward/RewardTrackStrip'
 import Button from '../components/common/ActionButton'
 import { IconCheck, IconHeart, IconVillage } from '../components/common/Icons'
 import {
@@ -63,13 +71,25 @@ function lockedReason(sub: Subject): string | null {
 export default function SheetDetail({ readOnly = false }: Props) {
   const { sheetId } = useParams()
   const navigate = useNavigate()
-  const { completeSubjects, toggleLike, setVisibility } = useStore()
+  const { completeSubjects, toggleLike, setVisibility, claimReward } = useStore()
   const { sheet, loading, error, reload, setSheet } = useSheetDetail(Number(sheetId))
+  /* 친구 시트에서는 트랙을 끈다 — 내 계정 보상을 남의 시트에 그릴 수 없다. */
+  const { track, reload: reloadTrack } = useRewardTrack(!readOnly)
 
   const [selected, setSelected] = useState<CellRef | null>(null)
   const [pending, setPending] = useState<number | null>(null)
   /** 요청이 날아가는 중인지. 상태보다 먼저 바뀌어야 연타를 막을 수 있다. */
   const inFlight = useRef(false)
+
+  /**
+   * 수령 중인 구간 번호.
+   *
+   * <p>불리언이 아닌 이유: 트랙이 어느 버튼을 잠글지 알아야 한다. 참/거짓만 넘기면 구간
+   * 하나를 누르는 동안 여덟 개가 모두 "받는 중…" 이 된다.
+   */
+  const [claimingMilestone, setClaimingMilestone] = useState<number | null>(null)
+  /** 수령 결과 — 들어오는 순간이 랜덤 랜드마크의 공개 시점이다. */
+  const [claimResult, setClaimResult] = useState<RewardClaimResult | null>(null)
 
   useEffect(() => {
     if (sheet && !selected) setSelected({ kind: 'domain', domainIndex: 0 })
@@ -151,10 +171,37 @@ export default function SheetDetail({ readOnly = false }: Props) {
           }
         })
         await reload()
+        /* 진행률이 올라 구간이 열렸을 수 있다. 안 받아 오면 방금 넘긴 구간이
+           새로고침 전까지 잠긴 채로 남는다. */
+        void reloadTrack()
       }
     } finally {
       inFlight.current = false
       setPending(null)
+    }
+  }
+
+  /**
+   * 보상 수령.
+   *
+   * <p>성공하면 트랙을 다시 받아 온다 — 그 구간이 수령 완료로 바뀌고, 마지막 구간처럼
+   * 여러 개를 준 경우 받은 이름까지 트랙에 반영된다. 공개 모달은 `claimResult` 를 보고
+   * 그리므로 트랙 갱신과 순서가 엉켜도 화면이 흔들리지 않는다.
+   *
+   * @returns 성공 여부. 트랙이 이 값으로 팝오버를 닫을지 정한다 — 실패했는데 닫히면
+   *   토스트만 남아 무엇에 실패했는지 알 수 없다.
+   */
+  const claim = async (milestone: number): Promise<boolean> => {
+    if (claimingMilestone != null) return false
+    setClaimingMilestone(milestone)
+    try {
+      const res = await claimReward(milestone)
+      if (!res) return false
+      setClaimResult(res)
+      await reloadTrack()
+      return true
+    } finally {
+      setClaimingMilestone(null)
     }
   }
 
@@ -240,18 +287,34 @@ export default function SheetDetail({ readOnly = false }: Props) {
             </>
           )}
         </div>
+
+        {/*
+          보상 트랙. `w-full` 이라 flex-wrap 이 아래 줄로 내려 준다.
+
+          읽기 전용(친구 시트)에서는 그리지 않는다 — 이건 내 계정의 보상이고, 남의
+          만다라트 화면에 내 진행률과 선물상자를 얹으면 그 사람 것으로 읽힌다.
+        */}
+        {!readOnly && track && (
+          <RewardTrackStrip
+            track={track}
+            viewingSheetId={sheet.id}
+            claimingMilestone={claimingMilestone}
+            onClaim={claim}
+          />
+        )}
       </header>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)]">
         {/* ───────── 9x9 ───────── */}
-        <section className="card p-4 sm:p-6">
+        {/* 하단 여백 없음 — 범례 줄이 제 pb 로 아래 간격을 낸다. */}
+        <section className="card px-4 pt-4 sm:px-6 sm:pt-6">
           <MandalartGrid sheet={sheet} selected={selected} onSelect={setSelected} />
 
+          {/* 도메인별 진행률 범례. 카드에 하단 여백이 없어 이 줄이 카드의 마지막 줄이다. */}
           <div
-            className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4 text-[11.5px] font-bold"
+            className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4 pb-2 text-[11.5px] font-bold"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
-            <span className="muted">과제를 진행할수록 칸이 아래에서부터 색으로 채워져요</span>
             <span className="ml-auto flex flex-wrap items-center gap-3">
               {domains.map((d) => (
                 <span key={d.id} className="flex items-center gap-1.5">
@@ -451,6 +514,16 @@ export default function SheetDetail({ readOnly = false }: Props) {
           />
         </div>
       )}
+
+      <RewardClaimModal
+        result={claimResult}
+        percent={
+          track?.milestones.find((m) => m.milestone === claimResult?.milestone)?.percent ?? null
+        }
+        sheetId={sheet.id}
+        onClose={() => setClaimResult(null)}
+      />
+
     </div>
   )
 }

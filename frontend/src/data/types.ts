@@ -235,6 +235,56 @@ export type User = {
   createdAt: string
 }
 
+/* ─────────────────────────  마일스톤 보상  ───────────────────────── */
+
+export type RewardKind = 'CREDIT' | 'LANDMARK'
+
+/**
+ * 보상 구간 하나.
+ *
+ * <p>구간 폭(12.5%)과 보상표는 <b>서버가 정본</b>이다(`RewardTrack.java`). 화면은 진행률에서
+ * 구간을 다시 계산하지 않고 이 배열을 그대로 그린다 — 규칙을 양쪽에 복제하면 한쪽만
+ * 고쳤을 때 "화면에는 열렸는데 눌러도 못 받는" 상자가 생긴다.
+ */
+export type RewardMilestone = {
+  /** 1~8 */
+  milestone: number
+  percent: number
+  kind: RewardKind
+  /** CREDIT 구간의 지급 포인트. LANDMARK 면 null. */
+  creditAmount: number | null
+  reached: boolean
+  claimed: boolean
+  grantedPoint: number | null
+  /** 이미 수령한 구간이 준 랜드마크 이름. 아직 안 받았으면 빈 배열. */
+  grantedNames: string[]
+}
+
+export type RewardTrack = {
+  /** 보상 판정에 쓰는 시트(가장 먼저 만든 것). 이 시트에만 선물상자를 그린다. */
+  sheetId: number | null
+  achievementRate: number
+  milestones: RewardMilestone[]
+}
+
+export type RewardLandmark = {
+  itemId: number
+  itemKey: string
+  name: string
+  thumbnailUrl: string | null
+}
+
+/** 수령 결과. 랜덤 랜드마크가 여기서 처음 밝혀진다. */
+export type RewardClaimResult = {
+  milestone: number
+  kind: RewardKind
+  grantedPoint: number | null
+  landmarks: RewardLandmark[]
+  currentPoint: number
+  /** 랜드마크 구간인데 전종을 이미 보유해 크레딧으로 대체된 경우. */
+  fallbackFromLandmark: boolean
+}
+
 /** 서버에서 오는 데이터의 로딩 상태. 화면이 스켈레톤/에러/빈 상태를 구분해 그린다. */
 export type Loadable<T> = {
   data: T
