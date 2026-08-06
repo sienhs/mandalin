@@ -229,7 +229,7 @@ async def test_the_first_stage_never_restates_the_utterance():
 
         name = "rewriting"
 
-        async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+        async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
             if "intent" in schema.get("properties", {}):
                 return {"intent": "goal", "domain": "학습", "transcript": "전혀 다른 말"}
             return {"action": "clarify", "clarify_question": "어떤 목표인가요?"}

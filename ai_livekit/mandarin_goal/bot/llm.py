@@ -195,6 +195,7 @@ class LlmBackend(Protocol):
         schema: dict,
         *,
         max_output_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> dict: ...
 
     async def aclose(self) -> None: ...
@@ -221,6 +222,7 @@ class EchoBackend:
         schema: dict,
         *,
         max_output_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> dict:
         """스키마 모양만 맞춘 결정적 응답.
 
@@ -271,6 +273,7 @@ class MisconfiguredBackend:
         schema: dict,
         *,
         max_output_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> dict:
         raise LlmError(self._reason)
 
@@ -357,6 +360,7 @@ class GeminiBackend(_HttpBackend):
         schema: dict,
         *,
         max_output_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> dict:
         """스키마를 강제해 받은 JSON 을 dict 로 돌려줍니다.
 
@@ -364,7 +368,11 @@ class GeminiBackend(_HttpBackend):
         문장을 덧붙일 수 없습니다. 프롬프트로 부탁하는 것보다 확실합니다.
         """
         raw = await self._generate(
-            system, history, schema=schema, max_output_tokens=max_output_tokens
+            system,
+            history,
+            schema=schema,
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
         )
         try:
             data = json.loads(raw)
@@ -384,6 +392,7 @@ class GeminiBackend(_HttpBackend):
         *,
         schema: dict | None = None,
         max_output_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> str:
         settings = self._settings
         if not settings.bot_api_key:
@@ -395,6 +404,9 @@ class GeminiBackend(_HttpBackend):
         generation_config: dict = {
             "maxOutputTokens": max_output_tokens or settings.bot_max_output_tokens
         }
+        # `or` 로 쓰면 0.0 이 거짓이라 모델 기본값(1.0)으로 샌다.
+        if temperature is not None:
+            generation_config["temperature"] = temperature
         if schema is not None:
             generation_config["responseMimeType"] = "application/json"
             generation_config["responseSchema"] = schema

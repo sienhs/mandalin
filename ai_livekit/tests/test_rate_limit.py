@@ -61,6 +61,7 @@ class FlakyBackend:
         schema: dict,
         *,
         max_output_tokens: int | None = None,
+        **_,
     ) -> dict:
         self.calls += 1
         if self._left > 0:
@@ -301,7 +302,7 @@ async def test_truncation_retry_still_does_not_sleep(no_sleep: list[float]) -> N
         def __init__(self) -> None:
             self.calls = 0
 
-        async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+        async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
             self.calls += 1
             if self.calls == 1:
                 raise LlmTruncatedError("잘렸습니다")

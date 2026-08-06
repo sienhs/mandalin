@@ -26,7 +26,7 @@ class AlwaysRateLimited:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+    async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
         self.calls += 1
         raise LlmRateLimitedError("429: quota", retry_after=None)
 
@@ -42,7 +42,7 @@ class RateLimitedOnce:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+    async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
         self.calls += 1
         if self.calls == 1:
             raise LlmRateLimitedError("429: burst", retry_after=None)
@@ -338,7 +338,7 @@ class AlwaysTruncated:
 
     name = "truncated"
 
-    async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+    async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
         raise LlmTruncatedError("응답이 토큰 상한(512)에서 잘렸습니다")
 
     async def aclose(self) -> None:

@@ -254,12 +254,12 @@ CLASSIFY_SCHEMA: dict = {
 #: 1단계를 통과했어도 막상 보니 서비스와 무관한 경우를 위해 `out_of_scope` 를
 #: 하나 더 두었습니다.
 #: `<final_goal>` 슬롯이 비었을 때 넣는 문구. **빈 문자열을 넣지 않습니다** — 모델에게는
-#: "목표가 있는데 값이 없다" 와 "아직 목표가 없다" 가 다른 상황이고, 후자에서는 첫 목표
-#: 발화를 중심 목표로 써야 합니다(`prompts/system.md` 규칙 2).
+#: "목표가 있는데 값이 없다" 와 "아직 목표가 없다" 가 다른 상황이고, 후자에서는 목표를
+#: 지어내지 말고 되물어야 합니다(`prompts/system.md` 규칙 2).
 #:
 #: 두 프롬프트가 **같은 문구**를 봐야 합니다 — 1단계는 이 값으로 "목표를 가리키는 요청"
-#: 인지 가리고(`prompts/classify.md`), 3단계는 중심 목표로 씁니다.
-NO_FINAL_GOAL = "(아직 없음 — 대화의 첫 목표 발화를 중심 목표로 본다)"
+#: 인지 가리고(`prompts/classify.md`), 3단계는 되물을 근거로 씁니다.
+NO_FINAL_GOAL = "(아직 없음 — 사용자가 가운데 칸을 아직 안 적었다)"
 
 
 GOAL_SCHEMA: dict = {
@@ -789,6 +789,7 @@ class GoalPipeline:
                 ),
                 history,
                 CLASSIFY_SCHEMA,
+                temperature=self._settings.bot_classify_temperature,
             ),
         )
 
@@ -881,6 +882,7 @@ class GoalPipeline:
                 turns,
                 GOAL_SCHEMA,
                 max_output_tokens=self._settings.bot_goal_max_output_tokens,
+                temperature=self._settings.bot_decide_temperature,
             ),
         )
         logger.info(

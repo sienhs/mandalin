@@ -140,7 +140,7 @@ class FakeBackend:
     def __init__(self, decided: dict) -> None:
         self._decided = decided
 
-    async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+    async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
         if "intent" in schema.get("properties", {}):
             return {"intent": "goal", "domain": None}
         return dict(self._decided)

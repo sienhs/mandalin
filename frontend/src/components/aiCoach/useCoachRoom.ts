@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ParticipantKind, Room, RoomEvent, type RemoteParticipant } from 'livekit-client'
+import { Room, RoomEvent } from 'livekit-client'
 import { apiFetch, ApiError } from '../../api/client'
 
 /*
@@ -48,17 +48,6 @@ const MISCLICK_GUARD_MS = 300
  * 응답을 기다리는 동안 잠금이 풀려 마이크가 열린다.
  */
 const GENERATION_LOCK_MS = 60_000
-
-/**
- * 이 참가자가 에이전트인가.
- *
- * `kind` 를 먼저 본다 — LiveKit 이 참가자 종류를 알려주는 정본이다. identity 접두는
- * 보조다: 서버가 붙이는 이름(`agent-AJ_…`)이라 규칙이 바뀔 수 있고, `kind` 를 못 채우는
- * 옛 SDK 조합에서만 쓰인다. 둘 다 틀려도 **연결 상태는 켜진다**(`welcome` 주석) —
- * 여기서 고르는 것은 문구뿐이다.
- */
-const isAgent = (participant: RemoteParticipant) =>
-  participant.kind === ParticipantKind.AGENT || participant.identity.startsWith('agent-')
 
 export type CoachState = 'idle' | 'thinking' | 'answering'
 
@@ -299,11 +288,13 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     } catch (cause) {
       setConnection('off')
       setStatus('토큰 실패')
+      // 원인은 콘솔로만. `apiFetch` 메시지에는 상태 코드가 섞여 있다.
+      console.error('[coach] 입장 토큰 발급 실패', cause)
       push(
         'warn',
         cause instanceof ApiError && cause.status === 401
-          ? '로그인이 필요합니다.'
-          : `입장 토큰을 받지 못했습니다: ${cause instanceof Error ? cause.message : cause}`,
+          ? '로그인이 필요합니다. 다시 로그인한 뒤 이용해 주세요.'
+          : '지금은 코치에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.',
       )
       return
     }
@@ -396,11 +387,12 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
         onGoalRef.current(payload)
         setCoachState('answering')
         if ('reasoning' in payload) {
-          // 여기 오면 서버가 `public_data()` 를 건너뛴 것이다.
-          push('warn', 'payload 에 reasoning 이 들어 있습니다 — 서버에서 제거되어야 합니다')
+          // 여기 오면 서버가 `public_data()` 를 건너뛴 것이다. 개발자에게 하는 말이다.
+          console.warn('[coach] payload 에 reasoning 이 있다 — 서버에서 제거되어야 한다', payload)
         }
       } catch (cause) {
-        push('warn', `goal payload 파싱 실패: ${cause instanceof Error ? cause.message : cause}`)
+        console.error('[coach] goal payload 파싱 실패', cause)
+        push('warn', '과제 제안을 받지 못했어요. 다시 말씀해 주시겠어요?')
       }
     })
 
@@ -418,29 +410,18 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
           topic: SHEET_TOPIC,
         })
       } catch (cause) {
-        push('warn', `시트를 보내지 못했습니다: ${cause instanceof Error ? cause.message : cause}`)
+        console.error('[coach] 시트 전송 실패', cause)
+        push('warn', '담은 과제를 코치에게 전하지 못했어요. 같은 제안이 다시 나올 수 있습니다.')
       }
     }
 
     /**
-     * 누군가 들어왔다. **입장 사실을 사용자 말로 알린다.**
+     * 누군가 들어왔다. 입장은 상태줄과 배지가 보여주므로 대화에는 남기지 않는다.
      *
-     * 예전에는 `참가자 입장: ${identity}` 였다 — 화면에 `참가자 입장:
-     * agent-AJ_Z9gKWuDmFz7u` 가 뜬다. 사용자에게 저 문자열은 아무 뜻이 없고, 정작
-     * 알아야 할 것("이제 말을 걸 수 있다")은 안 적혀 있었다.
-     *
-     * **`connection` 은 상대가 누구든 켠다.** 이 방은 사람 1 + 에이전트 1 이라
-     * (`livekit.yaml` 의 `max_participants: 2`) 들어올 수 있는 원격 참가자는 에이전트뿐인데,
-     * 그렇다고 `isAgent` 로 걸러 버리면 종류 판별이 틀리는 날 입력창이 영원히 잠긴다 —
-     * 문구만 고르고 상태는 무조건 켠다.
+     * **`connection` 은 상대가 누구든 켠다** — 종류로 걸러 버리면 판별이 틀리는 날
+     * 입력창이 영원히 잠긴다.
      */
-    const welcome = (participant: RemoteParticipant) => {
-      push(
-        'sys',
-        isAgent(participant)
-          ? `${aiLabel.current} 가 들어왔어요 — 이제 말을 걸 수 있습니다`
-          : `참가자 입장: ${participant.identity}`,
-      )
+    const welcome = () => {
       setConnection('on')
       setStatus('에이전트 연결됨')
       void pushSheet()
@@ -468,11 +449,12 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
     try {
       await room.connect(info.url, info.token)
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause)
       roomRef.current = null
       setConnection('off')
       setStatus('접속 실패')
-      push('warn', `${message} — LiveKit 서버가 떠 있나요? (${info.url})`)
+      // SDK 메시지와 서버 주소는 개발자용이다.
+      console.error('[coach] LiveKit 접속 실패', { url: info.url, cause })
+      push('warn', '코치와 연결하지 못했어요. 잠시 후 “다시 연결”을 눌러 주세요.')
       return
     }
 
@@ -486,17 +468,16 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
 
     setConnection('busy')
     setStatus('방 접속됨 · 에이전트 대기')
-    push('sys', `방 "${info.roomId}" 에 접속했습니다`)
+    // 방 ID 는 사용자에게 뜻이 없다. 접속 사실은 상태줄이 말한다.
+    console.info('[coach] 방 접속', info.roomId)
 
     // 에이전트가 이미 들어와 있을 수도 있다(재접속 등). 그때는 `ParticipantConnected` 가
-    // 안 오므로 같은 처리를 여기서 한다 — 입장 안내와 시트 전송 둘 다.
+    // 안 오므로 같은 처리를 여기서 한다 — 연결 상태와 시트 전송 둘 다.
     //
     // **재접속이 흔하다.** 개발 중에는 HMR 이, 운영에서는 새로고침이 방을 다시 잡는데
     // 에이전트 job 은 방 단위라 이미 들어와 있다. 이 갈래를 빼면 그 경우에만 입력창이
     // 안 열린다.
-    for (const participant of room.remoteParticipants.values()) {
-      welcome(participant)
-    }
+    if (room.remoteParticipants.size > 0) welcome()
   }, [beginGenerating, clearTalkTimers, endGenerating, push])
 
   /**
@@ -566,7 +547,8 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       try {
         await room?.localParticipant.setMicrophoneEnabled(false)
       } catch (cause) {
-        push('warn', `마이크를 끄지 못했습니다: ${cause instanceof Error ? cause.message : cause}`)
+        console.error('[coach] 마이크 끄기 실패', cause)
+        push('warn', '마이크를 끄지 못했어요. 브라우저 탭을 새로고침해 주세요.')
       } finally {
         setMicBusy(false)
       }
@@ -596,7 +578,15 @@ export function useCoachRoom({ getSheet, onGoal }: UseCoachRoomOptions) {
       } catch (cause) {
         // 권한 거부·장치 없음이 여기로 온다. localhost 는 secure context 로 취급되어
         // getUserMedia 가 동작하지만, 다른 기기에서 열면 HTTPS 가 필요하다.
-        push('warn', `마이크를 켤 수 없습니다: ${cause instanceof Error ? cause.message : cause}`)
+        // 원인에 따라 사용자가 할 일이 달라서 이름으로만 갈라 준다.
+        console.error('[coach] 마이크 켜기 실패', cause)
+        const denied = cause instanceof Error && /NotAllowed|Permission/i.test(cause.name)
+        push(
+          'warn',
+          denied
+            ? '마이크 권한이 필요해요. 주소창의 자물쇠에서 마이크를 허용해 주세요.'
+            : '마이크를 켤 수 없어요. 다른 앱이 쓰고 있는지 확인해 주세요.',
+        )
         return
       } finally {
         setMicBusy(false)

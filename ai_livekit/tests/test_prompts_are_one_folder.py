@@ -224,7 +224,7 @@ def test_the_utterance_goes_once_and_the_reminder_goes_last():
     seen: list[tuple[str, list]] = []
 
     class Capturing(EchoBackend):
-        async def reply_json(self, system, history, schema, *, max_output_tokens=None):
+        async def reply_json(self, system, history, schema, *, max_output_tokens=None, **_):
             seen.append((system, list(history)))
             return await super().reply_json(
                 system, history, schema, max_output_tokens=max_output_tokens
