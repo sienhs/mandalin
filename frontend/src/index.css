@@ -337,9 +337,30 @@
   100% { background-position: 220% 0; }
 }
 
+/*
+  거절 신호. 누른 것이 먹지 않았다는 사실을 그 자리에서 알린다.
+
+  좌우로만 흔든다 — 세로로 흔들면 줄 높이가 흔들리는 것처럼 보여 옆 요소까지 들썩인다.
+  진폭을 점점 줄여 마지막에 제자리로 돌아오게 두면 "고장" 이 아니라 "안 된다" 로 읽힌다.
+*/
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-7px); }
+  30% { transform: translateX(6px); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+  80% { transform: translateX(-1px); }
+}
+
 .animate-rise { animation: rise 0.45s var(--ease-out-quint) both; }
 .animate-pop { animation: pop-in 0.3s var(--ease-out-quint) both; }
 .animate-toast { animation: toast-in 0.34s var(--ease-out-quint) both; }
+.animate-shake { animation: shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+
+/* 움직임을 줄여 달라고 한 사용자에게는 흔들지 않는다. 빨간 테두리와 문구가 남아 뜻은 전달된다. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake { animation: none; }
+}
 
 /* 로딩 스켈레톤 */
 .skeleton {
