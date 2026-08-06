@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PERIOD_LABEL, PERIOD_MAX_COUNT, type Period } from '../data/types'
 import Button from '../components/common/ActionButton'
-import { IconCheck, IconCoach, IconMic, IconSend, IconTrash } from '../components/common/Icons'
+import {
+  IconCheck,
+  IconChevronDown,
+  IconCoach,
+  IconMic,
+  IconSend,
+  IconTrash,
+} from '../components/common/Icons'
 import { Badge, Field, Input, domainColor } from '../components/common/Primitives'
 import { cn } from '../utils/cn'
 import { useToast } from '../components/common/Toast'
@@ -20,6 +27,7 @@ import {
   type GoalPayload,
   type GoalTask,
 } from '../components/aiCoach/useCoachRoom'
+import CoachGoalPrompt from '../components/aiCoach/CoachGoalPrompt'
 
 type Suggestion = { title: string; period: Period; count: number; why: string }
 
@@ -160,22 +168,32 @@ export default function Coach() {
   const navigate = useNavigate()
   const toast = useToast()
   const scrollRef = useRef<HTMLDivElement>(null)
+  /** 대화가 바닥에 붙어 있는가. 새 내용을 따라 내려갈지 정한다. */
+  const [atBottom, setAtBottom] = useState(true)
+  /** 바닥을 벗어난 사이에 새 메시지가 왔는가. 내려가기 버튼이 이걸 보고 뜬다. */
+  const [hasUnread, setHasUnread] = useState(false)
+
+  /** 대화를 맨 아래로. 내가 보낸 직후와 알림 버튼이 쓴다. */
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior })
+    setAtBottom(true)
+    setHasUnread(false)
+  }, [])
 
   // 초안은 첫 렌더 전에 읽는다. `useEffect` 로 늦게 넣으면 그 전에 빈 시트가 나간다.
   const [seed] = useState(seedFromDraft)
 
   const [input, setInput] = useState('')
   const [basket, setBasket] = useState<Basket[]>(seed.basket)
-  /**
-   * 핵심 목표. **사용자가 직접 적는다 — 첫 발화로 자동으로 채우지 않는다.**
-   *
-   * 예전에는 "핵심 목표 = 첫 사용자 발화" 가 규칙이었고 에이전트도 같은 전제로 읽었지만,
-   * 지금은 서버가 시트의 `title` 을 `<final_goal>` 로 직접 받는다(`Conversation.set_goal`).
-   * 근거가 사라진 뒤에도 남아 있던 자동 채움은 **목표가 아닌 첫 발화까지 넣었다** —
-   * "뭐부터 해야 할지 모르겠어" 가 핵심 목표로 들어앉고 그대로 서버까지 갔다.
-   */
+  /** 핵심 목표. **사용자가 직접 적는다** — 첫 발화로 자동으로 채우지 않는다. */
   const [goal, setGoal] = useState(seed.goal)
+  /** 목표 입력 팝업. **들어올 때 한 번만 판정한다** — 칸을 지울 때마다 덮이면 안 된다. */
+  const [goalPromptOpen, setGoalPromptOpen] = useState(!seed.goal.trim())
   const [proposal, setProposal] = useState<Proposal | null>(null)
+  /** 펼쳐 둔 세부 목표. 한 번에 하나만 편다 — 8칸 x 8개면 72줄이라 다 펴면 스크롤뿐이다. */
+  const [openDomain, setOpenDomain] = useState<string | null>(null)
   /** 담은 과제에 붙일 번호. **에이전트가 중복을 지목할 때 쓰는 id 라 유일하면 된다.** */
   const nextId = useRef(seed.nextId)
   /**
@@ -329,9 +347,19 @@ export default function Coach() {
     })
   }, [basket, goal])
 
+  /**
+   * 새 내용이 와도 **바닥에 있을 때만** 따라 내려간다. 위로 올려 읽는 중이면 안 끌어당긴다.
+   *
+   * `caption` 은 의존성에서 뺐다 — 초당 여러 번 바뀌는 중간 전사라 `smooth` 가 재시작되며
+   * 스크롤이 덜덜거린다.
+   */
   useEffect(() => {
+    if (!atBottom) {
+      if (messages.length) setHasUnread(true)
+      return
+    }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, caption, proposal, thinking])
+  }, [messages, proposal, thinking, atBottom])
 
   const send = (text: string) => {
     const value = text.trim()
@@ -340,6 +368,8 @@ export default function Coach() {
     // 지난 턴의 카드를 지운다. 남겨 두면 코치가 방향을 바꾼 뒤에도 옛 제안을 담을 수 있고,
     // 어느 것이 지금 이야기인지 흐려진다.
     setProposal(null)
+    // 내가 보낸 것은 위를 읽던 중이었어도 따라 내려간다.
+    scrollToBottom()
     void sendChat(value)
   }
 
@@ -364,6 +394,8 @@ export default function Coach() {
         b.domain === domain ? { ...b, items: [...b.items, { ...item, id: nextId.current++ }] } : b,
       )
     })
+    // 담은 칸을 펼친다. 접힌 채로 담기면 담긴 줄 모른다.
+    setOpenDomain(domain)
   }
 
   const inBasket = (domain: string, title: string) =>
@@ -479,7 +511,19 @@ export default function Coach() {
             )}
           </div>
 
-          <div ref={scrollRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-6">
+          {/* 알림 버튼을 띄우기 위한 기준. 스크롤은 안쪽 div 가 맡는다. */}
+          <div className="relative min-h-0 flex-1">
+            <div
+              ref={scrollRef}
+              onScroll={(e) => {
+                const el = e.currentTarget
+                // 80px 여유. 0 으로 보면 반올림·애니메이션 도중에 "바닥 아님" 으로 튄다.
+                const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+                setAtBottom(bottom)
+                if (bottom) setHasUnread(false)
+              }}
+              className="no-scrollbar h-full overflow-y-auto px-5 py-6"
+            >
             {/* 말풍선은 너무 넓으면 눈이 줄을 놓친다. 다만 예전 680px 은 카드 안에 빈 띠를
                 크게 남겼다 — 제안 카드가 두 장 나란히 들어갈 만큼만 넓힌다. */}
             <div className="mx-auto flex max-w-[860px] flex-col gap-5">
@@ -605,7 +649,21 @@ export default function Coach() {
                   ))}
                 </div>
               )}
+              </div>
             </div>
+
+            {/* 끌어내리는 대신 알리기만 한다 — 읽던 자리를 뺏지 않는다. */}
+            {hasUnread && !atBottom && (
+              <button
+                type="button"
+                onClick={() => scrollToBottom()}
+                className="absolute inset-x-0 bottom-3 mx-auto flex w-fit items-center gap-1.5 rounded-full border-0 px-3.5 py-2 text-[12px] font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5"
+                style={{ background: 'var(--color-brand-600)' }}
+              >
+                새 메시지
+                <span aria-hidden="true">↓</span>
+              </button>
+            )}
           </div>
 
           <form
@@ -747,16 +805,30 @@ export default function Coach() {
               <div className="flex flex-col gap-5">
                 {basket.map((b, i) => {
                   const color = domainColor(i)
+                  const open = openDomain === b.domain
                   return (
                     <div key={b.domain}>
-                      <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpenDomain(open ? null : b.domain)}
+                        aria-expanded={open}
+                        aria-controls={`basket-${b.domain}`}
+                        className="flex w-full items-center gap-2 border-0 bg-transparent p-0 text-left"
+                      >
+                        <IconChevronDown
+                          aria-hidden="true"
+                          className={cn(
+                            'size-3.5 shrink-0 text-[var(--text-muted)] transition-transform',
+                            !open && '-rotate-90',
+                          )}
+                        />
                         <strong className="min-w-0 flex-1 truncate text-[12.5px] font-extrabold">
                           {b.domain}
                         </strong>
                         <span className="muted shrink-0 text-[11px] font-bold tabular-nums">
                           {b.items.length}/{SLOTS}
                         </span>
-                      </div>
+                      </button>
 
                       {/*
                         8칸이 얼마나 찼는지 눈금으로. 숫자만 있으면 "3/8"을 읽고 머릿속에서
@@ -778,7 +850,12 @@ export default function Coach() {
                         ))}
                       </div>
 
-                      <ul className="m-0 mt-2.5 flex list-none flex-col gap-1.5 p-0">
+                      {/* 접혀도 위 눈금·개수는 남아 어느 칸이 비었는지 보인다. */}
+                      <ul
+                        id={`basket-${b.domain}`}
+                        hidden={!open}
+                        className="m-0 mt-2.5 flex list-none flex-col gap-1.5 p-0"
+                      >
                         {b.items.map((item) => (
                           <li
                             key={item.title}
@@ -839,11 +916,8 @@ export default function Coach() {
             style={{ borderColor: 'var(--border-hairline)' }}
           >
             {/*
-              아래 버튼이 왜 잠겨 있는지를 여기서 말한다. 핵심 목표를 먼저 보는 이유는 그것이
-              자동으로 채워지지 않게 된 뒤로(그 상태 선언 주석) 비어 있기 쉬워졌기 때문이다.
-
-              만다라트는 81칸을 모두 채워야 저장된다(서버가 8 x 8 을 강제한다). 편집기에 가서야
-              알게 되면 늦으므로 여기서 미리 말해 둔다.
+              아래 버튼이 왜 잠겨 있는지를 말한다. 만다라트는 81칸을 모두 채워야 저장되는데
+              (서버가 8 x 8 을 강제한다) 편집기에 가서야 알게 되면 늦다.
             */}
             <p className="muted m-0 mb-3 text-[11.5px] font-medium leading-relaxed">
               {!goal.trim()
@@ -870,6 +944,16 @@ export default function Coach() {
           </div>
         </aside>
       </div>
+
+      {/* 목표 없이 들어오면 먼저 묻는다. 방 접속은 뒤에서 계속 진행된다. */}
+      <CoachGoalPrompt
+        open={goalPromptOpen}
+        onSubmit={(next) => {
+          setGoal(next)
+          setGoalPromptOpen(false)
+        }}
+        onLeave={() => navigate('/app/sheets/new')}
+      />
     </div>
   )
 }
