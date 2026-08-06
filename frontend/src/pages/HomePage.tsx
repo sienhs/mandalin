@@ -230,12 +230,17 @@ export default function Home() {
                         type="button"
                         onClick={() => void complete(row)}
                         disabled={busy || done}
+                        /*
+                          바탕은 라이트에서만 #f5f5f5 로 못 박는다. 다크에서 그대로 두면
+                          어두운 카드 위에 밝은 회색 덩어리가 떠 버리므로 그쪽은 토큰에 맡긴다.
+                          인라인 style 로 주면 클래스를 이겨 dark: 변형이 먹지 않으니 클래스로 준다.
+                        */
                         className={cn(
                           'group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-all duration-200',
                           'hover:-translate-y-px disabled:cursor-not-allowed',
+                          'bg-[#f5f5f5] dark:bg-[var(--surface-sunken)]',
                           done && 'opacity-65',
                         )}
-                        style={{ background: 'var(--surface-sunken)' }}
                         title={done ? '이번 주기에는 이미 완료했어요' : undefined}
                       >
                         <span
@@ -411,10 +416,10 @@ export default function Home() {
           <ul className="m-0 mt-4 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
             {sheets.data.slice(0, 3).map((s) => (
               <li key={s.id}>
+                {/* 할 일 줄과 같은 바탕 — 같은 화면의 목록 두 개가 서로 다른 회색이면 어긋나 보인다. */}
                 <Link
                   to={`/app/sheets/${s.id}`}
-                  className="flex items-center gap-3 rounded-2xl p-4 no-underline transition-transform hover:-translate-y-0.5"
-                  style={{ background: 'var(--surface-sunken)' }}
+                  className="flex items-center gap-3 rounded-2xl bg-[#f5f5f5] p-4 no-underline transition-transform hover:-translate-y-0.5 dark:bg-[var(--surface-sunken)]"
                 >
                   <ProgressRing value={s.achievementRate} size={44} stroke={5}>
                     <span className="text-[10px] font-black tabular-nums">{s.achievementRate}</span>
