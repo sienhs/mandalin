@@ -518,10 +518,13 @@ async def _with_backoff(
     """
     turns = [Turn(role="user", text=case["utterance"])]
     domains = sheets[case.get("sheet") or "default"]
+    # 케이스가 최종목표를 지정할 수 있습니다. 없으면 `None` — 프롬프트의 `<final_goal>`
+    # 이 "(아직 없음…)" 이 되는 경로도 계속 덮어야 하기 때문입니다.
+    goal = case.get("goal")
 
     for attempt, base in enumerate(RETRY_WAITS, 1):
         try:
-            return await pipeline.run(turns, domains)
+            return await pipeline.run(turns, domains, goal=goal)
         except LlmRateLimitedError as exc:
             if paced():
                 wait = 0.0
@@ -540,7 +543,7 @@ async def _with_backoff(
 
     # 다 썼습니다. 마지막 시도의 예외를 그대로 올려 **측정 실패**로 기록되게 합니다 —
     # 여기서 삼키고 빈 결과를 돌려주면 오답으로 채점됩니다.
-    return await pipeline.run(turns, domains)
+    return await pipeline.run(turns, domains, goal=goal)
 
 
 async def _run_all(
