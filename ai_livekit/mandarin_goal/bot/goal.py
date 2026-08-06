@@ -36,7 +36,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
 from collections import OrderedDict
@@ -57,7 +56,12 @@ from mandarin_goal.bot.prompt import EMERGENCY, SystemPrompt, fragment
 # 큐가 쓸 수 있는 최대 대기. **상수를 여기 베껴 적지 않고 읽어 옵니다** — 한쪽만
 # 고치는 날 `_attempt` 의 예산이 큐보다 좁아져 교착이 돌아옵니다(그 주석 참고).
 from mandarin_goal.bot.ratelimit import MAX_INTERVAL as QUEUE_MAX_INTERVAL
-from mandarin_goal.bot.subjects import FREQUENCY_LABELS, Candidate, frequency_label
+from mandarin_goal.bot.subjects import (
+    FREQUENCY_LABELS,
+    Candidate,
+    compact_frequency,
+    frequency_label,
+)
 from mandarin_goal.bot.subjects import search as search_subjects
 from mandarin_goal.config import Settings
 from mandarin_goal.sheet import (
@@ -249,6 +253,15 @@ CLASSIFY_SCHEMA: dict = {
 #: 3단계 스키마. `prompts/system.md` 의 <output_format> 과 같은 모양이되,
 #: 1단계를 통과했어도 막상 보니 서비스와 무관한 경우를 위해 `out_of_scope` 를
 #: 하나 더 두었습니다.
+#: `<final_goal>` 슬롯이 비었을 때 넣는 문구. **빈 문자열을 넣지 않습니다** — 모델에게는
+#: "목표가 있는데 값이 없다" 와 "아직 목표가 없다" 가 다른 상황이고, 후자에서는 첫 목표
+#: 발화를 중심 목표로 써야 합니다(`prompts/system.md` 규칙 2).
+#:
+#: 두 프롬프트가 **같은 문구**를 봐야 합니다 — 1단계는 이 값으로 "목표를 가리키는 요청"
+#: 인지 가리고(`prompts/classify.md`), 3단계는 중심 목표로 씁니다.
+NO_FINAL_GOAL = "(아직 없음 — 대화의 첫 목표 발화를 중심 목표로 본다)"
+
+
 GOAL_SCHEMA: dict = {
     "type": "object",
     "properties": {
@@ -309,10 +322,21 @@ GOAL_SCHEMA: dict = {
         # ① 한 발화가 담은 정보로 8개를 채우려면 말하지 않은 과제를 지어내야 합니다.
         # ② 출력이 길어지면 `bot_goal_max_output_tokens` 에 걸려 **JSON 이 잘립니다**
         #    (`_step` 의 재시도는 디코딩 붕괴용이라 길이 초과에는 무력합니다).
+        #
+        # **하한도 3개입니다 — 사용자가 고를 수 있어야 합니다.** 프론트가 과제마다 담기
+        # 버튼이 붙은 카드로 나란히 보여주므로(`AiCoachPage` 의 `proposal.items`) 하나만
+        # 오면 고를 것이 없습니다. 프롬프트로 "여러 개" 를 부탁하는 대신 **형식으로**
+        # 요구하는 자리입니다 — 무엇을 낼지는 모델에게 맡깁니다.
+        #
+        # 정원이 3보다 적은 칸은 `_capacity` 가 **응답을 받은 뒤 뒤에서 자릅니다.**
+        # 그래서 여기서 3을 요구해도 자리가 하나뿐인 칸에는 하나만 담깁니다.
+        #
+        # `minItems` 를 모델이 항상 지킨다는 보장은 없어서(구현마다 다릅니다)
+        # `prompts/system.md` 의 output_format 에도 같은 값을 적어 둡니다.
         "generated_tasks": {
             "type": "array",
             "nullable": True,
-            "minItems": 1,
+            "minItems": 3,
             "maxItems": 3,
             "items": {
                 "type": "object",
@@ -620,12 +644,13 @@ def render(result: dict) -> str:
                 f"이런 과제를 만들어봤어요 — {titled(task)}.{tail}"
                 f"{domain_line()}\n담아둘까요?"
             )
-        lines = []
-        for task in tasks:
-            description = (task.get("description") or "").strip()
-            lines.append(f"· {titled(task)}" + (f" — {description}" if description else ""))
+        # **설명을 붙이지 않습니다.** 바로 아래 제안 카드가 제목·빈도·설명을 그대로
+        # 보여주므로(프론트의 `proposal.items`) 여기 또 쓰면 같은 문장이 두 번 나옵니다.
+        # 제목과 빈도는 남깁니다 — 빈도가 비어 카드가 안 그려질 때 이 줄이 유일한 안내가
+        # 됩니다(`toSuggestion` 이 그 항목을 버립니다).
+        lines = [f"· {titled(task)}" for task in tasks]
         return (
-            "이런 과제들을 만들어봤어요.\n"
+            f"{len(tasks)}가지 방법을 준비했어요.\n"
             + "\n".join(lines)
             + f"{domain_line()}\n마음에 드는 것만 담아두세요."
         )
@@ -695,7 +720,11 @@ class GoalPipeline:
 
     # -- 실행 ---------------------------------------------------------------
     async def run(
-        self, history: list[Turn], domains: Sequence[DomainRef] = ()
+        self,
+        history: list[Turn],
+        domains: Sequence[DomainRef] = (),
+        *,
+        goal: str | None = None,
     ) -> GoalResult:
         """`BOT_CACHE_SIZE` 가 0 보다 크면 같은 발화의 결과를 재사용합니다.
 
@@ -703,8 +732,12 @@ class GoalPipeline:
 
         `domains` 는 사용자 시트의 도메인 칸 목록입니다(`join` 으로 받습니다).
         비어 있으면 AI 는 모든 도메인을 새 칸으로 제안합니다.
+
+        `goal` 은 사용자의 **최종목표**(만다라트 가운데 칸)입니다. 키워드 인자로 둔 이유는
+        호출하는 쪽이 셋(에이전트 · eval 러너 · 테스트)인데 대부분 시트가 없기 때문입니다 —
+        기본값이 있으면 그쪽은 고칠 것이 없습니다.
         """
-        key = self._cache_key(history, domains)
+        key = self._cache_key(history, domains, goal)
         if key is not None and key in self._cache:
             self._cache.move_to_end(key)                      # LRU
             cached = self._cache[key]
@@ -713,7 +746,7 @@ class GoalPipeline:
             # 다음 적중 때 "cache" 가 계속 쌓입니다.
             return replace(cached, stages=[*cached.stages, "cache"])
 
-        result = await self._run(history, domains)
+        result = await self._run(history, domains, goal=goal)
 
         if key is not None:
             self._cache[key] = result
@@ -722,7 +755,11 @@ class GoalPipeline:
         return result
 
     async def _run(
-        self, history: list[Turn], domains: Sequence[DomainRef] = ()
+        self,
+        history: list[Turn],
+        domains: Sequence[DomainRef] = (),
+        *,
+        goal: str | None = None,
     ) -> GoalResult:
         for backend in (self._classify_backend, self._decide_backend):
             if supports_json(backend):
@@ -734,12 +771,22 @@ class GoalPipeline:
 
         stages = ["classify"]
         domain_list = self._domain_list(domains)
+        final_goal = goal or NO_FINAL_GOAL
         classified = await self._step(
             "classify",
             lambda: self._classify_backend.reply_json(
                 # 1단계에도 목록을 넣습니다. 이 단계의 `domain` 은 후보 검색용 힌트라
                 # 사용자의 실제 칸 이름으로 나오는 편이 가점이 실제로 걸립니다.
-                fill_slots(self._classify_prompt.text(), {"domain_list": domain_list}),
+                #
+                # **최종목표도 넣습니다.** 없으면 `"핵심 목표를 이루기 위한 활동 추천해줘"`
+                # 같은 발화가 내용 없는 대행 요청으로 보여 `chitchat` 으로 빠지고, 그 순간
+                # 대화가 고정 거절 문구로 끝납니다(3단계의 되묻기까지 못 갑니다). 실측
+                # (2026-08-05): 목표를 적어 둔 사용자가 그 목표를 가리켜 추천을 요청했는데
+                # `intent=chitchat` → `off_topic` 이 나왔습니다.
+                fill_slots(
+                    self._classify_prompt.text(),
+                    {"domain_list": domain_list, "final_goal": final_goal},
+                ),
                 history,
                 CLASSIFY_SCHEMA,
             ),
@@ -805,6 +852,7 @@ class GoalPipeline:
         prompt = fill_slots(
             self._goal_prompt.text(),
             {
+                "final_goal": final_goal,
                 "domain_list": domain_list,
                 "domain_slots": self._slots_context(domains),
                 "existing_domain_tasks": self._capacity_context(domains),
@@ -914,7 +962,10 @@ class GoalPipeline:
 
     # -- 내부 ---------------------------------------------------------------
     def _cache_key(
-        self, history: list[Turn], domains: Sequence[DomainRef] = ()
+        self,
+        history: list[Turn],
+        domains: Sequence[DomainRef] = (),
+        goal: str | None = None,
     ) -> str | None:
         """캐시 키. 캐시를 쓰지 않아야 하는 경우 `None` 을 돌려줍니다.
 
@@ -1185,22 +1236,46 @@ class GoalPipeline:
         return f"{used}/{DOMAIN_SLOTS} 칸 사용 — {left}자리 남음(새 칸을 지어도 된다)"
 
     def _capacity_context(self, domains: Sequence[DomainRef] = ()) -> str:
-        """도메인 정원 규칙은 **셀 수 있을 때만** 프롬프트에 넣습니다.
+        """칸별로 **담은 과제를 전부** 싣습니다 — 개수와 함께.
 
-        셀 수 없으면 규칙은 근거 없는 지시일 뿐입니다. 발화마다 100토큰 넘게 쓰면서
-        아무것도 막지 못합니다 — 실측으로 확인했습니다.
+            학습 3/8: [3]매일 알고리즘 1문제 풀기(일간), [7]코테 준비하기(주3)
+            건강 1/8: [4]스트레칭(일간)
 
-        개수는 시트에서만 옵니다 — 세는 방법은 `subject_count` 하나이고, 강제하는
-        쪽(`_settle_capacity`)과 같은 함수를 씁니다.
+        **개수만으로는 중복을 막지 못합니다.** `<existing_subjects>` 는 발화와 유사한
+        상위 `bot_candidate_count`(기본 5)건뿐이고 그 유사도는 글자 바이그램이라
+        (`subjects.py` 모듈 주석) "코테 준비" 와 "알고리즘 풀기" 를 잇지 못합니다. 그
+        조합에서는 이미 담은 과제가 후보에 없어 모델이 같은 것을 또 만들고, 한 턴이 과제를
+        3개 내므로 그 위험이 턴마다 3배로 나갑니다. 그래서 목록 자체를 싣습니다.
+        (`<existing_subjects>` 는 그대로 둡니다 — 그쪽은 **다른 칸**의 비슷한 과제까지
+        훑고, 그 형식이 `subject_id` 지목의 정본입니다.)
+
+        **길이는 유계입니다.** 칸당 8개(`MAX_SUBJECTS_PER_DOMAIN`, `sheet.py` 가 자릅니다)
+        × 제목 40자 상한이라 최악이 64건이고, 실측 규모에서는 100~200토큰입니다.
+
+        개수는 여전히 `subject_count` 로 셉니다 — 강제하는 쪽(`_settle_capacity`)과 같은
+        함수여야 "꽉 찼다고 알려주면서 서버는 자리가 있다고 판단하는" 조합이 안 생깁니다.
+        제목을 안 보낸 시트(개수만 오는 봉투)도 있으므로 그때는 개수만 적습니다 — 정원
+        규칙은 셀 수만 있으면 성립합니다.
         """
-        counts = {
-            d.title: subject_count(d)
-            for d in domains
-            if d.title and (d.subjectCount or d.subjects)
-        }
-        if not counts:
+        lines = []
+        for domain in domains:
+            if not domain.title or not (domain.subjectCount or domain.subjects):
+                continue
+            head = f"{domain.title} {subject_count(domain)}/{MAX_SUBJECTS_PER_DOMAIN}"
+            items = []
+            for subject in domain.subjects:
+                if not subject.title:
+                    continue
+                # id 가 없으면 모델이 지목할 수 없습니다(`to_candidates` 가 후보에서
+                # 빼는 것과 같은 이유). 그래도 **목록에는 남깁니다** — 지목만 못 할 뿐
+                # "이미 담은 과제" 라는 사실은 중복 판정에 그대로 필요합니다.
+                marker = f"[{subject.subjectId}]" if subject.subjectId is not None else ""
+                freq = compact_frequency(subject.frequency, subject.count)
+                items.append(f"{marker}{subject.title}" + (f"({freq})" if freq else ""))
+            lines.append(f"{head}: {', '.join(items)}" if items else head)
+        if not lines:
             return "(집계 없음 — 정원 규칙 미적용)"
-        return f"{json.dumps(counts, ensure_ascii=False)}\n{self._capacity_rule.text()}"
+        return "\n".join(lines) + f"\n{self._capacity_rule.text()}"
 
     def _off_topic(self, intent: str, transcript: str, stages: list[str]) -> GoalResult:
         """목표와 무관한 발화를 고정 문구로 끝냅니다.

@@ -9,6 +9,8 @@ import type {
   NotificationDto,
   PointHistoryDto,
   PurchaseDto,
+  RewardClaimDto,
+  RewardTrackDto,
   SheetCreateBody,
   SheetDetailDto,
   SheetLikeDto,
@@ -16,6 +18,7 @@ import type {
   ShopBuildingDto,
   SubjectCompleteDto,
   TerrainDto,
+  TestAccountDto,
   TodoDto,
   UserProfileDto,
   UserSearchDto,
@@ -40,6 +43,30 @@ export const auth = {
     apiFetch<LoginDto>('/api/auth/oauth/exchange', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    }),
+
+  /**
+   * 발급된 테스트 계정 아이디 목록. 비밀번호는 오지 않는다.
+   *
+   * <p>백엔드 스위치(`app.test-login.enabled`)가 꺼지면 컨트롤러가 등록되지 않아 404 이고,
+   * 비밀번호가 설정되지 않았으면 빈 배열이다. 호출하는 쪽은 둘 다 오류로 다루지 않고
+   * <b>입구를 그리지 않는 신호</b>로 쓴다.
+   */
+  testAccounts: () => apiFetch<TestAccountDto[]>('/api/auth/test/accounts'),
+
+  /**
+   * 테스트 계정으로 로그인.
+   *
+   * <p>응답이 카카오 교환(`exchange`)과 같은 모양이다 — 서버가 같은 메서드를 부르기 때문이다.
+   * 리프레시 토큰은 본문에 없고 쿠키로 온다.
+   *
+   * <p>아이디가 없을 때와 비밀번호가 틀렸을 때가 <b>같은 401</b>이다. 어느 쪽이 틀렸는지
+   * 화면에서 구분해 알려줄 수 없다(서버가 알려주지 않는다).
+   */
+  testLogin: (loginId: string, password: string) =>
+    apiFetch<LoginDto>('/api/auth/test/login', {
+      method: 'POST',
+      body: JSON.stringify({ loginId, password }),
     }),
 
   me: () => apiFetch<UserProfileDto>('/api/v1/users/me'),
@@ -216,4 +243,25 @@ export const reports = {
 
   create: (signal?: AbortSignal) =>
     apiFetch<WeeklyReportDto>('/api/v1/reports', { method: 'POST', signal }),
+}
+
+/* ─────────────────────────  마일스톤 보상  ───────────────────────── */
+
+export const rewards = {
+  /**
+   * 보상 트랙. 구간 8개의 보상 종류·도달·수령 여부가 <b>한 번에</b> 온다.
+   *
+   * <p>시트별이 아니라 <b>계정별</b> 조회다 — 판정에 쓰는 시트를 서버가 골라 `sheetId` 로
+   * 알려준다(가장 먼저 만든 시트). 그래서 경로에 시트 번호가 없다.
+   */
+  track: () => apiFetch<RewardTrackDto>('/api/v1/rewards/track'),
+
+  /**
+   * 구간 하나 수령. <b>계정당 구간별 1회.</b>
+   *
+   * <p>이미 받았으면 409, 아직 못 미쳤으면 400 이다. 도달 여부는 서버가 다시 확인하므로
+   * 화면이 잠긴 상자를 눌러도 보상이 새지 않는다.
+   */
+  claim: (milestone: number) =>
+    apiFetch<RewardClaimDto>(`/api/v1/rewards/track/${milestone}/claim`, { method: 'POST' }),
 }

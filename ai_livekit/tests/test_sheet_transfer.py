@@ -12,8 +12,11 @@ from pathlib import Path
 
 from agent.sheet_transfer import (
     MAX_DOMAINS,
+    MAX_SHEET_TITLE_LENGTH,
     SHEET_ATTRIBUTE,
     parse_sheet,
+    parse_sheet_envelope,
+    sheet_envelope_from_participant,
     sheet_from_participant,
 )
 
@@ -204,3 +207,65 @@ def test_attributes_are_also_the_fallback_when_metadata_is_unparseable():
 def test_nothing_anywhere_is_still_fine():
     assert sheet_from_participant(None, None) == []
     assert sheet_from_participant(None, {}) == []
+
+
+# -- 최종목표 --------------------------------------------------------------
+#
+# 만다라트 가운데 칸입니다. **모델에게 추론시키지 않고 서버가 넘깁니다** — 예전에는
+# 프롬프트 규칙 2가 "중심 목표는 대화의 첫 목표 발화" 라고 했는데, 히스토리 창
+# (`BOT_HISTORY_TURNS`)이 두 왕복이면 그 발화가 창 밖으로 밀려나 근거가 사라집니다.
+def test_the_final_goal_rides_along_with_the_sheet():
+    """Spring 응답의 `title` 이 최종목표다 — 프롬프트의 `<final_goal>` 로 간다."""
+    sheet = parse_sheet_envelope(json.dumps(SPRING_SHAPE), source="test")
+    assert sheet.title == SPRING_SHAPE["title"]
+    assert [d.title for d in sheet.domains] == ["학습", "커리어"]
+
+
+def test_a_missing_or_blank_final_goal_is_none_not_empty():
+    """빈 문자열로 두면 프롬프트에 "목표가 있는데 값이 빈" 슬롯이 실린다.
+
+    없는 것과 구분되지 않으면 모델은 목표가 정해진 줄 알고 빈 문장에 과제를 맞춥니다.
+    """
+    no_title = {"domains": SPRING_SHAPE["domains"]}
+    assert parse_sheet_envelope(json.dumps(no_title), source="test").title is None
+    blank = {"title": "   ", "domains": SPRING_SHAPE["domains"]}
+    assert parse_sheet_envelope(json.dumps(blank), source="test").title is None
+    # 배열만 온 모양(브라우저 축약형)에는 목표를 실을 자리가 없다.
+    assert parse_sheet_envelope(json.dumps(SPRING_SHAPE["domains"]), source="test").title is None
+    # 파싱 실패도 같다 — fail-open 이라 빈 시트로 계속 간다.
+    assert parse_sheet_envelope("{깨진 JSON", source="test").title is None
+
+
+def test_a_long_final_goal_is_cut_not_refused():
+    """슬롯 하나가 길어지면 진짜 지시문이 뒤로 밀린다 — 자르고 계속한다.
+
+    거부하면 목표 한 줄 때문에 시트가 통째로 버려지고 중복 검사까지 같이 죽습니다
+    (`MAX_DOMAINS` 초과를 **거부**하는 것과 반대 판단입니다 — 그쪽은 시트 자체가
+    이상하다는 신호이고, 이쪽은 사용자가 길게 적었을 뿐입니다).
+    """
+    payload = {"title": "가" * 500, "domains": SPRING_SHAPE["domains"]}
+    sheet = parse_sheet_envelope(json.dumps(payload), source="test")
+    assert sheet.title is not None
+    assert len(sheet.title) == MAX_SHEET_TITLE_LENGTH
+    assert [d.title for d in sheet.domains] == ["학습", "커리어"]
+
+
+def test_the_goal_survives_when_only_the_domains_come_from_the_fallback():
+    """metadata 에 목표만, attributes 에 칸이 있는 조합.
+
+    편집기에서 가운데 칸만 적고 과제는 아직 없는 사용자가 이 모양입니다. 우회로 결과로
+    통째로 갈아치우면 그 사용자의 목표가 조용히 사라집니다.
+    """
+    attrs = {SHEET_ATTRIBUTE: json.dumps({"domains": SPRING_SHAPE["domains"]})}
+    sheet = sheet_envelope_from_participant('{"title": "3년 안에 이직", "domains": []}', attrs)
+    assert sheet.title == "3년 안에 이직"
+    assert [d.title for d in sheet.domains] == ["학습", "커리어"]
+
+
+def test_the_domains_only_helpers_still_return_a_list():
+    """`parse_sheet`·`sheet_from_participant` 는 칸 목록만 — 호출부가 많아 남긴 껍데기다."""
+    assert [d.title for d in parse_sheet(json.dumps(SPRING_SHAPE), source="test")] == [
+        "학습",
+        "커리어",
+    ]
+    assert sheet_from_participant(None, None) == []

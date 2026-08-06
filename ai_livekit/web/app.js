@@ -103,7 +103,9 @@ const $ = (id) => document.getElementById(id)
 const badge = $('badge')
 
 let room = null
-let sheet = { domains: [] }
+//: 최종목표(`title`)와 칸 목록. `/api/token` 응답의 시트로 통째로 덮이고,
+//: `mandarin.sheet` 로 그대로 되돌려 보냅니다 — 서버가 `title` 을 `<final_goal>` 로 씁니다.
+let sheet = { title: '', domains: [] }
 
 //: 채팅 로그에 쓸 AI 이름. `mandarin.hello` 가 도착하면 모드가 붙습니다.
 //:
@@ -472,7 +474,7 @@ async function connect() {
       setStatus(hello.llm === 'echo' ? '데모 백엔드' : 'AI 사용 불가', 'off')
     }
     if (voiceAvailable) {
-      $('mic').title = '누르면 10초간 듣습니다'
+      $('mic').title = '누르면 15분간 듣습니다 (응답을 만드는 동안에는 잠시 멈춥니다)'
       log('시스템', `${aiLabel} 준비됨 — 말하기 버튼을 쓸 수 있습니다`, 'sys')
     } else {
       // 이유를 화면에 남깁니다. 서버 로그에만 있으면 사용자는 버튼이 왜 안 되는지
@@ -484,7 +486,11 @@ async function connect() {
   })
 
   room.registerTextStreamHandler(CHAT_TOPIC, async (reader) => {
-    log(aiLabel, await reader.readAll(), 'ai')
+    const text = await reader.readAll()
+    // 답이 도착했으니 잠금을 풀고, 생성 때문에 멈춘 창이면 **남은 시간만큼 다시 엽니다.**
+    endGenerating()
+    log(aiLabel, text, 'ai')
+    void resumeTalking()
     // 답이 도착한 시점입니다 — 스트림을 다 읽고 나서 바꿉니다. 열리자마자 바꾸면
     // 아직 아무 글자도 안 뜬 화면에서 캐릭터만 먼저 답한 얼굴이 됩니다.
     setAvatar('answering')
@@ -511,6 +517,12 @@ async function connect() {
       log('나', payload.text, 'me')
       // 최종 전사가 곧 발화의 끝입니다 — 여기서부터 에이전트가 답을 만듭니다.
       setAvatar('thinking')
+      // **그래서 여기서 창을 닫습니다.** 이 동안의 발화는 서버가 버리므로 열어 둘 이유가
+      // 없고, 열어 두면 버려질 오디오를 계속 올려보낸 뒤 생성이 끝나는 순간 STT 스트림이
+      // 다시 열립니다. 무음 감시로는 못 막습니다 — 답을 기다리며 계속 말하고 있으면
+      // 무음이 아닙니다.
+      beginGenerating()
+      void stopTalking('AI 응답 중', { quiet: true, resumable: true })
     } else {
       showCaption(payload.text)
     }
@@ -540,6 +552,11 @@ async function connect() {
     showCaption('')
     // 타이머를 안 지우면 끊긴 뒤에도 자동 종료가 돌아 `room` 이 null 인 채로 부릅니다.
     clearTalkTimers()
+    talking = false
+    // 끊긴 방의 창을 재개하지 않습니다 — 재접속 후 답이 오면 마이크가 저절로 켜집니다.
+    resumeAfterReply = false
+    // 방이 끊기면 답은 오지 않습니다. 안 풀면 재접속 뒤에도 말하기가 잠겨 있습니다.
+    endGenerating()
     setMicLabel('말하기', false)
     // 끊긴 뒤에 "생각 중" 으로 굳어 있으면 오지 않을 답을 기다리게 됩니다.
     setAvatar('idle')
@@ -583,21 +600,30 @@ function showCaption(text) {
 }
 
 /**
- * 푸시투토크 — 누르면 듣고, 다시 누르거나 10초가 지나면 멈춥니다.
+ * 푸시투토크 — 누르면 듣고, 다시 누르거나 15분이 지나면 멈춥니다.
  *
- * **버튼을 누르는 동안만 오디오를 보냅니다.** 시작·끝을 사람이 명시하므로 발화
- * 감지가 필요 없습니다. 마이크를 계속 켜두면 두 문제가 생깁니다 —
+ * 창이 길어져서 **무음 과금을 사람이 막지 못합니다.** 그 일은 서버가 합니다 —
+ * `agent/listen.py` 의 `SpeechGate` 가 말하지 않는 동안 프레임을 보내지 않고(발화가
+ * 없으면 Deepgram 소켓을 아예 열지 않습니다) 무음이 길어지면 스트림을 닫습니다.
+ * 이 창은 상한(잊고 켜둔 마이크)일 뿐입니다.
  *
- *   ① 무음 구간도 오디오 시간으로 과금됩니다 (스트리밍 STT 의 특성)
- *   ② 잡음과 무음을 구분할 장치가 없습니다 (silero VAD 가 필요해짐)
- *
- * 창을 사람이 열고 닫으면 **둘 다 사라집니다.** 발화가 짧다는 전제가 맞으면 상한이
- * 넉넉하고, 아니면 `TALK_WINDOW_MS` 만 늘리면 됩니다.
+ * 창은 **응답을 만드는 동안 잠시 멈춥니다**(`stopTalking` 의 `resumable`). 답이 도착하면
+ * 남은 시간만큼 다시 열리므로 발화마다 버튼을 누를 필요가 없습니다.
  *
  * 트랙을 끊는 대신 mute 를 토글합니다 — 재협상이 없고, 에이전트 쪽 `track_muted` /
- * `track_unmuted` 가 전사 태스크를 시작·취소합니다(과금 정지 지점).
+ * `track_unmuted` 가 전사 태스크를 시작·취소합니다.
  */
-const TALK_WINDOW_MS = 10_000
+const TALK_WINDOW_MS = 15 * 60_000
+
+//: 응답 뒤 자동 재개의 최소 잔여 시간. 이보다 적게 남았으면 재개하지 않습니다 — 켰다가
+//: 곧바로 상한에 걸려 끄면 전사도 못 얻고 STT 연결 비용만 냅니다.
+const RESUME_MIN_MS = 3_000
+
+/** `905` → `"15:05"`. 15분 창을 초로만 보여주면 남은 시간을 못 읽습니다. */
+function clock(seconds) {
+  const left = Math.max(0, seconds)
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+}
 
 //: 오조작 가드. 이 시간 안의 두 번째 누름은 무시합니다.
 //:
@@ -605,22 +631,58 @@ const TALK_WINDOW_MS = 10_000
 //: 연결을 열자마자 닫아 전사도 못 얻고 요금만 냅니다.
 const MISCLICK_GUARD_MS = 300
 
+//: 응답 생성 잠금이 저절로 풀리는 시간. **잠금이 영구히 남지 않게 하는 보험입니다.**
+//: 에이전트는 실패해도 답을 보내므로(`FAILURE_REPLY`) 정상 경로에서는 안 걸립니다 —
+//: worker 가 죽은 경우입니다. `BOT_TIMEOUT_SECONDS`(20초)보다 넉넉히 큽니다.
+const GENERATION_LOCK_MS = 60_000
+
 let talkTimer = null
 let countdownTimer = null
 let talkStartedAt = 0
+//: 마이크 창이 열려 있는가. 창을 닫는 경로가 셋이라(사람 · 응답 생성 · 15분 상한)
+//: 겹칩니다 — 이 깃발이 없으면 "듣기를 멈췄습니다" 가 두 줄 남습니다.
+let talking = false
+//: 답이 도착하면 창을 다시 열어야 하는가. **응답 생성 때문에 멈춘 창에만 참입니다** —
+//: 사람이 직접 멈춘 창을 다시 열면 끈 마이크가 저절로 켜지는 셈입니다.
+let resumeAfterReply = false
+//: 에이전트가 답을 만드는 중인가. **이 동안에는 마이크를 열지 않습니다.** 그 발화는
+//: 서버가 버리므로(`Conversation` 의 락) 올려보낸 오디오 값만 나갑니다.
+let generating = false
+let generationTimer = null
+
+/** 응답 생성 잠금을 풉니다. 답이 도착했을 때와 방이 끊겼을 때 부릅니다. */
+function endGenerating() {
+  generating = false
+  if (generationTimer) clearTimeout(generationTimer)
+  generationTimer = null
+}
+
+/** 최종 전사(또는 텍스트 전송) 시점 = 생성 시작. */
+function beginGenerating() {
+  generating = true
+  if (generationTimer) clearTimeout(generationTimer)
+  generationTimer = setTimeout(endGenerating, GENERATION_LOCK_MS)
+}
 
 function setMicLabel(text, active) {
   $('mic-label').textContent = text
   $('mic').classList.toggle('active', !!active)
 }
 
+/** 창에 걸린 타이머(상한 · 카운트다운)를 놓습니다. */
 function clearTalkTimers() {
   if (talkTimer) clearTimeout(talkTimer)
   if (countdownTimer) clearInterval(countdownTimer)
   talkTimer = countdownTimer = null
 }
 
-async function startTalking() {
+/**
+ * 마이크를 켜고 창에 타이머를 겁니다. `remaining` 은 **이 창에 남은 시간**입니다.
+ *
+ * 응답 뒤 자동 재개(`resumeTalking`)가 처음 누른 시점부터의 15분을 이어 쓰기 때문에
+ * 인자로 받습니다 — 턴마다 15분을 새로 주면 상한이 상한이 아니게 됩니다.
+ */
+async function openWindow(remaining, note) {
   $('mic').disabled = true
   try {
     await room.localParticipant.setMicrophoneEnabled(true)
@@ -633,21 +695,62 @@ async function startTalking() {
   }
   $('mic').disabled = false
 
+  // **먼저 지웁니다.** 자동 재개와 사람의 누름이 겹칠 수 있습니다 — 답이 도착해 잠금이
+  // 풀린 직후, `resumeTalking` 이 `await` 에 들어가 있는 사이의 누름은 `talking` 이 아직
+  // 거짓이라 통과합니다. 그러면 타이머가 둘씩 생기고 먼저 걸린 상한이 창을 일찍 닫습니다.
+  clearTalkTimers()
+  talking = true
+  setMicLabel(`듣는 중 ${clock(Math.ceil(remaining / 1000))}`, true)
+  if (note) log('시스템', note, 'sys')
+
+  // 기준이 처음 누른 시각이라 재개해도 남은 시간이 이어집니다.
+  countdownTimer = setInterval(() => {
+    const left = Math.ceil((TALK_WINDOW_MS - (Date.now() - talkStartedAt)) / 1000)
+    if (left > 0) setMicLabel(`듣는 중 ${clock(left)}`, true)
+  }, 1000)
+
+  talkTimer = setTimeout(() => void stopTalking('시간 종료'), remaining)
+}
+
+async function startTalking() {
   talkStartedAt = Date.now()
   // 여기서 "말하세요" 라고 해도 거짓이 아닙니다 — Deepgram 연결이 열리기 전에 말해도
   // 프레임은 무제한 채널에 쌓여 있다가 전송됩니다. 전사가 0.7초쯤 늦게 올 뿐입니다.
-  setMicLabel('듣는 중 10s', true)
-  log('시스템', '말하세요 (10초 후 자동으로 멈춥니다)', 'sys')
-
-  countdownTimer = setInterval(() => {
-    const left = Math.ceil((TALK_WINDOW_MS - (Date.now() - talkStartedAt)) / 1000)
-    if (left > 0) setMicLabel(`듣는 중 ${left}s`, true)
-  }, 250)
-
-  talkTimer = setTimeout(() => void stopTalking('시간 종료'), TALK_WINDOW_MS)
+  await openWindow(TALK_WINDOW_MS, '말하세요 (응답을 만드는 동안에는 잠시 멈춥니다 · 최대 15분)')
 }
 
-async function stopTalking(reason) {
+/**
+ * 답이 도착해서 다시 듣습니다. **처음 누른 창을 이어 씁니다.**
+ *
+ * 조용히 합니다 — 버튼 글자가 `듣는 중 M:SS` 로 돌아오고 에이전트도 `listening` 을 보내
+ * 상태줄이 바뀝니다. 턴마다 한 줄씩 남길 일이 아닙니다.
+ */
+async function resumeTalking() {
+  if (!resumeAfterReply) return
+  resumeAfterReply = false
+  // 이미 열려 있거나(사람이 먼저 눌렀습니다) 방을 놓았으면 할 일이 없습니다.
+  if (talking || !room || !voiceAvailable) return
+  const left = TALK_WINDOW_MS - (Date.now() - talkStartedAt)
+  if (left < RESUME_MIN_MS) {
+    log('시스템', '듣기 창이 끝났습니다 (15분) — 더 말하려면 다시 눌러 주세요', 'sys')
+    return
+  }
+  await openWindow(left, null)
+}
+
+/**
+ * 마이크 창을 닫습니다.
+ *
+ * `quiet` 는 대화에 한 줄 남기지 않습니다 — 응답 생성 때문에 멈추는 것은 턴마다 한 번씩
+ * 일어나므로, 그때마다 남기면 로그가 그것만 남습니다.
+ *
+ * `resumable` 은 **답이 도착하면 이 창을 다시 열어도 되는가**입니다.
+ */
+async function stopTalking(reason, { quiet = false, resumable = false } = {}) {
+  // 닫는 경로가 겹칩니다(`talking` 주석). 이미 닫혔으면 조용히 돌아갑니다.
+  if (!talking) return
+  talking = false
+  resumeAfterReply = resumable
   clearTalkTimers()
   $('mic').disabled = true
   try {
@@ -658,12 +761,26 @@ async function stopTalking(reason) {
   $('mic').disabled = false
   setMicLabel('말하기', false)
   showCaption('')
-  log('시스템', `듣기를 멈췄습니다 (${reason})`, 'sys')
+  if (!quiet) log('시스템', `듣기를 멈췄습니다 (${reason})`, 'sys')
 }
 
 async function toggleTalk() {
   if (!room || !voiceAvailable) return
   if (!room.localParticipant.isMicrophoneEnabled) {
+    // **응답 생성 중에는 열지 않습니다.** 열어도 그 발화는 서버가 버리므로
+    // (`Conversation` 의 락) "말했는데 아무 일도 안 일어난다" 만 남습니다.
+    //
+    // 대신 이 누름을 **자동 재개 취소**로 받습니다 — 안 그러면 응답 중에 그만하려고
+    // 눌러도 답이 오는 순간 마이크가 저절로 켜집니다.
+    if (generating) {
+      if (resumeAfterReply) {
+        resumeAfterReply = false
+        log('시스템', '듣기를 멈췄습니다 (직접 멈춤) — 답이 와도 다시 듣지 않습니다', 'sys')
+      } else {
+        log('시스템', 'AI가 답하는 중입니다 — 끝나면 말해 주세요', 'sys')
+      }
+      return
+    }
     await startTalking()
     return
   }
@@ -682,6 +799,10 @@ async function send(text) {
   if (!value || !room) return
   log('나', value, 'me')
   setAvatar('thinking')
+  // 텍스트로 물어도 생성은 생성입니다 — 음성 경로와 같은 구간을 잠그고, 듣고 있었다면
+  // 창도 멈춥니다(그 발화는 어차피 버려집니다). 답이 오면 남은 창이 다시 열립니다.
+  beginGenerating()
+  void stopTalking('AI 응답 중', { quiet: true, resumable: true })
   await room.localParticipant.sendText(value, { topic: CHAT_TOPIC })
 }
 

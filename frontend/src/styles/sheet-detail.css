@@ -29,11 +29,13 @@
   }
 
   .sheet-detail-title {
-    @apply m-0 truncate text-[19px] font-extrabold tracking-[-0.02em] text-ink-900;
+    @apply m-0 truncate text-[19px] font-extrabold tracking-[-0.02em];
+    color: var(--text-strong);
   }
 
   .sheet-detail-period {
-    @apply m-0 whitespace-nowrap text-[13px] font-semibold text-ink-400;
+    @apply m-0 whitespace-nowrap text-[13px] font-semibold;
+    color: var(--text-muted);
   }
 
   /* ---------- 달성률 ---------- */
@@ -43,7 +45,8 @@
   }
 
   .sheet-detail-rate-text {
-    @apply m-0 whitespace-nowrap text-[12.5px] font-semibold text-ink-500;
+    @apply m-0 whitespace-nowrap text-[12.5px] font-semibold;
+    color: var(--text-muted);
   }
 
   .sheet-detail-rate-bar {

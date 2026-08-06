@@ -21,6 +21,8 @@ interface Props {
   islandBase?: boolean
   /** 디테일 부품을 그릴지(성능 옵션). Scene 에서 내려온다. */
   details?: boolean
+  /** 도메인 이름 라벨을 그릴지. Scene 에서 내려온다. */
+  labels?: boolean
   onSelect: (domainIndex: number) => void
   onSelectTask: (taskId: string) => void
 }
@@ -31,7 +33,7 @@ interface Props {
  */
 export function Village({
   mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, landmark,
-  islandBase = false, details = true, onSelect, onSelectTask,
+  islandBase = false, details = true, labels = true, onSelect, onSelectTask,
 }: Props) {
   return (
     <group>
@@ -54,6 +56,7 @@ export function Village({
             selectedTaskId={selectedTaskId}
             landmark={landmark}
             details={details}
+            labels={labels}
             onSelect={() => onSelect(i)}
             onSelectTask={onSelectTask}
           />

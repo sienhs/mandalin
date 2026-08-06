@@ -27,6 +27,20 @@ export type UserProfileDto = {
 
 export type LoginDto = UserProfileDto & { accessToken: string }
 
+/**
+ * 발급된 테스트 계정 한 줄. **비밀번호는 담기지 않는다** — 계정을 나눠 주는 사람이 따로 전한다.
+ *
+ * 백엔드 스위치가 꺼져 있으면 목록 조회가 404, 비밀번호가 설정되지 않았으면 빈 배열이다.
+ * 둘 다 로그인 화면이 입구를 그리지 않는 신호다.
+ */
+export type TestAccountDto = {
+  /** 로그인 아이디(tester1 …). */
+  loginId: string
+  name: string
+  /** 친구 코드. 테스터끼리 친구 요청을 보내 볼 때 쓴다. */
+  uuid: string
+}
+
 /* ─────────────────────────  시트  ───────────────────────── */
 
 /** 백엔드 SubjectPeriod 와 1:1. 값을 더할 때는 서버 enum 도 함께 고쳐야 한다. */
@@ -330,4 +344,60 @@ export type WeeklyReportDto = {
   strengths: string[]
   improvements: string[]
   sheets: ReportSheetDto[]
+}
+
+/* ─────────────────────────  마일스톤 보상  ───────────────────────── */
+
+/** 백엔드 `RewardKind`. 크레딧(포인트)이냐 랜드마크냐. */
+export type RewardKindDto = 'CREDIT' | 'LANDMARK'
+
+export type RewardMilestoneDto = {
+  /** 1~8 */
+  milestone: number
+  /** 도달에 필요한 달성률(12.5 · 25 · 37.5 …). */
+  percent: number
+  kind: RewardKindDto
+  /** CREDIT 구간의 지급 포인트. LANDMARK 면 null. */
+  creditAmount: number | null
+  reached: boolean
+  claimed: boolean
+  grantedPoint: number | null
+  /** 수령했다면 받은 랜드마크 이름. 마지막 구간은 여러 개다. */
+  grantedNames: string[] | null
+}
+
+export type RewardTrackDto = {
+  /**
+   * 보상 판정에 쓰는 시트 — <b>가장 먼저 만든 시트</b>. 시트가 없으면 null.
+   *
+   * <p>보상은 계정당 구간별 1회다. 모든 시트에 선물상자를 그리면 같은 보상을 시트마다
+   * 받을 수 있는 것처럼 보이므로, 화면은 보고 있는 시트가 이 값과 같은지로 판단한다.
+   */
+  sheetId: number | null
+  achievementRate: number
+  milestones: RewardMilestoneDto[]
+}
+
+export type RewardLandmarkDto = {
+  itemId: number
+  itemKey: string
+  name: string
+  thumbnailUrl: string | null
+}
+
+/**
+ * 수령 결과 — <b>무엇을 받았는지 여기서 처음 밝혀진다.</b>
+ *
+ * <p>랜드마크는 무작위라 트랙 조회에는 "랜드마크 구간" 이라는 사실만 있다. 어떤 종인지는
+ * 이 응답에만 담기고, 화면이 이걸로 공개 연출을 한다.
+ */
+export type RewardClaimDto = {
+  milestone: number
+  kind: RewardKindDto
+  grantedPoint: number | null
+  landmarks: RewardLandmarkDto[] | null
+  /** 지급 후 보유 포인트. 헤더 갱신에 쓴다. */
+  currentPoint: number
+  /** 랜드마크 구간인데 이미 전종을 보유해 크레딧으로 대체했는가. */
+  fallbackFromLandmark: boolean | null
 }

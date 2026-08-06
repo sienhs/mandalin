@@ -52,6 +52,11 @@ public enum ErrorCode {
 	SHEET_NOT_OWNED(HttpStatus.FORBIDDEN, "This sheet does not belong to the requesting user."),
 	INVALID_LANDMARK(HttpStatus.BAD_REQUEST, "Selected building is not a valid LANDMARK type."),
 	BUILDING_NOT_OWNED(HttpStatus.FORBIDDEN, "Building is not owned by the user."),
+	// Reward — 마일스톤 보상. 구간별로 계정당 1회다.
+	/** 이미 받은 구간. UNIQUE(user_id, milestone) 위반보다 먼저 잡아 뜻이 드러나는 메시지를 준다. */
+	REWARD_ALREADY_CLAIMED(HttpStatus.CONFLICT, "This milestone reward has already been claimed."),
+	/** 달성률이 그 구간에 못 미친다. 클라이언트가 임의 구간을 요청하는 것을 막는다. */
+	REWARD_NOT_REACHED(HttpStatus.BAD_REQUEST, "Mandalart progress has not reached this milestone yet."),
 	// Sheet
 	SHEET_NOT_FOUND(HttpStatus.NOT_FOUND, "Mandalart sheet not found."),
 	SHEET_ACCESS_DENIED(HttpStatus.FORBIDDEN, "This mandalart sheet is private."),

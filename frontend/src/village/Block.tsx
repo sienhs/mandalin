@@ -27,6 +27,8 @@ interface Props {
   landmark: LandmarkOverride
   /** 디테일 부품을 그릴지(성능 옵션). 기본 true. */
   details?: boolean
+  /** 도메인 이름 라벨을 그릴지. 기본 true. 자세한 내용은 {@link Village} 의 같은 prop. */
+  labels?: boolean
   onSelect: () => void
   /** 자리를 클릭했을 때. 도메인 선택과 별개로 어느 칸인지 위로 알린다. */
   onSelectTask: (taskId: string) => void
@@ -54,7 +56,7 @@ const TASK_CELLS: [number, number][] = (() => {
  */
 export function Block({
   domain, domainIndex, position, selected, overrides, theme, terrain, catalog,
-  selectedTaskId, landmark, details = true, onSelect, onSelectTask,
+  selectedTaskId, landmark, details = true, labels = true, onSelect, onSelectTask,
 }: Props) {
   const isCenter = domainIndex === CENTER_BLOCK_INDEX
   const urban = urbanLevelOf(domain)
@@ -105,32 +107,33 @@ export function Block({
         라벨. 중앙 블록은 랜드마크가 최고 16 unit 까지 올라가 공중 라벨(labelY 5.6)이 건물 안에
         파묻히므로, 블록 앞 지면에 눕힌 명판으로 대신한다.
       */}
-      {isCenter ? (
-        <Text
-          position={[0, 0.09, BLOCK_SIZE / 2 + 0.55]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={0.62}
-          color="#2b2b2b"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#ffffff"
-        >
-          {domain.title}
-        </Text>
-      ) : (
-        <Text
-          position={[0, labelY, 0]}
-          fontSize={0.6}
-          color="#2b2b2b"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#ffffff"
-        >
-          {domain.title}
-        </Text>
-      )}
+      {labels &&
+        (isCenter ? (
+          <Text
+            position={[0, 0.09, BLOCK_SIZE / 2 + 0.55]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            fontSize={0.62}
+            color="#2b2b2b"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.05}
+            outlineColor="#ffffff"
+          >
+            {domain.title}
+          </Text>
+        ) : (
+          <Text
+            position={[0, labelY, 0]}
+            fontSize={0.6}
+            color="#2b2b2b"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.05}
+            outlineColor="#ffffff"
+          >
+            {domain.title}
+          </Text>
+        ))}
 
       {/* 마을 장식: 관목 + 꽃밭 (초원·비포장이면서 아직 마을풍일 때만) */}
       {greenery && (

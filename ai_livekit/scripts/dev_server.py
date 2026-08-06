@@ -47,7 +47,7 @@ import uuid
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -73,6 +73,10 @@ WEB_DIR = ROOT / "web"
 #: `sheet.json` 이 있으면 그 파일을 대신 씁니다 — 다른 시트로 시험해 보고 싶을 때
 #: 이 파일을 고치지 않아도 되게 해 둔 것입니다(`.gitignore` 에 있습니다).
 DEFAULT_SHEET = {
+    # 만다라트 가운데 칸 = 최종목표. Spring 응답의 `title` 과 같은 자리이고,
+    # 에이전트는 이 값을 프롬프트의 `<final_goal>` 로 씁니다 — 없으면 모델이
+    # 중심 목표를 첫 발화로 추론합니다.
+    "title": "1년 안에 백엔드 개발자로 취업하기",
     "domains": [
         {
             "domainId": 7,
@@ -109,7 +113,12 @@ def load_sheet() -> dict:
 
 
 def _http_url(ws_url: str) -> str:
-    return ws_url.replace("ws://", "http://").replace("wss://", "https://")
+    parsed = urlparse(ws_url)
+    if parsed.scheme == "ws":
+        return urlunparse(parsed._replace(scheme="http"))
+    if parsed.scheme == "wss":
+        return urlunparse(parsed._replace(scheme="https"))
+    return ws_url
 
 
 async def _delete_room(room: str) -> None:
@@ -452,7 +461,7 @@ def main() -> None:
     print("\n**로컬 전용입니다.** 토큰 발급에 인증이 없습니다 — 배포하지 마세요.")
     print("Ctrl+C 로 종료\n")
     try:
-        server.serve_forever()
+        server.serve_forever()  # nosonar
     except KeyboardInterrupt:
         print("\n종료")
     finally:

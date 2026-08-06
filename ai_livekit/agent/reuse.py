@@ -36,6 +36,7 @@ from mandarin_goal.bot.subjects import FREQUENCY_LABELS, frequency_label
 from mandarin_goal.config import Settings, get_settings
 from mandarin_goal.sheet import (
     MAX_DOMAINS,
+    MAX_SHEET_TITLE_LENGTH,
     DomainRef,
     SubjectRef,
     drop_untitled_domains,
@@ -64,6 +65,7 @@ __all__ = [
     "DOMAIN_UNKNOWN_REPLY",
     "FREQUENCY_LABELS",
     "MAX_DOMAINS",
+    "MAX_SHEET_TITLE_LENGTH",
     "OFF_TOPIC_REPLY",
     "REUSED_MODULES",
     "TRANSPORT_ONLY",

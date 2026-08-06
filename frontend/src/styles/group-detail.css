@@ -19,7 +19,8 @@
   /* 폭 고정(반응형 아님) — 생성 · 상세 화면과 같은 이유다. */
   .group-detail-page {
     @apply min-h-screen min-w-[1280px];
-    background: #f6f7f8;
+    background: var(--surface-page);
+    color: var(--text-strong);
   }
 
   .group-detail-main {
@@ -45,11 +46,13 @@
   }
 
   .group-detail-title {
-    @apply m-0 text-[17px] font-extrabold tracking-[-0.02em] text-ink-900;
+    @apply m-0 text-[17px] font-extrabold tracking-[-0.02em];
+    color: var(--text-strong);
   }
 
   .group-detail-sub {
-    @apply m-0 mt-1 text-[12.5px] font-semibold text-ink-400;
+    @apply m-0 mt-1 text-[12.5px] font-semibold;
+    color: var(--text-muted);
   }
 
   /* ---------- 달성률 ---------- */
@@ -63,7 +66,8 @@
   }
 
   .group-detail-rate-text {
-    @apply m-0 whitespace-nowrap text-[12px] font-semibold text-ink-500;
+    @apply m-0 whitespace-nowrap text-[12px] font-semibold;
+    color: var(--text-muted);
   }
 
   .group-detail-rate-bar {
@@ -71,7 +75,8 @@
   }
 
   .group-detail-rate-label {
-    @apply m-0 text-[11.5px] font-bold text-ink-400;
+    @apply m-0 text-[11.5px] font-bold;
+    color: var(--text-muted);
   }
 
   .group-detail-rate-big {
@@ -99,12 +104,13 @@
   .group-detail-image {
     @apply flex w-full items-center justify-center rounded-2xl;
     aspect-ratio: 3 / 2;
-    background: #f6f8fa;
-    border: 1.5px dashed #d7dee4;
+    background: var(--surface-sunken);
+    border: 1.5px dashed var(--border-hairline);
   }
 
   .group-detail-image-note {
-    @apply m-0 text-[12.5px] font-semibold text-ink-400;
+    @apply m-0 text-[12.5px] font-semibold;
+    color: var(--text-muted);
   }
 
   /* ---------- 멤버별 기여도 ---------- */
@@ -113,7 +119,8 @@
   }
 
   .group-detail-section-title {
-    @apply m-0 text-[15px] font-extrabold tracking-[-0.01em] text-ink-900;
+    @apply m-0 text-[15px] font-extrabold tracking-[-0.01em];
+    color: var(--text-strong);
   }
 
   .group-detail-members {
@@ -142,26 +149,27 @@
 
   .group-detail-member--green {
     --member-accent: #6cbf7f;
-    --member-tint: #eef8f0;
+    --member-tint: rgba(108, 191, 127, 0.15);
   }
 
   .group-detail-member--orange {
     --member-accent: #e0913c;
-    --member-tint: #fdf1e6;
+    --member-tint: rgba(224, 145, 60, 0.15);
   }
 
   .group-detail-member--blue {
     --member-accent: #6a7ad4;
-    --member-tint: #eceef9;
+    --member-tint: rgba(106, 122, 212, 0.15);
   }
 
   .group-detail-member--amber {
     --member-accent: #d9b23a;
-    --member-tint: #fbf6e4;
+    --member-tint: rgba(217, 178, 58, 0.15);
   }
 
   .group-detail-member-name {
-    @apply flex min-w-0 items-center gap-2 text-[13px] font-extrabold text-ink-900;
+    @apply flex min-w-0 items-center gap-2 text-[13px] font-extrabold;
+    color: var(--text-strong);
   }
 
   /* 이름 앞의 점 */
@@ -181,8 +189,9 @@
 
   /* ---------- 안내 상자 ---------- */
   .group-detail-notice {
-    @apply m-0 rounded-xl px-4 py-3 text-[11.5px] font-semibold leading-[1.7] text-ink-500;
-    background: #f6f8fa;
+    @apply m-0 rounded-xl px-4 py-3 text-[11.5px] font-semibold leading-[1.7];
+    background: var(--surface-sunken);
+    color: var(--text-muted);
   }
 
   /* ---------- 아래 버튼 ---------- */

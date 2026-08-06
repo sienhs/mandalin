@@ -50,3 +50,7 @@
 {"id": "g43", "utterance": "매일 알고리즘 문제 풀고 싶어", "sheet": "full", "intent": "goal", "action": "generate", "note": "8/8 이어도 맞는 칸(학습)이 있으면 막히지 않는다. full 시트의 칸들은 과제가 비어 있어 겹칠 것이 없으므로 generate 다 — 새 칸을 짓지 않고 있는 칸에 담는 경로"}
 {"id": "g44", "utterance": "한 달에 두 번은 서점에 가고 싶어", "intent": "goal", "action": "generate", "frequency": "monthly", "count": 2, "note": "월간 첫 케이스. 예전 어휘에서는 월 1회가 none 으로 내려앉아 표현할 수 없었다. 노트로만 적어 두면 채점되지 않으므로 필드로 박는다"}
 {"id": "g45", "utterance": "주 3회 운동하고 싶어", "sheet": "empty", "intent": "goal", "action": "generate", "frequency": "weekly", "count": 3, "note": "횟수를 명시한 발화. 제목에 '주 3회' 를 넣으면 사용자가 횟수를 고쳤을 때 제목만 남아 서로 다른 말을 한다"}
+{"id": "g53", "utterance": "여자친구 만들고 싶어", "intent": "goal", "action": ["clarify", "generate"], "note": "사적인 영역이어도 본인의 목표다. 실측(2026-08-05)에서 decide 가 out_of_scope 로 거절했다"}
+{"id": "g54", "utterance": "남자친구 만들고 싶어", "intent": "goal", "action": ["clarify", "generate"], "note": "g53 과 같은 모양. 실측에서 classify 가 이 쪽만 chitchat 으로 보냈다"}
+{"id": "g55", "utterance": "돈 많이 모으고 싶어", "intent": "goal", "action": ["clarify", "generate"], "note": "돈도 사적인 영역이지만 본인의 목표다"}
+{"id": "g56", "utterance": "다른 과제 추천해줘", "intent": "goal", "action": ["generate", "clarify"], "note": "직전 제안을 바꿔 달라는 요구. recommend(중복 알림)가 아니고 out_of_scope 도 아니다"}

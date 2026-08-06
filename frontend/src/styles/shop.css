@@ -40,7 +40,10 @@
   }
 
   .shop-item-card {
-    @apply overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md;
+    @apply overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-md;
+    background: var(--surface-card);
+    color: var(--text-strong);
+    border-color: var(--border-hairline);
   }
 
   .shop-item-preview {
@@ -56,7 +59,9 @@
   }
 
   .shop-category-badge {
-    @apply absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[9px] font-extrabold text-slate-700;
+    @apply absolute left-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-extrabold;
+    background: var(--surface-raised);
+    color: var(--text-strong);
   }
 
   .shop-purchase-button {
@@ -64,15 +69,21 @@
   }
 
   .shop-empty {
-    @apply mt-7 grid min-h-80 place-items-center rounded-[22px] bg-white text-sm font-bold text-slate-400;
+    @apply mt-7 grid min-h-80 place-items-center rounded-[22px] text-sm font-bold;
+    background: var(--surface-card);
+    color: var(--text-muted);
   }
 
   .shop-modal-backdrop {
-    @apply fixed inset-0 z-50 grid place-items-center bg-slate-950/50 px-5;
+    @apply fixed inset-0 z-50 grid place-items-center bg-slate-950/60 px-5 backdrop-blur-sm;
   }
 
   .shop-modal {
-    @apply w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-2xl;
+    @apply w-full max-w-md overflow-hidden rounded-[28px];
+    background: var(--surface-card);
+    color: var(--text-strong);
+    border: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-pop);
   }
 
   .shop-modal-preview {
@@ -80,11 +91,13 @@
   }
 
   .shop-modal-close {
-    @apply absolute right-5 top-4 cursor-pointer border-0 bg-transparent text-4xl font-bold leading-none text-slate-400 transition hover:text-slate-600;
+    @apply absolute right-5 top-4 cursor-pointer border-0 bg-transparent text-4xl font-bold leading-none transition hover:opacity-80;
+    color: var(--text-muted);
   }
 
   .shop-purchase-summary {
-    @apply my-5 rounded-[22px] bg-page px-6 py-6;
+    @apply my-5 rounded-[22px] px-6 py-6;
+    background: var(--surface-sunken);
   }
 
   .shop-confirm-button {
