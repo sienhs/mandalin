@@ -132,7 +132,9 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `test_listen.py` | 10 | STT fail-open, 플러그인 import 위치, 언어 기본값 |
 | `test_event_signatures.py` | 8 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
 | `test_hello.py` | 13 | 세션 능력 알림. `voice:false` 필수, LLM 상태와 `BACKENDS` 표의 일치 |
-| `test_single_user_room.py` | 11 | 사용자 1명 + 에이전트 1개. 발신자 대조, 오디오만 구독, `max_participants: 2` |
+| `test_history_reset.py` | 4 | 재입장하면 대화가 초기화되는지. 시트 상태는 남는지, 재입장 핸들러가 실제로 부르는지 |
+| `test_shutdown_reason.py` | 3 | job 종료 사유를 사람 말로 옮기는지. 라이브러리의 `parent process shutdown` 오독 방지 |
+| `test_single_user_room.py` | 12 | 사용자 1명 + 에이전트 1개. 발신자 대조, 오디오만 구독, `max_participants: 2`, 방 수명이 상속이 아닌지 |
 | `test_transcription_registry.py` | 6 | mute/unmute 경합, 중복 시작, 누수 |
 | `test_domain_authority.py` | 6 | 도메인 정본이 시트인지, 없는 칸을 만들지 않는지 |
 | `test_prompts_are_one_folder.py` | 5 | 모델에게 가는 텍스트가 `prompts/` 에만 있는지, 슬롯이 제 자리에 채워지는지 |

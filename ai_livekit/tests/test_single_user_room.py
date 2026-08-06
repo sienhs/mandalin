@@ -178,3 +178,28 @@ def test_the_server_caps_the_room_at_two_participants():
         f"max_participants 가 {room.get('max_participants')!r} 입니다 — "
         "사용자 1명 + 에이전트 1개라 2 여야 합니다"
     )
+
+
+def test_the_room_lifetime_is_ours_not_inherited():
+    """방 수명 = job 수명입니다 — 에이전트는 스스로 나가지 않고 방이 닫혀야 내려갑니다.
+
+    **값이 무엇인지보다 적혀 있는지가 중요합니다.** 비우면 서버 이미지의 기본값을
+    상속하는데 그 값은 이 저장소에 없어서, 버전을 올릴 때 우리 코드 변경 없이 바뀝니다.
+    그래서 값이 아니라 존재와 타입을 봅니다.
+    """
+    config = yaml.safe_load(LIVEKIT_YAML.read_text(encoding="utf-8"))
+    room = config.get("room")
+    assert isinstance(room, dict), "livekit.yaml 에 room 절이 없습니다"
+
+    for key in ("empty_timeout", "departure_timeout"):
+        value = room.get(key)
+        assert isinstance(value, int), (
+            f"{key} 가 {value!r} 입니다 — 비워 두면 서버 이미지의 기본값을 상속합니다. "
+            "그 값은 이 저장소에 없어서 버전을 올릴 때 조용히 바뀝니다"
+        )
+        assert value > 0, f"{key} 가 {value} 입니다 — 0 이면 방이 즉시 닫힙니다"
+
+    assert room["departure_timeout"] <= 60, (
+        f"departure_timeout 이 {room['departure_timeout']}초입니다 — 사람이 나간 뒤에도 "
+        "그만큼 job 프로세스가 남습니다. BOT_MAX_CONCURRENT_ROOMS 를 먼저 정하세요"
+    )

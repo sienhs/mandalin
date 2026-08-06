@@ -40,6 +40,11 @@ room:
   # 끊으므로 수가 늘지 않습니다.
   max_participants: 2
 
+  # 방 수명 = job 수명입니다. 조정 기준은 저장소 루트의 같은 이름 파일에 있습니다 —
+  # 운영에 뜨는 것은 그쪽이고 이 파일은 사본입니다(맨 위 주석).
+  empty_timeout: 300
+  departure_timeout: 20
+
 logging:
   level: info
   # JSON 으로 남깁니다. `docker logs` 를 수집기로 넘길 때 파싱이 됩니다.

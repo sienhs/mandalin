@@ -82,6 +82,14 @@ class Conversation:
         #: 몰려 나와 대화 흐름이 깨집니다. **버리는 것이 기능입니다.**
         self._lock = asyncio.Lock()
 
+    def clear_history(self) -> None:
+        """사용자가 방에 들어올 때마다 부릅니다(`entrypoint.py` 의 재입장 핸들러).
+
+        **목표와 칸은 남깁니다.** 대화가 아니라 시트에서 온 상태라, 같이 비우면 재입장
+        직후의 발화가 목표도 칸도 없이 판단됩니다 — 프론트의 시트 재전송은 그보다 뒤입니다.
+        """
+        self._history.clear()
+
     @property
     def busy(self) -> bool:
         """지금 응답을 만들고 있는가. **이 동안의 발화는 버려집니다**(`respond`).

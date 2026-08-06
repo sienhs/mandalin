@@ -172,6 +172,24 @@ def llm_status(provider: str, api_key: str | None) -> str:
     return "ok"
 
 
+#: 라이브러리의 종료 사유 → 사람 말.
+#:
+#: `parent process shutdown` 은 worker 가 **사유 없이** 종료를 지시했을 때의 기본 문자열
+#: 이라(`job_proc_lazy_main.py`) worker 가 죽은 것처럼 읽힙니다. 실제로는 방이 닫혀 job 이
+#: 회수된 정상 경로가 대부분입니다. 실관측(2026-08-06): 사용자 퇴장 20초 뒤 서버가
+#: `closing idle room {reason: departure timeout}` 을 남기고 이 사유로 job 이 끝났습니다.
+#: 둘을 구분할 단서가 사유에 없으므로 양쪽을 다 적습니다.
+SHUTDOWN_REASONS = {
+    "parent process shutdown": "worker 가 job 을 회수했습니다(방이 닫혔거나 worker 가 내려가는 중)",
+    "room disconnected": "방과의 연결이 끊겼습니다",
+}
+
+
+def shutdown_reason(reason: str) -> str:
+    """모르는 값은 그대로 돌려줍니다 — 라이브러리가 사유를 늘려도 삼키지 않습니다."""
+    return SHUTDOWN_REASONS.get(reason, reason)
+
+
 def sender_is_the_user(identity: str, expected: str, what: str) -> bool:
     """발신자가 이 방의 사용자인가. **아니면 거짓을 돌려주고 경고를 남깁니다.**
 
@@ -304,6 +322,13 @@ async def entrypoint(ctx: JobContext) -> None:
     # 것과 이후 `track_published` 양쪽입니다(`livekit.agents.job._apply_auto_subscribe_opts`).
     # 그래서 아래 `track_subscribed` 배선은 그대로 돕니다.
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+
+    # job 이 왜 끝났는지 우리 로거에도 한 줄 남깁니다. 라이브러리 쪽은 DEBUG 라
+    # 운영에서는 안 보이고, 보이더라도 사유 문자열이 오해를 부릅니다.
+    async def log_shutdown(reason: str) -> None:
+        logger.info("job 종료 — %s", shutdown_reason(reason))
+
+    ctx.add_shutdown_callback(log_shutdown)
 
     settings = get_settings()
     if settings.bot_mode != "goal":
@@ -601,7 +626,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     @ctx.room.on("participant_connected")
     def _on_participant_connected(p: rtc.RemoteParticipant) -> None:
-        """사용자가 **다시 들어오면 알림을 다시 보냅니다.**
+        """사용자가 **다시 들어오면 대화를 초기화하고 알림을 다시 보냅니다.**
 
         텍스트 스트림은 보내는 순간 방에 있는 참가자에게만 갑니다. 위의 첫 `announce()`
         는 job 이 시작될 때 있던 참가자에게만 닿으므로, 브라우저가 재접속하면 **그 세션은
@@ -619,7 +644,12 @@ async def entrypoint(ctx: JobContext) -> None:
         """
         if p.identity != user_identity:
             return
-        logger.info("사용자 재입장 identity=%s — 입장 알림을 다시 보냅니다", p.identity)
+        # 들어올 때마다 새 대화로 시작합니다. 안 지우면 AI 만 이전 대화를 기억하고
+        # 화면은 비어 있습니다 — 브라우저의 로그는 새로고침에 사라지니까요.
+        conversation.clear_history()
+        logger.info(
+            "사용자 재입장 identity=%s — 대화를 초기화하고 알림을 다시 보냅니다", p.identity
+        )
         spawn(announce())
 
     logger.info(
