@@ -66,12 +66,14 @@
   }
 
   .group-setup-viewtab:hover {
-    @apply text-ink-700;
+    color: var(--text-strong);
   }
 
   /* 보고 있는 쪽. 클래스 대신 aria-pressed 를 선택자로 쓴다. */
   .group-setup-viewtab[aria-pressed='true'] {
-    @apply bg-white text-ink-900;
+    @apply rounded-lg;
+    background: var(--surface-card);
+    color: var(--text-strong);
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
   }
 
@@ -86,7 +88,7 @@
   /* ---------- 상단 안내 카드 (취소 · 저장 버튼을 함께 담는다) ---------- */
   .group-setup-banner {
     @apply mb-4 flex items-center justify-between gap-5 rounded-2xl px-5 py-4;
-    background: #f3f0fc;
+    background: var(--surface-sunken);
   }
 
   /* 안내 문구 · 그룹 이름 입력이 들어가는 왼쪽 묶음 */
@@ -95,7 +97,8 @@
   }
 
   .group-setup-banner-title {
-    @apply m-0 block text-[15px] font-extrabold tracking-[-0.01em] text-ink-900;
+    @apply m-0 block text-[15px] font-extrabold tracking-[-0.01em];
+    color: var(--text-strong);
   }
 
   .group-setup-banner-desc {

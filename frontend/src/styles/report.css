@@ -2,14 +2,14 @@
 
 .report-page {
   min-height: 100vh;
-  background: #f4f7f9;
-  color: #172033;
+  background: var(--surface-page);
+  color: var(--text-strong);
 }
 
 .report-page > .app-header {
   position: relative;
   z-index: 10;
-  background: #fff;
+  background: var(--surface-card);
 }
 
 .report-main {
@@ -47,6 +47,7 @@
   margin: 0;
   font-size: 22px;
   letter-spacing: -0.04em;
+  color: var(--text-strong);
 }
 
 .report-content,
@@ -61,19 +62,19 @@
   min-height: 260px;
   place-content: center;
   justify-items: center;
-  border: 1px solid #e1e7eb;
+  border: 1px solid var(--border-hairline);
   border-radius: 18px;
-  background: #fff;
-  color: #334155;
+  background: var(--surface-card);
+  color: var(--text-strong);
   text-align: center;
-  box-shadow: 0 10px 24px rgba(51, 65, 85, 0.1);
+  box-shadow: var(--shadow-card);
 }
 
 .report-error p,
 .report-empty p {
   max-width: 520px;
   margin: 10px 24px 18px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -104,10 +105,11 @@
 .report-chart,
 .report-loading-card,
 .report-skeleton {
-  border: 1px solid rgba(222, 230, 235, 0.78);
+  border: 1px solid var(--border-hairline);
   border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(51, 65, 85, 0.1);
+  background: var(--surface-card);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-card);
 }
 
 .report-summary {
@@ -118,6 +120,7 @@
   align-items: center;
   gap: 26px;
   padding: 26px;
+  background: var(--surface-sunken);
 }
 
 .report-summary::after {

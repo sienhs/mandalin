@@ -676,7 +676,7 @@ export default function Coach() {
               placeholder={ready ? '이루고 싶은 것을 적어보세요' : `${status}…`}
               aria-label="코치에게 보낼 메시지"
               disabled={!ready}
-              className="h-11 min-w-0 flex-1 rounded-full border bg-[var(--surface-sunken)] px-4 text-sm font-semibold outline-none transition-colors focus:border-brand-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-11 min-w-0 flex-1 rounded-full border bg-[var(--surface-sunken)] px-4 text-sm font-semibold text-[var(--text-strong)] outline-none transition-colors focus:border-brand-400 disabled:cursor-not-allowed disabled:opacity-60"
               style={{ borderColor: 'var(--border-hairline)' }}
             />
 

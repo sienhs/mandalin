@@ -263,6 +263,7 @@
   .card {
     @apply rounded-card;
     background: var(--surface-card);
+    color: var(--text-strong);
     border: 1px solid var(--border-hairline);
     box-shadow: var(--shadow-card);
   }
@@ -282,6 +283,7 @@
 
   .section-title {
     @apply text-base font-bold tracking-[-0.02em];
+    color: var(--text-strong);
   }
 
   .hairline {
