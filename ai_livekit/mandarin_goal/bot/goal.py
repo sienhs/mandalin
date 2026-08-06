@@ -789,6 +789,7 @@ class GoalPipeline:
                 ),
                 history,
                 CLASSIFY_SCHEMA,
+                temperature=self._settings.bot_classify_temperature,
             ),
         )
 
@@ -881,6 +882,7 @@ class GoalPipeline:
                 turns,
                 GOAL_SCHEMA,
                 max_output_tokens=self._settings.bot_goal_max_output_tokens,
+                temperature=self._settings.bot_decide_temperature,
             ),
         )
         logger.info(

@@ -60,6 +60,7 @@ class FakeBackend:
         schema: dict,
         *,
         max_output_tokens: int | None = None,
+        **_,
     ) -> dict:
         if "intent" in schema.get("properties", {}):
             return {"intent": "goal", "domain": self._classified_domain}
