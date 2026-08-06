@@ -41,7 +41,7 @@ function tilePath(w = TW, h = TH): string {
 }
 
 function shade(hex: string, amount: number): string {
-  const n = parseInt(hex.slice(1), 16)
+  const n = Number.parseInt(hex.slice(1), 16)
   const r = (n >> 16) & 255
   const g = (n >> 8) & 255
   const b = n & 255

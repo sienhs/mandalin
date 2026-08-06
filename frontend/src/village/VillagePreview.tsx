@@ -209,7 +209,7 @@ export function VillagePreview({ sheet, className }: Props) {
   const shotKey = useMemo(() => {
     const placed = Object.entries(overrides)
       .map(([k, v]) => `${k}:${v.building}`)
-      .sort()
+      .sort((a, b) => a.localeCompare(b))
       .join(',')
     const progress = mandalart.domains
       .map((d) => d.tasks.map((t) => t.progress).join('.'))
