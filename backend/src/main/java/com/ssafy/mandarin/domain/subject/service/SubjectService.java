@@ -76,8 +76,10 @@ public class SubjectService {
             LocalDateTime updatedAt = subject.getUpdatedAt();
 
             // 이번 주기(오늘 / 이번 주)에 이미 체크했는지. 완료 API 의 중복 방지 규칙과 같은 기준이다.
+            // tryCount > 0 을 함께 확인해 생성 직후 과제를 "오늘 완료"로 오인하는 버그를 방지한다.
+            boolean hasTried = subject.getTryCount() != null && subject.getTryCount() > 0;
             boolean donePeriod = false;
-            if (updatedAt != null) {
+            if (updatedAt != null && hasTried) {
                 LocalDate updatedDate = updatedAt.toLocalDate();
                 if (subject.getPeriod() == SubjectPeriod.DAILY) {
                     donePeriod = updatedDate.isEqual(today);

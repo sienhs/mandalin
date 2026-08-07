@@ -354,7 +354,14 @@ public class SheetService {
                     doneSubjects++;
                 }
 
-                boolean isDoneToday = (subject.getUpdatedAt() != null)
+                /*
+                  생성 직후 과제는 tryCount = 0 이지만 updatedAt 이 오늘로 세팅된다.
+                  tryCount > 0 조건을 함께 확인해 실제 수행한 적 없는 과제를
+                  "오늘 완료"로 오인하는 버그를 방지한다.
+                */
+                boolean isDoneToday = subject.getTryCount() != null
+                        && subject.getTryCount() > 0
+                        && subject.getUpdatedAt() != null
                         && subject.getUpdatedAt().toLocalDate().isEqual(today);
 
                 /*
