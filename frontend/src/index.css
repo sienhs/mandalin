@@ -204,7 +204,7 @@
 
   ::selection {
     background: #3867D2;
-    color: #fff;
+    color: var(--color-ink-900);
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -93,7 +93,7 @@ body {
   border-radius: 6px;
 }
 
-::selection { background: var(--color-brand-200); color: #fff; }
+::selection { background: var(--color-brand-200); color: #1a1815; }
 
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
