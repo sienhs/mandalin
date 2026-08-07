@@ -37,6 +37,20 @@ type Props = {
    * "무엇이 얼마나 찼는지"는 여전히 보인다.
    */
   headingsOnly?: boolean
+  /**
+   * 안내(오버레이 투어)가 <b>격자의 한 겹만</b> 가리킬 수 있게 자리를 잡아 준다.
+   *
+   * <p>81칸은 9x9 로 한 줄씩 늘어놓은 것이라, "가운데 블록 3x3" 처럼 <b>블록 하나</b>에
+   * 해당하는 요소가 DOM 에 없다. 안내는 요소 하나의 사각형에 구멍을 뚫으므로 가리킬 것이
+   * 없으면 격자 전체를 감싸는 수밖에 없고, 그러면 세 겹을 따로 설명할 수 없다.
+   *
+   * <p>그래서 <b>보이지 않는 표식</b>을 겹쳐 둔다. `position:absolute` 라 격자 배치에서
+   * 아예 빠지고(그리드 항목이 아니다), 클릭도 받지 않는다 — 81칸의 자리·크기·조작은 그대로다.
+   *
+   * <p>편집기에서만 켠다. 목록 카드나 상세 화면에도 같은 격자가 뜨는데, 같은 표식이 여러 개면
+   * 안내가 엉뚱한 격자에 구멍을 뚫는다.
+   */
+  tourAnchors?: boolean
   className?: string
 }
 
@@ -51,6 +65,7 @@ export default function MandalartGrid({
   isLocked,
   mini,
   headingsOnly,
+  tourAnchors,
   className,
 }: Props) {
   const cells = useMemo(() => {
@@ -166,7 +181,7 @@ export default function MandalartGrid({
   return (
     <div
       className={cn(
-        'grid aspect-square w-full select-none grid-cols-9 grid-rows-9',
+        'relative grid aspect-square w-full select-none grid-cols-9 grid-rows-9',
         /*
           글자 크기를 격자 자신의 폭에 맞춘다(아래 cqw). 예전에는 vw 를 썼는데, 그건
           격자가 화면 폭을 거의 다 쓸 때만 맞는 가정이다 — 소개 페이지처럼 격자를 작게
@@ -210,6 +225,8 @@ export default function MandalartGrid({
             key={cell.key}
             type="button"
             disabled={!interactive}
+            /* 가운데 한 칸은 그 자체가 요소라 따로 표식을 겹칠 것 없이 여기에 붙인다. */
+            data-tour={tourAnchors && cell.isCore ? 'grid-core' : undefined}
             /*
               칸이 좁아 글자가 세 줄에서 잘린다(line-clamp-3). 예전에는 hover 확대가 그걸
               메우는 역할을 겸했는데, 확대를 걷어냈으므로 전체 문구는 툴팁으로 보여 준다.
@@ -285,6 +302,27 @@ export default function MandalartGrid({
           </button>
         )
       })}
+
+      {/*
+        블록 하나를 덮는 표식. 3분의 1씩 잘라 놓으면 칸 사이 여백(2~3px)만큼 어긋나는데,
+        안내가 구멍에 여백을 더해 뚫으므로 눈에 띄지 않는다.
+      */}
+      {tourAnchors && (
+        <>
+          {/* 가운데 블록 — 핵심 목표 한 칸과 그 둘레의 세부 목표 8칸 */}
+          <span
+            aria-hidden="true"
+            data-tour="grid-domains"
+            className="pointer-events-none absolute left-1/3 top-1/3 h-1/3 w-1/3"
+          />
+          {/* 바깥 블록 하나 — 세부 목표 한 개와 그에 딸린 실천 과제 8칸 */}
+          <span
+            aria-hidden="true"
+            data-tour="grid-subjects"
+            className="pointer-events-none absolute left-0 top-0 h-1/3 w-1/3"
+          />
+        </>
+      )}
     </div>
   )
 }

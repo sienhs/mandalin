@@ -4,6 +4,26 @@ import type { WeeklyReport } from '../data/types'
 import Button from '../components/common/ActionButton'
 import { Badge, EmptyState, ErrorState, ProgressBar, Skeleton, domainColor } from '../components/common/Primitives'
 
+const SEOUL_TIME_ZONE = 'Asia/Seoul'
+
+/** 서울의 오늘을 끝으로 하는 최근 7일 범위(오늘 포함). */
+function recentSevenDaysInSeoul(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SEOUL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value)
+  const end = new Date(Date.UTC(value('year'), value('month') - 1, value('day')))
+  const start = new Date(end)
+  start.setUTCDate(start.getUTCDate() - 6)
+  const format = (date: Date) => date.toISOString().slice(0, 10)
+
+  return `${format(start)} ~ ${format(end)}`
+}
+
 export default function Report() {
   const { gateway, details } = useStore()
   const [report, setReport] = useState<WeeklyReport | null>(null)
@@ -60,11 +80,6 @@ export default function Report() {
             지난 실천 기록을 모아 무엇이 잘 되고 어디서 멈췄는지 정리해 드려요.
           </p>
         </div>
-        {report && (
-          <Button variant="secondary" onClick={() => void create()} disabled={creating}>
-            {creating ? '분석 중…' : '다시 분석하기'}
-          </Button>
-        )}
       </header>
 
       {loading || creating ? (
@@ -120,7 +135,7 @@ export default function Report() {
               className="absolute -right-12 -top-12 size-56 rounded-full bg-white/10"
             />
             <span className="relative inline-flex rounded-full bg-white/20 px-3 py-1.5 text-[11.5px] font-extrabold text-white">
-              이번 주 요약
+              {recentSevenDaysInSeoul()}
             </span>
             <h2 className="relative m-0 mt-4 max-w-xl text-[clamp(20px,3vw,28px)] font-black leading-snug tracking-[-0.04em] text-white">
               {report.title}
@@ -130,7 +145,7 @@ export default function Report() {
             </p>
 
             {report.metrics.length > 0 && (
-              <dl className="relative mt-7 grid max-w-lg gap-4 sm:grid-cols-3">
+              <dl className="relative mt-7 grid max-w-lg gap-4 sm:grid-cols-2">
                 {report.metrics.map((m) => (
                   <div key={m.label} className="rounded-2xl bg-white/[.14] px-4 py-3.5 backdrop-blur">
                     <dt className="text-[11.5px] font-bold text-white/70">{m.label}</dt>

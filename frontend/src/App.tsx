@@ -2,6 +2,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { StoreProvider } from './data/store'
 import { ToastProvider } from './components/common/Toast'
 import { UnsavedGuardProvider } from './components/common/UnsavedGuard'
+import { TourProvider } from './features/tour/TourProvider'
 import AppRoutes from './routes/AppRoutes'
 
 /**
@@ -19,6 +20,10 @@ import AppRoutes from './routes/AppRoutes'
  *
  * <p>`UnsavedGuardProvider` 는 라우터 안이어야 한다 — 이탈을 확인한 뒤 직접 이동시키려고
  * `useNavigate` 를 쓴다. 확인 팝업이 본문 위에 뜨도록 라우트보다 바깥에 둔다.
+ *
+ * <p>`TourProvider` 는 가장 안쪽이다. 오버레이 안내는 <b>화면 요소를 가리키므로</b> 그
+ * 요소들보다 위에 떠야 하고(라우트 바깥), 안내를 시작하는 버튼은 라우트 안(상단 바·각
+ * 페이지)에 있어서 이 컨텍스트를 볼 수 있어야 한다.
  */
 function App() {
   return (
@@ -26,7 +31,9 @@ function App() {
       <ToastProvider>
         <StoreProvider>
           <UnsavedGuardProvider>
-            <AppRoutes />
+            <TourProvider>
+              <AppRoutes />
+            </TourProvider>
           </UnsavedGuardProvider>
         </StoreProvider>
       </ToastProvider>

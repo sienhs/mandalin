@@ -65,6 +65,18 @@ export default function Home() {
 
   const doneToday = todos.data.filter((t) => t.isDoneToday).length
 
+  /*
+    홈 안내(8단계)는 <b>저절로 뜨지 않는다.</b>
+
+    로그인 직후에는 설명 팝업(`OnboardingTour`)이 이미 화면 한가운데에 떠 있는데, 여기서
+    안내를 자동으로 시작하면 팝업과 오버레이가 <b>동시에</b> 뜬다 — 처음 온 사람이 두 벌의
+    "다음/건너뛰기" 를 한 화면에서 마주하게 된다. 팝업이 끝난 뒤로 미뤄도 결국 안내를 두 번
+    연달아 미는 것이라 마찬가지다.
+
+    대신 팝업의 마지막 장이 상단 물음표 버튼을 가리키며 끝나고(`welcome` 안내), 홈 안내는
+    거기서 <b>골라서</b> 보는 것이 된다. 목록에는 아직 안 본 안내에 NEW 가 붙어 있다.
+  */
+
   const overall = useMemo(() => {
     const all = detailList.flatMap((s) => s.domains?.flatMap((d) => d.subjects) ?? [])
     return domainProgress(all)
@@ -145,7 +157,10 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-5">
       {/* ───────── 요약 ───────── */}
-      <section className="card animate-rise flex flex-wrap items-center gap-6 p-6 sm:p-7">
+      <section
+        data-tour="home-summary"
+        className="card animate-rise flex flex-wrap items-center gap-6 p-6 sm:p-7"
+      >
         <ProgressRing
           value={overall}
           size={96}
@@ -191,6 +206,7 @@ export default function Home() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-stretch">
         {/* ───────── 오늘의 할 일 ───────── */}
         <section
+          data-tour="home-todos"
           className="card animate-rise flex flex-col p-6 lg:h-full"
           style={{ animationDelay: '.06s' }}
         >
@@ -316,7 +332,11 @@ export default function Home() {
         </section>
 
         {/* ───────── 내 마을 ───────── */}
-        <section className="card animate-rise flex flex-col p-6" style={{ animationDelay: '.12s' }}>
+        <section
+          data-tour="home-village"
+          className="card animate-rise flex flex-col p-6"
+          style={{ animationDelay: '.12s' }}
+        >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="section-title m-0">내 마을</h2>

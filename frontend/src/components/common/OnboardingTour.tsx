@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../data/store'
+import { useTour } from '../../features/tour/TourProvider'
 import Button from './ActionButton'
 import Modal from './Modal'
 import { cn } from '../../utils/cn'
@@ -52,7 +52,7 @@ const STEPS = [
       </div>
     ),
     title: '② 매일 과제를 체크합니다',
-    body: '과제를 한 번 완료할 때마다 10P가 쌓이고, 만다라트 칸이 아래에서부터 색으로 차오릅니다.',
+    body: '과제를 한 번 완료할 때마다 포인트가 쌓이고, 만다라트 칸이 아래에서부터 색으로 차오릅니다.',
   },
   {
     art: (
@@ -76,7 +76,7 @@ const STEPS = [
 
 export default function OnboardingTour() {
   const { finishOnboarding } = useStore()
-  const navigate = useNavigate()
+  const { start } = useTour()
   const [step, setStep] = useState(0)
   const last = step === STEPS.length - 1
   const current = STEPS[step]
@@ -102,15 +102,21 @@ export default function OnboardingTour() {
           >
             이전
           </Button>
+          {/*
+            <b>마지막 장에서 끊지 않는다.</b> ①②③ 은 "이 서비스가 무엇인가" 까지고, 그 다음
+            질문("그래서 이 화면은 어떻게 쓰나")의 답이 있는 곳은 상단 바의 물음표 버튼이다.
+            여기서 팝업을 닫으면서 곧바로 그 버튼을 가리키는 오버레이 안내로 넘긴다 —
+            같은 '다음' 을 세 번 누른 흐름 그대로 네 번째를 누르면 화면 위로 옮겨 간다.
+          */}
           {last ? (
             <Button
               size="sm"
               onClick={() => {
                 finishOnboarding()
-                navigate('/app/sheets/new')
+                start('welcome')
               }}
             >
-              첫 만다라트 만들기
+              다음
             </Button>
           ) : (
             <Button size="sm" onClick={() => setStep((s) => s + 1)}>

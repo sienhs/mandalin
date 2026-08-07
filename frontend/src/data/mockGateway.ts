@@ -1148,7 +1148,6 @@ function buildMockReport(): WeeklyReport {
     metrics: [
       { label: '누적 실천', value: `${tried}회` },
       { label: '완료한 과제', value: `${completed}개` },
-      { label: '보유 포인트', value: `${state.user.point}P` },
     ],
     strengths: ranked.slice(0, 3).map((r) => `${r.label} — ${r.value}% 달성`),
     improvements: ranked
