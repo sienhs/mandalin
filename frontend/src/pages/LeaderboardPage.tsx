@@ -117,7 +117,16 @@ export default function Leaderboard() {
                       style={{ borderColor: 'var(--border-hairline)' }}
                       aria-label={`좋아요 ${entry.likeCount}`}
                     >
-                      <IconHeart className="size-[17px]" />
+                      {/*
+                        하트만 색을 채운다. 이 줄에서 순위를 가르는 값이 좋아요 수인데,
+                        선 아이콘에 흐린 회색이면 옆의 다른 회색 글자와 구분되지 않아
+                        숫자가 무엇을 세는지 한 번 읽어야 알 수 있었다.
+
+                        `fill` 은 아이콘 자신의 `fill="none"` 속성을 눌러야 하므로 클래스로
+                        준다(CSS 가 표현 속성을 이긴다). 색은 상세 화면의 좋아요 버튼과 같은
+                        rose 다 — 같은 것을 세는 자리라 색까지 같아야 한 벌로 읽힌다.
+                      */}
+                      <IconHeart className="size-[17px] fill-rose-500 text-rose-500" />
                       {num(entry.likeCount)}
                     </span>
                   </article>
