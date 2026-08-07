@@ -26,6 +26,10 @@
   --color-brand-600: #e8390c;
   --color-brand-700: #c1280c;
 
+  /* 상태 점의 "아직 아님" 색. 프론트가 `bg-ink-300` 을 쓰는 자리입니다 — 회색 텍스트색
+     (`--text-muted`)을 쓰면 점이 글자와 같은 무게로 읽혀 상태로 안 보입니다. */
+  --color-ink-300: #d3cdc3;
+
   /* ── 도메인 8색. 만다라트 칸·마을 건물·리포트 막대가 공유하는 값입니다 ── */
   --d1: #e8590c;
   --d2: #d9480f;
@@ -36,11 +40,21 @@
   --d7: #c2255c;
   --d8: #f08c00;
 
-  --emerald: #10b981;
-  --red: #e03131;
+  /*
+   * 브랜드 밖의 두 색. **Tailwind 기본 팔레트의 값입니다** — 프론트가 이 자리에
+   * `text-emerald-500` · `bg-red-500` 처럼 유틸로 쓰기 때문에, 토큰으로 옮겨 적을 때
+   * 앱 팔레트(`--color-alert: #e03131`)를 끌어오면 같은 자리가 다른 빨강이 됩니다.
+   */
+  --emerald: #10b981;       /* emerald-500 — 담긴 과제 체크, 준비됨 점 */
+  --emerald-deep: #047857;  /* emerald-700 — 채운 배지의 그라데이션 끝 */
+  --red: #ef4444;           /* red-500 — 경고 문구, 듣는 중 마이크 */
 
   /* ── 표면 토큰 (프론트의 :root 와 같은 값) ── */
-  --surface-page: #f2f0ec;
+  /* **흰색입니다.** 프론트가 소개 페이지와 앱의 바탕을 맞추려고 바꿨고(저쪽 `:root` 주석),
+     카드는 이제 배경색이 아니라 테두리와 그림자로 떠 보입니다 — 그래서 `--surface-card` 와
+     값이 같습니다. 여기를 `#f2f0ec`(옛 `--color-bg-app`)로 두면 카드가 실제보다 도드라져,
+     프론트에서 밋밋해 보이는 화면을 여기서는 괜찮다고 판단하게 됩니다. */
+  --surface-page: #ffffff;
   --surface-card: #ffffff;
   --surface-sunken: #f2f0ec;
   --border-hairline: #e6e2db;
@@ -76,6 +90,20 @@
 
 * { box-sizing: border-box; }
 
+/*
+ * **`hidden` 이 이기게 둡니다.**
+ *
+ * `hidden` 은 브라우저 기본 스타일시트의 `display: none` 으로 동작하는데, 그건 우리가 쓴
+ * 규칙보다 약합니다 — `.badge { display: inline-flex }` 처럼 display 를 정해 둔 요소에
+ * `hidden` 을 걸면 **아무 일도 일어나지 않습니다.** 이 화면에서 `hidden` 으로 여닫는 것은
+ * 배지·"다시 연결"·"새 메시지"·세부 목표 목록이고 넷 다 display 를 갖고 있습니다.
+ *
+ * `!important` 는 이 규칙이 위 네 개보다 뒤에 오는지에 기대지 않으려는 것입니다 —
+ * 순서로 이기게 두면 나중에 규칙을 옮겨 적었을 때 조용히 다시 깨집니다.
+ * (Tailwind 도 같은 이유로 `[hidden]:where(:not([hidden='until-found']))` 를 둡니다.)
+ */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   min-height: 100svh;
@@ -93,7 +121,9 @@ body {
   border-radius: 6px;
 }
 
-::selection { background: var(--color-brand-200); color: #1a1815; }
+/* 브랜드색이 아닌 파랑입니다 — 프론트의 값(`index.css` 의 `::selection`)을 그대로 씁니다.
+   오렌지로 칠하면 선택 영역이 주요 버튼과 같은 색이 되어 "선택됨" 이 "누를 것" 으로 읽힙니다. */
+::selection { background: #3867D2; color: #1a1815; }
 
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -202,14 +232,26 @@ svg {
   background: var(--surface-sunken);
   color: var(--text-muted);
 }
-/* 연결 상태는 색으로 구분합니다. `app.js` 의 `setStatus(text, kind)` 가 붙입니다. */
-.badge.on { background: color-mix(in srgb, var(--emerald) 12%, transparent); color: #059669; }
-.badge.busy { background: color-mix(in srgb, var(--color-brand-500) 12%, transparent); color: var(--color-brand-600); }
-.badge.off { background: var(--surface-sunken); color: var(--text-muted); }
-@media (prefers-color-scheme: dark) {
-  .badge.on { color: #34d399; }
-  .badge.busy { color: var(--color-brand-400); }
+/*
+ * 연결 상태는 색으로 구분합니다. `app.js` 의 `setStatus(text, kind)` 가 붙입니다.
+ *
+ * **색이 있는 배지는 채운 그라데이션 + 흰 글자입니다.** 예전에는 옅은 반투명 배경
+ * (`brand-500 12%`)에 같은 계열 진한 글자였는데, 카드 위에서는 배경이 거의 사라져 글자만
+ * 뜬 것처럼 보였습니다 — 프론트가 그래서 바꿨고 이유를 `Primitives.tsx` 의 `Badge` 에
+ * 적어 두었습니다. 채운 배지는 카드·페이지 어디에 놓아도 같은 무게로 읽힙니다.
+ *
+ * 회색(off)은 강조가 아니라 바탕이라 그대로 둡니다. 흰 글자는 라이트·다크에서 모두
+ * 읽히므로 다크 모드 보정도 필요 없습니다(전에는 두 줄이 있었습니다).
+ */
+.badge.on {
+  background: linear-gradient(to bottom right, var(--emerald), var(--emerald-deep));
+  color: #fff;
 }
+.badge.busy {
+  background: linear-gradient(to bottom right, var(--color-brand-500), var(--color-brand-700));
+  color: #fff;
+}
+.badge.off { background: var(--surface-sunken); color: var(--text-muted); }
 
 /* ── 버튼 ──────────────────────────────────────────────────────────── */
 .btn {
@@ -268,7 +310,7 @@ svg {
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s, background 0.2s;
@@ -283,11 +325,18 @@ svg {
 }
 .icon-btn.send:hover:not(:disabled) { background: var(--color-brand-500); }
 .icon-btn.send:disabled { opacity: 0.4; }
-/* 듣는 중에는 눈에 띄어야 합니다 — 켜 둔 시간이 곧 요금입니다. */
+/*
+ * 듣는 중에는 눈에 띄어야 합니다 — 켜 둔 시간이 곧 요금입니다.
+ *
+ * **채운 빨강입니다.** 예전의 옅은 초록(에메랄드 14%)은 두 가지가 어긋났습니다 —
+ * 옅은 판이라 켜졌는지 흘깃 봐서는 알기 어렵고, 초록은 이 화면에서 "담김 · 준비됨" 이라는
+ * 뜻으로 이미 쓰입니다(체크 아이콘, 상태 점). 녹음 중을 빨강으로 두는 것이 관례이기도
+ * 하고, 프론트도 `bg-red-500 text-white` 로 같은 판단을 했습니다.
+ */
 .icon-btn.active {
-  background: color-mix(in srgb, var(--emerald) 14%, transparent);
-  border-color: var(--emerald);
-  color: #059669;
+  background: var(--red);
+  border-color: transparent;
+  color: #fff;
 }
 
 /* ── 입력 ──────────────────────────────────────────────────────────── */
@@ -295,7 +344,7 @@ svg {
   width: 100%;
   height: 44px;
   min-width: 0;
-  padding: 0 14px;
+  padding: 0 16px;
   border: 1px solid var(--border-hairline);
   border-radius: 12px;
   background: var(--surface-card);
@@ -308,6 +357,9 @@ svg {
 }
 .input::placeholder { color: var(--text-muted); font-weight: 500; }
 .input:focus { border-color: var(--color-brand-400); }
+/* 방에 붙기 전에는 잠겨 있습니다. 잠긴 것을 눈에 보이게 두지 않으면 눌러 놓고 왜 안 써지는지
+   찾게 됩니다 — placeholder 에는 그동안 연결 상태가 들어갑니다(`app.js`). */
+.input:disabled { cursor: not-allowed; opacity: 0.6; }
 .input.pill { border-radius: 999px; background: var(--surface-sunken); flex: 1; }
 
 /* ── 대화 카드 ─────────────────────────────────────────────────────── */
@@ -335,6 +387,10 @@ svg {
   background: linear-gradient(to bottom right, var(--color-brand-500), var(--color-brand-700));
   color: #fff;
 }
+/* 답을 만드는 동안 머리의 표시도 같이 숨을 쉽니다(프론트는 `thinking && animate-pulse`).
+   점 하나만 깜빡이면 카드 위쪽에서는 눈에 안 들어옵니다. */
+.coach-mark.busy { animation: pulse 1.6s ease-in-out infinite; }
+
 .chat-who { min-width: 0; }
 .chat-who strong {
   display: block;
@@ -349,48 +405,59 @@ svg {
   font-size: 11.5px;
   font-weight: 700;
 }
-.dot { width: 6px; height: 6px; border-radius: 999px; background: var(--text-muted); }
+/* 세 갈래뿐입니다 — 프론트의 `thinking ? busy : ready ? emerald : ink-300` 과 같습니다. */
+.dot { width: 6px; height: 6px; border-radius: 999px; background: var(--color-ink-300); }
 .dot.ready { background: var(--emerald); }
 .dot.busy { background: var(--color-brand-500); animation: pulse 1.6s ease-in-out infinite; }
-.chat-head .badge { margin-left: auto; }
+/* 배지와 "다시 연결" 이 같은 자리를 번갈아 씁니다(둘 중 하나만 보입니다). */
+.chat-head .badge,
+.chat-head .btn { margin-left: auto; }
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /*
- * 캐릭터. 프론트 `styles/ai-coach.css` 의 `.ai-coach-figure` 와 같은 규격입니다 —
- * 말풍선 바로 위에 서고, 창이 낮으면 그림이 먼저 양보합니다(안 그러면 낮은 창에서
- * 말풍선 자리가 0 이 됩니다).
- *
- * **좌우로 뒤집지 않습니다.** 대화가 바로 아래라 볼 방향이 옆이 아닙니다 — 뒤집으면
- * 그림이 바깥 여백을 보게 됩니다(저쪽 주석과 같은 이유).
+ * 대화 칸. **스크롤은 안쪽(`.msgs`)이 맡고, 감싼 쪽은 "새 메시지" 버튼을 띄울 기준만
+ * 잡습니다** — 스크롤되는 요소에 `position: relative` 를 걸고 버튼을 넣으면 버튼이
+ * 내용과 같이 굴러 올라가 버립니다(프론트도 같은 이유로 두 겹입니다).
  */
-.coach-figure {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  height: clamp(96px, 17vh, 190px);
-  flex: none;
-  padding-top: 14px;
-}
-.coach-figure img {
-  max-height: 100%;
-  max-width: 100%;
-  object-fit: contain;
-  transition: transform 0.25s ease, opacity 0.25s ease;
-}
-.coach-figure[data-state='thinking'] img { animation: bob 1.4s ease-in-out infinite; }
-.coach-figure[data-state='answering'] img { transform: scale(1.04); }
-@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.msgs-wrap { position: relative; flex: 1; min-height: 0; }
 
 .msgs {
-  flex: 1;
-  min-height: 0;
+  height: 100%;
   overflow-y: auto;
-  padding: 20px;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
+
+/*
+ * 바닥을 벗어난 사이에 새 메시지가 오면 알립니다. **끌어내리지 않습니다** — 읽던 자리를
+ * 뺏기지 않고 사용자가 내려갈지 정합니다(프론트의 같은 버튼).
+ */
+.jump {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  margin: 0 auto;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-brand-600);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s var(--ease-out-quint);
+}
+.jump:hover { transform: translateY(-2px); }
 /* 말풍선이 너무 넓으면 눈이 줄을 놓칩니다. 제안 카드 두 장이 나란히 들어갈 만큼만. */
 .msgs > * { max-width: 860px; width: 100%; margin: 0 auto; }
 
@@ -412,6 +479,8 @@ svg {
 
 /* AI 말 — 왼쪽, 작은 코치 아이콘 + 가라앉은 배경 */
 .turn-ai { display: flex; gap: 10px; }
+/* 머리의 `.coach-mark` 와 같은 그라데이션입니다. 옅은 반투명 판(brand 12%)이었을 때는
+   말풍선 옆에서 아이콘만 떠 보여 같은 코치라는 것이 안 읽혔습니다 — `.badge` 와 같은 이유. */
 .coach-mini {
   display: grid;
   place-items: center;
@@ -419,8 +488,8 @@ svg {
   height: 32px;
   flex: none;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
-  color: var(--color-brand-600);
+  background: linear-gradient(to bottom right, var(--color-brand-500), var(--color-brand-700));
+  color: #fff;
 }
 .turn-ai p {
   margin: 0;
@@ -434,23 +503,48 @@ svg {
   white-space: pre-wrap;
   word-break: break-word;
 }
-@media (prefers-color-scheme: dark) { .coach-mini { color: var(--color-brand-400); } }
 
-/* 시스템·경고 줄. 대화가 아니라 배선 상태라 말풍선을 주지 않습니다. */
+/*
+ * 시스템·경고 줄. 대화가 아니라 배선 상태라 말풍선을 주지 않습니다.
+ *
+ * **가운데 정렬입니다.** 왼쪽에 붙여 두면 AI 말풍선과 같은 줄에서 시작해 코치가 한 말처럼
+ * 읽힙니다 — 사용자가 서버 사정을 코치의 대답으로 받아들인 적이 있어서 프론트가 가운데로
+ * 옮겼습니다(`AiCoachPage.tsx` 의 같은 자리 주석).
+ *
+ * 경고는 **빨강**입니다. 브랜드 오렌지로 두면 담기 버튼·내 말풍선과 같은 색이라 경고가
+ * 강조로 읽힙니다. 흰 글자가 아니라 글자색만 바꾸므로 다크에서도 그대로 읽힙니다.
+ */
+/* **`margin` 을 적지 않습니다.** `div` 라 기본 여백이 없고, 여기에 `margin: 0` 을 쓰면
+   위 `.msgs > *` 의 `margin: 0 auto`(같은 특이도라 뒤에 오는 이쪽이 이깁니다)를 덮어써서
+   카드가 860px 보다 넓을 때 이 줄만 왼쪽으로 붙습니다. */
 .turn-sys {
-  display: flex;
-  gap: 6px;
-  padding-left: 42px;
+  text-align: center;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-muted);
   line-height: 1.5;
 }
-.turn-sys.warn { color: var(--color-brand-600); }
-@media (prefers-color-scheme: dark) { .turn-sys.warn { color: var(--color-brand-400); } }
+.turn-sys.warn { color: var(--red); }
+
+/* 진행 중인 전사문. **지워질 글자**라 로그와 다르게 보여야 합니다 — 내 말과 같은 자리·같은
+   모양이되 채우지 않고 점선 테두리만 둡니다(프론트도 같은 모양입니다). */
+.turn-caption { display: flex; justify-content: flex-end; }
+.turn-caption p {
+  margin: 0;
+  max-width: 80%;
+  padding: 12px 16px;
+  border: 1px dashed var(--color-brand-400);
+  border-radius: 18px 18px 6px 18px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.625;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* 생각 중 — 프론트와 같은 점 세 개 */
-.thinking { display: flex; gap: 6px; padding-left: 42px; }
+.thinking { display: flex; gap: 6px; padding-left: 40px; }
 .thinking span {
   width: 8px;
   height: 8px;
@@ -463,13 +557,23 @@ svg {
 @keyframes bounce { 0%, 100% { transform: none; } 50% { transform: translateY(-5px); } }
 
 /* ── 구조화 결과(mandarin.goal) — 프론트의 제안 카드 자리 ────────────── */
-.goal { padding-left: 42px; }
+/* 40px = 코치 아이콘(32) + 말풍선 사이 여백(10) 에 맞춘 들여쓰기입니다(프론트의 `ml-10`).
+   카드가 아이콘 아래에서 시작해야 "코치가 낸 것" 으로 읽힙니다. */
+.goal { padding-left: 40px; }
 .goal-label {
   margin: 0 0 8px;
   font-size: 11.5px;
   font-weight: 700;
   color: var(--text-muted);
 }
+/*
+ * 한 턴이 같은 칸에 과제를 3개까지 냅니다(`GOAL_SCHEMA.generated_tasks`). **화면이 넓으면
+ * 두 장씩 나란히 둡니다** — 프론트의 `sm:grid-cols-2` 와 같은 경계이고, 말풍선 폭을
+ * 860px 로 넓혀 둔 것도(`.msgs > *`) 두 장이 들어가게 하려는 것입니다.
+ */
+.sugs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+@media (min-width: 640px) { .sugs { grid-template-columns: 1fr 1fr; } }
+
 .sug {
   display: flex;
   flex-direction: column;
@@ -478,16 +582,18 @@ svg {
   border-radius: 16px;
 }
 .sug-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.sug-top strong { font-size: 13px; font-weight: 800; line-height: 1.35; }
+.sug-top strong { font-size: 13px; font-weight: 800; line-height: 1.375; }
 .sug-why {
   margin: 6px 0 0;
   flex: 1;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1.6;
+  line-height: 1.625;
   color: var(--text-muted);
 }
-.sug .btn { margin-top: 12px; align-self: flex-start; }
+/* 카드 폭을 꽉 채웁니다. 왼쪽에 붙여 두면 두 장을 나란히 놓았을 때 버튼 높이가 제목 줄 수에
+   따라 어긋나 보입니다(프론트도 flex 자식이라 늘어납니다). */
+.sug .btn { margin-top: 12px; }
 /* payload 는 접어 둡니다. 배선을 확인하는 화면이라 원본을 볼 수 있어야 합니다. */
 .goal details { margin-top: 10px; }
 .goal summary {
@@ -507,35 +613,6 @@ svg {
 }
 code { font-size: 0.92em; }
 
-/* 진행 중인 전사문 — 지워질 글자라 로그와 다르게 보여야 합니다. */
-.caption {
-  margin: 0 20px 10px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--surface-sunken);
-  border: 1px dashed var(--border-hairline);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-.chips { display: flex; gap: 8px; overflow-x: auto; padding: 0 20px 12px; }
-.chip {
-  flex: none;
-  padding: 8px 14px;
-  border: 1px solid var(--border-hairline);
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
-}
-.chip:hover:not(:disabled) { border-color: var(--color-brand-300); color: var(--color-brand-600); }
-.chip:disabled { cursor: not-allowed; opacity: 0.45; }
-
 .composer {
   display: flex;
   align-items: center;
@@ -544,12 +621,39 @@ code { font-size: 0.92em; }
   border-top: 1px solid var(--border-hairline);
 }
 
-/* ── 시트 패널 ─────────────────────────────────────────────────────── */
+/* ── 초안 패널 ─────────────────────────────────────────────────────── */
+/*
+ * 위에서 아래로 **목표 → 진행 → 과제** 순서로 섭니다. 가운데 목록만 스크롤되고 머리와 발은
+ * 붙어 있습니다 — 과제를 20개 담아도 아래 안내를 찾아 스크롤할 일이 없습니다(프론트와 같은
+ * 구성). 이 화면에서는 발에 "편집기로 가져가기" 대신 배선 설명이 들어갑니다.
+ */
 .sheet { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 
 .sheet-head { flex: none; padding: 16px 20px; border-bottom: 1px solid var(--border-hairline); }
 .sheet-head .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.src-note { margin: 10px 0 0; font-size: 11.5px; font-weight: 500; line-height: 1.6; }
+
+/*
+ * 핵심 목표. **여기서는 못 고칩니다** — 프론트도 입장할 때 정한 값을 세션 내내 쓰고 보여만
+ * 줍니다(대화 도중 바뀌면 앞 턴의 제안이 다른 목표 기준이 됩니다). 잠긴 입력칸 대신 값만
+ * 두는 것도 저쪽 판단입니다 — 잠긴 칸은 왜 안 되는지를 스스로 설명하지 못합니다.
+ */
+.field { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
+.field-value {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  font-size: 13.5px;
+  font-weight: 700;
+  /* 한 줄로 자릅니다. 목표가 길면 머리가 커져서 아래 과제 목록이 밀립니다 — 전문은
+     `title` 로 붙습니다(`app.js`). */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.field-hint { font-size: 11.5px; font-weight: 500; line-height: 1.6; color: var(--text-muted); }
 
 .progress-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 .progress {
@@ -608,8 +712,35 @@ code { font-size: 0.92em; }
   color: var(--text-muted);
 }
 
-.dom-head { display: flex; align-items: center; gap: 8px; }
-.dom-dot { width: 10px; height: 10px; flex: none; border-radius: 999px; }
+/*
+ * 세부 목표 한 줄. **줄 전체가 펼치기 버튼입니다** — 8칸 x 8개면 72줄이라 다 펴 두면
+ * 스크롤밖에 남지 않아서, 프론트처럼 한 번에 하나만 펼칩니다.
+ *
+ * 예전에는 여기 도메인 색 점(`.dom-dot`)이 있었습니다. 색은 아래 눈금이 이미 말하고 있어서
+ * 점은 같은 말을 두 번 하는 자리였고, 그 자리를 펼침 표시(꺾쇠)에 내주는 편이 낫습니다.
+ */
+.dom-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* 접혀 있으면 왼쪽을 가리킵니다. 회전만 하므로 자리가 흔들리지 않습니다. */
+.dom-chev {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+.dom-head[aria-expanded='false'] .dom-chev { transform: rotate(-90deg); }
 .dom-head strong {
   flex: 1;
   min-width: 0;
