@@ -123,6 +123,19 @@ export default function AppShell() {
     }
   }, [navOpen])
 
+  /**
+   * 안내가 메뉴 항목을 가리키는 동안에는 <b>접혀 있어도 펼친다.</b>
+   *
+   * <p>접은 채로 안내를 보면 "리포트" 같은 단계에서 가리킬 것이 화면에 없어, 설명 카드만
+   * 한가운데에 붕 뜬 채 무엇을 말하는지 알 수 없었다. 표식(`nav-*`)은 사이드바와 모바일
+   * 탭바에 같이 붙어 있는데, 사이드바는 `lg:` 에서만 그려지므로 좁은 화면은 그대로다.
+   *
+   * <p><b>`navOpen` 자체는 건드리지 않는다.</b> 그 값이 곧 저장되는 사용자의 선택이라,
+   * 여기서 켜 버리면 안내 한 번에 접어 둔 설정이 조용히 바뀐다. 화면에 쓰는 값만 따로 두면
+   * 안내가 그 단계를 지나는 순간 저절로 원래대로 접힌다.
+   */
+  const navShown = navOpen || Boolean(tour.activeTarget?.startsWith('nav-'))
+
   /** 수락/거절이 필요한 항목 수. 서버가 계산해 준다. */
   const pending = notifications.data.actionRequiredCount
 
@@ -165,7 +178,7 @@ export default function AppShell() {
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r px-4 py-6',
-          navOpen && 'lg:flex',
+          navShown && 'lg:flex',
         )}
         style={{ background: 'var(--surface-card)', borderColor: 'var(--border-hairline)' }}
       >
@@ -235,7 +248,7 @@ export default function AppShell() {
           'top-0 z-30',
           // 사이드바와 같은 200ms — 다르면 본문이 먼저 도착해 빈틈이 잠깐 보인다.
           'transition-[padding] duration-200 ease-out motion-reduce:transition-none',
-          navOpen && 'lg:pl-[248px]',
+          navShown && 'lg:pl-[248px]',
           /*
             마을 화면만 흐름에서 빼 본문 위에 겹친다(`absolute`). `sticky` 로는 자리를 계속
             차지해서 아래 내용을 밀어낸다 — 되찾으려는 것이 바로 그 64px 이다.
@@ -266,7 +279,7 @@ export default function AppShell() {
             사이드바를 접는 이유가 화면을 비우기 위해서라 그건 앞뒤가 맞지 않는다.
             헤더 안이면 항상 같은 자리에 있고 본문을 침범하지 않는다.
           */}
-          {!navOpen && (
+          {!navShown && (
             <button
               type="button"
               onClick={() => setNavOpen(true)}
@@ -288,7 +301,7 @@ export default function AppShell() {
             to="/app"
             className={cn(
               'flex items-center gap-2 no-underline',
-              navOpen ? 'lg:hidden' : 'lg:flex',
+              navShown ? 'lg:hidden' : 'lg:flex',
               overlayHeader && 'pointer-events-auto',
             )}
           >
@@ -406,7 +419,7 @@ export default function AppShell() {
         id="main"
         className={cn(
           'transition-[padding] duration-200 ease-out motion-reduce:transition-none',
-          navOpen && 'lg:pl-[248px]',
+          navShown && 'lg:pl-[248px]',
         )}
       >
         {/*
