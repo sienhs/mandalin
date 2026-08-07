@@ -23,6 +23,7 @@ import {
   IconSparkle,
 } from '../components/common/Icons'
 import { Field, Input, Segmented, domainColor } from '../components/common/Primitives'
+import { useAutoTour, useTour } from '../features/tour/TourProvider'
 import { cn } from '../utils/cn'
 import { fromNow } from '../utils/format'
 
@@ -415,7 +416,15 @@ export default function SheetCreate() {
    * 코치는 8×8 을 다 채우지 못할 수도 있어서(대화가 짧게 끝나면) 여기서 이어 채운다.
    * 저장 조건은 어느 경로로 들어왔든 똑같이 81칸이다.
    */
-  const seeded = location.state as CoachDraft | null
+  /*
+    라우터 state 가 실어 오는 것이 두 가지다 — 코치가 만든 초안과, 안내가 보내는 신호.
+    `domains` 유무로 가른다. 이 검사가 없으면 `{ picker: true }` 만 담긴 state 도 "코치
+    초안" 으로 읽혀서, 빈 초안을 병합할지 묻는 팝업이 뜬다.
+  */
+  const navState = location.state as (CoachDraft & { picker?: boolean }) | null
+  const seeded = navState && Array.isArray(navState.domains) ? (navState as CoachDraft) : null
+  /** 홈 안내의 "내 만다라트 만들기" 로 들어왔다. 방식 선택 팝업을 반드시 띄운다. */
+  const forcePicker = Boolean(navState?.picker)
 
   /** 이 탭에서 쓰다 나간 초안. 마운트할 때 한 번만 읽는다. */
   const [restored] = useState<StoredDraft | null>(() => loadDraft())
@@ -429,12 +438,31 @@ export default function SheetCreate() {
   /** 되살렸다는 사실을 알리는 줄. 닫으면 이번 작성 동안 다시 뜨지 않는다. */
   const [restoreNotice, setRestoreNotice] = useState(Boolean(restored) && !seeded)
 
-  const [pickerOpen, setPickerOpen] = useState(!seeded && !restored)
+  const [pickerOpen, setPickerOpen] = useState(forcePicker || (!seeded && !restored))
   const [confirmOpen, setConfirmOpen] = useState(false)
   /** 되살린 초안을 버릴지 묻는 팝업. */
   const [resetOpen, setResetOpen] = useState(false)
   /** 취소로 작성을 그만둘지 묻는 팝업. */
   const [cancelOpen, setCancelOpen] = useState(false)
+
+  /*
+    편집기 안내는 <b>팝업이 하나도 없을 때</b> 뜬다. 방식 선택이나 병합 확인이 떠 있는 채로
+    안내가 겹치면 판이 두 겹이 되고, 안내가 가리키는 격자·버튼은 그 팝업에 덮여 안 보인다.
+  */
+  useAutoTour('editor', { ready: !pickerOpen && !mergeAsk })
+
+  /*
+    <b>안내가 방식 선택보다 먼저다.</b>
+
+    위의 `ready` 는 저절로 뜨는 안내만 미룬다. 도움말 목록에서 "만다라트 만들기" 를 직접
+    고른 경우는 여기로 <b>안내를 보러</b> 옮겨 온 것이라 그 판단을 거치지 않는데, 이 화면은
+    들어오자마자 "어떻게 만들까요?" 를 띄우므로 둘이 그대로 겹쳤다.
+
+    그렇다고 팝업을 없애면 안내가 끝난 뒤에 만드는 방법을 고를 길이 사라진다. 여는 조건
+    (`pickerOpen`)은 그대로 두고 <b>보이는 것만</b> 미룬다 — 안내가 끝나면 그 자리에 뜬다.
+  */
+  const { active: activeTour, pending: pendingTour } = useTour()
+  const tourFirst = activeTour === 'editor' || pendingTour === 'editor'
   /*
     쓰던 초안이 있으면 그것으로 시작한다 — 코치 제안은 아직 얹지 않는다. 무엇을 살릴지
     답을 받기 전에 화면을 바꿔 버리면, 팝업을 닫기만 해도 이미 덮여 있게 된다.
@@ -723,9 +751,15 @@ export default function SheetCreate() {
    * <p>자동저장은 400ms 쉰 뒤에 쓰므로 방금 친 글자가 아직 안 담겼을 수 있다. 여기서 한 번
    * 확실히 써 두면 코치에서 돌아왔을 때 그대로 이어진다.
    */
-  const goToCoach = () => {
+  const goToCoach = ({ tour = false } = {}) => {
     saveDraft({ title, expiredAt, isOpen, domains })
-    navigate('/app/coach')
+    /*
+      `tour` 는 방식 선택 팝업에서 "AI 코치와 대화로 만들기" 를 고른 길에만 붙는다. 그 길을
+      고른 사람은 코치가 무엇을 해 주는지 아직 못 봤으므로, 이미 본 안내라도 다시 띄운다.
+      헤더의 "AI 코치로 이어 만들기" 는 쓰던 초안을 이어 가는 길이라 붙이지 않는다 —
+      오가는 사람에게 매번 안내를 띄우면 방해다.
+    */
+    navigate('/app/coach', tour ? { state: { tour: true } } : undefined)
   }
 
   /**
@@ -1151,10 +1185,14 @@ export default function SheetCreate() {
             처음 한 번만 떴고, 닫은 뒤에는 코치로 갈 방법이 화면에 없었다. 여기 상시로 두고
             누르면 쓰던 초안을 보관한 채 다녀온다 — 돌아오면 빈 칸에만 제안을 채워 준다.
           */}
-          <Button variant="ai" onClick={goToCoach}>
+          <Button variant="ai" data-tour="editor-coach" onClick={() => goToCoach()}>
             <IconSparkle className="size-4" /> AI 코치로 이어 만들기
           </Button>
-          <Button onClick={() => setConfirmOpen(true)} disabled={!status.complete || saving}>
+          <Button
+            data-tour="editor-save"
+            onClick={() => setConfirmOpen(true)}
+            disabled={!status.complete || saving}
+          >
             {status.complete ? '저장하기' : `${81 - status.filled}칸 남음`}
           </Button>
         </div>
@@ -1191,12 +1229,14 @@ export default function SheetCreate() {
       )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-        <section className="card p-4 sm:p-6">
+        <section data-tour="editor-grid" className="card p-4 sm:p-6">
           <MandalartGrid
             sheet={preview}
             selected={selected}
             onSelect={selectCell}
             isLocked={isCellLocked}
+            /* 안내가 격자의 한 겹씩(핵심 목표 · 세부 목표 · 실천 과제) 가리킬 수 있게 한다. */
+            tourAnchors
           />
         </section>
 
@@ -1204,9 +1244,9 @@ export default function SheetCreate() {
         <section className="card p-6">{editor}</section>
       </div>
 
-      {/* 만드는 방식 선택 */}
+      {/* 만드는 방식 선택. 안내가 도는 동안에는 뒤로 물린다(위 `tourFirst`). */}
       <Modal
-        open={pickerOpen}
+        open={pickerOpen && !tourFirst}
         onClose={() => setPickerOpen(false)}
         title="어떻게 만들까요?"
         description="81칸을 빈 화면으로 마주하지 않아도 됩니다."
@@ -1215,8 +1255,11 @@ export default function SheetCreate() {
         <div className="grid gap-3">
           <button
             type="button"
-            /* 작성 중에 다시 열 수도 있다. 쓰던 초안을 보관한 뒤 넘어간다. */
-            onClick={goToCoach}
+            /*
+              작성 중에 다시 열 수도 있다. 쓰던 초안을 보관한 뒤 넘어간다.
+              이 길로 가면 코치 화면에서 사용법 안내가 함께 뜬다(`goToCoach` 의 `tour`).
+            */
+            onClick={() => goToCoach({ tour: true })}
             className="flex items-start gap-4 rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 hover:border-sky-300"
             style={{ borderColor: 'var(--border-hairline)' }}
           >

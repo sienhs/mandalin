@@ -12,7 +12,7 @@ import MandalartGrid, { type CellRef } from '../features/sheet/MandalartGrid'
 import RewardClaimModal from '../features/reward/RewardClaimModal'
 import RewardTrackStrip from '../features/reward/RewardTrackStrip'
 import Button from '../components/common/ActionButton'
-import { IconCheck, IconHeart, IconVillage } from '../components/common/Icons'
+import { IconHeart, IconVillage } from '../components/common/Icons'
 import {
   Badge,
   EmptyState,
@@ -408,7 +408,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
                     </p>
                   </div>
                 ) : (
-                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                  <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                     {selectedDomain.subjects.map((sub, j) => {
                       const active = selected.kind === 'subject' && selected.subjectIndex === j
                       const busy = pending === sub.id
@@ -418,81 +418,56 @@ export default function SheetDetail({ readOnly = false }: Props) {
                         <li key={sub.id}>
                           <div
                             className={cn(
-                              'rounded-2xl p-3 transition-all',
+                              'rounded-2xl px-3 py-2.5 transition-all',
                               active && 'ring-2 ring-brand-400/60',
                             )}
                             style={{ background: 'var(--surface-sunken)' }}
                           >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelected({
-                                  kind: 'subject',
-                                  domainIndex: selectedDomain.position,
-                                  subjectIndex: j,
-                                })
-                              }
-                              className="flex w-full items-start gap-2.5 text-left"
-                            >
-                              <span className="min-w-0 flex-1">
-                                <span
-                                  className={cn(
-                                    'block text-[13.5px] font-bold',
-                                    sub.isDone && 'line-through opacity-60',
-                                  )}
-                                >
-                                  {sub.title}
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelected({
+                                    kind: 'subject',
+                                    domainIndex: selectedDomain.position,
+                                    subjectIndex: j,
+                                  })
+                                }
+                                className="flex min-w-0 items-start gap-2 text-left"
+                              >
+                                <span className="min-w-0 flex-1">
+                                  <span
+                                    className={cn(
+                                      'block truncate text-[13.5px] font-bold',
+                                      sub.isDone && 'line-through opacity-60',
+                                    )}
+                                  >
+                                    {sub.title}
+                                  </span>
+                                  <span className="muted mt-1 block text-[11.5px] font-semibold">
+                                    {DETAIL_PERIOD_LABEL[sub.period]} · {sub.tryCount}/{sub.targetCount}회
+                                    {sub.isDone && ' · 완료'}
+                                  </span>
                                 </span>
-                                <span className="muted mt-1 block text-[11.5px] font-semibold">
-                                  {DETAIL_PERIOD_LABEL[sub.period]} · 현재 {sub.tryCount}회 · 목표{' '}
-                                  {sub.targetCount}회
-                                  {sub.isDone && ' · 완료'}
+                                <span className="self-center shrink-0 text-[12px] font-black tabular-nums">
+                                  {sub.progress}%
                                 </span>
-                              </span>
-                              <span className="shrink-0 text-[12px] font-black tabular-nums">
-                                {sub.progress}%
-                              </span>
-                            </button>
-
-                            {/*
-                              진행 막대와 완료 버튼을 한 줄에 둔다. 예전에는 버튼이 <b>선택한
-                              과제에만</b> 전체 폭으로 나타나서, 다른 과제를 완료하려면 먼저
-                              그 줄을 눌러 선택해야 했다. 작은 버튼을 오른쪽에 항상 두면
-                              곧바로 누를 수 있고 줄 높이도 늘지 않는다.
-                            */}
-                            <div className="mt-2.5 flex items-center gap-2">
-                              <span className="min-w-0 flex-1">
-                                <ProgressBar
-                                  value={sub.progress}
-                                  size="sm"
-                                  color={domainColor(selectedDomain.position)}
-                                  label={`${sub.title} 진행률`}
-                                />
-                              </span>
+                              </button>
 
                               {!readOnly && (
                                 <Button
                                   size="xs"
                                   variant={locked ? 'quiet' : 'primary'}
-                                  className="w-[130px] shrink-0 justify-center"
+                                  className="w-[104px] shrink-0 justify-center"
                                   disabled={Boolean(locked) || busy}
                                   /* 잠긴 이유는 툴팁으로도 남긴다 — 아래 안내가 접혀도 읽을 수 있게. */
                                   title={locked ?? `한 번 완료하면 ${sub.point}P 를 받습니다`}
                                   onClick={() => void complete(sub.id)}
                                 >
-                                  <IconCheck className="size-3.5" />
-                                  {busy ? '저장 중…' : locked ? '완료' : `한 번 완료 +${sub.point}P`}
+                                  {busy ? '저장 중…' : locked ? '완료' : `완료 +${sub.point}P`}
                                 </Button>
                               )}
                             </div>
-
-                            {/* 왜 못 누르는지 그 자리에서 말해 준다. */}
-                            {!readOnly && locked && (
-                              <p className="m-0 mt-2 flex items-center gap-1.5 text-[11.5px] font-bold text-emerald-600 dark:text-emerald-400">
-                                <IconCheck className="size-3.5 shrink-0" />
-                                {locked}
-                              </p>
-                            )}
                           </div>
                         </li>
                       )

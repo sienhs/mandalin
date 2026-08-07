@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Scene } from '../village/Scene'
 import { useStore } from '../data/store'
 import type { OwnedBuilding as ModelOwnedBuilding, Sheet as ModelSheet } from '../data/types'
 import { TERRAIN_LABEL } from '../data/types'
 import { toMandalartFromModel } from '../village/mandalart'
-import { PITCH } from '../village/layout'
+import { CENTER_BLOCK_INDEX, PITCH } from '../village/layout'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 import { AUTO_LANDMARK, type LandmarkOverride } from '../village/Landmark'
 import { BUILD_PANEL_WIDTH, BuildPanel } from '../village/BuildPanel'
@@ -17,7 +17,6 @@ import { TERRAINS } from '../village/villageApi'
 import { ALL_CONFIGS } from '../village/localCatalog'
 import Button from '../components/common/ActionButton'
 import { Badge, EmptyState, ErrorState, Segmented, Skeleton } from '../components/common/Primitives'
-import { IconArrowLeft, IconArrowRight } from '../components/common/Icons'
 import { useToast } from '../components/common/Toast'
 
 /**
@@ -49,29 +48,6 @@ function withParts(b: ModelOwnedBuilding): OwnedBuilding | null {
 const FACING_LABEL = ['남동', '남서', '북서', '북동'] as const
 
 /**
- * 어디서 마을로 들어왔는지에 따라 돌아갈 곳.
- *
- * <p>보낸 쪽이 `state.from` 에 자기 경로를 적어 준다. `navigate(-1)` 로 대신하지 않는
- * 이유는, 마을 안에서 시트를 바꾸거나 새로고침하면 히스토리가 한 칸씩 어긋나 엉뚱한
- * 곳으로 돌아가기 때문이다. 어디서 왔는지는 보낸 쪽이 가장 잘 안다.
- *
- * <p>모르는 경로로 들어왔으면(주소창 직접 입력, 사이드바) 홈으로 보낸다 —
- * 없는 곳으로 되돌리는 것보다 늘 있는 곳으로 보내는 편이 안전하다.
- */
-const BACK_TO: Record<string, { to: string; label: string }> = {
-  '/app': { to: '/app', label: '홈으로' },
-  '/app/sheets': { to: '/app/sheets', label: '내 만다라트로' },
-  '/app/shop': { to: '/app/shop', label: '상점으로' },
-}
-
-function backTarget(from: unknown): { to: string; label: string } {
-  if (typeof from !== 'string') return BACK_TO['/app']
-  // 상세(/app/sheets/12)에서 왔으면 그 상세로 정확히 돌려보낸다.
-  if (/^\/app\/sheets\/\d+$/.test(from)) return { to: from, label: '만다라트로' }
-  return BACK_TO[from] ?? BACK_TO['/app']
-}
-
-/**
  * 마을 화면.
  *
  * <p><b>3D 위에 얹는 UI 는 반드시 캔버스 컨테이너 기준(`absolute`)이어야 한다.</b>
@@ -92,14 +68,13 @@ export default function VillagePage() {
   const { gateway, sheets: sheetList, details, setTerrain: saveTerrain } = useStore()
   const toast = useToast()
   const camera = useIsoCamera()
-  const back = backTarget((useLocation().state as { from?: string } | null)?.from)
 
   const [sheet, setSheet] = useState<ModelSheet | 'none' | null>(null)
   const [village, setVillage] = useState<VillageData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   /** 지금 편집 중인 블록(0~8). 중앙(4)은 랜드마크 자리라 건물을 놓지 않는다. */
-  const [block, setBlock] = useState(0)
+  const [block, setBlock] = useState(CENTER_BLOCK_INDEX)
   /** 편집 중인 칸의 task id. null 이면 아직 고르지 않은 상태. */
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
 
@@ -446,11 +421,8 @@ export default function VillagePage() {
     <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
       <ThumbnailBakery />
 
-      <div className="shrink-0">
-        <Button variant="quiet" size="sm" to={back.to}>
-          <IconArrowLeft className="size-[18px]" /> {back.label}
-        </Button>
-      </div>
+      {/* 기존 이동 버튼의 높이는 유지해 고정 헤더와 3D 영역이 겹치지 않게 한다. */}
+      <div aria-hidden="true" className="h-9 shrink-0" />
 
       {/* ───────── 3D 뷰 + 건물 배치 오버레이 ───────── */}
       {/*
@@ -534,11 +506,20 @@ export default function VillagePage() {
           <button
             type="button"
             onClick={() => setPanelOpen(true)}
-            className="card absolute top-4 left-4 flex items-center gap-2 px-4 py-2.5 text-[13px] font-extrabold shadow-lg transition-transform hover:-translate-y-0.5"
+            className="card absolute top-4 left-4 z-10 flex items-center gap-2 px-4 py-2.5 text-[13px] font-extrabold shadow-lg transition-transform hover:-translate-y-0.5"
           >
             <span aria-hidden="true">🏗</span>
             건물 배치
           </button>
+        )}
+
+        {sheet && (
+          <Link
+            to={`/app/sheets/${sheet.id}`}
+            className="card absolute top-4 right-4 z-10 flex items-center px-4 py-2.5 text-[13px] font-extrabold no-underline shadow-lg transition-transform hover:-translate-y-0.5"
+          >
+            만다라트 보기
+          </Link>
         )}
       </section>
 
@@ -637,16 +618,6 @@ export default function VillagePage() {
         </span>
       </section>
 
-      <div className="flex flex-wrap gap-2">
-        {sheet && (
-          <Button variant="secondary" to={`/app/sheets/${sheet.id}`}>
-            <IconArrowLeft className="size-[18px]" /> 만다라트로 보기
-          </Button>
-        )}
-        <Button variant="quiet" to="/app/shop">
-          상점에서 건물 사기 <IconArrowRight className="size-[18px]" />
-        </Button>
-      </div>
     </div>
   )
 }

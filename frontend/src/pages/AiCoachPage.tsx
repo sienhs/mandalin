@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { PERIOD_LABEL, PERIOD_MAX_COUNT, type Period } from '../data/types'
 import Button from '../components/common/ActionButton'
 import {
@@ -27,6 +27,8 @@ import {
   type GoalTask,
 } from '../components/aiCoach/useCoachRoom'
 import CoachGoalPrompt from '../components/aiCoach/CoachGoalPrompt'
+import { useCoachDemo } from '../features/coach/useCoachDemo'
+import { useAutoTour, useTour } from '../features/tour/TourProvider'
 
 type Suggestion = { title: string; period: Period; count: number; why: string }
 
@@ -157,7 +159,9 @@ const SLOTS = 8
 
 export default function Coach() {
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
+  const tour = useTour()
   const scrollRef = useRef<HTMLDivElement>(null)
   /** 대화가 바닥에 붙어 있는가. 새 내용을 따라 내려갈지 정한다. */
   const [atBottom, setAtBottom] = useState(true)
@@ -194,6 +198,42 @@ export default function Coach() {
    * 덮으면 편집기에서 정해 둔 값이 조용히 사라진다.
    */
   const draftMeta = useRef({ expiredAt: seed.expiredAt, isOpen: seed.isOpen })
+
+  /**
+   * 담은 과제를 <b>편집기 초안으로 써 둔다.</b>
+   *
+   * <p>평소에는 아래 효과가 `basket` 이 바뀔 때마다 부르지만, 함수로 빼 둔 이유는 <b>되돌릴
+   * 때도 같은 글을 써야 하기 때문</b>이다. 안내용 예시가 담아 둔 과제를 치울 때 화면
+   * 상태(`basket`)만 되돌리면 효과가 다시 돌기 전에 화면을 떠날 수 있고, 그러면 예시가 초안에
+   * 그대로 남는다. 정리하는 쪽에서 직접 부를 수 있어야 한다.
+   *
+   * <p><b>8칸 골격에 채워 넣는다.</b> 편집기는 항상 8칸을 그리므로(`emptyDomains`) 담은 것만
+   * 성기게 저장하면 그쪽에서 칸 수가 줄어 보인다.
+   */
+  const writeDraft = useCallback((nextBasket: Basket[], nextGoal: string) => {
+    const domains = emptyDomains()
+    nextBasket.slice(0, domains.length).forEach((b, index) => {
+      const subjects = domains[index].subjects
+      domains[index] = {
+        title: b.domain,
+        subjects: subjects.map((empty, slot) => {
+          const item = b.items[slot]
+          return item
+            ? { title: item.title, period: item.period, countPerPeriod: item.count }
+            : empty
+        }),
+      }
+    })
+    // **편집기가 쓰는 다른 필드를 지우지 않는다.** `SheetDraft` 에는 만료일·공개 여부도
+    // 있고 이 화면에는 그 입력이 없다 — 기본값으로 덮으면 편집기에서 정해 둔 값이
+    // 조용히 사라진다.
+    saveDraft({
+      title: nextGoal,
+      expiredAt: draftMeta.current.expiredAt,
+      isOpen: draftMeta.current.isOpen,
+      domains,
+    })
+  }, [])
 
   /**
    * 에이전트에게 넘길 시트 — **담은 과제가 곧 시트다.**
@@ -260,8 +300,138 @@ export default function Coach() {
     toggleTalk,
   } = useCoachRoom({ getSheet, onGoal: handleGoal })
 
-  const thinking = coachState === 'thinking'
+  /* ───────── 사용법 안내와 예시 대화 ───────── */
+
+  /**
+   * 안내가 도는 동안에는 말하기 버튼이 <b>예시 대화</b>를 재생한다.
+   *
+   * <p>실제 음성은 마이크 권한 · LiveKit 방 · STT · LLM 이 모두 살아 있어야 돌아간다. 처음
+   * 온 사람에게 그 넷을 통과시킨 다음에야 "이런 식으로 대화합니다" 를 보여 주면 대개는 그
+   * 전에 떠난다. 안내를 끝내면 곧바로 실제 음성으로 돌아간다 — 예시는 안내 안에서만 산다.
+   */
+  const demoArmed = tour.active === 'coach'
+
+  const demo = useCoachDemo({
+    onGoal: handleGoal,
+    /*
+      앞 턴의 과제를 대신 담는다. **화면의 담기와 같은 함수를 부른다** — 8칸 제한도, 중복
+      검사도, 담은 칸을 펼치는 동작도 그대로 걸린다. 예시만 다른 길로 넣으면 그 길이 조용히
+      낡는다.
+    */
+    onAdd: ({ domain, task }) => {
+      for (const suggestion of toSuggestion(task)) add(domain, suggestion)
+    },
+    // 예시가 끝나면 "이렇게 오갑니다" 단계는 할 일을 마쳤다. 사용자가 누르기 전에 넘긴다.
+    onDone: () => tour.advanceFrom('coach-live'),
+  })
+
+  const thinking = coachState === 'thinking' || demo.thinking
   const ready = connection === 'on'
+
+  /*
+    예시 대화를 실제 대화 <b>뒤에</b> 이어 붙인다. 두 목록을 섞지 않는 이유는 순서다 —
+    예시는 언제나 지금까지의 대화 다음에 온다(방 안내 문구가 먼저 도착해 있다).
+  */
+  const shownMessages = demo.messages.length > 0 ? [...messages, ...demo.messages] : messages
+  const shownCaption = demo.running ? demo.caption : caption
+  /** 말하기 버튼이 지금 듣고 있다고 보이는가. 예시 중에는 예시가 정한다. */
+  const shownListening = demoArmed || demo.running ? demo.listening : listening
+  const shownTalkLeft = demoArmed || demo.running ? demo.talkLeft : talkLeft
+
+  /*
+    핵심 목표 팝업이 닫힌 뒤에 안내를 띄운다. 그 팝업은 <b>적어야 넘어갈 수 있는</b> 창이라
+    (ESC·배경으로 안 닫힌다) 그 위에 안내를 겹치면 둘 다 막힌다.
+
+    방식 선택 팝업에서 "AI 코치와 대화로 만들기" 를 골라 들어왔으면(`state.tour`) 이미 본
+    안내라도 다시 띄운다 — 그 길을 고른 사람은 설명을 원한 것이다.
+  */
+  useAutoTour('coach', {
+    ready: !goalPromptOpen,
+    force: Boolean((location.state as { tour?: boolean } | null)?.tour),
+  })
+
+  /*
+    도움말 목록에서 "AI 코치와 대화하기" 를 직접 고른 경우는 위의 `ready` 를 거치지 않는다 —
+    안내를 보러 옮겨 온 것이라 곧바로 시작한다. 그러면 <b>적어야 넘어갈 수 있는</b> 목표 팝업과
+    안내가 그대로 겹치므로, 편집기의 방식 선택과 같이 팝업을 안내 뒤로 물린다.
+    여는 조건은 그대로라 안내가 끝나면 그 자리에 뜬다.
+  */
+  const { active: activeTour, pending: pendingTour } = useTour()
+  const tourFirst = activeTour === 'coach' || pendingTour === 'coach'
+
+  /**
+   * 예시를 재생하기 <b>직전</b>의 초안. 안내가 끝나면 여기로 되돌린다.
+   *
+   * <p>비어 있지 않을 수 있다 — 편집기에서 쓰던 초안을 들고 코치로 넘어온 경우다. 그래서
+   * "다 지운다" 가 아니라 "재생 전으로 되돌린다" 여야 한다.
+   */
+  const beforeDemo = useRef<{ basket: Basket[]; goal: string; nextId: number } | null>(null)
+
+  const startDemo = demo.start
+  const takeSnapshot = useCallback(() => {
+    if (beforeDemo.current) return
+    beforeDemo.current = { basket, goal, nextId: nextId.current }
+  }, [basket, goal])
+
+  /**
+   * "이렇게 오갑니다" 단계에 닿으면 <b>예시를 저절로 재생한다.</b>
+   *
+   * <p>말하기 버튼을 누르는 것이 본래 길이지만, 그 단계에도 "다음" 버튼이 있어서 그냥 넘길
+   * 수 있다. 넘겨 버리면 뒤따르는 네 단계가 전부 <b>없는 것을 설명하게 된다</b> — 빈 대화창을
+   * 가리키며 "이렇게 오갑니다", 카드가 없는데 "마음에 드는 것만 담기", 텅 빈 초안을 두고
+   * "담은 과제가 곧 초안", 그리고 잠긴 "편집기로 가져가기".
+   *
+   * <p>그래서 <b>어느 길로 오든</b> 이 단계에서는 대화가 돌아간다. 버튼을 눌러서 온 경우에는
+   * 이미 재생 중이라 `start()` 가 그냥 돌아간다(훅의 `running` 가드).
+   */
+  const demoAutoStarted = useRef(false)
+  useEffect(() => {
+    if (!demoArmed || demoAutoStarted.current) return
+    if (tour.activeTarget !== 'coach-live') return
+    demoAutoStarted.current = true
+    takeSnapshot()
+    startDemo()
+  }, [demoArmed, tour.activeTarget, startDemo, takeSnapshot])
+
+  /**
+   * 안내가 끝나면 <b>예시가 남긴 것을 전부 치운다.</b>
+   *
+   * <p>예시는 실제 담기 경로를 그대로 타므로(그래서 진짜처럼 보인다) 대화창의 말풍선, 제안
+   * 카드, 오른쪽 초안, 그리고 `localStorage` 의 편집기 초안까지 실제로 바뀐다. 안내가 끝난
+   * 뒤에도 그게 남아 있으면 <b>시연이 아니라 사용자의 데이터</b>가 된다 — 편집기를 열었을 때
+   * 적은 적 없는 "아침 스트레칭 10분" 이 들어 있는 식이다.
+   *
+   * <p>되돌리는 폭은 <b>재생 직전 상태</b>까지다. 마지막 턴의 카드를 직접 담아 본 것도 예시의
+   * 일부라 같이 치운다 — 남기면 "세 개 중 하나만 남은" 어중간한 초안이 된다.
+   */
+  const resetDemo = demo.reset
+  const wasArmed = useRef(false)
+  useEffect(() => {
+    if (demoArmed) {
+      wasArmed.current = true
+      return
+    }
+    if (!wasArmed.current) return
+    wasArmed.current = false
+    demoAutoStarted.current = false
+
+    // 재생 도중에 안내를 건너뛸 수 있다. 예약된 대사가 남아 있으면 되돌린 뒤에 또 담긴다.
+    resetDemo()
+    setProposal(null)
+
+    const snapshot = beforeDemo.current
+    if (!snapshot) return
+    beforeDemo.current = null
+    setBasket(snapshot.basket)
+    setOpenDomain(null)
+    nextId.current = snapshot.nextId
+    /*
+      초안은 재생 중에 아예 안 썼으므로(자동 저장 효과의 `beforeDemo` 가드) 지금도 스냅샷
+      그대로다. 그래도 한 번 더 써 두는 것은 <b>보험</b>이다 — 위 `setBasket` 이 반영되기
+      전에 화면을 떠나면 자동 저장이 다시 돌 기회가 없다.
+    */
+    writeDraft(snapshot.basket, snapshot.goal)
+  }, [demoArmed, resetDemo, writeDraft])
 
   // 화면에 들어오면 바로 방을 잡는다. 이 페이지는 코치 전용이라 "연결" 버튼을 한 번 더
   // 누르게 할 이유가 없다. 나갈 때 끊는 것은 훅이 한다.
@@ -282,39 +452,27 @@ export default function Coach() {
   }, [basket, ready, sendSheet])
 
   /**
-   * 코치 화면의 편집을 **편집기 초안에 되돌려 쓴다.**
+   * 코치 화면의 편집을 **편집기 초안에 되돌려 쓴다**(`writeDraft`).
    *
    * 예전에는 핸드오프 버튼(`handoff`)만 초안 쪽으로 값을 넘겼다. 그래서 최종목표를
    * 고치고 버튼을 누르지 않은 채 시트로 돌아가면 그 수정이 사라졌다 — 화면에는 남아
    * 있으니 저장된 줄 알게 되는 종류의 손실이다.
-   *
-   * **8칸 골격에 채워 넣는다.** 편집기는 항상 8칸을 그리므로(`emptyDomains`) 담은 것만
-   * 성기게 저장하면 그쪽에서 칸 수가 줄어 보인다.
    */
   useEffect(() => {
-    const domains = emptyDomains()
-    basket.slice(0, domains.length).forEach((b, index) => {
-      const subjects = domains[index].subjects
-      domains[index] = {
-        title: b.domain,
-        subjects: subjects.map((empty, slot) => {
-          const item = b.items[slot]
-          return item
-            ? { title: item.title, period: item.period, countPerPeriod: item.count }
-            : empty
-        }),
-      }
-    })
-    // **편집기가 쓰는 다른 필드를 지우지 않는다.** `SheetDraft` 에는 만료일·공개 여부도
-    // 있고 이 화면에는 그 입력이 없다 — 기본값으로 덮으면 편집기에서 정해 둔 값이
-    // 조용히 사라진다.
-    saveDraft({
-      title: goal,
-      expiredAt: draftMeta.current.expiredAt,
-      isOpen: draftMeta.current.isOpen,
-      domains,
-    })
-  }, [basket, goal])
+    /*
+      **예시가 도는 동안에는 초안에 쓰지 않는다.**
+
+      되돌리기(스냅샷 복원)만으로는 <b>새로고침</b>을 막지 못한다. 재생 도중 F5 를 누르면
+      React 의 정리가 돌 기회가 없고, 그 순간까지 저장된 예시 과제가 초안에 그대로 남는다
+      (실제로 "아침 스트레칭 10분" 외 둘이 남는 것을 확인했다). 되돌릴 것을 만들지 않는 편이
+      확실하다 — 재생 중에는 초안이 <b>한 순간도</b> 예시를 담지 않는다.
+
+      이 구간에 초안이 최신이 아니어도 잃는 것이 없다. 초안을 읽는 곳은 편집기로 넘어가는
+      길뿐인데, 안내가 떠 있는 동안에는 그 버튼을 누를 수 없다(오버레이가 덮는다).
+    */
+    if (beforeDemo.current) return
+    writeDraft(basket, goal)
+  }, [basket, goal, writeDraft])
 
   /**
    * 새 내용이 와도 **바닥에 있을 때만** 따라 내려간다. 위로 올려 읽는 중이면 안 끌어당긴다.
@@ -324,11 +482,16 @@ export default function Coach() {
    */
   useEffect(() => {
     if (!atBottom) {
-      if (messages.length) setHasUnread(true)
+      if (messages.length || demo.messages.length) setHasUnread(true)
       return
     }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, proposal, thinking, atBottom])
+    /*
+      `shownMessages` 를 의존성에 두지 않는다 — 두 목록을 이어 붙인 <b>새 배열</b>이라 매
+      렌더 새 참조가 되고, 그러면 이 효과가 렌더마다 돌아 `smooth` 스크롤이 계속 재시작된다.
+      실제로 바뀌는 것은 두 원본이므로 그쪽을 본다.
+    */
+  }, [messages, demo.messages, proposal, thinking, atBottom])
 
   const send = (text: string) => {
     const value = text.trim()
@@ -422,6 +585,7 @@ export default function Coach() {
       <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,clamp(360px,26vw,460px))]">
         {/* ───────── 대화 ───────── */}
         <section
+          data-tour="coach-chat"
           className="card flex min-h-0 flex-col overflow-hidden max-lg:h-[min(72vh,680px)]"
         >
           <div
@@ -477,7 +641,7 @@ export default function Coach() {
           </div>
 
           {/* 알림 버튼을 띄우기 위한 기준. 스크롤은 안쪽 div 가 맡는다. */}
-          <div className="relative min-h-0 flex-1">
+          <div data-tour="coach-live" className="relative min-h-0 flex-1">
             <div
               ref={scrollRef}
               onScroll={(e) => {
@@ -500,7 +664,7 @@ export default function Coach() {
                 에이전트가 붙었다는 사실은 `mandarin.hello` 를 받은 뒤 훅이 넣는 시스템
                 안내(`"… 준비됨"`)가 알린다. 그쪽은 진짜 상태다.
               */}
-              {messages.map((m) =>
+              {shownMessages.map((m) =>
                 m.who === 'me' ? (
                   <div key={m.id} className="flex justify-end">
                     <p
@@ -543,13 +707,13 @@ export default function Coach() {
               )}
 
               {/* 말하는 중인 전사문. 최종본이 오면 위 목록으로 옮겨가고 여기는 비워진다. */}
-              {caption && (
+              {shownCaption && (
                 <div className="flex justify-end">
                   <p
                     className="m-0 max-w-[80%] rounded-[18px] rounded-br-md border border-dashed px-4 py-3 text-[13.5px] font-semibold leading-relaxed"
                     style={{ borderColor: 'var(--color-brand-400)', color: 'var(--text-muted)' }}
                   >
-                    {caption}
+                    {shownCaption}
                   </p>
                 </div>
               )}
@@ -562,7 +726,7 @@ export default function Coach() {
               {proposal && (
                 // key 를 두어 새 제안이 오면 이 블록을 **갈아끼운다** — 같은 자리에서 내용만
                 // 바뀌면 카드의 초점·스크롤 위치가 옛 제안 것으로 남는다.
-                <div key={proposal.key} className="ml-10">
+                <div key={proposal.key} data-tour="coach-proposal" className="ml-10">
                   <p className="muted m-0 mb-2 text-[11.5px] font-bold">
                     {proposal.domainIsNew ? '새 세부 목표' : '세부 목표'} “{proposal.domain}” 에
                     담을 과제
@@ -653,24 +817,40 @@ export default function Coach() {
             */}
             <button
               type="button"
-              onClick={() => void toggleTalk()}
-              disabled={!voiceAvailable || micBusy}
-              title={micTitle(voiceAvailable)}
-              aria-label={listening ? '말하기 멈추기' : '음성으로 말하기'}
-              aria-pressed={listening}
+              data-tour="coach-mic"
+              /*
+                안내가 도는 동안에는 <b>예시 대화</b>를 재생한다. 실제 마이크는 건드리지
+                않는다 — 권한 창을 띄우지도, 오디오를 올려보내지도 않는다.
+              */
+              onClick={() => (demoArmed ? demo.start() : void toggleTalk())}
+              /*
+                재생 중에는 `demoArmed` 와 무관하게 잠근다. 안내를 건너뛰어도 예약된 대사는
+                계속 도착하는데(타이머는 화면을 떠날 때 놓는다), 그 사이에 실제 마이크가
+                열리면 예시와 진짜 발화가 같은 대화창에 섞인다.
+              */
+              disabled={demoArmed || demo.running ? demo.running : !voiceAvailable || micBusy}
+              title={
+                demoArmed
+                  ? '안내용 예시 대화를 재생합니다 (실제 마이크는 켜지지 않아요)'
+                  : micTitle(voiceAvailable)
+              }
+              aria-label={shownListening ? '말하기 멈추기' : '음성으로 말하기'}
+              aria-pressed={shownListening}
               className={cn(
                 'flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-bold transition-colors',
-                listening
+                shownListening
                   ? 'border-0 bg-red-500 text-white'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-strong)]',
                 'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--text-muted)]',
               )}
-              style={listening ? undefined : { borderColor: 'var(--border-hairline)' }}
+              style={shownListening ? undefined : { borderColor: 'var(--border-hairline)' }}
             >
               <IconMic className="size-[19px]" />
               {/* 남은 초가 글자로 들어오므로 폭이 흔들린다. 숫자만 tabular 로 두면
                   "듣는 중 9:59" → "듣는 중 10:00" 에서 버튼이 덜 튄다. */}
-              <span className="tabular-nums">{micLabel(voiceAvailable, listening, talkLeft)}</span>
+              <span className="tabular-nums">
+                {micLabel(demoArmed || voiceAvailable, shownListening, shownTalkLeft)}
+              </span>
             </button>
 
             <input
@@ -710,6 +890,7 @@ export default function Coach() {
         <aside className="card flex min-h-0 flex-col overflow-hidden p-0">
           {/* ── 머리: 핵심 목표 + 진행 ── */}
           <div
+            data-tour="coach-goal"
             className="shrink-0 border-b px-5 py-4"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
@@ -760,7 +941,7 @@ export default function Coach() {
           </div>
 
           {/* ── 몸통: 담은 과제 (여기만 스크롤) ── */}
-          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div data-tour="coach-basket" className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {basket.length === 0 ? (
               <div className="flex h-full min-h-[180px] flex-col items-center justify-center text-center">
                 <span
@@ -907,7 +1088,12 @@ export default function Coach() {
               편집기에서 <b>AI 코치로 이어 만들기</b>를 누르면 쓰던 내용을 두고 다시 여기로 올 수
               있어요. 돌아갈 때 빈 칸에만 채워 넣습니다.
             </p>
-            <Button full disabled={basket.length === 0} onClick={handoff}>
+            <Button
+              full
+              data-tour="coach-handoff"
+              disabled={basket.length === 0}
+              onClick={handoff}
+            >
               편집기로 가져가기
             </Button>
             <Button variant="quiet" full size="sm" className="mt-2" to="/app/sheets/new">
@@ -919,7 +1105,7 @@ export default function Coach() {
 
       {/* 목표 없이 들어오면 먼저 묻는다. 방 접속은 뒤에서 계속 진행된다. */}
       <CoachGoalPrompt
-        open={goalPromptOpen}
+        open={goalPromptOpen && !tourFirst}
         onSubmit={(next) => {
           setGoal(next)
           setGoalPromptOpen(false)
