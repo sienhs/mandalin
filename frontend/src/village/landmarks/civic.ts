@@ -1,5 +1,5 @@
 import type { BuildingConfig } from '../partTypes'
-import { at, around, bigColumns, mirrorX, podium } from './_helpers'
+import { at, around, bigColumns, mirrorX, onFaces, podium } from './_helpers'
 
 /**
  * 랜드마크 — 관청·기념물 계열 (3×3, 8단계).
@@ -57,8 +57,9 @@ export const CIVIC_LANDMARKS = {
       ...at(6, [
         { k: 'polyPrism', sides: 5, r: 1.4, h: 0.34, y: 0.89, hollow: 0.86, color: LIME, rough: 0.85 },
         { k: 'polyPrism', sides: 5, r: 1.46, h: 0.06, y: 1.23, hollow: 0.9, color: GRAY, rough: 0.8 },
-        ...around(20, 1.34, 1.34, (x, z) => ({
-          k: 'panel', w: 0.13, h: 0.5, pos: [x, 0.62, z], color: GLASS, glow: 0.2,
+        // 창은 면 위에 붙인다 — 벽면까지가 1.15(2층 r 1.42 의 변)이라 1.18 에 놓는다.
+        ...onFaces(5, 1.18, 0.62, 4, 1.2, (pos, rotY) => ({
+          k: 'panel', w: 0.13, h: 0.5, pos, rotY, color: GLASS, glow: 0.2,
         })),
       ]),
       // 7단계 — 진입 램프·주차 광장·헬리패드
@@ -66,7 +67,12 @@ export const CIVIC_LANDMARKS = {
         { k: 'box', w: 0.9, h: 0.05, d: 0.5, z: 1.24, y: 0.05, color: GRAY, rough: 0.95 },
         ...bigColumns(6, 0.8, 1.24, 0.1, 0.4, 0.05, MARBLE),
         { k: 'box', w: 0.9, h: 0.04, d: 0.14, z: 1.24, y: 0.5, color: MARBLE, rough: 0.8 },
-        { k: 'cyl', rt: 0.24, rb: 0.24, h: 0.03, y: 1.29, color: ROOF_SLATE, seg: 16 },
+        /*
+          헬리패드는 **안뜰 바닥**에 깐다. `cyl` 은 중심 고정이라 오각 링 위로 옮길 수 없는데,
+          중심은 뚫린 안뜰이라 y 1.29 에 두면 상공에 원반이 떠 있는 그림이 된다.
+          잔디 윗면(0.07)에 놓으면 같은 부품 그대로 지상 헬리패드가 된다.
+        */
+        { k: 'cyl', rt: 0.24, rb: 0.24, h: 0.03, y: 0.07, color: ROOF_SLATE, seg: 16 },
       ]),
       // 8단계 — 국기·중앙 기념 조형 + 야간 창 조명
       ...at(8, [
@@ -74,8 +80,9 @@ export const CIVIC_LANDMARKS = {
         { k: 'panel', w: 0.24, h: 0.15, pos: [0.13, 0.72, 1.36], color: 'beaconRed', glow: 0.4 },
         { k: 'polyPrism', sides: 5, r: 0.16, h: 0.34, y: 0.07, color: BRONZE, rough: 0.5, metal: 0.5 },
         { k: 'roof', type: 'cone', w: 0.3, y: 0.41, height: 0.2, color: GOLD },
-        ...around(15, 1.32, 1.32, (x, z) => ({
-          k: 'panel', w: 0.1, h: 0.08, pos: [x, 1.06, z], color: 'glassWarm', glow: 0.8,
+        // 최상층(r 1.40)의 변까지가 1.133 이라 1.15 에 붙인다.
+        ...onFaces(5, 1.15, 1.06, 3, 1.0, (pos, rotY) => ({
+          k: 'panel', w: 0.1, h: 0.08, pos, rotY, color: 'glassWarm', glow: 0.8,
         })),
       ]),
     ],
@@ -117,12 +124,19 @@ export const CIVIC_LANDMARKS = {
       ...at(6, [
         { k: 'cyl', rt: 0.38, rb: 0.44, h: 0.2, y: 1.46, color: MARBLE2, seg: 20 },
         { k: 'roof', type: 'dome', w: 1.1, y: 1.66, color: MARBLE },
-        ...mirrorX([{ k: 'box', w: 0.9, h: 0.05, d: 1.18, x: 0.98, y: 0.98, color: ROOF_SLATE, rough: 0.85 }]),
+        // 4단계 코니스(2.86×1.26, y 0.98~1.04) **안에** 넣으면 아예 안 보인다 — 그 위에 얹는다.
+        ...mirrorX([{ k: 'box', w: 0.9, h: 0.05, d: 1.18, x: 0.98, y: 1.04, color: ROOF_SLATE, rough: 0.85 }]),
       ]),
       // 7단계 — 포치 페디먼트 + 계단 + 조경
       ...at(7, [
         { k: 'box', w: 1.06, h: 0.06, d: 0.16, z: 0.7, y: 0.76, color: MARBLE2, rough: 0.8 },
-        { k: 'roof', type: 'pyramid', w: 1.0, d: 0.22, y: 0.82, height: 0.16, color: MARBLE2 },
+        /*
+          페디먼트. `roof` 는 **중심 고정**이라 포치(z 0.7)에 못 올리고, 중앙 매스
+          (z ±0.68, y 0.78~1.06) 속에 그려져 아예 보이지 않았다. 오프셋이 되는 box 2단으로
+          낮은 박공을 만든다.
+        */
+        { k: 'box', w: 0.92, h: 0.07, d: 0.2, z: 0.7, y: 0.82, color: MARBLE2, rough: 0.8 },
+        { k: 'box', w: 0.62, h: 0.06, d: 0.16, z: 0.72, y: 0.89, color: MARBLE2, rough: 0.8 },
         { k: 'box', w: 1.2, h: 0.05, d: 0.4, z: 1.05, y: 0.06, color: STONE, rough: 0.9 },
         { k: 'box', w: 1.1, h: 0.05, d: 0.34, z: 1.2, y: 0.02, color: STONE, rough: 0.9 },
         { k: 'pool', w: 1.1, d: 0.3, z: 1.29, y: 0.03, color: 'water' },
@@ -132,10 +146,11 @@ export const CIVIC_LANDMARKS = {
         { k: 'cyl', rt: 0.1, rb: 0.13, h: 0.22, y: 2.06, color: MARBLE, seg: 12 },
         { k: 'roof', type: 'dome', w: 0.3, y: 2.28, color: GOLD },
         { k: 'box', w: 0.05, h: 0.24, d: 0.05, y: 2.39, color: GOLD, emissive: true },
-        { k: 'box', w: 0.03, h: 0.5, d: 0.03, x: -0.62, z: 1.24, y: 0.11, color: MARBLE },
-        { k: 'panel', w: 0.2, h: 0.13, pos: [-0.5, 0.53, 1.24], color: 'beaconRed', glow: 0.4 },
-        ...around(12, 0.52, 0.52, (x, z) => ({
-          k: 'panel', w: 0.08, h: 0.1, pos: [x, 1.24, z], color: 'glassWarm', glow: 0.75,
+        // 깃대는 계단(x ±0.6) 밖으로 0.02 비껴 있어 광장 위 0.08 을 떠 있었다. 광장 윗면(0.03)에서 세운다.
+        { k: 'box', w: 0.03, h: 0.5, d: 0.03, x: -0.62, z: 1.24, y: 0.03, color: MARBLE },
+        { k: 'panel', w: 0.2, h: 0.13, pos: [-0.5, 0.45, 1.24], color: 'beaconRed', glow: 0.4 },
+        ...around(12, 0.52, 0.52, (x, z, a) => ({
+          k: 'panel', w: 0.08, h: 0.1, pos: [x, 1.24, z], rotY: Math.PI / 2 - a, color: 'glassWarm', glow: 0.75,
         })),
       ]),
     ],
@@ -192,8 +207,8 @@ export const CIVIC_LANDMARKS = {
         { k: 'box', w: 0.12, h: 0.2, d: 0.1, x: 0.22, y: 2.03, color: BRONZE, rough: 0.5, metal: 0.5 },
         { k: 'cyl', rt: 0.16, rb: 0.2, h: 0.06, y: 0.07, color: BRONZE, seg: 12 },
         { k: 'panel', w: 0.16, h: 0.16, pos: [0, 0.2, 0], color: 'accent', glow: 1 },
-        ...around(10, 1.34, 1.34, (x, z) => ({
-          k: 'panel', w: 0.1, h: 0.1, pos: [x, 0.1, z], color: 'glassWarm', glow: 0.7,
+        ...around(10, 1.34, 1.34, (x, z, a) => ({
+          k: 'panel', w: 0.1, h: 0.1, pos: [x, 0.1, z], rotY: Math.PI / 2 - a, color: 'glassWarm', glow: 0.7,
         })),
       ]),
     ],
@@ -234,8 +249,10 @@ export const CIVIC_LANDMARKS = {
       // 7단계 — 분수 + 벤치 + 가로수
       ...at(7, [
         { k: 'pool', w: 0.7, d: 0.7, z: 1.06, y: 0.05, color: 'water' },
-        { k: 'cyl', rt: 0.06, rb: 0.1, h: 0.2, y: 0.09, color: MARBLE2, seg: 10 },
-        ...around(6, 1.2, 1.2, (x, z) => ({
+        // 분수 노즐 — `cyl` 은 중심 고정이라 청사(z ±0.45) 속에 박혔다. 오프셋이 되는 polyPrism 으로 못 위에 세운다.
+        { k: 'polyPrism', sides: 10, r: 0.08, h: 0.2, z: 1.06, y: 0.07, color: MARBLE2, rough: 0.7 },
+        // 반경 1.2 는 좌우 윙(x 0.81~1.31) 안에 2그루가 파묻힌다 — x 를 윙 밖으로 넓힌 타원으로 돈다.
+        ...around(6, 1.38, 1.2, (x, z) => ({
           k: 'box', w: 0.1, h: 0.22, d: 0.1, x, z, y: 0.05, color: 'bush', rough: 1,
         })),
       ]),
@@ -244,8 +261,8 @@ export const CIVIC_LANDMARKS = {
         { k: 'box', w: 0.03, h: 0.6, d: 0.03, x: -0.7, z: 1.16, y: 0.07, color: MARBLE },
         { k: 'panel', w: 0.22, h: 0.14, pos: [-0.58, 0.6, 1.16], color: 'accent', glow: 0.35 },
         { k: 'box', w: 0.05, h: 0.2, d: 0.05, y: 2.05, color: GOLD, emissive: true },
-        ...around(8, 1.3, 1.3, (x, z) => ({
-          k: 'panel', w: 0.09, h: 0.09, pos: [x, 0.12, z], color: 'glassWarm', glow: 0.7,
+        ...around(8, 1.3, 1.3, (x, z, a) => ({
+          k: 'panel', w: 0.09, h: 0.09, pos: [x, 0.12, z], rotY: Math.PI / 2 - a, color: 'glassWarm', glow: 0.7,
         })),
       ]),
     ],
