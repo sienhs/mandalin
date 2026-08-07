@@ -123,7 +123,7 @@ body {
 
 /* 브랜드색이 아닌 파랑입니다 — 프론트의 값(`index.css` 의 `::selection`)을 그대로 씁니다.
    오렌지로 칠하면 선택 영역이 주요 버튼과 같은 색이 되어 "선택됨" 이 "누를 것" 으로 읽힙니다. */
-::selection { background: #3867D2; color: #1a1815; }
+::selection { background: #3867D2; color: #fff; }
 
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
