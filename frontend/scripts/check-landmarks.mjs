@@ -13,6 +13,12 @@
  *  5. 팔레트에 없는 색 이름 — resolveColor 가 조용히 크림색으로 떨어진다.
  *  6. 아무것도 뒤집지 못한 mirrorX — 대칭 부품이 한쪽만 붙는다.
  *  7. 비디테일 부품이 0 인 단계 — details=false 로 그리는 미리보기에서 앞 단계와 같아진다.
+ *  8. 받침이 없는 부품 — 공중에 뜬다. 받침이 늦은 단계면 그 사이 구간이 떠 있다.
+ *  9. 다른 부품 속에 파묻힌 panel — 그리는 값은 다 맞는데 화면에 없다.
+ *
+ * 8·9 는 **바운딩 박스로는 못 잡는다** — ring·bowl·polyPrism(hollow) 은 가운데가 뚫려 있고,
+ * 정다각형은 꼭짓점과 변의 거리가 다르다. 그래서 `solidAt` 으로 "그 (x,z) 기둥에 실제로
+ * 재질이 있는가"를 부품 종류별로 판정한다.
  */
 import { LANDMARK_CONFIGS } from '../src/village/landmarks/index.ts'
 import { MIRROR_NOOPS } from '../src/village/landmarks/_helpers.ts'
@@ -38,6 +44,86 @@ const CENTER_ONLY = new Set([
   'plinth', 'cyl', 'roof', 'parapet', 'rooftopUnits', 'storefront',
   'columns', 'balconies', 'blades', 'clock', 'tree', 'ring', 'bowl', 'lattice',
 ])
+
+/**
+ * (x, z) 기둥에 이 부품의 재질이 있는가. `m` 은 여유(표면에 살짝 붙인 것을 파묻힌 것으로
+ * 세지 않기 위한 안쪽 여백).
+ *
+ * 여기 없는 종류는 `null` — "모르겠다"로 두고 판정에서 뺀다. `lattice`·`arch` 는 대부분
+ * 빈 공간이라(격자·개구부) 재질로 세면 그 안에 놓은 부품이 죄다 파묻힘으로 잡힌다.
+ */
+function solidAt(p, x, z, m = 0) {
+  const cx = p.x ?? 0, cz = p.z ?? 0
+  const dx = x - cx, dz = z - cz
+  switch (p.k) {
+    case 'box':
+      return Math.abs(dx) <= p.w / 2 - m && Math.abs(dz) <= (p.d ?? p.w) / 2 - m
+    case 'shell': {
+      const [px, , pz] = p.pos
+      return Math.abs(x - px) <= p.w / 2 - m && Math.abs(z - pz) <= p.d / 2 - m
+    }
+    case 'cyl':
+      return Math.hypot(x, z) <= Math.max(p.rt, p.rb) - m
+    case 'roof': {
+      const d = p.d ?? p.w
+      return Math.abs(x) <= p.w / 2 - m && Math.abs(z) <= d / 2 - m
+    }
+    case 'ring':
+    case 'bowl': {
+      // 타원 링 — 정규화 반경으로 안팎을 본다(bounds 가 ro·sx, ro·sz 를 쓰는 것과 같은 기준).
+      const nr = Math.hypot(x / (p.sx ?? 1), z / (p.sz ?? 1))
+      return nr >= p.ri + m && nr <= p.ro - m
+    }
+    case 'polyPrism': {
+      /*
+        정n각형. 렌더러가 반 세그먼트를 미리 돌려 면 하나를 +z 로 맞추므로(`PolyPrismPart`)
+        면 f 의 법선 방향은 `rot + f·2π/n` 이고, 중심에서 면까지는 r·cos(π/n) 이다.
+      */
+      const n = p.sides
+      const apo = p.r * Math.cos(Math.PI / n)
+      let far = -Infinity
+      for (let f = 0; f < n; f++) {
+        const th = (p.rot ?? 0) + (f / n) * Math.PI * 2
+        far = Math.max(far, dx * Math.sin(th) + dz * Math.cos(th))
+      }
+      if (far > apo - m) return false
+      return p.hollow == null || p.hollow <= 0 || p.hollow >= 1 ? true : far >= apo * p.hollow + m
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * 부품이 밑면에서 실제로 밟고 있는 (x, z) 표본점.
+ *
+ * 네모난 부품은 밑면을 3×3 으로 훑는다(테두리에 딱 붙이면 옆 부품을 집으므로 살짝 안쪽).
+ * **링은 그렇게 훑으면 안 된다** — 바운딩 박스의 표본이 죄다 구멍이나 밖으로 떨어져서,
+ * 자기 아래 링 위에 정확히 얹혀 있어도 부양으로 잡힌다. 링은 띠 중앙을 따라 돈다.
+ */
+function footprint(p, b) {
+  /*
+    띠를 안쪽·중간·바깥 세 반경으로 훑는다. 중간만 보면 **캔틸레버 지붕**을 놓친다 —
+    안쪽으로 뻗은 지붕 링은 바깥 테두리만 벽에 얹혀 있고 중간은 원래 허공이다.
+  */
+  const ringMid = (ri, ro, sx = 1, sz = 1) =>
+    [0.1, 0.5, 0.9].flatMap((t) => {
+      const rm = ri + (ro - ri) * t
+      return Array.from({ length: 12 }, (_, i) => {
+        const a = (i / 12) * Math.PI * 2
+        return [Math.cos(a) * rm * sx, Math.sin(a) * rm * sz]
+      })
+    })
+  if (p.k === 'ring' || p.k === 'bowl') return ringMid(p.ri, p.ro, p.sx ?? 1, p.sz ?? 1)
+  if (p.k === 'polyPrism' && p.hollow > 0 && p.hollow < 1) {
+    const apo = p.r * Math.cos(Math.PI / p.sides)
+    return ringMid(apo * p.hollow, apo)
+  }
+  const at = (lo, hi, t) => lo + (hi - lo) * t
+  const xs = [0.05, 0.5, 0.95].map((t) => at(b.x0, b.x1, t))
+  const zs = [0.05, 0.5, 0.95].map((t) => at(b.z0, b.z1, t))
+  return xs.flatMap((x) => zs.map((z) => [x, z]))
+}
 
 const paletteKeys = new Set(Object.keys(PALETTE))
 const problems = []
@@ -99,6 +185,65 @@ for (const [key, config] of Object.entries(LANDMARK_CONFIGS)) {
       `${key}: 단계 ${detailOnly.join(',')} 가 디테일 부품만으로 돼 있다 — ` +
         `details=false 미리보기에서 앞 단계와 같아진다. 실루엣 부품을 하나 넣을 것`,
     )
+  }
+
+  /*
+    8. 받침 검사 — 실루엣 부품(디테일 제외)의 밑면 아래에 재질이 있는가.
+
+    표본점 아홉 개 중 하나만 걸쳐도 받친 것으로 본다. 기초 블록 네 개 위에 선 철탑처럼
+    "면적은 조금 겹치지만 제자리를 받치는" 경우가 정상이기 때문이다. 반대로 면적 비율로
+    재면 그런 것까지 부양으로 잡힌다.
+  */
+  const solids = config.parts
+    .map((p) => ({ p, st: p.st ?? 1, b: partBounds(p) }))
+    .filter((q) => q.b && !DETAIL_KINDS.has(q.p.k))
+
+  for (const q of solids) {
+    if (q.b.y0 <= 0.03) continue // 지면에서 시작하는 부품
+    const pts = footprint(q.p, q.b)
+    const holders = solids.filter((r) => {
+      if (r === q) return false
+      /*
+        아래에서 밑면까지 닿아 받치거나(앞 조건), 아니면 **다른 매스에 박혀 붙어 있으면**
+        된다(뒤 조건). 경기장 전광판처럼 지붕에 매달린 부품은 밑에 아무것도 없는 것이
+        정상이라, 밑만 보면 정상인 것을 부양으로 잡는다.
+      */
+      const under = r.b.y1 >= q.b.y0 - 0.02 && r.b.y0 <= q.b.y0 - 0.005
+      const stuck = r.b.y1 > q.b.y0 + 0.01 && r.b.y0 < q.b.y1 - 0.01
+      if (!under && !stuck) return false
+      return pts.some(([x, z]) => solidAt(r.p, x, z) !== false)
+    })
+    if (holders.length === 0) {
+      problems.push(
+        `${key}: st${q.st} ${q.p.k} 이 y=${q.b.y0.toFixed(2)} 에서 시작하는데 아래에 받칠 부품이 없다 — 공중에 뜬다`,
+      )
+      continue
+    }
+    const first = Math.min(...holders.map((r) => r.st))
+    if (first > q.st) {
+      const who = holders.find((r) => r.st === first).p.k
+      problems.push(`${key}: st${q.st} ${q.p.k} 의 받침(${who})이 st${first} 부터다 — 그 사이 단계에서 떠 있다`)
+    }
+  }
+
+  /*
+    9. 매몰 검사 — `panel` 만 본다.
+
+    panel 은 두께가 없는 평면이라 표면에서 조금만 안쪽이면 아예 안 보인다. 반대로 box·기둥이
+    다른 매스에 박히는 것은 정상(기둥·코니스)이라 검사하지 않는다.
+  */
+  for (const p of config.parts) {
+    if (p.k !== 'panel') continue
+    const [px, py, pz] = p.pos
+    const inside = solids.find(
+      (r) => py > r.b.y0 + 0.012 && py < r.b.y1 - 0.012 && solidAt(r.p, px, pz, 0.012) === true,
+    )
+    if (inside) {
+      problems.push(
+        `${key}: st${p.st ?? 1} panel [${p.pos.map((n) => n.toFixed(2)).join(', ')}] 이 ` +
+          `st${inside.st} ${inside.p.k} 속에 파묻혔다 — 그리는 값은 맞지만 화면에 없다`,
+      )
+    }
   }
 
   console.log(`${key.padEnd(22)} 부품 ${String(config.parts.length).padStart(3)}개 · 높이 ${height.toFixed(2)}`)
