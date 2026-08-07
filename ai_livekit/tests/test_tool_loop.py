@@ -24,6 +24,7 @@ from mandarin_goal.bot.tools import (
     parse_descriptions,
     run_tool_loop,
     to_decision,
+    tool_names,
 )
 from mandarin_goal.config import Settings
 
@@ -109,9 +110,14 @@ def test_every_tool_has_a_description_from_the_prompt_file() -> None:
 
 
 def test_the_emergency_text_still_names_every_tool() -> None:
-    """파일을 못 읽어도 도구 이름은 다 들고 있어야 합니다."""
+    """파일을 못 읽어도 도구 이름은 다 들고 있어야 합니다.
+
+    **`TERMINAL` 이 아니라 `tool_names()` 와 맞춥니다.** 지금은 두 목록이 같지만,
+    비종결 도구가 다시 생기면 설명이 필요한 쪽은 선언된 **전부**입니다 — 그때
+    이 검사가 `TERMINAL` 을 보고 있으면 새 도구만 설명 없이 나갑니다.
+    """
     sections = parse_descriptions(EMERGENCY["tools"])
-    assert set(sections) == set(TERMINAL)
+    assert set(sections) == set(tool_names())
 
 
 def test_the_preamble_is_not_sent_to_the_model() -> None:

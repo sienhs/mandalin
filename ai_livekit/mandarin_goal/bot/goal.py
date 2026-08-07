@@ -1007,9 +1007,9 @@ class GoalPipeline:
         모델이 인자를 직접 건네는 이 경로에서 더 필요합니다.
 
         **스텝 예산을 나눠 씁니다.** `BOT_STEP_TIMEOUT_SECONDS` 를 스텝마다 그대로
-        쓰면 3스텝이 75초인데 `BOT_TIMEOUT_SECONDS`(45초)가 먼저 터집니다 — 그러면
-        어느 스텝이 느렸는지도 모르는 채 매번 타임아웃 문구로 끝납니다. 전체 예산을
-        스텝 수로 나누고, 원래 단계 예산보다 크지는 않게 둡니다.
+        쓰면 스텝 수만큼 곱해져 `BOT_TIMEOUT_SECONDS` 가 먼저 터집니다 — 그러면 어느
+        스텝이 느렸는지도 모르는 채 매번 타임아웃 문구로 끝납니다. 전체 예산을 스텝
+        수로 나누고, 원래 단계 예산보다 크지는 않게 둡니다.
         """
         tools = build_tools(parse_descriptions(self._tool_descriptions.text()))
         budget = min(

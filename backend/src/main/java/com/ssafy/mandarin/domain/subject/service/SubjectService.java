@@ -240,7 +240,6 @@ public class SubjectService {
             }
         }
 
-
         return SubjectCompleteResponse.builder()
                 .completedSubjectIds(completedSubjectIds)
                 .totalEarnedPoint(totalEarnedPoint)

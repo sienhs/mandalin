@@ -20,10 +20,16 @@
 그 모양을 전제로 이미 돌고 있고, 그쪽이 **"아는 값은 서버가 정한다" 를 실제로 강제하는
 층**입니다. 모델이 인자를 직접 건네는 도구 경로에서는 그 층이 더 필요합니다.
 
-**지금은 도구 넷이 전부 종결입니다.** 한 턴에 판단 하나 — `BOT_MODE=goal` 과 같은
-동작이고, 골든셋으로 두 모드를 비교할 수 있어야 하기 때문입니다. 루프 기계
-(스텝 예산·비종결 디스패치·되먹임)는 먼저 만들어 둡니다. `remove_task` 처럼 결과를
-보고 이어가야 하는 도구는 `HANDLERS` 에 붙이면 그대로 돕니다.
+**에이전트는 만드는 일만 합니다.** 담은 과제를 빼거나 고치는 도구를 붙여 봤다가
+**걷어냈습니다**(2026-08-07). 파이프라인 쪽은 잘 돌았지만 — 한 응답에 `remove_task` 와
+`propose_tasks` 가 같이 오고 1스텝 2.9초였습니다 — 화면에서 되돌릴 수단 없이 과제가
+사라지는 버튼이 생기는 것이 문제였습니다. 정리는 편집기에서 사용자가 합니다
+(`domain_full_reply` 가 "편집기에서 정리해 주세요" 로 끝나는 것과 같은 경계입니다).
+
+그래서 **지금 도구는 넷이고 전부 종결입니다.** 한 턴에 판단 하나 — `BOT_MODE=goal` 과
+같은 동작이고, 골든셋으로 두 모드를 비교할 수 있습니다. 비종결 디스패치와 되먹임
+(`HANDLERS`·`_run_handler`)은 남겨 둡니다. 모르는 도구 이름을 예외 없이 흡수하는 자리라
+지금도 쓰이고, 다시 붙일 때 고칠 곳이 한 군데입니다.
 """
 from __future__ import annotations
 
@@ -37,11 +43,13 @@ logger = logging.getLogger(__name__)
 
 #: 한 턴에 허용하는 모델 호출 수.
 #:
-#: **3 입니다.** 위로 못 올리는 이유는 지연입니다 — 생성 중에는 마이크가 잠기고
-#: (`Conversation.busy` 를 `SpeechGate` 가 봅니다) 스텝당 실측 3.2초라, 3스텝이면
-#: 사용자가 10초를 기다립니다. 아래로 못 내리는 이유는 비종결 도구입니다: 실행 →
-#: 되먹임 → 종결이 최소 2스텝이고, 마지막 하나는 종결 강제용 여유입니다.
-MAX_STEPS = 3
+#: **2 입니다 — 첫 시도와, 평문으로 샜을 때의 종결 강제 재시도.** 도구가 전부 종결이라
+#: 정상 턴은 1스텝에 끝나고, 두 번째는 `mode=ANY` 가 뚫렸을 때만 씁니다.
+#:
+#: 위로 올리면 지연이 그대로 늘어납니다 — 생성 중에는 마이크가 잠기고
+#: (`Conversation.busy` 를 `SpeechGate` 가 봅니다) 스텝당 실측 3.2초입니다. 비종결 도구를
+#: 다시 붙이는 날에는 "실행 → 되먹임 → 종결" 이 최소 2스텝이라 3으로 올려야 합니다.
+MAX_STEPS = 2
 
 #: 이걸 부르면 그 턴이 끝납니다. 값은 그대로 `decided["action"]` 이 됩니다.
 TERMINAL: dict[str, str] = {
@@ -57,8 +65,8 @@ TERMINAL: dict[str, str] = {
 #: **`self_harm` 을 `harmful` 에서 가르는 이유는 응답 문구입니다**(`BLOCKED_REPLIES`).
 DECLINE_KINDS = ("out_of_scope", "injection", "harmful", "self_harm")
 
-#: 종결이 아닌 도구의 실행기. 지금은 비어 있습니다 — 넷이 다 종결이라서입니다.
-#: 여기 붙는 순간 그 도구는 결과를 되먹이고 루프가 이어집니다.
+#: 종결이 아닌 도구의 실행기. **비어 있습니다** — 지금 도구는 전부 종결입니다.
+#: 여기 등록하는 순간 그 도구는 결과를 되먹이고 루프가 이어집니다.
 HANDLERS: dict[str, Callable[[dict], dict]] = {}
 
 #: 한 턴이 내는 과제 수. `GOAL_SCHEMA.generated_tasks` 와 **같은 값이어야 합니다** —
@@ -152,6 +160,15 @@ def _declarations(descriptions: dict[str, str]) -> list[dict]:
 def build_tools(descriptions: dict[str, str]) -> list[dict]:
     """`reply_tools` 에 그대로 넘길 `tools` 값."""
     return [{"functionDeclarations": _declarations(descriptions)}]
+
+
+def tool_names() -> tuple[str, ...]:
+    """선언된 도구 전부. 설명이 없어도 이름은 코드가 압니다.
+
+    `TERMINAL` 로 대신하지 않습니다. 지금은 두 목록이 같지만, 비종결 도구가 다시
+    생기면 설명이 필요한 쪽은 **선언된 전부**입니다.
+    """
+    return tuple(declaration["name"] for declaration in _declarations({}))
 
 
 def parse_descriptions(text: str) -> dict[str, str]:
@@ -279,9 +296,9 @@ async def run_tool_loop(
 def _run_handler(call: ToolCall) -> ToolResult:
     """비종결 도구를 실행합니다. 실패해도 **예외를 올리지 않습니다.**
 
-    모르는 도구나 터진 핸들러를 예외로 올리면 그 턴이 통째로 실패합니다. 결과로
-    돌려주면 모델이 그걸 읽고 다른 도구를 고를 수 있습니다 — 되먹임이 있는 구조에서만
-    되는 복구라, 안 쓰면 루프를 만든 이유의 절반이 사라집니다.
+    지금은 등록된 것이 없으므로 실제로 도는 경로는 "모르는 도구" 쪽입니다 — 모델이
+    없는 이름을 부르는 일이 있고, 예외로 올리면 그 턴이 통째로 실패합니다. 결과로
+    돌려주면 모델이 그걸 읽고 다른 도구를 고를 수 있습니다.
     """
     handler = HANDLERS.get(call.name)
     if handler is None:
