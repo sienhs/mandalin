@@ -26,6 +26,7 @@ scripts/        진단, 스모크, 개발용 토큰 서버
 | 파일 | 역할 | LiveKit |
 |---|---|:---:|
 | `mandarin_goal/` | 분류, 검색, 판단, LLM, 프롬프트, 시트 모델 | |
+| `mandarin_goal/bot/tools.py` | 도구 선언과 호출 루프(`BOT_MODE=agent`) | |
 | `agent/reuse.py` | 파이프라인 import 통로 | |
 | `agent/sheet_transfer.py` | 시트 수신과 파싱 | |
 | `agent/conversation.py` | 대화 규율(히스토리, 동시성, 실패 처리) | |
@@ -33,6 +34,7 @@ scripts/        진단, 스모크, 개발용 토큰 서버
 | `agent/entrypoint.py` | worker 배선(`AgentServer`, 토픽, 이벤트) | 필요 |
 | `agent/__main__.py` | `.env` 로딩, `worker.log`, worker 기동 | 필요 |
 | `scripts/check_reuse.py` | 환경 진단 | |
+| `scripts/probe_tools.py` | 도구 호출 지원 여부 진단(모델·게이트웨이) | |
 | `scripts/smoke_client.py` | 파이썬 클라이언트로 왕복 확인 | 필요 |
 | `scripts/dev_server.py` | 프론트 서빙과 토큰 발급. Spring 자리 | 필요 |
 
@@ -141,6 +143,8 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `test_versions_match.py` | 2 | compose 가 띄우는 LiveKit 서버 태그와 README 의 기준 버전이 같은지, 패치까지 고정됐는지 |
 | `test_worker_limits.py` | 4 | 버스터블 baseline 에 맞춘 `load_threshold`·유휴 프로세스 수. 인스턴스를 바꾸면 실패합니다 |
 | `test_topics_match.py` | 3 | 토픽 문자열이 서버·`web/app.js`·React 훅 세 곳에서 같은지(이름→값 짝으로) |
+| `test_tool_calls.py` | 15 | `functionResponse` 의 role, `mode=ANY` 강제, 평문 누출 보고, 잘림이 도구 경로에도 걸리는지 |
+| `test_tool_loop.py` | 27 | 두 모드가 같은 판단을 낼 수 있는지(action↔도구 짝), 종결 강제, 되먹임, 핸들러 실패 복구 |
 
 `test_event_signatures.py` 부터 `test_transcription_registry.py` 까지는 예외 없이
 조용히 실패하던 버그에서 나왔습니다(HANDOFF 2절). 그래서 문구가 아니라 구조를
@@ -162,7 +166,7 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `BOT_BASE_URL` | | 게이트웨이를 쓰면 필수. 빠뜨리면 공식 엔드포인트로 나갑니다 |
 | `BOT_STEP_TIMEOUT_SECONDS` | `25` | 게이트웨이는 느립니다. 기본값 15 면 정상 응답이 잘립니다 |
 | `BOT_TIMEOUT_SECONDS` | `45` | 위와 같음(기본값 20) |
-| `BOT_MODE` | `goal` | `goal` 경로만 배선돼 있습니다. 다른 값은 경고만 남고 동작은 같습니다 |
+| `BOT_MODE` | `goal` | `goal` 또는 `agent`(도구 루프 — 아래 절). 아는 값의 정본은 `PIPELINE_MODES` 이고, 모르는 값이면 경고가 남습니다 |
 | `BOT_MAX_CONCURRENT_ROOMS` | `0` | worker 하나가 맡을 방 수 상한(0=무제한). 넘으면 `admit()` 이 거절하고 다른 worker 로 넘깁니다. t3.micro 권장 4 — 근거와 실측치는 `.env.example` 주석에 있습니다(유휴 430MB + 세션당 약 45MB, 1 GiB 라 스왑 없이는 더 올리지 마세요) |
 | `BOT_SYSTEM_PROMPT_FILE` | `./prompts/system.md` | 생략 가능. 기본값이 저장소의 정본을 |
 | `BOT_CLASSIFY_PROMPT_FILE` | `./prompts/classify.md` | 가리킵니다 — 다른 파일로 실험할 때만 |
@@ -208,6 +212,58 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 `mandarin.goal` 로는 `public_data()` 를 거친 것만 내보냅니다. 안 거치면 프롬프트가
 사용자에게 노출하지 않는다고 적어 둔 `reasoning` 이 브라우저까지 갑니다
 (`test_the_structured_result_never_carries_reasoning`).
+
+## 도구 모드 (`BOT_MODE=agent`)
+
+3단계(판단)를 **도구 호출 루프**로 대신합니다. 1단계(분류)와 2단계(검색)는 그대로예요 —
+1단계는 싼 모델로 차단 갈래를 먼저 끊는 자리고, 2단계는 LLM 이 아니라 바이그램 검색입니다.
+
+```
+action="generate"   → propose_tasks(domain, tasks[3])
+action="recommend"  → point_to_existing(subject_id)
+action="clarify"    → ask(question, domain)
+나머지 넷            → decline(kind)
+```
+
+`GOAL_SCHEMA` 는 평평한 객체 하나가 모든 action 을 겸해서, action 을 늘릴 때마다 다른
+action 에서는 항상 `null` 인 필드가 늘고 잘림 위험이 커집니다. 도구로 가르면 각 도구의
+`parameters` 가 그 action 전용이라 서로를 밀어내지 않습니다.
+
+**`responseSchema` 를 같이 쓸 수 없습니다.** Gemini 가 거부합니다 — *Function calling
+with a response mime type: 'application/json' is unsupported*. 확인은
+`scripts/probe_tools.py` 가 합니다.
+
+```powershell
+.venv\Scripts\python.exe scripts\probe_tools.py            # 다섯 항목 전부
+.venv\Scripts\python.exe scripts\probe_tools.py --only parallel
+```
+
+그래서 **스키마 강제가 하던 일을 `mode=ANY` 가 합니다**(`reply_tools(force=True)`).
+AUTO 로 두면 모델이 도구를 건너뛰고 평문으로 답하는 것이 실측으로 확인됐고, 그 문장은
+어떤 스키마도 거치지 않은 채 말풍선까지 갑니다. 루프는 평문이 오면 종결 도구로 좁혀
+다시 묻고, 그 문장을 히스토리에 넣지 않습니다.
+
+| 지키는 것 | 어디서 |
+|---|---|
+| 스키마 밖 출력 금지 | `mode=ANY`. 마지막 스텝은 `allowedFunctionNames` 로 종결 도구만 |
+| 잘림 재시도·429 백오프 | `_step` 을 그대로 지납니다 |
+| 아는 값은 서버가 정함 | 루프 결과가 `GOAL_SCHEMA` **같은 모양**이라 `_settle_*` 와 `render()` 가 그대로 돕니다 |
+| 스텝 예산 | `BOT_TIMEOUT_SECONDS / MAX_STEPS`. 단계 예산을 그대로 쓰면 3스텝이 75초라 전체가 먼저 터집니다 |
+
+도구 설명의 정본은 `prompts/fragments/tools.md` 입니다 — 이름과 인자 모양은 코드가
+정하지만(`bot/tools.py`) "언제 부르는가" 는 문구라 `prompts/` 에 둡니다.
+
+**`system.md` 의 낱말과 이어 줘야 합니다.** 그쪽 규칙은 `generate`·`recommend` 라는
+action 이름으로 적혀 있는데 도구 모드에는 그 이름이 없습니다. 이어 주지 않았을 때
+`"정보처리기사 준비하고 싶어"` 가 중복 알림 대신 새 과제 생성으로 샜습니다(2026-08-07).
+이어 준 뒤로는 골든 케이스 5건이 두 모드에서 같은 action 을 냅니다.
+
+**지금은 도구 넷이 전부 종결입니다** — 한 턴에 판단 하나로, `goal` 과 같은 동작입니다.
+루프 기계(스텝 예산·비종결 디스패치·되먹임)는 먼저 만들어 뒀습니다. `remove_task` 처럼
+결과를 보고 이어가야 하는 도구는 `tools.py` 의 `HANDLERS` 에 붙이면 그대로 돕니다.
+
+**병렬 호출은 없다고 보고 설계했습니다.** `mode=ANY` 로 강제하고 시트 맥락을 줘도 한
+응답에 도구 하나만 왔습니다(두 번 측정). 한 턴에 두 동작을 하려면 스텝이 둘 듭니다.
 
 ## 시트
 

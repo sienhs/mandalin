@@ -47,9 +47,11 @@ from mandarin_goal.bot.llm import (
     LlmError,
     LlmRateLimitedError,
     LlmTruncatedError,
+    ToolReply,
     Turn,
     build_backend,
     supports_json,
+    supports_tools,
 )
 from mandarin_goal.bot.prompt import EMERGENCY, SystemPrompt, fragment
 
@@ -63,6 +65,12 @@ from mandarin_goal.bot.subjects import (
     frequency_label,
 )
 from mandarin_goal.bot.subjects import search as search_subjects
+from mandarin_goal.bot.tools import (
+    MAX_STEPS,
+    build_tools,
+    parse_descriptions,
+    run_tool_loop,
+)
 from mandarin_goal.config import Settings
 from mandarin_goal.sheet import (
     DOMAIN_SLOTS,
@@ -72,6 +80,15 @@ from mandarin_goal.sheet import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: 실제로 배선된 `BOT_MODE` 값. **문자열을 비교하는 곳이 여기 하나여야 합니다** —
+#: `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 각자 `!= "goal"` 로 비교하고
+#: 있었는데, 모드를 하나 늘리면 **파이프라인은 맞게 돌고 경고만 조용히 틀립니다**
+#: ("과제를 만들지 않습니다" 라고 알리면서 실제로는 만드는 조합).
+#:
+#:   goal   분류 → 검색 → 판단(`responseSchema`)
+#:   agent  분류 → 검색 → 판단(도구 루프). 3단계만 다릅니다
+PIPELINE_MODES = ("goal", "agent")
 
 #: 429 를 만났을 때 재시도까지 기다리는 시간(초). `Retry-After` 가 오면 그 값을 씁니다.
 #:
@@ -697,6 +714,12 @@ class GoalPipeline:
         #: `prompts/fragments/` 를 고치면 재시작 없이 다음 응답부터 반영됩니다.
         self._capacity_rule = fragment(settings, "domain_capacity")
         self._no_domains_note = fragment(settings, "no_domains")
+        #: 도구 설명도 같은 로더를 씁니다 — 저장하면 재시작 없이 다음 응답부터 반영됩니다.
+        self._tool_descriptions = fragment(settings, "tools")
+        #: `BOT_MODE=agent` 면 3단계(판단)를 도구 루프가 대신합니다. 1·2단계는 그대로예요 —
+        #: 1단계는 **싼 모델로 차단 갈래를 먼저 끊는** 자리고(비싼 루프에 들어가기 전에),
+        #: 2단계는 LLM 이 아니라 바이그램 검색이라 도구로 바꿀 이유가 없습니다.
+        self._agent_mode = settings.bot_mode.strip().lower() == "agent"
         #: 개발용 결과 캐시(`BOT_CACHE_SIZE`). 기본값 0 이면 아무것도 담기지 않습니다.
         self._cache: OrderedDict[str, GoalResult] = OrderedDict()
 
@@ -767,6 +790,13 @@ class GoalPipeline:
             raise LlmError(
                 f"{backend.name} 백엔드는 스키마 강제 출력을 지원하지 않아 "
                 "BOT_MODE=goal 로 쓸 수 없습니다 (BOT_PROVIDER=gemini 사용)"
+            )
+        # **1단계는 agent 모드에서도 스키마 강제입니다** — 분류는 도구를 부를 일이
+        # 없는 단계고, 거기까지 도구로 바꾸면 차단 갈래가 한 왕복 더 걸립니다.
+        if self._agent_mode and not supports_tools(self._decide_backend):
+            raise LlmError(
+                f"{self._decide_backend.name} 백엔드는 도구 호출을 지원하지 않아 "
+                "BOT_MODE=agent 로 쓸 수 없습니다 (BOT_PROVIDER=gemini 사용)"
             )
 
         stages = ["classify"]
@@ -875,16 +905,19 @@ class GoalPipeline:
         # (`Conversation` 이 사용자 턴을 넣은 뒤 부릅니다).
         system, reminder = split_reminder(prompt)
         turns = [*history, Turn(role="user", text=reminder)] if reminder else history
-        decided = await self._step(
-            "decide",
-            lambda: self._decide_backend.reply_json(
-                system,
-                turns,
-                GOAL_SCHEMA,
-                max_output_tokens=self._settings.bot_goal_max_output_tokens,
-                temperature=self._settings.bot_decide_temperature,
-            ),
-        )
+        if self._agent_mode:
+            decided = await self._decide_with_tools(system, turns)
+        else:
+            decided = await self._step(
+                "decide",
+                lambda: self._decide_backend.reply_json(
+                    system,
+                    turns,
+                    GOAL_SCHEMA,
+                    max_output_tokens=self._settings.bot_goal_max_output_tokens,
+                    temperature=self._settings.bot_decide_temperature,
+                ),
+            )
         logger.info(
             "goal/decide action=%s reasoning=%r",
             decided.get("action"),
@@ -965,6 +998,45 @@ class GoalPipeline:
         return GoalResult(text=text, data=data, transcript=transcript, stages=stages)
 
     # -- 내부 ---------------------------------------------------------------
+    async def _decide_with_tools(self, system: str, turns: list[Turn]) -> dict:
+        """3단계를 도구 루프로. 결과는 `GOAL_SCHEMA` 와 **같은 모양**입니다.
+
+        같은 모양이어야 하는 이유는 이 뒤에 오는 층 전부가 그걸 전제하기 때문입니다 —
+        `_resolve_match`·`_settle_counts`·`_settle_duplicates`·`_settle_capacity`·
+        `render()`. 그 층이 "아는 값은 서버가 정한다" 를 실제로 강제하는 자리라,
+        모델이 인자를 직접 건네는 이 경로에서 더 필요합니다.
+
+        **스텝 예산을 나눠 씁니다.** `BOT_STEP_TIMEOUT_SECONDS` 를 스텝마다 그대로
+        쓰면 3스텝이 75초인데 `BOT_TIMEOUT_SECONDS`(45초)가 먼저 터집니다 — 그러면
+        어느 스텝이 느렸는지도 모르는 채 매번 타임아웃 문구로 끝납니다. 전체 예산을
+        스텝 수로 나누고, 원래 단계 예산보다 크지는 않게 둡니다.
+        """
+        tools = build_tools(parse_descriptions(self._tool_descriptions.text()))
+        budget = min(
+            self._settings.bot_step_timeout_seconds,
+            self._settings.bot_timeout_seconds / MAX_STEPS,
+        )
+
+        async def ask(
+            working: list[Turn], allowed: Sequence[str] | None
+        ) -> ToolReply:
+            # `_step` 을 그대로 지납니다 — 잘림 재시도와 429 백오프가 도구 경로에만
+            # 빠지면, 디코딩 붕괴 한 번에 그 턴이 통째로 죽습니다.
+            return await self._step(
+                "decide",
+                lambda: self._decide_backend.reply_tools(
+                    system,
+                    working,
+                    tools,
+                    allowed=allowed,
+                    max_output_tokens=self._settings.bot_goal_max_output_tokens,
+                    temperature=self._settings.bot_decide_temperature,
+                ),
+                timeout=budget,
+            )
+
+        return await run_tool_loop(ask, turns)
+
     def _cache_key(
         self,
         history: list[Turn],
@@ -1359,8 +1431,14 @@ class GoalPipeline:
             stages=stages,
         )
 
-    async def _step(self, name: str, make_coro: Callable[[], Awaitable]):
+    async def _step(
+        self, name: str, make_coro: Callable[[], Awaitable], *, timeout: float | None = None
+    ):
         """단계마다 따로 타임아웃을 걸고, **잘림만 한 번 재시도**합니다.
+
+        `timeout` 을 주면 `BOT_STEP_TIMEOUT_SECONDS` 대신 그 값을 씁니다 — 도구 루프가
+        한 턴에 여러 번 부르므로 전체 예산을 스텝 수로 나눠 넘깁니다
+        (`_decide_with_tools`). 안 주면 예전과 똑같습니다.
 
         `BOT_TIMEOUT_SECONDS` 하나로 전체를 덮으면, 1단계가 그 시간을 다 쓰고
         3단계에 남는 시간이 없어도 "전체 타임아웃" 으로만 보입니다. 어느 단계가
@@ -1382,12 +1460,12 @@ class GoalPipeline:
         없어서, 재시도할 대상을 매번 새로 만들어야 합니다.
         """
         try:
-            return await self._attempt(name, make_coro)
+            return await self._attempt(name, make_coro, timeout)
         except LlmTruncatedError:
             logger.warning(
                 "%s 단계 응답이 잘렸습니다(디코딩 붕괴로 추정) — 한 번 재시도합니다", name
             )
-            return await self._attempt(name, make_coro)
+            return await self._attempt(name, make_coro, timeout)
         except LlmRateLimitedError as exc:
             wait = exc.retry_after if exc.retry_after is not None else RATE_LIMIT_WAIT_SECONDS
             if wait > MAX_RATE_LIMIT_WAIT_SECONDS:
@@ -1404,9 +1482,11 @@ class GoalPipeline:
                 name, wait, "" if exc.retry_after is None else " (Retry-After)",
             )
             await asyncio.sleep(wait)
-            return await self._attempt(name, make_coro)
+            return await self._attempt(name, make_coro, timeout)
 
-    async def _attempt(self, name: str, make_coro: Callable[[], Awaitable]):
+    async def _attempt(
+        self, name: str, make_coro: Callable[[], Awaitable], timeout: float | None = None
+    ):
         """`_step` 의 한 번의 시도. 타임아웃만 여기서 문장으로 바꿉니다.
 
         **송신 대기는 이 예산에 들어가지 않습니다.** `BOT_STEP_TIMEOUT_SECONDS` 는
@@ -1437,7 +1517,9 @@ class GoalPipeline:
         경우를 여기서 막지 못합니다 — eval 은 `Conversation` 을 지나지 않아
         `BOT_TIMEOUT_SECONDS` 의 보호를 받지 못하고 무한정 매달립니다.
         """
-        step = self._settings.bot_step_timeout_seconds
+        step = (
+            timeout if timeout is not None else self._settings.bot_step_timeout_seconds
+        )
         queue_wait = QUEUE_MAX_INTERVAL if self._settings.bot_max_rpm > 0 else 0.0
         try:
             return await asyncio.wait_for(make_coro(), timeout=step + queue_wait)

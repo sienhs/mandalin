@@ -68,12 +68,15 @@ class Settings(BaseSettings):
     bot_system_prompt_max_chars: int = 12000
 
     # --- 목표 설계 파이프라인 -------------------------------------------------
-    # goal : 분류 -> 후보 검색 -> 판단. gemini 처럼 스키마 강제가 되는 백엔드 전용
+    # goal  : 분류 -> 후보 검색 -> 판단(`responseSchema`). 스키마 강제가 되는 백엔드 전용
+    # agent : 3단계만 **도구 루프**로. 나머지 둘은 그대로입니다
     #
-    # **`ai_livekit` 에는 goal 경로만 배선돼 있습니다.** 다른 값을 넣어도 파이프라인은
-    # 그대로 돌고 `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 경고만 남깁니다 —
-    # 이 값이 실제로 무언가를 가르는 자리는 없습니다(chat 페르소나는 프롬프트째로
-    # 지웠습니다). 남겨둔 것은 `.env` 와 README 가 가리키고 있어서입니다.
+    # 아는 값의 정본은 `bot/goal.py` 의 `PIPELINE_MODES` 이고, 모르는 값이면
+    # `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 경고를 남깁니다.
+    #
+    # **agent 는 한 발화에 모델 호출이 최대 `tools.MAX_STEPS` 번입니다**(goal 은 3단계가
+    # 1번). 지연과 토큰이 그만큼 늘고, 생성 중에는 마이크가 잠깁니다
+    # (`Conversation.busy` 를 `SpeechGate` 가 봅니다). 기본값을 goal 로 두는 이유입니다.
     bot_mode: str = "goal"
     bot_classify_prompt_file: str = "./prompts/classify.md"
     # 프롬프트에 넣을 중복 후보 개수. 후보는 클라이언트(Spring 이 서명한 토큰의

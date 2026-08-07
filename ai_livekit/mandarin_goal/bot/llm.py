@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import httpx
@@ -67,6 +67,53 @@ class LlmRateLimitedError(LlmError):
 
 
 @dataclass
+class ToolCall:
+    """모델이 부른 도구 하나.
+
+    `args` 를 **검증하지 않고 그대로 나릅니다.** 값을 다듬는 것은 핸들러의 일이고,
+    그쪽은 이미 `_settle_counts`·`_settle_capacity` 를 갖고 있습니다 — 여기서 한 번 더
+    손대면 같은 규칙이 두 곳에 생깁니다.
+    """
+
+    name: str
+    args: dict = field(default_factory=dict)
+
+
+@dataclass
+class ToolResult:
+    """핸들러가 돌려준 값. 다음 스텝의 `functionResponse` 가 됩니다."""
+
+    name: str
+    #: 객체여야 합니다 — Gemini 의 `functionResponse.response` 가 object 만 받습니다.
+    payload: dict = field(default_factory=dict)
+
+
+@dataclass
+class ToolReply:
+    """도구 스텝 하나의 결과.
+
+    **평문(`text`)도 함께 나릅니다.** 프로브(`scripts/probe_tools.py`)에서 확인한 대로
+    `mode=AUTO` 면 모델이 도구를 건너뛰고 그냥 말해버립니다 — `"오늘 서울 날씨 어때?"`
+    에 `"저는 만다라트 목표 설계 보조 AI입니다…"` 가 평문으로 왔습니다.
+
+    그 문장을 여기서 버리지 않는 이유는 **호출부가 판단해야 하기 때문**입니다.
+    지금까지는 `responseSchema` 가 스키마 밖 출력을 원천봉쇄했지만(그래서
+    `reply_json` 은 이런 필드가 필요 없었습니다) 도구 경로에는 그 강제가 없습니다
+    — Gemini 는 둘을 같이 못 씁니다(`Function calling with a response mime type:
+    'application/json' is unsupported`). 대체재가 `force=True`(mode=ANY)이고,
+    이 필드는 그게 뚫렸을 때를 보이게 하는 자리입니다.
+    """
+
+    calls: list[ToolCall] = field(default_factory=list)
+    text: str = ""
+
+    @property
+    def escaped(self) -> bool:
+        """도구를 안 부르고 말로 때웠는가. 호출부가 로그를 남길 자리입니다."""
+        return not self.calls
+
+
+@dataclass
 class Turn:
     """대화 한 턴. 제공자 중립적인 중간 표현입니다.
 
@@ -89,9 +136,24 @@ class Turn:
     다시 붙는 것을 막습니다. 이름을 프롬프트에 넣을 일이 다시 생기면(예: 응답이 사용자를
     호칭) 되살릴 곳은 여기가 아니라 **프롬프트의 슬롯**입니다 — 발화 텍스트에 섞으면
     원문과 라벨이 한 문자열이 되어 1단계가 그걸 발화의 일부로 읽습니다.
+
+    아래 두 필드는 **도구 루프가 자기 스텝을 되먹이는 자리**입니다. 모델이 도구를
+    부르면 그 호출과 결과가 다음 요청의 `contents` 에 들어가야 하는데, 그게 대화 한
+    턴의 자리라서 여기 둡니다.
+
+    **`Conversation._history` 에는 들어가지 않습니다.** 그쪽은 사용자와 AI 의 말만
+    담고(`BOT_HISTORY_TURNS` 로 잘립니다), 도구 왕복은 파이프라인 한 번 안에서만
+    살다 사라집니다 — 루프가 자기 지역 리스트에 쌓습니다. 히스토리에 섞으면 다음 턴의
+    창을 도구 왕복이 밀어내고, 잘리는 위치에 따라 `functionCall` 만 남고
+    `functionResponse` 가 사라진 반쪽 대화가 모델에게 갑니다.
     """
     role: str  # "user" | "assistant"
     text: str = ""
+    #: 이 턴이 모델의 도구 호출이면 (`role="assistant"`).
+    call: ToolCall | None = None
+    #: 이 턴이 그 호출의 결과면 (`role="user"` — Gemini 는 `functionResponse` 를
+    #: 사용자 쪽 content 로 받습니다).
+    result: ToolResult | None = None
 
 
 def _retry_after(response: httpx.Response) -> float | None:
@@ -165,23 +227,86 @@ def _retry_hint(response: httpx.Response) -> float | None:
     return header if header is not None else _retry_delay(response)
 
 
+def _contents(history: list[Turn]) -> list[dict]:
+    """`Turn` 목록을 Gemini `contents` 로.
+
+    도구 왕복은 역할이 **고정**입니다 — 호출은 `model`, 결과는 `user` 입니다.
+    `turn.role` 을 보지 않는 이유가 그것입니다: `functionResponse` 를 담은 content 를
+    Gemini 는 사용자 쪽으로 받는데, 루프를 쓰는 쪽에서 보면 그건 "서버가 만든 값" 이라
+    `role="assistant"` 로 적기 쉽습니다. 그 실수는 400 이 아니라 **모델이 자기 호출의
+    결과를 못 보는 것**으로만 드러납니다.
+    """
+    contents: list[dict] = []
+    for turn in history:
+        if turn.call is not None:
+            contents.append(
+                {
+                    "role": "model",
+                    "parts": [
+                        {"functionCall": {"name": turn.call.name, "args": turn.call.args}}
+                    ],
+                }
+            )
+        elif turn.result is not None:
+            contents.append(
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "functionResponse": {
+                                "name": turn.result.name,
+                                "response": turn.result.payload,
+                            }
+                        }
+                    ],
+                }
+            )
+        else:
+            contents.append(
+                {
+                    "role": "model" if turn.role == "assistant" else "user",
+                    "parts": [{"text": turn.text}],
+                }
+            )
+    return contents
+
+
+def _part_shape(part: dict) -> str:
+    """`_describe` 가 파트 하나를 한 조각으로 줄인 것."""
+    if "functionCall" in part:
+        return f"call({(part['functionCall'] or {}).get('name')})"
+    if "functionResponse" in part:
+        return f"result({(part['functionResponse'] or {}).get('name')})"
+    return f"text({len(part.get('text', ''))}자)"
+
+
 def _describe(payload: dict) -> str:
     """요청 구조 요약. 400 이 났을 때 원인을 좁히기 위한 것입니다.
 
     `contents=0` 이면 서버 쪽 버그, 크기가 수 MB 면 게이트웨이 본문 제한입니다.
+
+    **도구 개수와 모드도 적습니다.** 도구 경로의 400 은 원인이 셋인데
+    (`responseSchema` 와 겸용, 선언 없이 `mode=ANY`, 게이트웨이가 키를 모름) 이 두
+    값이 없으면 본문 문구만으로 갈라야 합니다.
     """
     contents = payload.get("contents") or []
     shape = [
         "{}:[{}]".format(
             content.get("role"),
-            ", ".join(f"text({len(part.get('text', ''))}자)" for part in content.get("parts", [])),
+            ", ".join(_part_shape(part) for part in content.get("parts", [])),
         )
         for content in contents
     ]
+    declared = sum(
+        len(group.get("functionDeclarations") or []) for group in payload.get("tools") or []
+    )
+    mode = (
+        (payload.get("toolConfig") or {}).get("functionCallingConfig") or {}
+    ).get("mode")
     total = len(json.dumps(payload, ensure_ascii=False))
     return (
         f"top-level keys={sorted(payload)}, contents={len(contents)} "
-        f"[{' | '.join(shape)}], 전체 {total:,}B"
+        f"[{' | '.join(shape)}], tools={declared} mode={mode or '-'}, 전체 {total:,}B"
     )
 
 
@@ -198,12 +323,39 @@ class LlmBackend(Protocol):
         temperature: float | None = None,
     ) -> dict: ...
 
+    async def reply_tools(
+        self,
+        system: str,
+        history: list[Turn],
+        tools: list[dict],
+        *,
+        force: bool = True,
+        allowed: Sequence[str] | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> ToolReply: ...
+
     async def aclose(self) -> None: ...
 
 
 def supports_json(backend: object) -> bool:
     """주입된 백엔드가 스키마 강제 출력을 하는가. 안 되면 호출부가 에러를 냅니다."""
     return callable(getattr(backend, "reply_json", None))
+
+
+def supports_tools(backend: object) -> bool:
+    """도구 호출을 하는가.
+
+    `supports_json` 과 같은 방식으로 **덕 타이핑**으로 봅니다 — 프로토콜을
+    `runtime_checkable` 로 만들면 테스트의 가짜 백엔드가 두 메서드를 다 갖춰야 하는데,
+    그쪽은 필요한 부분만 구현하는 것이 의도입니다(README 의 mypy 제외 사유와 같은
+    이유).
+
+    **모델이 실제로 도구를 부르는지는 이걸로 알 수 없습니다.** 게이트웨이가 `tools`
+    를 조용히 떨어뜨리는 경우가 있어서(프로브의 `tools_only` 항목이 그걸 봅니다)
+    확인은 `scripts/probe_tools.py` 가 합니다. 여기는 배선만 봅니다.
+    """
+    return callable(getattr(backend, "reply_tools", None))
 
 
 class EchoBackend:
@@ -246,6 +398,47 @@ class EchoBackend:
             }
         return {}
 
+    async def reply_tools(
+        self,
+        system: str,
+        history: list[Turn],
+        tools: list[dict],
+        *,
+        force: bool = True,
+        allowed: Sequence[str] | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> ToolReply:
+        """**언제나 종결 도구를 부릅니다 — 루프를 돌지 않습니다.**
+
+        `reply_json` 이 늘 `clarify` 를 돌려주는 것과 같은 판단입니다. echo 로 확인하려는
+        것은 판단이 아니라 배선이고, 도구를 골라 가며 부르면 그 배선 확인이 모델의
+        선택에 좌우됩니다. 게다가 여기서 되묻기가 아닌 도구를 부르면 **키 없이 도는
+        데모가 루프를 돌아** 스텝 예산과 상한 처리까지 echo 경로로 끌고 들어옵니다.
+
+        `ask` 가 없으면 첫 도구를 빈 인자로 부릅니다. 그건 배선이 어긋난 상태라
+        (종결 도구가 선언되지 않았다) 조용히 넘기지 않고 핸들러 쪽에서 드러나야 합니다.
+        """
+        names = [
+            declaration.get("name", "")
+            for group in tools
+            for declaration in group.get("functionDeclarations", [])
+        ]
+        if "ask" in names:
+            return ToolReply(
+                calls=[
+                    ToolCall(
+                        name="ask",
+                        args={
+                            "question": f"({self.name}) 어떤 목표를 세우고 싶으신가요?"
+                        },
+                    )
+                ]
+            )
+        if names:
+            return ToolReply(calls=[ToolCall(name=names[0])])
+        return ToolReply(text=f"({self.name}) 선언된 도구가 없습니다")
+
     async def aclose(self) -> None:
         return None
 
@@ -275,6 +468,21 @@ class MisconfiguredBackend:
         max_output_tokens: int | None = None,
         temperature: float | None = None,
     ) -> dict:
+        raise LlmError(self._reason)
+
+    async def reply_tools(
+        self,
+        system: str,
+        history: list[Turn],
+        tools: list[dict],
+        *,
+        force: bool = True,
+        allowed: Sequence[str] | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> ToolReply:
+        # `reply_json` 과 같은 이유로 여기도 실패합니다 — `supports_tools()` 는
+        # 통과시키고 **발화 시점에** 설정 오류 하나로 모읍니다.
         raise LlmError(self._reason)
 
     async def aclose(self) -> None:
@@ -385,6 +593,86 @@ class GeminiBackend(_HttpBackend):
             raise LlmError(f"JSON 객체가 아닙니다: {type(data).__name__}")
         return data
 
+    async def reply_tools(
+        self,
+        system: str,
+        history: list[Turn],
+        tools: list[dict],
+        *,
+        force: bool = True,
+        allowed: Sequence[str] | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> ToolReply:
+        """도구를 선언해 부르고, 모델이 고른 호출을 돌려줍니다.
+
+        **`force` 의 기본값이 `True` 인 것이 이 메서드의 요점입니다.** `mode=ANY` 로
+        도구 호출을 강제합니다. `reply_json` 에서 `responseSchema` 가 하던 일 —
+        스키마 밖 출력을 원천봉쇄하는 것 — 을 여기서는 이 값이 합니다. 둘을 같이 쓸
+        수는 없습니다(실측 400: *Function calling with a response mime type:
+        'application/json' is unsupported*).
+
+        `force=False`(AUTO)로 두면 모델이 도구를 건너뛰고 평문으로 답합니다. 실측:
+
+            "오늘 서울 날씨 어때?"
+            → "저는 만다라트 목표 설계 보조 AI입니다. 서울 날씨에 대해서는 …"
+
+        그 문장은 어떤 스키마도 거치지 않은 채 말풍선까지 갈 수 있습니다. 그래서
+        끄는 것은 **명시적 선택**이어야 하고, 그때도 `ToolReply.text` 가 남아
+        호출부가 알아챌 수 있습니다.
+
+        `allowed` 는 그 강제를 특정 도구로 좁힙니다 — 루프의 마지막 스텝에서 종결
+        도구만 남길 때 씁니다(`allowedFunctionNames`).
+        """
+        tool_config: dict | None = None
+        if force:
+            config: dict = {"mode": "ANY"}
+            if allowed:
+                config["allowedFunctionNames"] = list(allowed)
+            tool_config = {"functionCallingConfig": config}
+
+        parts = await self._parts(
+            system,
+            history,
+            tools=tools,
+            tool_config=tool_config,
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+        )
+
+        calls: list[ToolCall] = []
+        text = ""
+        for part in parts:
+            call = part.get("functionCall")
+            if call is None:
+                text += part.get("text", "")
+                continue
+            name = (call.get("name") or "").strip()
+            if not name:
+                # 이름 없는 호출은 디스패치할 데가 없습니다. **버리고 계속합니다** —
+                # 한 응답에 호출이 여럿일 때 하나가 망가졌다고 나머지를 잃으면
+                # `drop_polluted` 가 과제 하나만 버리는 것과 어긋납니다.
+                logger.warning("gemini functionCall 에 이름이 없어 버립니다: %r", call)
+                continue
+            args = call.get("args")
+            calls.append(
+                ToolCall(name=name, args=args if isinstance(args, dict) else {})
+            )
+
+        reply = ToolReply(calls=calls, text=text.strip())
+        if reply.escaped:
+            # 강제했는데도 평문이 왔다면 게이트웨이가 `toolConfig` 를 떨어뜨린
+            # 것입니다. 조용히 넘기면 스키마 밖 문장이 사용자에게 갑니다.
+            logger.warning(
+                "gemini 가 도구를 부르지 않았습니다 (force=%s) — 평문: %r",
+                force, reply.text[:120],
+            )
+        else:
+            logger.info(
+                "gemini tools %d건: %s", len(calls), ", ".join(c.name for c in calls)
+            )
+        return reply
+
     async def _generate(
         self,
         system: str,
@@ -394,6 +682,37 @@ class GeminiBackend(_HttpBackend):
         max_output_tokens: int | None = None,
         temperature: float | None = None,
     ) -> str:
+        """응답 본문을 텍스트로. 도구 경로는 `_parts` 를 직접 씁니다."""
+        parts = await self._parts(
+            system,
+            history,
+            schema=schema,
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+        )
+        text = "".join(part.get("text", "") for part in parts).strip()
+        if not text:
+            raise LlmError("본문이 비었습니다")
+        return text
+
+    async def _parts(
+        self,
+        system: str,
+        history: list[Turn],
+        *,
+        schema: dict | None = None,
+        tools: list[dict] | None = None,
+        tool_config: dict | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> list[dict]:
+        """요청 한 번. 응답 파트를 **해석하지 않고** 그대로 돌려줍니다.
+
+        `reply_json` 과 `reply_tools` 가 이 함수를 나눠 씁니다. 파트 해석까지 여기서
+        하면 텍스트와 `functionCall` 두 갈래가 한 함수에 섞이는데, 정작 공유해야 하는
+        것은 그 위쪽 전부입니다 — 키 검사, 레이트리밋 큐, 400 진단, 안전 필터,
+        usage 로그, 잘림 판정. 그쪽이 갈리면 도구 경로만 조용히 다르게 실패합니다.
+        """
         settings = self._settings
         if not settings.bot_api_key:
             raise LlmError("BOT_API_KEY 가 비어 있습니다")
@@ -427,15 +746,15 @@ class GeminiBackend(_HttpBackend):
 
         payload = {
             "systemInstruction": {"parts": [{"text": system}]},
-            "contents": [
-                {
-                    "role": "model" if turn.role == "assistant" else "user",
-                    "parts": [{"text": turn.text}],
-                }
-                for turn in history
-            ],
+            "contents": _contents(history),
             "generationConfig": generation_config,
         }
+        if tools is not None:
+            payload["tools"] = tools
+        # **`tools` 없이 보내지 않습니다.** 도구 선언이 없는데 `mode=ANY` 만 가면
+        # 모델이 부를 것이 없어 400 이 나는데, 원인이 요청 어디에도 안 적힙니다.
+        if tool_config is not None and tools:
+            payload["toolConfig"] = tool_config
 
         try:
             data = await self._post(
@@ -491,9 +810,6 @@ class GeminiBackend(_HttpBackend):
             usage.get("totalTokenCount"),
         )
 
-        parts = (candidates[0].get("content") or {}).get("parts") or []
-        text = "".join(part.get("text", "") for part in parts).strip()
-
         if finish == "MAX_TOKENS":
             # 잘린 것이 확실한 경우입니다. 이걸 그대로 파서에 넘기면 호출부가
             # "JSON 파싱 실패" 로 보고하는데, 고칠 지점(토큰 상한)이 드러나지 않습니다.
@@ -507,9 +823,10 @@ class GeminiBackend(_HttpBackend):
             )
             raise LlmTruncatedError(f"응답이 토큰 상한({limit})에서 잘렸습니다")
 
-        if not text:
-            raise LlmError(f"본문이 비었습니다 (finishReason={finish})")
-        return text
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        if not parts:
+            raise LlmError(f"파트가 비었습니다 (finishReason={finish})")
+        return parts
 
 
 #: `BOT_PROVIDER` 값 → 백엔드 팩토리. **provider 문자열을 해석하는 곳은 여기뿐입니다.**
