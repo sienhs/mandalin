@@ -288,9 +288,7 @@ export function Segmented<T extends string>({
     <div
       role="tablist"
       className={cn(
-        // self-start 가 없으면 세로 flex(예: Field) 안에서 stretch 로 늘어나, 버튼 두 개
-        // 오른쪽이 텅 빈 알약이 된다. inline-flex 라는 이름과 실제 폭이 어긋나던 자리다.
-        'inline-flex items-center gap-1 self-start rounded-full p-1',
+        'inline-flex flex-wrap items-center gap-1 self-start rounded-2xl p-1 sm:rounded-full',
         'bg-[var(--surface-sunken)]',
         className,
       )}
@@ -305,7 +303,7 @@ export function Segmented<T extends string>({
             aria-selected={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              'rounded-full font-bold transition-all duration-200',
+              'shrink-0 whitespace-nowrap rounded-full font-bold transition-all duration-200',
               size === 'sm' ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-4 text-[13px]',
               active
                 ? 'bg-[var(--surface-card)] text-[var(--text-strong)] shadow-[0_1px_2px_rgba(0,0,0,.08),0_6px_16px_-8px_rgba(0,0,0,.25)]'

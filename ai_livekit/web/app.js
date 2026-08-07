@@ -400,7 +400,7 @@ async function keep(data, task, btn) {
     domain = { id: null, title: data.domain, subjectCount: 0, subjects: [] }
     sheet.domains.push(domain)
   }
-  if ((domain.subjects?.length ?? 0) >= DOMAIN_CAPACITY) {
+  if ((domain?.subjects?.length ?? 0) >= DOMAIN_CAPACITY) {
     log('시스템', `${domain.title} 칸이 ${DOMAIN_CAPACITY}개로 꽉 찼습니다`, 'warn')
     return
   }

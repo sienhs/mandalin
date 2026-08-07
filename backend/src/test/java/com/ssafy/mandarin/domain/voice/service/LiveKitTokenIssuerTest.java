@@ -24,8 +24,8 @@ import io.jsonwebtoken.security.Keys;
 class LiveKitTokenIssuerTest {
 
 	/** 32바이트. HS256 최소 길이를 갓 넘긴 값. */
-	private static final String API_SECRET = "0123456789abcdef0123456789abcdef";
-	private static final String ACCESS_TOKEN_SECRET = "fedcba9876543210fedcba9876543210";
+	private static final String API_SECRET = "0123456789abcdef0123456789abcdef"; // NOSONAR
+	private static final String ACCESS_TOKEN_SECRET = "fedcba9876543210fedcba9876543210"; // NOSONAR
 
 	/** LiveKit 은 iss 로 API key 를 찾는다. livekit.yaml 의 keys: 항목에 있는 이름이다. */
 	private static final String API_KEY = "APIkeyabcdef123";
@@ -53,7 +53,7 @@ class LiveKitTokenIssuerTest {
 		// 64바이트 시크릿(= openssl rand -hex 32)이면 HS512 가 되는데, LiveKit 은 HS256
 		// 으로 서명된 토큰을 기대하므로 토큰이 통째로 거절된다. 거절 사유는 구체적으로
 		// 돌아오지 않아서 원인을 찾기 어렵다 — 그래서 여기서 고정한다.
-		String sixtyFourByteSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+		String sixtyFourByteSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"; // NOSONAR
 		assertThat(sixtyFourByteSecret.getBytes(UTF_8)).hasSize(64);
 
 		LiveKitTokenIssuer issuer = new LiveKitTokenIssuer(

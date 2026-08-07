@@ -22,7 +22,6 @@ import {
   IconMoon,
   IconMore,
   IconShop,
-  IconSparkle,
   IconSun,
   IconTrophy,
   IconVillage,
@@ -38,13 +37,16 @@ type NavItem = {
 
 /**
  * 주 메뉴. 순서가 곧 서비스의 핵심 루프다 —
- * 오늘 할 일(홈) → 목표 설계(만다라트·코치) → 결과 확인(마을) → 보상(상점) → 되돌아보기(리포트).
+ * 오늘 할 일(홈) → 목표 설계(만다라트) → 결과 확인(마을) → 보상(상점) → 되돌아보기(리포트).
+ *
+ * <p>AI 코치는 여기 두지 않는다. 코치는 <b>만다라트를 만드는 도중</b>에 부르는 도구라
+ * 그 화면 안에서 이어지는 것이 맞고(생성 화면의 "AI 코치로 이어 만들기"), 메뉴에 두면
+ * 쓰던 초안을 두고 떠나는 이동이 된다. `/app/coach` 경로 자체는 살아 있다.
  */
 const NAV: NavItem[] = [
   { to: '/app', label: '홈', icon: IconHome, primary: true },
   { to: '/app/sheets', label: '내 만다라트', icon: IconGrid, primary: true },
   { to: '/app/village', label: '내 마을', icon: IconVillage, primary: true },
-  { to: '/app/coach', label: 'AI 코치', icon: IconSparkle, primary: true },
   { to: '/app/shop', label: '상점', icon: IconShop },
   { to: '/app/report', label: '리포트', icon: IconChart },
   { to: '/app/friends', label: '친구', icon: IconFriends },
@@ -407,7 +409,8 @@ export default function AppShell() {
           borderColor: 'var(--border-hairline)',
         }}
       >
-        <div className="mx-auto grid max-w-lg grid-cols-5">
+        {/* primary 3개 + '더 보기' = 4칸. NAV 의 primary 개수를 바꾸면 여기도 함께 고친다. */}
+        <div className="mx-auto grid max-w-lg grid-cols-4">
           {NAV.filter((item) => item.primary).map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}

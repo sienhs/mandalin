@@ -11,11 +11,9 @@ import { cn } from '../../utils/cn'
 
 export function BrowserFrame({
   children,
-  url = 'mandarin.app/app',
   className,
 }: {
   children: ReactNode
-  url?: string
   className?: string
 }) {
   return (
@@ -27,7 +25,11 @@ export function BrowserFrame({
         boxShadow: 'var(--shadow-pop)',
       }}
     >
-      {/* 창 상단 바 */}
+      {/*
+        창 상단 바. 주소는 적지 않는다 — 액자가 할 일은 "여기부터 앱 화면" 이라는 경계를
+        긋는 것뿐이고, 주소를 적으면 그 경로가 진짜인지 매번 실제 앱과 맞춰야 한다.
+        신호등 세 점만으로도 창이라는 것은 충분히 읽힌다.
+      */}
       <div
         className="flex items-center gap-2 border-b px-3.5 py-2.5"
         style={{ borderColor: 'var(--border-hairline)', background: 'var(--surface-sunken)' }}
@@ -36,12 +38,6 @@ export function BrowserFrame({
           {['#ff5f57', '#febc2e', '#28c840'].map((c) => (
             <span key={c} className="size-[9px] rounded-full" style={{ background: c }} />
           ))}
-        </span>
-        <span
-          className="muted ml-1.5 hidden truncate rounded-md px-2.5 py-1 text-[11px] font-bold sm:block"
-          style={{ background: 'var(--surface-card)' }}
-        >
-          {url}
         </span>
       </div>
 

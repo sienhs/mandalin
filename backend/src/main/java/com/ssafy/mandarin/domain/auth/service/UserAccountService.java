@@ -2,6 +2,7 @@ package com.ssafy.mandarin.domain.auth.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.ssafy.mandarin.domain.auth.dto.DailyPointStatusResponse;
 import com.ssafy.mandarin.domain.auth.repository.OAuthIdentityRepository;
@@ -35,7 +36,7 @@ public class UserAccountService {
 	@Transactional(readOnly = true)
 	public DailyPointStatusResponse getDailyPointStatus(String uuid) {
 		User user = findActiveUser(uuid);
-		LocalDate today = LocalDate.now();
+		LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
 		LocalDateTime todayStart = today.atStartOfDay();
 		LocalDateTime todayEnd = today.atTime(23, 59, 59);
 

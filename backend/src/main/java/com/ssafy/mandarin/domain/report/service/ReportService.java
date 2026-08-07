@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ public class ReportService {
     private final ObjectMapper objectMapper;
 
     public WeeklyReportResponse createWeeklyReport(Long userId) {
-        LocalDate lastWeekDate = LocalDate.now().minusWeeks(1);
+        LocalDate lastWeekDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(1);
         LocalDate monday = lastWeekDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate sunday = lastWeekDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
@@ -91,7 +92,7 @@ public class ReportService {
     }
 
     private WeeklyReportResponse findCachedReport(Long userId) {
-        LocalDate monday = LocalDate.now().minusWeeks(1)
+        LocalDate monday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(1)
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
 
         Object cached = redisTemplate.opsForValue().get(cacheKey(userId, monday));
@@ -108,7 +109,7 @@ public class ReportService {
 
     // 리포트 주기와 어긋나지 않도록 다음 주 월요일 00:00 에 만료시킨다
     private Duration ttlUntilNextWeek() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         LocalDateTime nextMonday = now.toLocalDate()
                 .with(TemporalAdjusters.next(DayOfWeek.MONDAY))
                 .atStartOfDay();

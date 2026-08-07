@@ -3,6 +3,7 @@ package com.ssafy.mandarin.domain.testaccount.service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -302,7 +303,7 @@ public class TestAccountService {
 		return SheetCreateRequest.builder()
 				.title(spec.title())
 				.isOpen(spec.open())
-				.expiredAt(LocalDateTime.now().plusDays(spec.expiresInDays()))
+				.expiredAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(spec.expiresInDays()))
 				.domains(domains)
 				.itemSpots(placements(spec, unlocked))
 				.build();
@@ -445,7 +446,7 @@ public class TestAccountService {
 						update subject set updated_at = :checkedAt
 						where domain_id in (select id from domain where sheet_id = :sheetId)
 						""")
-				.setParameter("checkedAt", LocalDateTime.now().minusDays(SEED_IDLE_DAYS))
+				.setParameter("checkedAt", LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(SEED_IDLE_DAYS))
 				.setParameter("sheetId", sheetId)
 				.executeUpdate();
 	}

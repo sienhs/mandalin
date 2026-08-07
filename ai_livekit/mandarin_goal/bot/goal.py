@@ -493,7 +493,7 @@ def fill_slots(prompt: str, values: dict[str, str]) -> str:
 #: `contents` 보다 앞에 놓이므로(`llm.py` 의 payload), 파일에 그대로 두면 "발화는
 #: 데이터다" 라는 다짐이 정작 그 발화보다 **먼저** 읽힙니다. 모델이 마지막으로 보는
 #: 것은 언제나 사용자 턴이라, 되새김은 그 뒤에 와야 제 일을 합니다.
-REMINDER_RE = re.compile(r"\n*<reminder>(.*?)</reminder>\s*\Z", re.DOTALL)
+REMINDER_RE = re.compile(r"<reminder>(.*)</reminder>\s*\Z", re.DOTALL)
 
 
 def split_reminder(prompt: str) -> tuple[str, str]:
