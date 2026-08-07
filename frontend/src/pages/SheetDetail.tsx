@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   completedCells,
   domainProgress,
@@ -117,9 +117,13 @@ export default function SheetDetail({ readOnly = false }: Props) {
         hint={
           <>
             비공개 시트는 소유자만 볼 수 있습니다.{' '}
-            <Link to="/app/sheets" className="font-bold text-brand-600">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="font-bold text-brand-600 underline cursor-pointer bg-transparent border-0 p-0 inline"
+            >
               목록으로 돌아가기
-            </Link>
+            </button>
           </>
         }
       />
