@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   completedCells,
   domainProgress,
@@ -71,10 +71,12 @@ function lockedReason(sub: Subject): string | null {
 export default function SheetDetail({ readOnly = false }: Props) {
   const { sheetId } = useParams()
   const navigate = useNavigate()
-  const { completeSubjects, toggleLike, setVisibility, claimReward } = useStore()
+  const { sheets, completeSubjects, toggleLike, setVisibility, claimReward } = useStore()
   const { sheet, loading, error, reload, setSheet } = useSheetDetail(Number(sheetId))
+  const isMine = Boolean(sheet && sheets.data.some((s) => s.id === sheet.id))
+  const isReadOnly = readOnly || (sheet != null && !isMine)
   /* 친구 시트에서는 트랙을 끈다 — 내 계정 보상을 남의 시트에 그릴 수 없다. */
-  const { track, reload: reloadTrack } = useRewardTrack(!readOnly)
+  const { track, reload: reloadTrack } = useRewardTrack(!isReadOnly)
 
   const [selected, setSelected] = useState<CellRef | null>(null)
   const [pending, setPending] = useState<number | null>(null)
@@ -115,9 +117,13 @@ export default function SheetDetail({ readOnly = false }: Props) {
         hint={
           <>
             비공개 시트는 소유자만 볼 수 있습니다.{' '}
-            <Link to="/app/sheets" className="font-bold text-brand-600">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="font-bold text-brand-600 underline cursor-pointer bg-transparent border-0 p-0 inline"
+            >
               목록으로 돌아가기
-            </Link>
+            </button>
           </>
         }
       />
@@ -230,8 +236,8 @@ export default function SheetDetail({ readOnly = false }: Props) {
 
         <div className="min-w-[200px] flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            {readOnly ? (
-              <Badge>읽기 전용 · 친구의 만다라트</Badge>
+            {isReadOnly ? (
+              <Badge>{isMine ? '읽기 전용' : '공개 만다라트'}</Badge>
             ) : (
               <Badge tone={sheet.isOpen ? 'brand' : 'neutral'}>
                 {sheet.isOpen ? '공개' : '비공개'}
@@ -261,7 +267,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
             {sheet.likeCount}
           </button>
 
-          {readOnly ? (
+          {isReadOnly ? (
             <Button variant="secondary" size="sm" onClick={() => navigate(-1)}>
               돌아가기
             </Button>
@@ -294,7 +300,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
           읽기 전용(친구 시트)에서는 그리지 않는다 — 이건 내 계정의 보상이고, 남의
           만다라트 화면에 내 진행률과 선물상자를 얹으면 그 사람 것으로 읽힌다.
         */}
-        {!readOnly && track && (
+        {!isReadOnly && track && (
           <RewardTrackStrip
             track={track}
             viewingSheetId={sheet.id}
@@ -454,7 +460,7 @@ export default function SheetDetail({ readOnly = false }: Props) {
                                 </span>
                               </button>
 
-                              {!readOnly && (
+                              {!isReadOnly && (
                                 <Button
                                   size="xs"
                                   variant={locked ? 'quiet' : 'primary'}

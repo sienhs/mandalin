@@ -101,16 +101,12 @@ export default function Leaderboard() {
 
                     <div className="min-w-[180px] flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        {isMine ? (
-                          <Link
-                            to={`/app/sheets/${entry.sheetId}`}
-                            className="text-[14.5px] font-extrabold no-underline hover:text-brand-600"
-                          >
-                            {entry.title}
-                          </Link>
-                        ) : (
-                          <span className="text-[14.5px] font-extrabold">{entry.title}</span>
-                        )}
+                        <Link
+                          to={`/app/sheets/${entry.sheetId}`}
+                          className="text-[14.5px] font-extrabold no-underline hover:text-brand-600"
+                        >
+                          {entry.title}
+                        </Link>
                         {isMine && <Badge tone="brand">내 만다라트</Badge>}
                       </div>
                       <p className="muted m-0 mt-1 text-[11.5px] font-bold">{entry.name}</p>
