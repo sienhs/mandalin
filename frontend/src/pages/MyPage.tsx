@@ -110,7 +110,7 @@ export default function Profile() {
           닉네임 변경
         </Button>
       </section>
-
+새 만다라트 페이지의 듀토리얼에서 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: '누적 실천 횟수', value: num(stats.tried), suffix: '회', brand: true },
