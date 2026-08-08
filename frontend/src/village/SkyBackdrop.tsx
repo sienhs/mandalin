@@ -72,3 +72,14 @@ export function SkyBackdrop({ terrain }: { terrain: Terrain }) {
 export function skyClearColor(terrain: Terrain): string {
   return (SKY_GRADIENT[terrain] ?? SKY_GRADIENT.GRASS_PATH)[1]
 }
+
+/**
+ * 같은 하늘을 CSS 그라디언트로.
+ *
+ * <p>배경 고르는 화면의 '기본' 칸이 쓴다. 거기서 색을 따로 적으면 위 표를 고칠 때마다
+ * 미리보기만 예전 색으로 남으므로, 값을 한 곳에서만 읽게 한다.
+ */
+export function skyGradientCss(terrain: Terrain): string {
+  const [top, bottom] = SKY_GRADIENT[terrain] ?? SKY_GRADIENT.GRASS_PATH
+  return `linear-gradient(180deg, ${top}, ${bottom})`
+}

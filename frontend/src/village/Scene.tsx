@@ -10,6 +10,7 @@ import type { ThemeKey } from './partTypes'
 import type { OwnedCatalog } from './ownedCatalog'
 import type { Terrain } from './villageApi'
 import type { Mandalart } from './types'
+import { NO_BACKDROP, type BackdropKey } from './backdrops'
 
 interface Props {
   mandalart: Mandalart
@@ -20,6 +21,16 @@ interface Props {
   catalog: OwnedCatalog
   selectedTaskId: string | null
   landmark: LandmarkOverride
+  /**
+   * 캔버스 <b>뒤에</b> 깔린 배경 사진의 key. 기본 `'none'`(사진 없음).
+   *
+   * <p>사진 자체는 이 컴포넌트가 그리지 않는다 — 캔버스 밖 형제 DOM({@link BackdropLayer})
+   * 이다. 여기서 하는 일은 <b>그 사진이 비쳐 보이도록 캔버스를 비우는 것</b>뿐이다:
+   * 그라디언트 하늘 구체를 빼고, 배경 클리어 색도 붙이지 않는다.
+   *
+   * <p>사진을 쓰는 화면이 아니면 건드리지 않아도 된다 — 생략하면 예전과 완전히 같다.
+   */
+  backdrop?: BackdropKey
   /**
    * 섬 아랫부분(매달린 암반·종유석)을 그릴지. **기본 false.**
    *
@@ -95,6 +106,7 @@ export function Scene({
   catalog,
   selectedTaskId,
   landmark,
+  backdrop = NO_BACKDROP,
   islandBase = false,
   shadows = true,
   details = true,
@@ -110,11 +122,20 @@ export function Scene({
   onSelectTask,
 }: Props) {
   const sky = SKY[terrain]
+  const photo = backdrop !== NO_BACKDROP
 
   return (
     <Canvas
       shadows={shadows}
-      gl={{ preserveDrawingBuffer: true }}
+      /*
+        `alpha` 는 <b>배경 사진을 쓰든 말든 늘 켜 둔다.</b> WebGL 컨텍스트를 만들 때 한 번
+        정해지는 속성이라, 사진을 고른 뒤에 켜려고 해도 이미 만들어진 컨텍스트에는 먹지
+        않는다(캔버스를 통째로 다시 만들지 않는 한). 켜 두기만 하면 부작용도 없다 —
+        `scene.background` 에 색이 붙어 있는 동안 three 는 알파 1 로 지우므로
+        (`WebGLBackground.render`), 사진을 안 쓰는 화면은 예전 그대로 불투명하다.
+        홈 미리보기가 `toDataURL` 로 떠 가는 그림도 그래서 그대로 불투명하다.
+      */
+      gl={{ preserveDrawingBuffer: true, alpha: true }}
       onPointerMissed={() => onSelect(-1)}
       /*
         끌어서 돌릴 수 있다는 걸 커서로 알린다. touchAction 을 끄지 않으면 모바일에서
@@ -122,8 +143,20 @@ export function Scene({
       */
       style={{ cursor: 'grab', touchAction: 'none' }}
     >
-      <color attach="background" args={[skyClearColor(terrain)]} />
-      <SkyBackdrop terrain={terrain} />
+      {/*
+        배경 사진을 쓰면 하늘을 아예 그리지 않는다.
+
+        구체(`SkyBackdrop`)는 반지름 300 짜리라 화면을 통째로 덮는다 — 남겨 두면 사진은
+        영영 보이지 않는다. `<color attach="background">` 도 같이 뺀다. 이게 붙어 있으면
+        three 가 그 색으로 알파 1 로 지워서, 사진 대신 옅은 하늘색 판이 보인다.
+        둘 다 빠지면 클리어 알파가 0 이 되어 뒤에 깔린 사진이 그대로 비친다.
+      */}
+      {!photo && (
+        <>
+          <color attach="background" args={[skyClearColor(terrain)]} />
+          <SkyBackdrop terrain={terrain} />
+        </>
+      )}
 
       <IsoCamera
         handleRef={cameraRef}

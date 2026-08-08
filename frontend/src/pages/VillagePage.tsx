@@ -9,6 +9,10 @@ import { CENTER_BLOCK_INDEX, PITCH } from '../village/layout'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 import { AUTO_LANDMARK, type LandmarkOverride } from '../village/Landmark'
 import { BUILD_PANEL_WIDTH, BuildPanel } from '../village/BuildPanel'
+import { BackdropLayer } from '../village/BackdropLayer'
+import { BackdropPicker } from '../village/BackdropPicker'
+import { NO_BACKDROP, backdropThumb, findBackdrop, useBackdrop } from '../village/backdrops'
+import { skyGradientCss } from '../village/SkyBackdrop'
 import { useIsoCamera } from '../village/IsoCamera'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { buildOwnedCatalog } from '../village/ownedCatalog'
@@ -100,6 +104,15 @@ export default function VillagePage() {
   const [panelOpen, setPanelOpen] = useState(true)
 
   const [terrainPending, setTerrainPending] = useState<Terrain | null>(null)
+
+  /**
+   * 캔버스 뒤에 깔 배경 사진. 시트마다 따로 기억한다 — 자세한 이유는 {@link useBackdrop}.
+   *
+   * <p>시트가 아직 안 정해졌으면 null 을 넘긴다. 그동안은 기본(사진 없음)이고, 정해지는
+   * 순간 저장해 둔 것이 들어온다.
+   */
+  const [backdrop, setBackdrop] = useBackdrop(sheet && sheet !== 'none' ? sheet.id : null)
+  const [backdropOpen, setBackdropOpen] = useState(false)
   /** 'now' = 지금 진행도, 'done' = 다 채웠을 때의 모습. */
   const [preview, setPreview] = useState<'now' | 'done'>('now')
   const [themeFilter, setThemeFilter] = useState<string>('all')
@@ -460,6 +473,13 @@ export default function VillagePage() {
         data-tour="village-canvas"
         className="card relative h-[clamp(360px,calc(100dvh-228px),1000px)] min-h-[360px] overflow-hidden p-0 lg:h-auto lg:min-h-0 lg:flex-1"
       >
+        {/*
+          ⚠️ 배경 사진은 <b>`Scene` 보다 위에</b> 적는다. 둘 다 이 `section` 의 형제이고
+          R3F 캔버스 래퍼가 `position: relative` 라, DOM 순서가 그대로 겹침 순서가 된다.
+          아래로 내리면 사진이 마을을 덮는다.
+        */}
+        <BackdropLayer backdrop={backdrop} />
+
         <Scene
           mandalart={shown ?? mandalart}
           selected={block}
@@ -469,6 +489,7 @@ export default function VillagePage() {
           catalog={catalog}
           selectedTaskId={selectedTask}
           landmark={shownLandmark}
+          backdrop={backdrop}
           cameraRef={camera.ref}
           initialZoom={camera.zoom}
           onFacingChange={camera.setFacing}
@@ -612,6 +633,43 @@ export default function VillagePage() {
         </div>
 
         {/*
+          배경은 지형 옆에 둔다 — 둘 다 "마을을 어디에 놓을 것인가"라서 함께 만지는 짝이다.
+
+          지형처럼 `Segmented` 로 늘어놓지 않는다. 열한 칸이 이 바를 두 줄로 밀어내는 데다
+          '벚꽃'·'노르딕' 같은 이름만으로는 무엇이 나올지 알 수 없어서, 어차피 그림을 봐야
+          고를 수 있다. 지금 고른 것을 작은 그림으로 물고 있는 버튼 하나로 줄이고 나머지는
+          모달에 담았다.
+        */}
+        <div className="flex items-center gap-2">
+          <span className="muted text-[12px] font-bold">배경</span>
+          <button
+            type="button"
+            onClick={() => setBackdropOpen(true)}
+            title="3D 마을 뒤에 깔 배경 고르기"
+            className="flex h-9 items-center gap-2 rounded-full border py-0 pr-3.5 pl-1.5 text-[12px] font-bold text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+            style={{ borderColor: 'var(--border-hairline)' }}
+          >
+            <span
+              aria-hidden="true"
+              className="block h-6 w-9 shrink-0 rounded-full border bg-cover bg-center"
+              style={{
+                borderColor: 'var(--border-hairline)',
+                /*
+                  `background` 축약형을 쓰지 않는다 — 뒤에 오는 backgroundImage 를 덮을지가
+                  적는 순서에 달리게 된다. 사진을 안 쓰면 지금 지형의 하늘색을 그대로 보여 준다.
+                */
+                backgroundColor: findBackdrop(backdrop)?.tint,
+                backgroundImage:
+                  backdrop === NO_BACKDROP
+                    ? skyGradientCss(village.terrain)
+                    : `url(${backdropThumb(backdrop)})`,
+              }}
+            />
+            {findBackdrop(backdrop)?.label ?? '기본'}
+          </button>
+        </div>
+
+        {/*
           길을 잃었을 때 돌아올 곳. 돌리고 확대하다 보면 지금 어디를 보고 있는지
           알 수 없게 되는데, 그때 버튼 하나로 처음 상태(남동쪽·마을 전체)로 돌아온다.
           시선은 확대가 '멀리'로 내려가면서 마을 중심으로 따라온다.
@@ -638,6 +696,13 @@ export default function VillagePage() {
         </span>
       </section>
 
+      <BackdropPicker
+        open={backdropOpen}
+        value={backdrop}
+        terrain={village.terrain}
+        onChange={setBackdrop}
+        onClose={() => setBackdropOpen(false)}
+      />
     </div>
   )
 }
