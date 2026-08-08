@@ -960,9 +960,16 @@ class GoalPipeline:
         # "겹쳐요" 가 돌아갑니다(실측 2026-08-08).
         #
         # **중복 방지는 그대로입니다** — `<existing_domain_tasks>`(`_capacity_context`)가
-        # 칸별 전체 목록을 이미 싣습니다. 비는 것은 "겹치는지 볼 목록" 쪽뿐이고,
-        # `matched_task` 는 그 목록의 id 만 쓸 수 있으므로(프롬프트의 output_format)
-        # recommend 가 **구조적으로** 나올 수 없게 됩니다.
+        # 칸별 전체 목록을 이미 싣습니다. 비는 것은 "겹치는지 볼 목록" 쪽뿐이라 모델이
+        # recommend 를 고를 유인이 크게 줄어듭니다.
+        #
+        # **다만 구조적으로 막히는 것은 아닙니다.** `_resolve_match` 가 후보 밖(시트
+        # 전체)에서도 지목을 찾도록 넓어진 뒤로는, 모델이 `<existing_domain_tasks>` 에서
+        # 본 id 를 쓰면 그대로 채워집니다. 사용자에게 "겹쳐요" 가 가지 않는 것은 아래
+        # `stuck()` 이 재요청 턴의 recommend 를 잡아 한 번 더 굴리고, 그래도 같으면
+        # `EXHAUSTED_REPLY` 로 끊기 때문입니다
+        # (`tests/test_stuck_loop.py::test_a_retry_turn_never_ends_in_a_duplicate_notice`
+        # 가 정확히 그 경로 — 시트에 있는 id 를 계속 내미는 백엔드 — 를 봅니다).
         retry = bool(classified.get("retry"))
         candidates: list[Candidate] = []
         if retry:
