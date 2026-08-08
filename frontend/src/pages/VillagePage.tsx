@@ -12,6 +12,7 @@ import { BUILD_PANEL_WIDTH, BuildPanel } from '../village/BuildPanel'
 import { BackdropLayer } from '../village/BackdropLayer'
 import { BackdropPicker } from '../village/BackdropPicker'
 import { NO_BACKDROP, backdropThumb, findBackdrop, useBackdrop } from '../village/backdrops'
+import { findTerrainSkin } from '../village/terrain/skins'
 import { skyGradientCss } from '../village/SkyBackdrop'
 import { useIsoCamera } from '../village/IsoCamera'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
@@ -113,6 +114,8 @@ export default function VillagePage() {
    */
   const [backdrop, setBackdrop] = useBackdrop(sheet && sheet !== 'none' ? sheet.id : null)
   const [backdropOpen, setBackdropOpen] = useState(false)
+  /** 지금 배경이 데려온 지형. 배경이 없으면 null 이고 그때만 지형을 직접 고를 수 있다. */
+  const terrainSkin = findTerrainSkin(backdrop === NO_BACKDROP ? null : backdrop)
   /** 'now' = 지금 진행도, 'done' = 다 채웠을 때의 모습. */
   const [preview, setPreview] = useState<'now' | 'done'>('now')
   const [themeFilter, setThemeFilter] = useState<string>('all')
@@ -618,17 +621,33 @@ export default function VillagePage() {
           />
         </div>
 
+        {/*
+          배경이 켜져 있으면 지형은 <b>고르는 것이 아니라 배경에 딸려 오는 것</b>이다.
+          그때도 네 칸짜리 토글을 남겨 두면, 눌러도 화면이 안 바뀌는 버튼이 된다 —
+          실제로 그려지는 지표면은 배경 쪽 설정이기 때문이다. 그래서 이름표로 바꾼다.
+          네 종으로 돌아가려면 배경을 '기본'으로 두면 된다.
+        */}
         <div data-tour="village-terrain" className="flex items-center gap-2">
           <span className="muted text-[12px] font-bold">지형</span>
-          <Segmented
-            size="sm"
-            value={village.terrain}
-            onChange={(v) => void changeTerrain(v as Terrain)}
-            options={TERRAINS.map((t) => ({
-              value: t,
-              label: TERRAIN_LABEL[t],
-            }))}
-          />
+          {terrainSkin ? (
+            <span
+              title="배경에 딸린 지형입니다. 직접 고르려면 배경을 '기본'으로 두세요."
+              className="flex h-8 items-center rounded-full px-3 text-[12.5px] font-bold text-[var(--text-strong)]"
+              style={{ background: 'var(--surface-sunken)' }}
+            >
+              {terrainSkin.name}
+            </span>
+          ) : (
+            <Segmented
+              size="sm"
+              value={village.terrain}
+              onChange={(v) => void changeTerrain(v as Terrain)}
+              options={TERRAINS.map((t) => ({
+                value: t,
+                label: TERRAIN_LABEL[t],
+              }))}
+            />
+          )}
           {terrainPending && <span className="muted text-[11px] font-bold">저장 중…</span>}
         </div>
 
@@ -645,7 +664,7 @@ export default function VillagePage() {
           <button
             type="button"
             onClick={() => setBackdropOpen(true)}
-            title="3D 마을 뒤에 깔 배경 고르기"
+            title="3D 마을 뒤에 깔 배경 고르기 — 지형도 그림에 맞춰 함께 바뀝니다"
             className="flex h-9 items-center gap-2 rounded-full border py-0 pr-3.5 pl-1.5 text-[12px] font-bold text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
@@ -696,11 +715,28 @@ export default function VillagePage() {
         </span>
       </section>
 
+      {/*
+        배경을 고르면 지형도 그 배경에 맞는 것으로 함께 바꾼다.
+
+        <p>마을 받침판이 그림의 빈 자리를 거의 덮으므로 화면에 남는 것은 <b>바깥 풍경</b>인데,
+        사막 그림 위에 아스팔트 섬이 떠 있으면 두 그림이 따로 논다. 짝은 배경마다 정해 뒀다
+        ({@link BACKDROPS} 의 `terrain`).
+
+        <p><b>고를 때만 바꾼다 — 화면에 들어올 때는 바꾸지 않는다.</b> 저장해 둔 배경을 되살릴
+        때마다 지형까지 덮어쓰면, 배경을 고른 뒤에 지형만 따로 바꿔 둔 사람은 들어올 때마다
+        그 선택을 잃는다. 아래 지형 버튼은 그대로 살아 있으므로 마음에 안 들면 바꾸면 된다.
+      */}
       <BackdropPicker
         open={backdropOpen}
         value={backdrop}
         terrain={village.terrain}
-        onChange={setBackdrop}
+        onChange={(next) => {
+          setBackdrop(next)
+          // 짝은 지형 쪽이 정본이다({@link TERRAIN_SKINS} 의 `base`) — 배경 목록에도 적어 두면
+          // 두 표가 갈라져, 어느 쪽을 고쳤는지에 따라 화면과 저장값이 어긋난다.
+          const paired = findTerrainSkin(next)?.base
+          if (paired) void changeTerrain(paired)
+        }}
         onClose={() => setBackdropOpen(false)}
       />
     </div>

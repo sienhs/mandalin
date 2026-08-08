@@ -11,6 +11,7 @@ import type { OwnedCatalog } from './ownedCatalog'
 import type { Terrain } from './villageApi'
 import type { Mandalart } from './types'
 import { NO_BACKDROP, type BackdropKey } from './backdrops'
+import { findTerrainSkin } from './terrain/skins'
 
 interface Props {
   mandalart: Mandalart
@@ -123,6 +124,11 @@ export function Scene({
 }: Props) {
   const sky = SKY[terrain]
   const photo = backdrop !== NO_BACKDROP
+  /*
+    배경 사진은 자기에게 맞는 지형을 하나씩 데려온다({@link ./terrain/skins}). 사진을 쓰지
+    않으면 null 이고, 그때는 예전처럼 지형 4종을 그린다.
+  */
+  const skin = findTerrainSkin(photo ? backdrop : null)
 
   return (
     <Canvas
@@ -217,6 +223,7 @@ export function Scene({
           overrides={overrides}
           themes={themes}
           terrain={terrain}
+          skin={skin}
           catalog={catalog}
           selectedTaskId={selectedTaskId}
           landmark={landmark}

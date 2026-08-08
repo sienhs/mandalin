@@ -20,6 +20,8 @@ interface Props {
   overrides: Record<string, CellOverride>
   theme: ThemeKey
   terrain: Terrain
+  /** 배경 지형이 정한 블록 바닥 출발색. 도시화로 당기는 규칙은 그대로 적용된다. */
+  skinBlock?: string
   catalog: OwnedCatalog
   /** 지금 선택된 자리의 task id. 이 블록 밖의 자리일 수도 있다. */
   selectedTaskId: string | null
@@ -55,14 +57,17 @@ const TASK_CELLS: [number, number][] = (() => {
  * 랜드마크 1개가 서고, 그 단계는 8개 도메인의 전체 진행률로 결정된다.
  */
 export function Block({
-  domain, domainIndex, position, selected, overrides, theme, terrain, catalog,
+  domain, domainIndex, position, selected, overrides, theme, terrain, skinBlock, catalog,
   selectedTaskId, landmark, details = true, labels = true, onSelect, onSelectTask,
 }: Props) {
   const isCenter = domainIndex === CENTER_BLOCK_INDEX
   const urban = urbanLevelOf(domain)
   const accent = DOMAIN_ACCENTS[domainIndex % DOMAIN_ACCENTS.length]
 
-  const groundColor = useMemo(() => blockGroundColor(terrain, urban), [terrain, urban])
+  const groundColor = useMemo(
+    () => blockGroundColor(terrain, urban, skinBlock),
+    [terrain, urban, skinBlock],
+  )
   const greenery = !isCenter && showsBlockGreenery(terrain) && urban < 0.5
   const labelY = 5.6
 
