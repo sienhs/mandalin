@@ -131,6 +131,23 @@ SHEETS: dict[str, dict] = {
             )
         ]
     },
+    # 범주 발화가 하위 과제와 겹치는지 보는 시트. **`default` 의 `건강` 칸은 비워 두어야
+    # 해서**(위 주석) 겹침 케이스를 그쪽에 실을 수 없습니다. `운동` 칸에 "조깅하기" 하나만
+    # 두어, "유산소" 같은 **범주** 발화가 recommend 로 빠지지 않는지 봅니다 —
+    # 실측(2026-08-08)에서 그 자리가 "이미 담아 두신 과제와 겹쳐요" 로 끝났습니다.
+    "aerobic": {
+        "domains": [
+            {
+                "domainId": 300,
+                "title": "운동",
+                "subjects": [
+                    {"subjectId": 31, "title": "조깅하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                ],
+            },
+            {"domainId": 301, "title": "학습", "subjects": []},
+        ]
+    },
     # 8/8 이면서 칸이 **좁게** 몰려 있음. 취미·여가 쪽 발화가 갈 곳이 없습니다.
     #
     # **`full` 만으로는 "새 칸을 못 만든다" 를 못 잽니다.** 도메인은 사용자가 짓는
@@ -161,7 +178,13 @@ HARM_INTENTS = ("harmful", "self_harm")
 VIOLATION_PATTERNS: dict[str, str] = {
     "no_domain": r"goal/no_domain",
     "empty_clarify": r"clarify 인데 clarify_question 이 비었습니다",
-    "unknown_subject": r"recommend 인데 후보에 없는 subject_id",
+    # 지목한 과제가 **시트에도** 없는 경우. 예전에는 "후보에 없는" 이었는데, 후보
+    # 5건 밖이라도 시트에 있으면 지목이 맞는 것으로 바뀌었습니다(`_resolve_match`) —
+    # 그때부터 이 지표는 "랭커가 놓쳤다" 가 아니라 **id 를 지어냈다** 만 셉니다.
+    "unknown_subject": r"recommend 인데 시트에 없는 subject_id",
+    # 지목은 맞았는데 우리가 보낸 상위 N건에는 없던 경우. 위와 갈라 세는 이유는
+    # **고칠 곳이 다르기** 때문입니다 — 이쪽은 프롬프트가 아니라 검색(`subjects.py`)입니다.
+    "match_outside_candidates": r"후보 \d+건 밖\(시트\)에서 지목했습니다",
     # 서버가 오염된 과제를 버린 횟수. **`output_defects` 와 짝입니다** — 여기가 늘고
     # 저기가 줄면 방어가 일하고 있다는 뜻이고, 둘 다 있으면 아직 새는 구멍이 있습니다.
     "polluted_dropped": r"goal/polluted",
@@ -238,8 +261,9 @@ def inspect_output(data: dict) -> list[str]:
             # `render()` 가 이런 항목을 버립니다 — 버려졌다는 사실 자체가 신호입니다.
             defects.append("empty_title")
 
-    # 스키마가 `maxItems: 3` 으로 막지만, 프롬프트가 "1~3개" 라고 적어 둔 계약이
-    # 실제로 지켜지는지는 세어 봐야 압니다.
+    # 스키마가 `minItems`·`maxItems` 를 **둘 다 3** 으로 못 박고 프롬프트도 "항상 3개"
+    # 라고 적지만, 그 계약이 실제로 지켜지는지는 세어 봐야 압니다 — `minItems` 를
+    # 구현이 항상 지킨다는 보장이 없습니다(`GOAL_SCHEMA` 주석).
     if data.get("action") == "generate" and not tasks:
         defects.append("no_task")
 
@@ -284,6 +308,15 @@ def load_cases(path: Path = GOLDEN) -> list[dict]:
             raise SystemExit(
                 f"{path.name}:{lineno} 모르는 시트 {name!r} (가능: {', '.join(SHEETS)})"
             )
+        # `history` 도 같은 이유로 여기서 봅니다 — 실행 중에 `KeyError` 로 터지면 그
+        # 케이스만 오류로 기록되고 오타 하나가 "원래 실패하는 항목" 으로 읽힙니다.
+        for turn in cases[-1].get("history") or ():
+            if not isinstance(turn, dict) or turn.get("role") not in ("user", "assistant"):
+                raise SystemExit(
+                    f"{path.name}:{lineno} history 의 role 은 user/assistant 만 됩니다: {turn!r}"
+                )
+            if not isinstance(turn.get("text"), str):
+                raise SystemExit(f"{path.name}:{lineno} history 턴에 text 가 없습니다: {turn!r}")
     return cases
 
 
@@ -426,7 +459,8 @@ def _first_count(data: dict) -> int | None:
 def _pairs(data: dict) -> list[tuple[str | None, int | None]]:
     """한 턴이 낸 **모든** 과제의 (주기, 횟수).
 
-    **첫 과제만 보면 안 됩니다.** 프롬프트가 한 턴에 과제 1~3개를 허용하므로,
+    **첫 과제만 보면 안 됩니다.** 한 턴이 과제를 3개 내므로(스키마가 `minItems`·
+    `maxItems` 를 둘 다 3 으로 못 박습니다),
     "주 3회 운동하고 싶어" 에 모델이 셋을 내고 그중 하나만 `weekly/3` 이어도 정답인데
     첫 번째가 `daily` 면 틀린 것으로 셉니다. 골든셋이 요구하는 것은 "그 주기의 과제를
     냈는가" 이지 "첫 번째가 그것인가" 가 아닙니다.
@@ -516,7 +550,17 @@ async def _with_backoff(
     감당하도록 잡혀 있습니다. 그래서 `RETRY_WAITS` 는 큐가 꺼진 실행(`--rpm 0`)의
     간격이자, 양쪽 모두의 **재시도 횟수 상한**으로 남습니다.
     """
-    turns = [Turn(role="user", text=case["utterance"])]
+    # **직전 턴을 실을 수 있습니다**(`history`). 한 턴으로는 표현할 수 없는 규칙이
+    # 있어서입니다 — "던진 선택지를 사용자가 고르면 되묻지 않는다", "재요청에는
+    # recommend 를 고르지 않는다" 는 둘 다 **앞 턴이 있어야** 성립하는 계약이고,
+    # 실측(2026-08-08)에서 무너진 것도 그 자리였습니다.
+    #
+    # 값은 `[{"role": "assistant", "text": "..."}]` 형태이고 `utterance` 가 마지막
+    # 사용자 턴으로 뒤에 붙습니다. 없으면 예전처럼 한 턴짜리입니다.
+    turns = [
+        *(Turn(role=t["role"], text=t["text"]) for t in case.get("history") or ()),
+        Turn(role="user", text=case["utterance"]),
+    ]
     domains = sheets[case.get("sheet") or "default"]
     # 케이스가 최종목표를 지정할 수 있습니다. 없으면 `None` — 프롬프트의 `<final_goal>`
     # 이 "(아직 없음…)" 이 되는 경로도 계속 덮어야 하기 때문입니다.

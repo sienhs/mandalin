@@ -239,7 +239,12 @@ class EchoBackend:
             return {
                 "action": "clarify",
                 "domain": None,
-                "clarify_question": f"({self.name}) 어떤 목표를 세우고 싶으신가요?",
+                # **발화를 넣어 턴마다 달라지게 합니다.** 고정 문구였을 때는 두 번째
+                # 턴부터 `_repeats_clarify` 가 "같은 질문을 또 한다" 로 잡아 파이프라인이
+                # 루프 차단 경로로 빠졌습니다 — 이 백엔드의 존재 이유("키 없이 전체를
+                # 끝까지 돌려본다")가 두 번째 턴에서 끊기는 셈입니다. 가드가 맞고 고정
+                # 문구가 틀렸습니다: 같은 질문을 반복하는 것은 실제로 버그입니다.
+                "clarify_question": f"({self.name}) “{text[:20]}” 는 어떤 쪽부터 해볼까요?",
                 "matched_task": None,
                 "generated_tasks": None,
                 "reasoning": f"echo 백엔드는 판단하지 않습니다 (입력: {text[:40]})",
