@@ -22,7 +22,7 @@ import { TERRAINS } from '../village/villageApi'
 import { ALL_CONFIGS } from '../village/localCatalog'
 import { useAutoTour } from '../features/tour/TourProvider'
 import Button from '../components/common/ActionButton'
-import { Badge, EmptyState, ErrorState, Segmented, Skeleton } from '../components/common/Primitives'
+import { EmptyState, ErrorState, Segmented, Skeleton } from '../components/common/Primitives'
 import { useToast } from '../components/common/Toast'
 
 /**
@@ -103,6 +103,15 @@ export default function VillagePage() {
    * 기능이 있는 줄 모른다. 마을을 온전히 보고 싶을 때 접으면 마을이 중앙으로 돌아온다.
    */
   const [panelOpen, setPanelOpen] = useState(true)
+
+  /**
+   * 배치 패널이 캔버스 왼쪽을 덮은 폭(px). 좌우 여백(`left-4`)까지 더해야 실제로 가려지는 폭이다.
+   *
+   * <p>카메라와 3D 위 표시가 <b>같은 값을 본다.</b> 카메라는 이만큼을 빼고 남은 영역의
+   * 중앙으로 마을을 밀고, 표시는 같은 영역의 중앙에 앉는다 — 두 곳에 따로 적으면 패널을
+   * 열었을 때 마을은 비켜 가는데 표시만 제자리에 남는다.
+   */
+  const occludedLeft = panelOpen ? BUILD_PANEL_WIDTH + 32 : 0
 
   const [terrainPending, setTerrainPending] = useState<Terrain | null>(null)
 
@@ -497,11 +506,8 @@ export default function VillagePage() {
           initialZoom={camera.zoom}
           onFacingChange={camera.setFacing}
           focus={focus}
-          /*
-            패널이 덮은 폭을 카메라에 알린다. 마을이 남은 영역 중앙으로 미끄러진다.
-            좌우 여백(left-4)까지 더해야 실제로 가려지는 폭이 된다.
-          */
-          occludedLeft={panelOpen ? BUILD_PANEL_WIDTH + 32 : 0}
+          /* 패널이 덮은 폭을 카메라에 알린다. 마을이 남은 영역 중앙으로 미끄러진다. */
+          occludedLeft={occludedLeft}
           onSelect={(i) => {
             if (i < 0) return
             setBlock(i)
@@ -557,6 +563,31 @@ export default function VillagePage() {
           >
             만다라트 보기
           </Link>
+        )}
+
+        {/*
+          완성형일 때 그렇다고 알린다. 3D 만 바뀌고 아래 패널의 진행률 막대는 실제 값 그대로라,
+          표시가 없으면 마을과 숫자가 어긋나 보인다.
+
+          <p><b>마을과 같이 움직인다.</b> 배치 패널이 왼쪽을 덮으면 카메라가 남은 영역 중앙으로
+          마을을 미는데, 이 표시가 캔버스 중앙에 고정돼 있으면 마을만 비켜 가고 표시는 제자리에
+          남아 딴 곳을 가리킨다. `left` 를 덮인 폭에 맞추면 <b>같은 영역의 중앙</b>이 되므로
+          픽셀 계산 없이 정확히 따라간다.
+
+          <p>미끄러지는 시간은 카메라의 감속(약 0.45초)에 맞췄다. 패널 자체는 즉시 나타났다
+          사라지므로 이 값은 패널이 아니라 마을을 따라간 것이다.
+
+          <p>`pointer-events-none` — 캔버스 위에 떠 있지만 끌어서 돌리는 것을 막지 않는다.
+        */}
+        {preview === 'done' && (
+          <div
+            className="pointer-events-none absolute top-4 z-10 flex justify-center transition-[left] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            style={{ left: occludedLeft, right: 0 }}
+          >
+            <span className="rounded-full bg-brand-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-lg">
+              모든 과제를 마쳤을 때의 모습
+            </span>
+          </div>
         )}
       </section>
 
@@ -700,11 +731,7 @@ export default function VillagePage() {
           원위치로
         </button>
 
-        {/*
-          완성형일 때는 그렇다고 알린다. 3D 만 바뀌고 아래 패널의 진행률 막대는 실제 값
-          그대로라, 표시가 없으면 마을과 숫자가 어긋나 보인다.
-        */}
-        {preview === 'done' && <Badge tone="brand">모든 과제를 마쳤을 때의 모습</Badge>}
+        {/* 완성형 표시는 이 바가 아니라 캔버스 위에 있다 — 위쪽 `preview === 'done'` 참고. */}
 
         <span className="muted ml-auto truncate text-[11.5px] font-semibold">
           {mandalart.center}
