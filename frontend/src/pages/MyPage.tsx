@@ -29,7 +29,6 @@ export default function Profile() {
     logout,
     updateName,
     mode,
-    setMode,
     resetMockData,
     gateway,
   } = useStore()
@@ -310,18 +309,12 @@ export default function Profile() {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-[13px] font-bold">데이터 출처</span>
-                <Segmented
-                  size="sm"
-                  value={mode}
-                  onChange={setMode}
-                  options={[
-                    { value: 'api', label: '서버' },
-                    { value: 'mock', label: '목업' },
-                  ]}
-                />
-              </div>
+              {/*
+                데이터 출처(목업/서버) 토글이 여기 있었다. 세션 도중에 뒤집으면 이미 그려진
+                화면은 그대로라 절반은 서버 것, 절반은 브라우저 것을 보게 된다. 출처는 이제
+                로그인할 때만 정해진다(`store.tsx` 의 `initialMode` 주석). 지금 어느 쪽인지는
+                위쪽 이름 옆 '목업 계정' 배지로 읽는다.
+              */}
 
               <div className="border-t pt-4" style={{ borderColor: 'var(--border-hairline)' }}>
                 {mode === 'mock' && (
