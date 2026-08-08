@@ -1,41 +1,16 @@
 import { Instances, Instance } from '@react-three/drei'
 import { PALETTE } from '../palette'
-import { ALL_ROAD_CENTERS, GAP, SPAN } from '../layout'
-import { RoadStrips, ScatterProps, intersections, useRoadScatter } from './common'
+import { GAP, SPAN } from '../layout'
+import { RoadStrips, ScatterProps, WheelRuts, intersections, useRoadScatter } from './common'
 
 /**
  * 거친 비포장 도로.
  * 마른 흙 위에 바퀴자국 두 줄을 파고, 자갈·마른 풀·나무 말뚝을 흩뿌린다.
+ *
+ * <p>바퀴자국은 {@link ./common} 으로 옮겼다 — 배경별 지형(서부·이집트)이 색만 바꿔 쓴다.
  */
 
 const ROAD_W = GAP * 0.86
-const RUT_OFFSET = ROAD_W * 0.22
-const RUT_W = 0.34
-
-/** 길마다 바퀴자국 두 줄. 흙보다 살짝 어두워 파인 것처럼 보인다. */
-function WheelRuts() {
-  const color = PALETTE.soil.clone().lerp(PALETTE.path, 0.35)
-  return (
-    <group>
-      {ALL_ROAD_CENTERS.flatMap((c) =>
-        [-RUT_OFFSET, RUT_OFFSET].map((o) => (
-          <mesh key={`v${c}${o}`} position={[c + o, -0.042, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <planeGeometry args={[RUT_W, SPAN]} />
-            <meshStandardMaterial color={color} roughness={1} />
-          </mesh>
-        )),
-      )}
-      {ALL_ROAD_CENTERS.flatMap((c) =>
-        [-RUT_OFFSET, RUT_OFFSET].map((o) => (
-          <mesh key={`h${c}${o}`} position={[0, -0.041, c + o]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <planeGeometry args={[SPAN, RUT_W]} />
-            <meshStandardMaterial color={color} roughness={1} />
-          </mesh>
-        )),
-      )}
-    </group>
-  )
-}
 
 /** 길가 마른 풀 포기. */
 function DryTufts() {
@@ -85,7 +60,7 @@ export function DirtRoad() {
 
       {/* 다져진 흙길 */}
       <RoadStrips y={-0.045} width={ROAD_W} color={PALETTE.path} />
-      <WheelRuts />
+      <WheelRuts roadWidth={ROAD_W} color={PALETTE.soil.clone().lerp(PALETTE.path, 0.35)} />
 
       <ScatterProps count={220} seed={91} y={-0.04} color={PALETTE.concrete} size={0.09} margin={-0.3} />
       <ScatterProps count={80} seed={7} y={-0.04} color={PALETTE.bark} size={0.13} margin={-0.3} />

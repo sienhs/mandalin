@@ -1,66 +1,17 @@
-import { Instances, Instance } from '@react-three/drei'
 import { PALETTE } from '../palette'
-import { ALL_ROAD_CENTERS, BLOCK_CENTERS, BLOCK_SIZE, GAP, SPAN } from '../layout'
-import { RoadStrips, intersections } from './common'
+import { BLOCK_CENTERS, BLOCK_SIZE, GAP, SPAN } from '../layout'
+import { Crosswalks, LaneDashes, RoadStrips, intersections } from './common'
 
 /**
  * 포장도로를 깐 도시.
  * 인도(콘크리트) 위에 아스팔트를 얹고 차선·횡단보도·연석·가로등·맨홀로 채운다.
+ *
+ * <p>차선·횡단보도는 {@link ./common} 으로 옮겼다 — 배경별 지형(서울·SF·사이버펑크)이
+ * 색만 바꿔 같은 것을 쓴다. 간격과 크기가 두 곳에 적혀 있으면 한쪽만 고쳐진다.
  */
 
 const ROAD_W = GAP * 0.74
 const CURB_H = 0.06
-
-/** 도로 중앙 점선. 교차로 근처는 비워야 실제 도로처럼 보인다. */
-function LaneMarkings() {
-  const dashes: { pos: [number, number, number]; horizontal: boolean }[] = []
-  const step = 1.6
-  for (const c of ALL_ROAD_CENTERS) {
-    for (let t = -SPAN / 2 + step; t < SPAN / 2; t += step) {
-      if (ALL_ROAD_CENTERS.some((o) => Math.abs(t - o) < ROAD_W / 2 + 0.7)) continue
-      dashes.push({ pos: [c, 0, t], horizontal: false })
-      dashes.push({ pos: [t, 0, c], horizontal: true })
-    }
-  }
-  return (
-    <Instances limit={dashes.length} range={dashes.length}>
-      <planeGeometry args={[0.09, 0.8]} />
-      <meshStandardMaterial color={PALETTE.roadPaint} roughness={0.8} />
-      {dashes.map((d, i) => (
-        <Instance
-          key={i}
-          position={[d.pos[0], 0.005, d.pos[2]]}
-          rotation={[-Math.PI / 2, 0, d.horizontal ? Math.PI / 2 : 0]}
-        />
-      ))}
-    </Instances>
-  )
-}
-
-/** 교차로 네 방향 횡단보도. */
-function Crosswalks() {
-  const bars: { pos: [number, number, number]; rot: number }[] = []
-  const stripes = 5
-  const offset = ROAD_W / 2 + 0.55
-  for (const [cx, cz] of intersections()) {
-    for (let i = 0; i < stripes; i++) {
-      const t = (i / (stripes - 1) - 0.5) * ROAD_W * 0.78
-      bars.push({ pos: [cx + t, 0, cz + offset], rot: 0 })
-      bars.push({ pos: [cx + t, 0, cz - offset], rot: 0 })
-      bars.push({ pos: [cx + offset, 0, cz + t], rot: Math.PI / 2 })
-      bars.push({ pos: [cx - offset, 0, cz + t], rot: Math.PI / 2 })
-    }
-  }
-  return (
-    <Instances limit={bars.length} range={bars.length}>
-      <planeGeometry args={[0.14, 0.8]} />
-      <meshStandardMaterial color={PALETTE.roadPaint} roughness={0.85} />
-      {bars.map((b, i) => (
-        <Instance key={i} position={[b.pos[0], 0.006, b.pos[2]]} rotation={[-Math.PI / 2, 0, b.rot]} />
-      ))}
-    </Instances>
-  )
-}
 
 /** 블록 둘레 연석 — 인도와 차도의 높이 차. */
 function Curbs() {
@@ -143,8 +94,8 @@ export function CityRoad() {
       <RoadStrips y={-0.045} width={ROAD_W} color={PALETTE.road} roughness={0.95} />
 
       <group position={[0, -0.045, 0]}>
-        <LaneMarkings />
-        <Crosswalks />
+        <LaneDashes roadWidth={ROAD_W} color={PALETTE.roadPaint} />
+        <Crosswalks roadWidth={ROAD_W} color={PALETTE.roadPaint} />
         <Manholes />
       </group>
 
