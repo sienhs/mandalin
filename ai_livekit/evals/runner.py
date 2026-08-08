@@ -150,6 +150,60 @@ SHEETS: dict[str, dict] = {
             )
         ]
     },
+    # 칸 **안**이 찬 시트. 위 셋과 세는 대상이 다릅니다.
+    #
+    # **`full`·`full_tight` 로는 이 경로를 못 잽니다.** 그쪽의 "8/8" 은 *칸 수*
+    # (`DOMAIN_SLOTS`)이고 칸들은 전부 `subjects: []` 라 **안은 0/8** 입니다. 그래서
+    # `VIOLATION_PATTERNS` 의 `capacity_trimmed`·`domain_full` 은 표에만 있고 트리거가
+    # 없어 **영원히 0 이었습니다**(2026-08-08 확인). 칸 안 정원을 다루는 서버 코드
+    # (`_settle_capacity` · `domain_full_reply`)가 골든셋에서 한 번도 실행되지 않습니다.
+    #
+    # 칸 수는 3 이라 **새 칸을 지을 자리는 남아 있습니다**(5칸). 그래야 "그 칸이 찼다" 와
+    # "칸을 못 만든다" 가 섞이지 않습니다 — 후자는 `full_tight` 가 재는 것입니다.
+    "full_cell": {
+        "domains": [
+            {
+                "domainId": 300,
+                "title": "코딩테스트",
+                "subjects": [
+                    {"subjectId": 300 + i, "title": t, "period": "daily",
+                     "countPerPeriod": 1}
+                    for i, t in enumerate(
+                        [
+                            "매일 알고리즘 1문제 풀기",
+                            "매일 자료구조 복습하기",
+                            "기출 문제 다시 풀기",
+                            "오답 노트 정리하기",
+                            "구현 연습하기",
+                            "시간 재고 풀기",
+                            "그리디 문제 풀기",
+                            "DP 문제 풀기",
+                        ]
+                    )
+                ],
+            },
+            # 두 자리 남은 칸. 한 턴이 3개를 내므로 **자르기**가 여기서 일어납니다.
+            {
+                "domainId": 310,
+                "title": "체력",
+                "subjects": [
+                    {"subjectId": 310 + i, "title": t, "period": "weekly",
+                     "countPerPeriod": 2}
+                    for i, t in enumerate(
+                        [
+                            "주 2회 달리기",
+                            "주 2회 근력 운동",
+                            "계단으로 다니기",
+                            "스트레칭하기",
+                            "주말에 등산하기",
+                            "자전거 타기",
+                        ]
+                    )
+                ],
+            },
+            {"domainId": 320, "title": "생활", "subjects": []},
+        ]
+    },
 }
 
 INTENTS = ("goal", "chitchat", "injection", "harmful", "self_harm", "unclear")
@@ -176,6 +230,20 @@ VIOLATION_PATTERNS: dict[str, str] = {
     # 알 수 없습니다.
     "capacity_trimmed": r"goal/capacity",
     "domain_full": r"goal/domain_full",
+    # 이미 담은 과제를 다시 만든 횟수(프롬프트 규칙 4). **원래 비어 있던 자리입니다** —
+    # `g07`~`g10` 이 정확히 이 케이스인데, 모델이 중복을 생성하고 서버가 `recommend` 로
+    # 뒤집으면 **action 은 맞으니 만점, 위반은 0** 으로 집계됐습니다. `inspect_output`
+    # 독스트링이 경계한 "평가가 깨진 출력을 보상한다" 와 같은 모양입니다.
+    "duplicate_dropped": r"goal/duplicate",
+    # 한 턴 상한(`TASK_COUNT`)을 넘겨 잘린 횟수. 상한은 스키마 `maxItems` 에도 있지만
+    # 그건 제공자가 지키는 값이고, 도구 경로에서는 강제가 약합니다.
+    "turn_size_trimmed": r"goal/turn_size",
+    # 1단계가 **되묻기 직후** 발화를 무관하다고 판단한 횟수. 서버가 3단계로 넘겨 대화를
+    # 살리지만, 늘어나면 그건 1단계 분류 품질 문제입니다.
+    #
+    # **골든셋으로는 안 잡힙니다** — 케이스가 단일 발화라 "직전이 되묻기" 가 성립하지
+    # 않습니다(`after_clarify` 는 언제나 False). 실사용 로그에서 세라고 넣어 둡니다.
+    "after_clarify": r"goal/after_clarify",
     "truncated_retry": r"응답이 잘렸습니다",
     "rate_limited": r"429",
 }

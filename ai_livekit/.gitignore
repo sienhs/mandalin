@@ -6,6 +6,11 @@
 # Tool Caches
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+# pytest-cov 산출물. `--cov` 를 준 사람에게만 생기지만 dev 의존성이라 모두에게 생길 수
+# 있습니다(`requirements-dev.txt`). 커버리지는 옵트인이고 수치는 공유할 값이 아닙니다.
+.coverage
+htmlcov/
 
 # 실제 키가 들어갑니다. .env.example 은 플레이스홀더뿐이라 공유합니다.
 .env

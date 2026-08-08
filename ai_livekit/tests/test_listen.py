@@ -629,3 +629,257 @@ def test_the_configured_language_reaches_the_plugin(monkeypatch, language):
     monkeypatch.setenv("STT_LANGUAGE", language)
     stt = build_stt()
     assert stt is not None
+
+
+# -- 스트림이 도중에 깨질 때 ---------------------------------------------------
+#
+# 위 검사들은 스트림이 **정상적으로 열리고 닫히는** 경로입니다. 아래는 그 사이에
+# 무언가 터지는 경우이고, 전부 조용합니다 — HANDOFF 의 *"전사가 중간에 멈춤 — 태스크가
+# GC 되면 조용히 멈춥니다"* 가 이 근처입니다. 마이크는 켜져 있고 요금도 나가는데
+# 캡션만 안 나오므로, 사용자에게는 "안 들리나 보다" 로만 보입니다.
+#
+# 오디오 페이크가 프레임마다 제어를 넘깁니다(`asyncio.sleep(0)`). 위쪽 `_fake_audio` 는
+# await 가 없어서 읽기 태스크가 `aclose` 전까지 한 번도 안 돕니다 — 그러면 "읽다가
+# 터진다" 를 재현할 수 없습니다. 실제 `rtc.AudioStream` 은 프레임마다 I/O 를 기다립니다.
+
+
+def _interleaving_audio(*segments: tuple[int, int]):
+    base = _fake_audio(*segments)
+
+    class Interleaving(base):  # type: ignore[misc, valid-type]
+        async def __anext__(self):
+            import asyncio
+
+            await asyncio.sleep(0)
+            return await base.__anext__(self)
+
+    return Interleaving
+
+
+def _speaking_stt(stream_factory):
+    class Stt(FakeStt):
+        def stream(self) -> FakeSttStream:
+            self.streams.append(stream_factory(len(self.streams)))
+            return self.streams[-1]
+
+    return Stt()
+
+
+async def _run_interleaved(monkeypatch, speech, *segments, **kwargs):
+    import agent.listen as listen
+
+    monkeypatch.setenv("STT_IDLE_CLOSE_SECONDS", "1")
+    monkeypatch.setenv("STT_FINALIZE_SECONDS", "0.05")
+    monkeypatch.setattr(listen.rtc, "AudioStream", _interleaving_audio(*segments))
+    await listen.TrackListener(speech, **kwargs).run(track=object())
+    return speech
+
+
+def _final_at(nth_frame: int, text: str):
+    """`nth_frame` 번째 프레임에서 INTERIM 과 FINAL 을 차례로 내는 스트림."""
+    from livekit.agents import stt as stt_api
+
+    class Talking(FakeSttStream):
+        def push_frame(self, frame) -> None:
+            super().push_frame(frame)
+            if len(self.pushed) == nth_frame:
+                for kind, said in (
+                    (stt_api.SpeechEventType.INTERIM_TRANSCRIPT, text[:2]),
+                    (stt_api.SpeechEventType.FINAL_TRANSCRIPT, text),
+                ):
+                    self._events.put_nowait(
+                        stt_api.SpeechEvent(
+                            type=kind,
+                            alternatives=[stt_api.SpeechData(language="ko", text=said)],
+                        )
+                    )
+
+    return Talking
+
+
+async def test_a_final_transcript_reaches_the_callback(monkeypatch):
+    """**전사문이 실제로 배달되는지.** 여기가 끊기면 파이프라인은 아무것도 못 받습니다."""
+    heard: list[str] = []
+    seen: list[str] = []
+
+    async def on_final(text: str) -> None:
+        heard.append(text)
+
+    async def on_interim(text: str) -> None:
+        seen.append(text)
+
+    await _run_interleaved(
+        monkeypatch,
+        _speaking_stt(lambda _i: _final_at(3, "매일 알고리즘 문제 풀기")()),
+        (4_000, 400),
+        (0, 3_000),
+        on_final=on_final,
+        on_interim=on_interim,
+    )
+
+    assert heard == ["매일 알고리즘 문제 풀기"]
+    # 중간 결과는 따로 갑니다 — 캡션이 말하는 동안 갱신되는 자리입니다.
+    assert seen == ["매일"]
+
+
+async def test_a_reader_crash_is_logged_instead_of_dying_quietly(monkeypatch, caplog):
+    """읽기 태스크가 조용히 죽으면 **전사만 멈추고 로그에 아무것도 안 남습니다.**
+
+    마이크는 켜져 있고 소켓도 열려 있어 요금은 계속 나갑니다.
+    """
+    import logging
+
+    async def boom(_text: str) -> None:
+        raise RuntimeError("콜백이 터졌습니다")
+
+    with caplog.at_level(logging.ERROR, logger="mandarin.listen"):
+        await _run_interleaved(
+            monkeypatch,
+            _speaking_stt(lambda _i: _final_at(3, "터질 발화")()),
+            (4_000, 400),
+            (0, 3_000),
+            on_final=boom,
+        )
+
+    assert "STT 스트림 읽기가 실패했습니다" in caplog.text
+    # 트레이스백이 같이 남아야 원인을 찾을 수 있습니다.
+    assert "콜백이 터졌습니다" in caplog.text
+
+
+async def test_usage_is_logged_because_stt_is_billed_by_audio_seconds(monkeypatch, caplog):
+    """STT 는 토큰이 아니라 **오디오 시간**으로 과금됩니다.
+
+    `gemini usage` 로그에 안 나오는 값이라 여기서 안 남기면 청구서에서 "어디가" 를
+    가를 수 없습니다.
+    """
+    import logging
+
+    from livekit.agents import stt as stt_api
+
+    class Reporting(FakeSttStream):
+        def push_frame(self, frame) -> None:
+            super().push_frame(frame)
+            if len(self.pushed) == 3:
+                self._events.put_nowait(
+                    stt_api.SpeechEvent(
+                        type=stt_api.SpeechEventType.INTERIM_TRANSCRIPT,
+                        alternatives=[stt_api.SpeechData(language="ko", text="어")],
+                    )
+                )
+                self._events.put_nowait(
+                    stt_api.SpeechEvent(
+                        type=stt_api.SpeechEventType.RECOGNITION_USAGE,
+                        alternatives=[],
+                        recognition_usage=stt_api.RecognitionUsage(audio_duration=4.2),
+                    )
+                )
+
+    with caplog.at_level(logging.INFO, logger="mandarin.listen"):
+        await _run_interleaved(
+            monkeypatch,
+            _speaking_stt(lambda _i: Reporting()),
+            (4_000, 400),
+            (0, 3_000),
+            on_final=_noop,
+        )
+
+    assert "stt usage" in caplog.text
+
+
+async def test_a_push_failure_closes_the_stream_and_keeps_listening(monkeypatch, caplog):
+    """프레임을 못 보내면 그 스트림을 버리고 **다음 발화는 새 스트림으로 받습니다.**
+
+    안 버리면 남은 창(15분) 내내 같은 죽은 스트림에 밀어 넣게 됩니다.
+    """
+    import logging
+
+    class Broken(FakeSttStream):
+        def push_frame(self, frame) -> None:
+            raise RuntimeError("소켓이 닫혔습니다")
+
+    speech = _speaking_stt(lambda i: Broken() if i == 0 else FakeSttStream())
+    with caplog.at_level(logging.ERROR, logger="mandarin.listen"):
+        await _run_interleaved(
+            monkeypatch, speech, (4_000, 400), (0, 3_000), (4_000, 400), (0, 3_000),
+            on_final=_noop,
+        )
+
+    assert "프레임을 보내지 못했습니다" in caplog.text
+    assert len(speech.streams) >= 2
+    assert speech.streams[0].closed
+
+
+async def test_a_stream_that_ended_first_is_replaced(monkeypatch, caplog):
+    """재연결까지 소진한 스트림은 다시 엽니다.
+
+    안 버리면 아래 `push` 가 프레임마다 터집니다 — 증상이 로그 도배로 바뀝니다.
+    """
+    import logging
+
+    class AlreadyOver(FakeSttStream):
+        def __init__(self) -> None:
+            super().__init__()
+            self._events.put_nowait(None)  # 읽기 태스크가 바로 끝납니다
+
+    speech = _speaking_stt(lambda i: AlreadyOver() if i == 0 else FakeSttStream())
+    with caplog.at_level(logging.WARNING, logger="mandarin.listen"):
+        await _run_interleaved(
+            monkeypatch, speech, (4_000, 600), (0, 3_000), on_final=_noop
+        )
+
+    assert "먼저 끝났습니다" in caplog.text
+    assert len(speech.streams) >= 2
+
+
+async def test_a_failing_started_callback_does_not_stop_transcription(monkeypatch):
+    """시작 알림은 **확인 신호일 뿐**이라 실패해도 듣기를 막지 않습니다.
+
+    이 콜백이 있는 이유가 "에이전트가 듣고 있는지" 를 브라우저에서 보기 위해서인데,
+    그것 때문에 전사가 안 되면 주객이 바뀝니다.
+    """
+    async def boom() -> None:
+        raise RuntimeError("데이터 채널이 아직 안 열렸습니다")
+
+    speech = await _run_interleaved(
+        monkeypatch,
+        _speaking_stt(lambda _i: FakeSttStream()),
+        (4_000, 400),
+        (0, 3_000),
+        on_final=_noop,
+        on_started=boom,
+    )
+
+    assert len(speech.streams) == 1
+    assert speech.streams[0].pushed
+
+
+async def test_a_missing_plugin_disables_voice_instead_of_killing_the_session(
+    monkeypatch, caplog
+):
+    """플러그인이 없으면 **음성만** 죽습니다 — 텍스트 대화와 시트는 그대로입니다.
+
+    `test_the_module_imports_even_without_the_plugin_installed` 는 import 가 견디는지를
+    소스로 봅니다. 이쪽은 그 뒤 **런타임 갈래**입니다: `build_stt()` 가 `None` 을
+    돌려줘야 `entrypoint` 가 세션 알림에 `voice:false` 를 실을 수 있습니다
+    (`test_hello.py`). 여기서 예외를 올리면 job 이 통째로 죽습니다.
+    """
+    import logging
+
+    import agent.listen as listen
+
+    monkeypatch.setattr(listen, "deepgram", None)
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "있어도-무의미")
+    with caplog.at_level(logging.WARNING, logger="mandarin.listen"):
+        assert listen.build_stt() is None
+
+    assert "설치되지 않았습니다" in caplog.text
+
+
+def test_an_empty_frame_is_silence_not_a_crash():
+    """길이 0 프레임에 `np.mean` 을 걸면 `nan` 이 나오고, `nan` 은 어떤 비교에도
+    False 라 게이트가 **무음도 발화도 아닌 상태**로 빠집니다. `-inf` 로 접습니다."""
+    import math
+
+    from agent.listen import frame_dbfs
+
+    assert frame_dbfs(_frame(0, ms=0)) == -math.inf
