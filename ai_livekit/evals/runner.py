@@ -199,6 +199,53 @@ SHEETS: dict[str, dict] = {
             {"domainId": 320, "title": "생활", "subjects": []},
         ]
     },
+    # 칸 수도 차고 칸 안도 거의 찬 시트. 새 칸을 못 만들고 담을 자리도 한 칸에만 둘입니다.
+    "nearly_full": {
+        "domains": [
+            {
+                "domainId": 400,
+                "title": "운동",
+                "subjects": [
+                    {"subjectId": 400 + i, "title": t, "period": "weekly",
+                     "countPerPeriod": 2}
+                    for i, t in enumerate(
+                        ["주 2회 달리기", "근력 운동하기", "계단 이용하기",
+                         "주말 등산하기", "자전거 타기", "스트레칭하기"]
+                    )
+                ],
+            },
+        ] + [
+            {
+                "domainId": 410 + d * 10,
+                "title": name,
+                "subjects": [
+                    {"subjectId": 410 + d * 10 + i, "title": f"{name} 과제{i}",
+                     "period": "daily", "countPerPeriod": 1}
+                    for i in range(8)
+                ],
+            }
+            for d, name in enumerate(
+                ["식단", "수면", "스트레스", "검진", "자세", "수분", "절주"]
+            )
+        ]
+    },
+    # 8칸 x 8과제. 담을 곳이 실제로 없는 유일한 경우입니다.
+    "saturated": {
+        "domains": [
+            {
+                "domainId": 500 + d * 10,
+                "title": name,
+                "subjects": [
+                    {"subjectId": 500 + d * 10 + i, "title": f"{name} 과제{i}",
+                     "period": "daily", "countPerPeriod": 1}
+                    for i in range(8)
+                ],
+            }
+            for d, name in enumerate(
+                ["운동", "식단", "수면", "스트레스", "검진", "자세", "수분", "절주"]
+            )
+        ]
+    },
 }
 
 INTENTS = ("goal", "chitchat", "injection", "harmful", "self_harm", "unclear")

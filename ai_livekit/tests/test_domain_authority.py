@@ -542,3 +542,42 @@ def test_a_capacity_note_on_a_duplicate_reply_stays_out_of_the_history():
     # 히스토리에는 겹쳤다는 사실만 남는다.
     assert "겹쳐요" in result.history_entry
     assert "다 차서" not in result.history_entry
+
+
+def test_a_clarify_about_a_full_cell_is_answered_by_the_server():
+    """모델이 꽉 찬 칸을 두고 되물으면 서버 문구로 갈아끼웁니다.
+
+    `_settle_capacity` 는 `generate` 만 보므로(`_STORABLE_ACTIONS`) 모델이 스스로
+    `clarify` 를 고르면 그 검사를 지나갑니다. 그 문장은 시트를 안 봐서 자리가 남은
+    칸을 못 짚습니다.
+    """
+    sheet = _sheet(MAX_SUBJECTS_PER_DOMAIN) + [
+        DomainRef(id=8, title="운동", subjectCount=2)
+    ]
+    result = _run(
+        {
+            "action": "clarify",
+            "domain": "학습",
+            "clarify_question": "어떤 과제를 빼고 새로 넣을까요?",
+        },
+        sheet,
+    )
+    assert result.stages[-1] == "domain_full"
+    # 자리가 남은 칸을 이름으로 짚는다.
+    assert "운동" in result.text
+    # 모델의 문장은 나가지 않는다 — 과제를 빼라고 묻지 않습니다.
+    assert "빼고" not in result.text
+
+
+def test_a_clarify_about_a_cell_with_room_is_left_alone():
+    """자리가 남은 칸이면 모델의 되묻기를 그대로 씁니다 — 갈아끼우는 것은 꽉 찬 칸뿐입니다."""
+    result = _run(
+        {
+            "action": "clarify",
+            "domain": "학습",
+            "clarify_question": "어느 쪽부터 해볼까요?",
+        },
+        _sheet(2),
+    )
+    assert "domain_full" not in result.stages
+    assert result.text == "어느 쪽부터 해볼까요?"

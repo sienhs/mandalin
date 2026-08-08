@@ -1030,7 +1030,9 @@ class GoalPipeline:
                 history_text=DOMAIN_UNKNOWN_REPLY,
             )
 
-        full = self._settle_capacity(decided, domains)
+        full = self._settle_capacity(decided, domains) or self._clarified_full_cell(
+            decided, domains
+        )
         if full is not None:
             # 칸은 정했는데 그 칸에 자리가 없다. `no_domain` 과 갈라 두는 이유는
             # 사용자에게 줄 안내가 다르기 때문입니다(`domain_full_reply`).
@@ -1333,6 +1335,26 @@ class GoalPipeline:
         # 자리 상태를 여기서 붙입니다.
         if subject_count(match) >= MAX_SUBJECTS_PER_DOMAIN:
             decided["capacity_note"] = domain_full_reply(title, domains)
+
+    @staticmethod
+    def _clarified_full_cell(
+        decided: dict, domains: Sequence[DomainRef]
+    ) -> str | None:
+        """모델이 **꽉 찬 칸을 두고 되물었으면** 그 칸 이름을. 아니면 `None`.
+
+        `_settle_capacity` 는 `generate` 만 봅니다(`_STORABLE_ACTIONS`). 모델이 스스로
+        `clarify` 를 고르면 그 검사를 지나가고 `clarify_question` 이 그대로 나갑니다.
+        그 문장은 시트를 안 봐서 자리가 남은 칸을 못 짚습니다 — 상태는 서버가 압니다.
+        """
+        if decided.get("action") != "clarify":
+            return None
+        title = (decided.get("domain") or "").strip()
+        if not title:
+            return None
+        match = next((d for d in domains if d.title == title), None)
+        if match is None or subject_count(match) < MAX_SUBJECTS_PER_DOMAIN:
+            return None
+        return title
 
     @classmethod
     def _settle_capacity(
