@@ -16,8 +16,12 @@ import type { ReactElement } from 'react'
  *
  * <p>`welcome` 만 화면이 아니라 <b>때</b>다 — 설명 팝업이 끝나는 그 순간 한 장만 뜨는
  * 이음매라, 도움말 목록(`TOUR_ORDER`)에는 넣지 않는다. 다시 볼 것이 아니라 지나가는 안내다.
+ *
+ * <p>`village` 는 다른 화면과 성격이 다르다 — 본문이 <b>3D 캔버스</b>라 눌러야 할 것이
+ * DOM 이 아니라 그림 안에 있다. 그래서 안내가 가리키는 것은 캔버스 전체와 그 위/아래에
+ * 얹힌 조작 UI 뿐이고, "블록을 누르면" 같은 말은 글로 대신한다.
  */
-export type TourId = 'welcome' | 'home' | 'editor' | 'coach'
+export type TourId = 'welcome' | 'home' | 'editor' | 'coach' | 'village'
 
 export type TourStep = {
   /**
