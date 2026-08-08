@@ -81,3 +81,67 @@ def test_recommend_is_left_alone():
     decided = {"action": "recommend", "domain": "학습", "matched_task": {"subject_id": 100}}
     GoalPipeline._settle_duplicates(decided, domain("매일 알고리즘 1문제 풀기"))
     assert decided["matched_task"] == {"subject_id": 100}
+
+
+# -- 겹친 것을 **전부** 알려준다 ----------------------------------------------
+#
+# 실측(2026-08-08): `"유산소"` 에 모델이 조깅·자전거·수영 셋을 냈고 셋 다 이미 담겨
+# 있었습니다. 그런데 화면에는 첫 건만 나갔고, 사용자는 AI 가 유산소로 조깅밖에 모른다고
+# 읽어 `"유산소가 조깅하기밖에 없진 않잖아"` 라고 답했습니다 — **그 오해를 서버가
+# 만들었습니다.** 셋을 다 보여줬으면 그 턴에서 끝났습니다.
+
+
+def test_every_overlap_is_reported_not_just_the_first():
+    """`matched_task` 는 한 건이어야 하지만(프론트의 지목 자리) **문장은 전부 말한다.**"""
+    decided = generated("조깅하기", "자전거 타기", "수영 배우기")
+    GoalPipeline._settle_duplicates(
+        decided, domain("조깅하기", "자전거 타기", "수영 배우기")
+    )
+    assert decided["action"] == "recommend"
+    # 프론트 계약은 그대로 — 지목은 한 건이다.
+    assert decided["matched_task"]["title"] == "조깅하기"
+    assert [t["title"] for t in decided["duplicate_matches"]] == [
+        "조깅하기", "자전거 타기", "수영 배우기"
+    ]
+
+    from mandarin_goal.bot.goal import render
+
+    text = render(decided)
+    for title in ("조깅하기", "자전거 타기", "수영 배우기"):
+        assert title in text, title
+
+
+def test_the_overlap_list_never_reaches_the_browser():
+    """담기지 않는 값입니다 — 카드로 그려지면 "이건 뭘 담으라는 거지" 가 됩니다."""
+    from mandarin_goal.bot.goal import public_data
+
+    decided = generated("조깅하기", "자전거 타기")
+    GoalPipeline._settle_duplicates(decided, domain("조깅하기", "자전거 타기"))
+    sent = public_data(decided)
+    assert "duplicate_matches" not in sent
+    assert "capacity_note" not in sent
+    # 지목에 필요한 것은 남는다.
+    assert sent["matched_task"]["title"] == "조깅하기"
+
+
+def test_a_full_cell_is_mentioned_in_the_same_breath():
+    """**`recommend` 는 정원 검사를 지나가지 않습니다**(`_STORABLE_ACTIONS`).
+
+    그래서 칸이 8/8 인데 중복이 먼저 걸리면 "겹쳐요" 만 나가고, 다음 턴에 모델이 중복
+    아닌 것을 내면 그제서야 "꽉 찼어요" 가 나갑니다 — 같은 상태에 설명이 턴마다 달라져서
+    사용자에게는 오락가락하는 것으로 보입니다(위 실측의 다음 턴이 정확히 그랬습니다).
+    """
+    from mandarin_goal.sheet import MAX_SUBJECTS_PER_DOMAIN
+
+    full = domain(*[f"과제{i}" for i in range(MAX_SUBJECTS_PER_DOMAIN)])
+    decided = generated("과제0")
+    GoalPipeline._settle_duplicates(decided, full)
+
+    assert "다 차서" in decided["capacity_note"]
+
+
+def test_a_cell_with_room_says_nothing_about_capacity():
+    """자리가 남았으면 붙이지 않습니다 — 안 붙는 것이 기본입니다."""
+    decided = generated("매일 알고리즘 1문제 풀기")
+    GoalPipeline._settle_duplicates(decided, domain("매일 알고리즘 1문제 풀기"))
+    assert "capacity_note" not in decided

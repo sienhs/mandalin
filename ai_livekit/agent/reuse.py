@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from mandarin_goal.bot.goal import (
     BLOCKED_REPLIES,
+    DOMAIN_FULL_NOTE,
     DOMAIN_UNKNOWN_REPLY,
     OFF_TOPIC_REPLY,
     PIPELINE_MODES,
@@ -68,6 +69,7 @@ __all__ = [
     "BACKENDS",
     "BLOCKED_REPLIES",
     "DEMO_PROVIDERS",
+    "DOMAIN_FULL_NOTE",
     "DOMAIN_UNKNOWN_REPLY",
     "FREQUENCY_LABELS",
     "GEMINI_BASE_URL",

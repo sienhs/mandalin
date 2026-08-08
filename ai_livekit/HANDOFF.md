@@ -34,7 +34,7 @@
 
 ## 2. 조용히 실패하던 것들
 
-남은 버그가 아니라 이미 잡은 것들입니다. 각 줄의 테스트가 재발을 막습니다. 여덟 개
+남은 버그가 아니라 이미 잡은 것들입니다. 각 줄의 테스트가 재발을 막습니다. 열세 개
 전부 에러가 없고 증상이 품질 저하로만 드러나는 종류였습니다. 새로 손댈 때 이 목록을
 먼저 읽으세요.
 
@@ -49,8 +49,12 @@
 | 빈도 판별이 안 됨 | 프롬프트의 `"세 가지만 판단한다"` 때문에 모델이 뒤 절을 건너뜀 | 없음. 문구가 근거라 `prompts/classify.md` 를 고칠 때 주의 |
 | Spring 시트의 빈도가 통째로 사라짐 | 전송 이름이 어긋남. Spring 은 `period`, AI 는 `frequency` 만 받았음 | `test_sheet_transfer.py` |
 | 설명이 카드 밖으로 넘침 | 모델에게 준 길이 상한이 UI·평가 기준과 다름(60자 vs 40자). 스키마에 `maxLength` 가 없어 서버도 안 막음 | `test_output_limits_match.py` |
+| 과제를 뺐는데도 "그 칸은 꽉 찼다" | 서버가 만든 상태 문구가 히스토리에 남아 시트보다 오래 삶. 슬롯은 매 턴 갱신되는데 그 문장만 얼어붙어 모델이 옛 시트를 따름 | `test_domain_authority.py` · `test_conversation.py` |
+| 칸이 7개나 비었는데 "편집기에서 정리하세요" | `domain_full_reply` 가 *다른 칸의 자리*만 보고 *새 칸을 지을 자리*는 안 봄. 지울 이유가 없는 과제를 지우라는 막다른 골목 | `test_domain_authority.py` |
+| AI 가 되물어놓고 그 답을 "저는 그런 일은 못 합니다" 로 끊음 | `intent != goal` 이면 즉시 고정 문구(비용 결정)라 **1단계가 한 번 틀리면 회복 지점이 없음.** 되묻기 직후 턴은 정의상 그 질문의 답인데도 같은 길로 감 | `test_server_replies.py` |
+| 빈 칸에서 제안 카드가 3장 넘게 뜸 | 한 턴 상한 3 이 스키마 `maxItems` 에만 있어 **제공자가 지키는 값**이었음(도구 인자는 강제가 약하고 기본이 `BOT_MODE=agent`). `_settle_capacity` 는 *칸의 남은 자리*로만 잘라 빈 칸은 그대로 통과 | `test_domain_authority.py` |
 
-마지막 줄은 아직 안 터진 상태에서 찾은 것입니다. metadata 를 만드는 곳이
+`Spring 시트의 빈도` 줄은 아직 안 터진 상태에서 찾은 것입니다. metadata 를 만드는 곳이
 `scripts/dev_server.py` 뿐이었고 거기서 `frequency` 로 적어 두어서, 실서버와 브라우저와
 테스트가 모두 통과하면서 Spring 을 붙이는 순간에만 빈도가 사라질 예정이었습니다.
 `SubjectRef` 가 `period` 를 정본으로 받고(`mandarin_goal/sheet.py`), `dev_server` 와

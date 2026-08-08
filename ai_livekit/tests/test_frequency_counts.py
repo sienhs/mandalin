@@ -21,6 +21,7 @@ from mandarin_goal.bot.goal import GoalPipeline
 from mandarin_goal.bot.llm import Turn
 from mandarin_goal.bot.prompt import PROJECT_ROOT
 from mandarin_goal.bot.subjects import Candidate, frequency_label
+from mandarin_goal.bot.tools import TASK_COUNT
 from mandarin_goal.config import Settings
 from mandarin_goal.sheet import (
     FREQUENCIES,
@@ -155,28 +156,42 @@ def test_the_pipeline_settles_counts_before_the_client_sees_them():
     프론트가 이 값을 그대로 `subject` 생성에 씁니다. 여기서 안 맞추면 담기 API 로
     "매일 5회" 가 나가고, Spring 은 그것을 받아 줍니다.
     """
-    decided = {
-        "action": "generate",
-        "domain": "건강",
-        "generated_tasks": [
-            {"title": "스트레칭", "frequency": "daily", "count": 5},
-            {"title": "근력 운동", "frequency": "weekly", "count": 99},
-            {"title": "체중 기록", "frequency": "weekly"},
-            {"title": "건강검진", "frequency": "none", "count": 3},
-        ],
-    }
-    pipeline = GoalPipeline(SETTINGS, FakeBackend(decided))
-    result = asyncio.run(
-        pipeline.run(
-            [Turn(role="user", text="건강 관리하고 싶어")],
-            [DomainRef(id=1, title="건강")],
+    def settled(*tasks: dict):
+        """`tasks` 를 한 턴으로 태워 브라우저까지 가는 dict 를 돌려줍니다.
+
+        **한 턴은 `TASK_COUNT` 개까지입니다**(`_settle_turn_size`). 네 규칙을 한 번에
+        태우면 넘쳐서 마지막 규칙이 조용히 빠지므로 턴을 나눕니다 — 여기서 재려는 것은
+        턴 크기가 아니라 횟수 정리라, 상한에 맞춰 케이스를 버리면 안 됩니다.
+        """
+        assert len(tasks) <= TASK_COUNT, "한 턴 상한을 넘으면 뒤쪽 케이스가 잘립니다"
+        pipeline = GoalPipeline(
+            SETTINGS,
+            FakeBackend(
+                {"action": "generate", "domain": "건강", "generated_tasks": list(tasks)}
+            ),
         )
+        return asyncio.run(
+            pipeline.run(
+                [Turn(role="user", text="건강 관리하고 싶어")],
+                [DomainRef(id=1, title="건강")],
+            )
+        )
+
+    # 고정 주기(daily)는 값을 무시하고 1, weekly 는 상한 7 로 자르고, 값이 없으면 1.
+    first = settled(
+        {"title": "스트레칭", "frequency": "daily", "count": 5},
+        {"title": "근력 운동", "frequency": "weekly", "count": 99},
+        {"title": "체중 기록", "frequency": "weekly"},
     )
-    counts = [t.get("count") for t in result.data["generated_tasks"]]
-    assert counts == [1, 7, 1, 1], counts
+    counts = [t.get("count") for t in first.data["generated_tasks"]]
+    assert counts == [1, 7, 1], counts
     # 사람이 읽는 문장에도 잘린 값이 나가야 합니다 — 화면과 payload 가 갈리면 안 됩니다.
-    assert "주 7회" in result.text
-    assert "주 99회" not in result.text
+    assert "주 7회" in first.text
+    assert "주 99회" not in first.text
+
+    # `none` 도 고정 주기입니다 — `daily` 와 따로 봅니다(`FREQUENCY_MAX_COUNT` 가 둘 다 1).
+    second = settled({"title": "건강검진", "frequency": "none", "count": 3})
+    assert [t.get("count") for t in second.data["generated_tasks"]] == [1]
 
 
 # -- 스키마가 실제로 값을 받아내는가 ---------------------------------------
