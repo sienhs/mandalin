@@ -130,7 +130,12 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `test_reuse.py` | 15 | 파이프라인 자립, 전송 스택 없이 import, 텍스트 턴 왕복, 인젝션 방어, 원문의 출처, 발화가 모델에 그대로 실리는지 |
 | `test_sheet_transfer.py` | 13 | 시트 파싱. Spring 모양, 상한, fail-open, 폴백 |
 | `test_listen.py` | 10 | STT fail-open, 플러그인 import 위치, 언어 기본값 |
-| `test_event_signatures.py` | 8 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
+| `test_event_signatures.py` | 13 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조). 이름이 아니라 **의미**로 대조하고, 뒤바뀐 SDK 를 주면 실제로 깨지는지까지 봅니다 |
+| `test_stuck_loop.py` | 14 | 같은 되묻기 반복, 재요청에 "겹쳐요" 로 답하기, 꽉 찬 칸을 다음 턴에야 알리기 |
+| `test_capacity_slot.py` | 11 | 꽉 찬 시트에서 담긴 과제가 프롬프트 슬롯에서 사라지지 않는지, 칸 이름·과제 제목이 저장 상한을 넘지 않는지 |
+| `test_candidate_ranking.py` | 15 | 후보 검색 순위. 횟수가 순위를 가르는지, 가점이 필터가 아닌지, "안 말했다"와 "1이라고 말했다"를 가리는지 |
+| `test_recommend_lookup.py` | 7 | 지목한 `subject_id` 를 후보 밖(시트 전체)에서도 찾는지, 없는 번호는 지어내지 않는지 |
+| `test_violation_patterns.py` | 5 | eval 위반 지표의 정규식이 **실제로 나가는 로그 줄**과 맞는지(문구를 고치면 조용히 0 이 되는 결합) |
 | `test_hello.py` | 13 | 세션 능력 알림. `voice:false` 필수, LLM 상태와 `BACKENDS` 표의 일치 |
 | `test_history_reset.py` | 4 | 재입장하면 대화가 초기화되는지. 시트 상태는 남는지, 재입장 핸들러가 실제로 부르는지 |
 | `test_shutdown_reason.py` | 3 | job 종료 사유를 사람 말로 옮기는지. 라이브러리의 `parent process shutdown` 오독 방지 |
