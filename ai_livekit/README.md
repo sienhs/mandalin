@@ -21,6 +21,7 @@ mandarin_goal/  목표 설계 파이프라인. 전송 계층을 모릅니다
 prompts/        프롬프트 정본
 web/            브라우저 프론트. 빌드 도구 없음
 scripts/        진단, 스모크, 개발용 토큰 서버
+evals/          골든셋과 채점기. 프롬프트를 고쳤을 때 좋아졌는지 잽니다
 ```
 
 | 파일 | 역할 | LiveKit |
@@ -37,6 +38,7 @@ scripts/        진단, 스모크, 개발용 토큰 서버
 | `scripts/probe_tools.py` | 도구 호출 지원 여부 진단(모델·게이트웨이) | |
 | `scripts/smoke_client.py` | 파이썬 클라이언트로 왕복 확인 | 필요 |
 | `scripts/dev_server.py` | 프론트 서빙과 토큰 발급. Spring 자리 | 필요 |
+| `evals/runner.py` | 골든셋을 실제 파이프라인에 태워 채점 | |
 
 LiveKit 이 필요한 파일은 `entrypoint.py` 하나입니다. 나머지에 로직을 몰아둔 이유는
 버그가 주로 파싱, 폴백, 동시성에서 나는데 그게 `livekit.agents` import 뒤에 숨으면
@@ -111,14 +113,33 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 ## 확인
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q                                    # 125 tests
-.venv\Scripts\python.exe -m ruff check agent mandarin_goal tests scripts
+.venv\Scripts\python.exe -m pytest -q                                    # 373 tests
+.venv\Scripts\python.exe -m ruff check agent mandarin_goal tests scripts evals
 .venv\Scripts\python.exe -m mypy agent mandarin_goal scripts --ignore-missing-imports
 .venv\Scripts\python.exe scripts\smoke_client.py "화 안 내는 사람이 되고 싶어"
 ```
 
+커버리지는 옵트인입니다. 퍼센트가 아니라 **어떤 갈래가 안 도는지**를 보는 용도입니다.
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q --cov=agent --cov=mandarin_goal --cov-report=term-missing
+```
+
+`pytest` 는 LLM 을 부르지 않습니다. **프롬프트를 고쳤으면 골든셋을 돌리세요** — 그쪽은
+크레딧을 씁니다(케이스당 왕복 2회).
+
+```powershell
+.venv\Scripts\python.exe -m evals.runner --provider echo      # 배선만, 호출 0회
+.venv\Scripts\python.exe -m evals.runner --only c01 --repeat 5
+.venv\Scripts\python.exe -m evals.runner --vs prompts_v2 --repeat 3   # 프롬프트 변경은 전체 A/B
+```
+
+골든셋은 케이스당 발화가 **하나**입니다. 히스토리가 다음 턴에 미치는 영향(되묻기 직후
+판정, 상태 문구의 수명)은 여기서 안 잡히고 `pytest` 가 유일한 방어선입니다.
+
 `mypy` 는 **`tests/` 를 빼고** 돌립니다. 테스트 대역(`FlakyBackend` 등)이 프로토콜의 필요한
-부분만 구현하는 것이 의도라서, 넣으면 그 11건이 매번 나와 진짜 신호를 덮습니다.
+부분만 구현하는 것이 의도라 넣으면 그 오류가 진짜 신호를 덮고, `tests/` 는 패키지가
+아니라서 모듈 이름이 겹친다는 오류로 먼저 멈추기도 합니다.
 `--ignore-missing-imports` 는 `livekit.*` 에 타입 스텁이 없어서 필요합니다.
 
 `entrypoint.py` 는 LiveKit API 를 호출하는 유일한 파일이라 단위 테스트로 덮을 수
@@ -128,23 +149,31 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 
 | 테스트 파일 | 개수 | 대상 |
 |---|---:|---|
-| `test_conversation.py` | 11 | 생성 중 버리기, 타임아웃, 크래시 복구, 히스토리 상한 |
-| `test_reuse.py` | 15 | 파이프라인 자립, 전송 스택 없이 import, 텍스트 턴 왕복, 인젝션 방어, 원문의 출처, 발화가 모델에 그대로 실리는지 |
-| `test_sheet_transfer.py` | 13 | 시트 파싱. Spring 모양, 상한, fail-open, 폴백 |
-| `test_listen.py` | 10 | STT fail-open, 플러그인 import 위치, 언어 기본값 |
-| `test_event_signatures.py` | 8 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
+| `test_conversation.py` | 14 | 생성 중 버리기, 타임아웃, 크래시 복구, 히스토리 상한, 상태 문구가 히스토리에 남지 않는지 |
+| `test_reuse.py` | 10 | 파이프라인 자립, 전송 스택 없이 import, 텍스트 턴 왕복, 인젝션 방어, 원문의 출처, 발화가 모델에 그대로 실리는지 |
+| `test_sheet_transfer.py` | 18 | 시트 파싱. Spring 모양, 상한, fail-open, 폴백 |
+| `test_listen.py` | 34 | STT fail-open, 플러그인 import 위치, 언어 기본값, 무음 게이트, 스트림이 도중에 깨질 때 |
+| `test_event_signatures.py` | 2 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
 | `test_hello.py` | 13 | 세션 능력 알림. `voice:false` 필수, LLM 상태와 `BACKENDS` 표의 일치 |
 | `test_history_reset.py` | 4 | 재입장하면 대화가 초기화되는지. 시트 상태는 남는지, 재입장 핸들러가 실제로 부르는지 |
 | `test_shutdown_reason.py` | 3 | job 종료 사유를 사람 말로 옮기는지. 라이브러리의 `parent process shutdown` 오독 방지 |
 | `test_single_user_room.py` | 12 | 사용자 1명 + 에이전트 1개. 발신자 대조, 오디오만 구독, `max_participants: 2`, 방 수명이 상속이 아닌지 |
 | `test_transcription_registry.py` | 6 | mute/unmute 경합, 중복 시작, 누수 |
-| `test_domain_authority.py` | 6 | 도메인 정본이 시트인지, 없는 칸을 만들지 않는지 |
-| `test_prompts_are_one_folder.py` | 5 | 모델에게 가는 텍스트가 `prompts/` 에만 있는지, 슬롯이 제 자리에 채워지는지 |
+| `test_domain_authority.py` | 28 | 칸을 지을 자리, 칸 안의 정원, 한 턴이 내는 과제 수, 되묻기 문구가 히스토리보다 오래 살지 않는지 |
+| `test_server_replies.py` | 13 | 서버가 만드는 문장 — 차단·범위 밖은 모델을 더 부르지 않는지, 모델이 규칙을 어겼을 때의 대체 문구, 되묻기 직후 턴 |
+| `test_duplicate_tasks.py` | 10 | 이미 담은 과제를 다시 만들지 않는지, 겹친 것을 전부 알려주는지 |
+| `test_prompt_loading.py` | 12 | 프롬프트 파일이 없거나·비거나·상한을 넘거나·인코딩이 틀렸을 때 어디로 내려가는지 |
+| `test_llm_failures.py` | 10 | LLM 실패 시 사용자에게 나가는 문구. 원인이 갈리는지, 응답 본문이 화면까지 새지 않는지 |
+| `test_prompts_are_one_folder.py` | 7 | 모델에게 가는 텍스트가 `prompts/` 에만 있는지, 슬롯이 제 자리에 채워지는지 |
 | `test_versions_match.py` | 2 | compose 가 띄우는 LiveKit 서버 태그와 README 의 기준 버전이 같은지, 패치까지 고정됐는지 |
 | `test_worker_limits.py` | 4 | 버스터블 baseline 에 맞춘 `load_threshold`·유휴 프로세스 수. 인스턴스를 바꾸면 실패합니다 |
 | `test_topics_match.py` | 3 | 토픽 문자열이 서버·`web/app.js`·React 훅 세 곳에서 같은지(이름→값 짝으로) |
 | `test_tool_calls.py` | 15 | `functionResponse` 의 role, `mode=ANY` 강제, 평문 누출 보고, 잘림이 도구 경로에도 걸리는지 |
-| `test_tool_loop.py` | 27 | 두 모드가 같은 판단을 낼 수 있는지(action↔도구 짝), 종결 강제, 평문이 결정까지 못 오는지, 되먹임, 핸들러 실패 복구 |
+| `test_tool_loop.py` | 24 | 두 모드가 같은 판단을 낼 수 있는지(action↔도구 짝), 종결 강제, 평문이 결정까지 못 오는지, 되먹임, 핸들러 실패 복구 |
+
+`tests/conftest.py` 가 게이트 조율값(`STT_*`)을 테스트마다 지웁니다. `scripts/dev_server.py`
+가 import 시점에 `load_dotenv()` 를 부르므로, 안 지우면 그 사람의 `.env` 가 pytest 세션
+전체에 올라가 게이트 테스트가 그 머신에서만 깨집니다.
 
 `test_event_signatures.py` 부터 `test_transcription_registry.py` 까지는 예외 없이
 조용히 실패하던 버그에서 나왔습니다(HANDOFF 2절). 그래서 문구가 아니라 구조를
@@ -611,6 +640,7 @@ worker 는 밖에서 들어오는 요청을 받지 않습니다. 반대로 LiveK
 | 마이크를 켰는데 캡션이 안 뜸 | `DEEPGRAM_API_KEY` 없음. 기동 로그의 `음성=` 확인 |
 | `마이크를 켤 수 없습니다` | 브라우저 권한이나 장치 문제. `localhost` 는 secure context 지만 다른 기기에서 열면 HTTPS 가 필요합니다 |
 | 전사가 중간에 멈춤 | worker 로그의 STT 스트림 예외. 태스크가 GC 되면 조용히 멈춥니다 |
+| 말하는 중에 끊김 | `STT_HANGOVER_MS`(기본 800)가 짧습니다. 로그의 `보낸 오디오` 가 `마이크` 보다 크게 짧으면 그쪽이 아니라 `STT_SILENCE_DBFS` 입니다 |
 | STT 가 됐다 안 됐다 함 | worker 가 두 개. `.env` 를 고쳤으면 옛 것을 끄세요 |
 | 전사에 카타카나나 한자 | `STT_LANGUAGE` 가 `multi` |
 
