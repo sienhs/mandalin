@@ -283,17 +283,12 @@ def test_a_cell_over_capacity_counts_by_subject_count():
 
 # -- 꽉 찬 칸에서 빠져나갈 길 ------------------------------------------------
 #
-# 예전에는 *다른 칸에 자리가 있는가* 만 보고 없으면 편집기로 보냈습니다. 칸 자체가
-# 남아 있으면 길은 새 칸이지 편집기가 아닙니다 — 실측(2026-08-08)으로 칸이 '운동'
-# 하나뿐인(8칸 중 7칸이 빈) 시트에서 지울 이유가 없는 과제를 지우라고 했습니다.
+# 다른 칸의 자리만 보면 칸이 7개 비어 있어도 편집기로 보내게 됩니다. 칸 자체가 남아
+# 있으면 길은 새 칸입니다.
 
 
 def test_a_full_cell_offers_a_new_one_while_slots_remain():
-    """칸 자리가 남았으면 **편집기로 보내지 않는다.**
-
-    `no_domains.md` 가 막으려던 막다른 골목과 같은 모양입니다 — 사용자가 할 수
-    없는 일을 시키면 대화가 거기서 끝납니다.
-    """
+    """칸 자리가 남았으면 편집기로 보내지 않습니다."""
     result = _run(
         {"action": "generate", "domain": "학습", "generated_tasks": THREE}, _sheet(8)
     )
@@ -337,11 +332,7 @@ def test_the_editor_is_the_last_resort_only():
 
 
 def test_a_full_cell_still_counts_toward_the_slots():
-    """꽉 찬 칸도 **자리는 차지한다.**
-
-    빼고 세면 8칸이 다 찬 시트가 "한 칸 남았다" 로 보여서 만들 수 없는 칸을
-    만들자고 하게 됩니다.
-    """
+    """꽉 찬 칸도 자리는 차지합니다 — 빼고 세면 만들 수 없는 칸을 제안하게 됩니다."""
     sheet = [
         DomainRef(id=i, title=f"칸{i}", subjectCount=MAX_SUBJECTS_PER_DOMAIN)
         for i in range(1, DOMAIN_SLOTS + 1)
@@ -399,22 +390,13 @@ def test_the_classify_hint_cannot_invent_a_cell():
 
 # -- 되묻기 문구는 히스토리보다 오래 살면 안 된다 ---------------------------
 #
-# 위 두 되묻기(`no_domain` · `domain_full`)의 문구는 **호출 시점의 시트**로 만듭니다.
-# 그 문장이 히스토리에 그대로 남으면 시트보다 오래 삽니다 — 슬롯
-# (`<domain_list>` · `<existing_domain_tasks>`)은 매 턴 다시 계산되는데 히스토리는
-# `bot_history_turns` 동안 얼어붙고, 둘이 어긋났을 때 **중재하는 것이 없습니다.**
-#
-# 실측(2026-08-08): '운동' 칸이 8개로 꽉 차 되물은 다음 턴에 사용자가 과제를 하나
-# 뺐고(슬롯은 `운동 7/8`), 그런데도 모델이 바로 앞 턴의 "8개가 다 차서 더 담을 수
-# 없어요" 를 따라 다시 되물었습니다. 화석이 현재 발화 바로 앞자리에 있었습니다.
-#
-# 그래서 사용자에게 보내는 문장(`text`)과 히스토리에 남기는 문장(`history_text`)을
-# 가릅니다. `agent/conversation.py` 의 `FAILURE_NOTE` 가 실패 갈래에 이미 적용해 둔
-# 판단이고, 여기가 그 나머지 절반입니다.
+# 위 두 되묻기(`no_domain` · `domain_full`)의 문구는 호출 시점의 시트로 만듭니다.
+# 슬롯은 매 턴 다시 계산되지만 히스토리는 `bot_history_turns` 동안 남으므로, 그 문장을
+# 그대로 남기면 모델이 옛 시트를 따릅니다. 그래서 `text` 와 `history_text` 를 가릅니다.
 
 
 def test_a_full_cell_does_not_leave_its_count_in_the_history():
-    """`"8개가 다 차서"` 는 사용자에게만 간다. **다음 턴이면 거짓일 수 있는 문장이다.**"""
+    """`"8개가 다 차서"` 는 사용자에게만 갑니다 — 다음 턴이면 거짓일 수 있습니다."""
     sheet = _sheet(8) + [DomainRef(id=8, title="운동", subjectCount=2)]
     result = _run(
         {"action": "generate", "domain": "학습", "generated_tasks": THREE}, sheet
@@ -429,11 +411,9 @@ def test_a_full_cell_does_not_leave_its_count_in_the_history():
 
 
 def test_the_question_survives_the_history_but_the_cell_names_do_not():
-    """`no_domain` 은 **진짜 질문**이라 통째로 버리면 안 된다.
+    """`no_domain` 은 질문이라 통째로 버리지 않고 열거한 이름만 뺍니다.
 
-    다음 사용자 턴이 그 답이라("운동"), 질문이 사라지면 모델이 맥락 없는 단어 하나를
-    받습니다. 그래서 질문은 남기고 열거한 이름만 뺍니다 — 이름은 `<domain_list>` 가
-    매 턴 다시 실어주므로 잃는 것이 없습니다.
+    이름은 `<domain_list>` 가 매 턴 다시 실어줍니다.
     """
     result = _run(
         {"action": "generate", "domain": "덕질", "generated_tasks": GENERATED}, FULL_SHEET
@@ -448,10 +428,7 @@ def test_the_question_survives_the_history_but_the_cell_names_do_not():
 
 
 def test_an_ordinary_turn_is_left_alone():
-    """대체는 **상태를 주장하는 응답에만** 건다.
-
-    보통 응답까지 갈아치우면 모델이 자기가 무엇을 제안했는지 잃습니다.
-    """
+    """대체는 상태를 주장하는 응답에만 겁니다 — 아니면 모델이 자기 제안을 잃습니다."""
     result = _run(
         {"action": "generate", "domain": "학습", "generated_tasks": GENERATED}, SHEET
     )
@@ -478,22 +455,13 @@ MANY = [
 
 
 def test_a_turn_is_capped_even_when_the_whole_cell_is_empty():
-    """**빈 칸에서는 정원 규칙이 안 막아줍니다.**
-
-    `_settle_capacity` 가 자르는 기준은 *칸의 남은 자리*라 8칸이 비었으면 8개가 그대로
-    통과합니다(실측 2026-08-08). 자리가 좁을 때만 우연히 막히고 있었습니다.
-    """
+    """`_settle_capacity` 는 *칸의 남은 자리*로만 자르므로 빈 칸에서는 안 막힙니다."""
     result = _run({"action": "generate", "domain": "덕질", "generated_tasks": MANY}, [])
     assert len(result.data["generated_tasks"]) == TASK_COUNT
 
 
 def test_the_declared_maximum_is_not_enforced_by_the_declaration():
-    """3 은 `GOAL_SCHEMA` 와 도구 파라미터에 있지만 **지키는 주체가 제공자**입니다.
-
-    `responseSchema` 는 강하게 강제되는데 함수 인자 스키마는 그만큼 보장되지 않고,
-    기본 모드가 도구 경로(`BOT_MODE=agent`)입니다. 모델이 어긴 값을 그대로 넣어
-    서버가 자르는지 봅니다 — 이 테스트가 빨개지면 선언만 남고 강제가 사라진 것입니다.
-    """
+    """3 은 스키마에도 있지만 지키는 주체가 제공자라, 서버가 자르는지 봅니다."""
     decided = {"action": "generate", "domain": "학습", "generated_tasks": list(MANY)}
     result = _run(decided, SHEET)
     assert len(result.data["generated_tasks"]) == TASK_COUNT
@@ -521,11 +489,7 @@ def test_a_normal_turn_is_left_alone():
 
 
 def test_duplicates_are_dropped_before_the_cap_counts():
-    """**중복을 버린 뒤에 셉니다.** 먼저 자르면 남길 3개가 중복일 수 있습니다.
-
-    시트에 이미 있는 제목을 앞쪽에 두고 뒤에 새 과제를 둡니다 — 순서대로 3개를
-    잘랐다면 전부 중복이라 담을 것이 없어집니다.
-    """
+    """중복을 버린 뒤에 셉니다 — 먼저 자르면 남길 3개가 전부 중복일 수 있습니다."""
     sheet = [
         DomainRef(
             id=7,
@@ -550,12 +514,7 @@ def test_duplicates_are_dropped_before_the_cap_counts():
 
 
 def test_a_capacity_note_on_a_duplicate_reply_stays_out_of_the_history():
-    """겹쳤다는 사실은 그 턴의 기록이라 남기고, **자리 상태만 뺍니다.**
-
-    중복 응답에 "8개가 다 차서" 를 덧붙이면서 그 문장을 히스토리에도 남기면, 사용자가
-    과제를 하나 뺀 다음 턴에 모델이 그 문장을 따라 "못 담는다" 고 답합니다 —
-    `DOMAIN_FULL_NOTE` 를 만든 것과 같은 함정입니다.
-    """
+    """겹쳤다는 사실은 그 턴의 기록이라 남기고 자리 상태만 뺍니다."""
     full = [
         DomainRef(
             id=7,

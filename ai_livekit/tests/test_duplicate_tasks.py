@@ -85,10 +85,7 @@ def test_recommend_is_left_alone():
 
 # -- 겹친 것을 **전부** 알려준다 ----------------------------------------------
 #
-# 실측(2026-08-08): `"유산소"` 에 모델이 조깅·자전거·수영 셋을 냈고 셋 다 이미 담겨
-# 있었습니다. 그런데 화면에는 첫 건만 나갔고, 사용자는 AI 가 유산소로 조깅밖에 모른다고
-# 읽어 `"유산소가 조깅하기밖에 없진 않잖아"` 라고 답했습니다 — **그 오해를 서버가
-# 만들었습니다.** 셋을 다 보여줬으면 그 턴에서 끝났습니다.
+# 한 건만 보여주면 사용자는 AI 가 그것밖에 모른다고 읽습니다.
 
 
 def test_every_overlap_is_reported_not_just_the_first():
@@ -112,7 +109,7 @@ def test_every_overlap_is_reported_not_just_the_first():
 
 
 def test_the_overlap_list_never_reaches_the_browser():
-    """담기지 않는 값입니다 — 카드로 그려지면 "이건 뭘 담으라는 거지" 가 됩니다."""
+    """담기지 않는 값이라 payload 에 실리면 안 됩니다."""
     from mandarin_goal.bot.goal import public_data
 
     decided = generated("조깅하기", "자전거 타기")
@@ -125,12 +122,8 @@ def test_the_overlap_list_never_reaches_the_browser():
 
 
 def test_a_full_cell_is_mentioned_in_the_same_breath():
-    """**`recommend` 는 정원 검사를 지나가지 않습니다**(`_STORABLE_ACTIONS`).
-
-    그래서 칸이 8/8 인데 중복이 먼저 걸리면 "겹쳐요" 만 나가고, 다음 턴에 모델이 중복
-    아닌 것을 내면 그제서야 "꽉 찼어요" 가 나갑니다 — 같은 상태에 설명이 턴마다 달라져서
-    사용자에게는 오락가락하는 것으로 보입니다(위 실측의 다음 턴이 정확히 그랬습니다).
-    """
+    """`recommend` 는 정원 검사를 지나가지 않아(`_STORABLE_ACTIONS`) 같은 상태인데도
+    턴마다 다른 이유가 나갑니다."""
     from mandarin_goal.sheet import MAX_SUBJECTS_PER_DOMAIN
 
     full = domain(*[f"과제{i}" for i in range(MAX_SUBJECTS_PER_DOMAIN)])

@@ -81,13 +81,8 @@ class Conversation:
         #: 생성 중에 들어온 발화를 **버리기** 위한 락. 큐에 쌓으면 한참 뒤에 답변이
         #: 몰려 나와 대화 흐름이 깨집니다. **버리는 것이 기능입니다.**
         self._lock = asyncio.Lock()
-        #: 직전 응답이 되묻기였는가. 다음 발화는 정의상 **그 질문에 대한 답**이라
-        #: 파이프라인이 1단계 판정만 보고 대화를 끊으면 안 됩니다(`GoalPipeline.run`
-        #: 의 `after_clarify`).
-        #:
-        #: **히스토리로는 알 수 없어서 여기서 듭니다.** 히스토리에 남는 것은 문장뿐이고
-        #: (`Turn.text`), 되묻기인지 아닌지는 `GoalResult.data["action"]` 에 있습니다 —
-        #: 문장을 되짚어 `"?"` 로 끝나는지 보는 것은 추론이고, 서버는 이미 답을 압니다.
+        #: 직전 응답이 되묻기였는가(`GoalPipeline.run` 의 `after_clarify`). 히스토리에는
+        #: 문장만 남으므로 여기서 듭니다.
         self._asked = False
 
     def clear_history(self) -> None:
@@ -96,9 +91,7 @@ class Conversation:
         **목표와 칸은 남깁니다.** 대화가 아니라 시트에서 온 상태라, 같이 비우면 재입장
         직후의 발화가 목표도 칸도 없이 판단됩니다 — 프론트의 시트 재전송은 그보다 뒤입니다.
 
-        **되묻기 표식은 비웁니다.** 그건 대화 쪽 상태입니다 — 나가기 전에 받은 질문은
-        재입장한 사람에게 보이지 않으므로, 첫 발화를 "그 질문에 대한 답" 으로 볼 근거가
-        없습니다.
+        **되묻기 표식(`_asked`)은 비웁니다.** 대화 쪽 상태입니다.
         """
         self._history.clear()
         self._asked = False
@@ -185,13 +178,10 @@ class Conversation:
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return FAILURE_REPLY, None
 
-            # **`text` 가 아니라 `history_entry` 입니다.** 시트 상태를 주장하는 응답
-            # (칸이 꽉 찼다, 칸 목록은 이것이다)을 그대로 남기면 슬롯은 갱신되는데
-            # 히스토리만 옛 시트를 주장하게 됩니다 — 아래 `FAILURE_NOTE` 와 같은
-            # 이유고, 파이프라인이 그때만 대체 문구를 채웁니다(`GoalResult`).
+            # `text` 가 아니라 `history_entry` 입니다 — 시트 상태를 주장하는 응답은
+            # 파이프라인이 대체 문구를 채웁니다(`GoalResult.history_text`).
             self._append(Turn(role="assistant", text=result.history_entry))
-            # 되묻기 갈래는 셋이지만(모델의 `ask`, 서버의 `no_domain`·`domain_full`)
-            # 전부 `action="clarify"` 로 나옵니다 — 사용자에게는 다 질문입니다.
+            # 되묻기 갈래 셋(모델 `ask`, 서버 `no_domain`·`domain_full`)이 전부 `clarify`.
             self._asked = (result.data or {}).get("action") == "clarify"
             return result.text, result
 

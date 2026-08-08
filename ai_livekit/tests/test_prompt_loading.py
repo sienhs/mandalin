@@ -1,17 +1,8 @@
-"""프롬프트 로더가 **실패할 때** 어떻게 실패하는가.
+"""프롬프트 로더가 실패할 때 어떻게 내려가는가.
 
-`test_prompts_are_one_folder.py` 는 정본이 제자리에 있는지, 비상 문구가 안전 규칙을
-들고 있는지를 봅니다. 이 파일은 그 **비상 문구에 도달하는 경로**를 봅니다 — 둘은 다른
-것이고, 지금까지 뒤쪽은 한 번도 실행된 적이 없었습니다.
-
-이 로더의 실패는 전부 조용합니다. 예외를 올리지 않고 다음 순위로 내려가는 것이 의도라
-(*"프롬프트 파일 하나 때문에 봇 전체가 멈추는 것보다는 기본 인격으로라도 답하는 편이
-낫습니다"*), 잘못 내려가도 증상은 **"프롬프트를 고쳤는데 반영이 안 된다"** 나
-**"봇이 갑자기 멍청해졌다"** 뿐입니다. `evals/runner.py` 의 `require_prompt_dir` 이
-같은 위험을 A/B 입구에서 막고 있는데(*"'B 가 나쁘다' 가 아니라 'B 폴더가 없다' 인데 두
-팔의 표는 똑같이 그럴듯하게 그려집니다"*), worker 런타임 쪽은 비어 있었습니다.
-
-우선순위가 계약입니다: **파일 > `BOT_SYSTEM_PROMPT` > `EMERGENCY`.**
+`test_prompts_are_one_folder.py` 가 비상 문구의 **내용**을 지키고, 이 파일은 거기
+**도달하는 경로**를 봅니다. 계약은 우선순위입니다 — 파일 > `BOT_SYSTEM_PROMPT` >
+`EMERGENCY`. 전부 예외 없이 내려가므로 잘못 내려가도 조용합니다.
 """
 from __future__ import annotations
 
@@ -53,10 +44,7 @@ def test_an_unset_path_never_touches_the_disk(tmp_path):
 
 
 def test_the_env_layer_sits_between_the_file_and_the_emergency_text(tmp_path):
-    """`fallback` 을 안 주면 `BOT_SYSTEM_PROMPT` 가, 그것도 비면 `EMERGENCY` 가 온다.
-
-    **마지막 층이 없으면 빈 프롬프트로 모델을 부르게 됩니다.**
-    """
+    """`fallback` 이 없으면 `BOT_SYSTEM_PROMPT` → `EMERGENCY` 순으로 내려갑니다."""
     missing = str(tmp_path / "없는파일.md")
 
     env = SystemPrompt(
@@ -69,10 +57,7 @@ def test_the_env_layer_sits_between_the_file_and_the_emergency_text(tmp_path):
 
 
 def test_a_fragment_falls_back_to_its_own_text_not_the_system_one(tmp_path, monkeypatch):
-    """조각이 사라지면 **그 조각의** 비상 문구로 내려갑니다.
-
-    `EMERGENCY["system"]` 으로 떨어지면 정원 규칙 자리에 전체 지시문이 실립니다.
-    """
+    """조각은 **그 조각의** 비상 문구로 내려갑니다 — 전체 지시문이 실리면 안 됩니다."""
     monkeypatch.setitem(
         FRAGMENT_FILES, "no_domains", str(tmp_path / "없는조각.md")
     )
@@ -97,11 +82,9 @@ def test_a_saved_edit_lands_without_a_restart(tmp_path):
 
 
 def test_a_file_that_vanishes_keeps_the_last_good_text(tmp_path):
-    """**한 번 읽은 뒤 사라지면 마지막 값을 유지합니다** — 의도적인 예외입니다.
+    """한 번 읽은 뒤 사라지면 마지막 값을 유지합니다.
 
-    많은 에디터가 "임시 파일에 쓰고 이름 바꾸기" 로 저장해서 저장하는 찰나에 `stat`
-    이 실패합니다. 그때 기본값으로 튕기면 사용자는 저장했을 뿐인데 봇의 인격이 잠깐
-    바뀌는 걸 봅니다.
+    에디터가 임시 파일에 쓰고 이름을 바꾸는 동안 `stat` 이 실패하기 때문입니다.
     """
     prompt = _prompt(tmp_path)
     path = tmp_path / "p.md"
@@ -114,11 +97,7 @@ def test_a_file_that_vanishes_keeps_the_last_good_text(tmp_path):
 
 
 def test_an_emptied_file_means_go_back_to_the_default(tmp_path):
-    """파일을 통째로 비우는 건 "기본값으로 돌려줘" 입니다.
-
-    사라진 경우와 **갈라야 합니다** — 그쪽은 저장하는 찰나일 수 있지만 이쪽은 사용자가
-    실제로 지운 것입니다. 빈 문자열을 그대로 내보내면 프롬프트 없이 모델을 부릅니다.
-    """
+    """빈 파일은 "기본값으로 돌려줘" 입니다 — 사라진 경우와 갈라 다룹니다."""
     prompt = _prompt(tmp_path)
     path = tmp_path / "p.md"
     path.write_text("한동안 쓰던 문구", encoding="utf-8")
@@ -129,13 +108,7 @@ def test_an_emptied_file_means_go_back_to_the_default(tmp_path):
 
 
 def test_a_file_saved_in_the_wrong_encoding_keeps_the_last_good_text(tmp_path):
-    """**UTF-8 이 아닌 프롬프트 파일**은 사라진 것과 같게 다룹니다.
-
-    이 머신에서 실제로 열리는 창입니다 — 로케일이 CP949 라 에디터가 "ANSI" 로
-    저장하면 한글이 UTF-8 로 안 읽힙니다(`requirements.txt` 첫 주석이 같은 이유로
-    거기 주석을 ASCII 로 못박아 뒀습니다). 이때 기본값으로 튕기면 사용자는 저장만
-    했는데 봇의 인격이 바뀐 것을 봅니다.
-    """
+    """UTF-8 이 아닌 파일은 사라진 것과 같게 다룹니다(CP949 로 저장한 경우)."""
     prompt = _prompt(tmp_path)
     path = tmp_path / "p.md"
     path.write_text("제대로 저장된 문구", encoding="utf-8")
@@ -146,11 +119,7 @@ def test_a_file_saved_in_the_wrong_encoding_keeps_the_last_good_text(tmp_path):
 
 
 def test_an_oversized_file_is_cut_not_refused(tmp_path):
-    """상한을 넘으면 **자르고 경고합니다.** 거부하면 문구 하나로 봇이 멈춥니다.
-
-    로그 파일 같은 걸 잘못 가리켰을 때 매 요청마다 통째로 실려 나가는 것을 막는
-    자리입니다 — 그 비용은 발화마다 청구됩니다.
-    """
+    """상한을 넘으면 자르고 경고합니다. 거부하면 문구 하나로 봇이 멈춥니다."""
     prompt = _prompt(tmp_path, cap=50)
     (tmp_path / "p.md").write_text("가" * 500, encoding="utf-8")
 
@@ -187,10 +156,7 @@ def test_the_same_failure_is_not_logged_every_turn(tmp_path, caplog):
 
 
 def test_a_failure_after_a_recovery_warns_again(tmp_path, caplog):
-    """읽기에 성공하면 이전 실패는 해소된 것으로 봅니다.
-
-    표식을 안 지우면 **두 번째 고장이 조용해집니다** — 로그가 있는 이유가 사라집니다.
-    """
+    """읽기에 성공하면 표식을 지웁니다 — 안 지우면 두 번째 고장이 조용해집니다."""
     prompt = _prompt(tmp_path)
     path = tmp_path / "p.md"
 

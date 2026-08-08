@@ -62,15 +62,10 @@ async def test_a_turn_arriving_mid_generation_is_dropped_not_queued():
 
     original = conv._pipeline.run
 
-    # **스텁은 `**_` 로 남은 키워드를 다 받습니다.** `Conversation` 은 발화마다 상태를
-    # 키워드로 함께 넘기는데(`goal` · `after_clarify` …) 스텁이 그중 하나를 못 받으면
-    # TypeError 가 광범위 except 에 먹혀 `started` 가 세팅되지 않고 이 테스트가
-    # **멈춥니다 — 실패가 아니라 교착입니다.**
-    #
-    # 예전에는 `goal` 만 명시해 두고 이 함정을 주석으로 적어 뒀는데, 그 뒤
-    # `after_clarify` 가 늘면서 **같은 교착을 그대로 다시 밟았습니다**(2026-08-08).
-    # 인자를 하나씩 따라가는 것은 언젠가 잊습니다. 여기서 재려는 것은 시그니처가
-    # 아니라 락이므로, 남은 키워드는 받아 넘기고 시그니처는 mypy 에 맡깁니다.
+    # **스텁은 `**_` 로 남은 키워드를 다 받습니다.** `Conversation` 이 넘기는 키워드
+    # (`goal` · `after_clarify` …) 중 하나를 못 받으면 TypeError 가 광범위 except 에
+    # 먹혀 `started` 가 세팅되지 않고 **실패가 아니라 교착**이 됩니다. 여기서 재려는
+    # 것은 시그니처가 아니라 락이라, 시그니처는 mypy 에 맡깁니다.
     async def slow(history, domains, *, goal=None, **_):
         started.set()
         await release.wait()
@@ -160,15 +155,10 @@ async def test_a_failure_does_not_poison_the_next_turn():
 
 
 async def test_a_state_claim_does_not_outlive_the_sheet_it_was_made_from():
-    """**히스토리에 남는 것은 `text` 가 아니라 `history_entry` 다.**
+    """히스토리에 남는 것은 `text` 가 아니라 `history_entry` 입니다.
 
-    시트는 두 경로로 모델에 갑니다 — 슬롯은 `set_domains` 가 매 턴 갈아끼우지만,
-    히스토리에 남은 문장은 `bot_history_turns` 동안 얼어붙습니다. 그 사이 사용자가
-    과제를 빼면 둘이 어긋나고 중재하는 것이 없습니다(실측 2026-08-08: 슬롯이
-    `운동 7/8` 인데 모델이 앞 턴의 "8개가 다 차서" 를 따라 되물었습니다).
-
-    파이프라인이 어느 응답을 대체할지 정하고(`GoalResult.history_text`), 여기서는
-    **그 값을 실제로 쓰는지**만 봅니다. `FAILURE_NOTE` 와 같은 규율입니다.
+    어느 응답을 대체할지는 파이프라인이 정하고(`GoalResult.history_text`), 여기서는
+    그 값을 실제로 쓰는지만 봅니다.
     """
     from agent.reuse import GoalResult
 
