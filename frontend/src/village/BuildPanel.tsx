@@ -162,6 +162,12 @@ export function BuildPanel({
         3D 위 UI 를 걷어낸 이유가 화면 기준 좌표라 셸 안에서 겹치고 잘렸던 것이다.
         컨테이너 기준이면 셸 크기와 무관해 그 실패가 재발하지 않는다.
       */
+      /*
+        마을 안내(`tours.ts` 의 `village`)가 이 패널을 통째로 가리킨다. 안쪽의 도메인 칩 ·
+        8칸 목록 · 건물 그리드를 따로 짚지 않는 이유는 셋이 <b>한 흐름의 세 단계</b>라서다 —
+        갈래를 고르고, 칸을 고르고, 건물을 고르는 순서를 세 번에 나눠 말하면 오히려 끊긴다.
+      */
+      data-tour="village-panel"
       className="card absolute top-4 bottom-4 left-4 flex flex-col overflow-hidden p-0 shadow-lg"
       style={{ width: BUILD_PANEL_WIDTH }}
     >
