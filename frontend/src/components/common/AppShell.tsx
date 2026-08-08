@@ -272,7 +272,17 @@ export default function AppShell() {
           이벤트를 받으면 그 띠에서 마을을 돌리거나 클릭할 수 없다. 그래서 판은
           `pointer-events-none` 으로 통과시키고 **실제 버튼 묶음에만** 다시 켠다(아래 세 곳).
         */}
-        <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center gap-3 px-4 sm:px-6">
+        {/*
+          마을 화면에서는 읽기 폭 제한을 풀어 <b>화면 끝까지</b> 쓴다. 아래 본문이 그렇게
+          바뀌었는데 헤더만 1320px 에 묶여 있으면, 넓은 모니터에서 오른쪽 버튼 묶음이
+          캔버스 오른쪽 모서리보다 한참 안쪽에 떠 있게 된다.
+        */}
+        <div
+          className={cn(
+            'mx-auto flex h-16 w-full items-center gap-3 px-4 sm:px-6',
+            !overlayHeader && 'max-w-[1320px]',
+          )}
+        >
           {/*
             펴기 버튼은 접혔을 때만, 그리고 사이드바가 있던 자리에 그대로 둔다.
             화면 위에 떠다니는 버튼으로 만들면 3D 캔버스나 카드 위에 얹혀 다시 가리게 되는데,
@@ -437,11 +447,23 @@ export default function AppShell() {
 
           <b>줄인 것은 여백뿐이다</b> — 캔버스도 조작 바도 버튼도 크기가 그대로다.
           모바일 하단 탭바를 피하는 `pb-28` 은 남긴다(그 자리에 탭바가 실제로 있다).
+
+          <b>그리고 마을 화면에만 읽기 폭 제한(1320px)을 걸지 않는다.</b> 다른 화면에서 그
+          값은 글줄이 너무 길어지지 않게 하는 장치인데, 마을에는 읽을 글줄이 없다. 오히려
+          넓은 모니터에서 그 제한이 캔버스를 세로로 길쭉하게 만들어 <b>마을을 작게 그리게</b>
+          한다 — `IsoCamera` 는 가로·세로 중 모자란 쪽에 맞추므로(contain), 폭이 묶여 비율이
+          1 에 가까워지면 세로가 아니라 가로가 기준이 되어 배율이 떨어진다.
+          2560×1440 에서 실측 폭 1272 → 2512 로 늘면 배율이 24.5 → 30.3 px/unit 로 오른다.
+
+          덤으로 배치 패널이 마을을 오른쪽으로 미는 만큼(276px)의 여유도 생긴다. 비율이 1
+          근처일 때는 마을이 이미 폭을 꽉 채우고 있어서 그 밀기가 곧 <b>오른쪽 잘림</b>이었다.
         */}
         <div
           className={cn(
-            'mx-auto w-full max-w-[1320px] px-4 pb-28 sm:px-6',
-            overlayHeader ? 'pt-3 lg:flex lg:h-dvh lg:flex-col lg:pb-4' : 'pt-6 lg:pb-16',
+            'mx-auto w-full px-4 pb-28 sm:px-6',
+            overlayHeader
+              ? 'pt-3 lg:flex lg:h-dvh lg:flex-col lg:pb-4'
+              : 'max-w-[1320px] pt-6 lg:pb-16',
           )}
         >
           <Outlet />
