@@ -148,6 +148,75 @@ SHEETS: dict[str, dict] = {
             {"domainId": 301, "title": "학습", "subjects": []},
         ]
     },
+    # 실측 화면(2026-08-08 084653 / 160635)의 시트를 **그대로** 재현합니다.
+    #
+    # 합성 시트(`aerobic`)와 갈라 두는 이유: 그쪽은 "칸에 자리가 있을 때 범주 발화를
+    # 중복으로 보는가" 를 재고, 이쪽은 **화면에서 실제로 막힌 상태** 를 재현합니다 —
+    # 운동 칸이 8/8 이라 담을 수 없는데 응답이 "겹쳐요" 로 나왔던 조합입니다. 둘은 기대
+    # action 이 다릅니다(자리 있음 → generate / 8/8 → clarify).
+    #
+    # **관측된 것과 채운 것을 갈라 적습니다.** 화면에서 확인된 것은 ① 운동 칸이 8/8 ②
+    # 그 안에 "조깅하기(주간·주 3회)" ③ `domain_full_reply` 가 열거한 자리 있는 칸이
+    # "학습" 하나 — 즉 도메인이 둘뿐 ④ 최종목표가 "건강한 몸 만들기" 입니다. 나머지
+    # 7개 과제는 화면에 안 나와 채운 값이고, **유산소가 아닌 것만** 골랐습니다 —
+    # 사용자가 "유산소가 조깅하기밖에 없진 않잖아" 라고 한 화면과 맞아야 합니다.
+    "screenshot_exercise": {
+        "domains": [
+            {
+                "domainId": 401,
+                "title": "운동",
+                "subjects": [
+                    {"subjectId": 4101, "title": "조깅하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                    {"subjectId": 4102, "title": "스쿼트 하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                    {"subjectId": 4103, "title": "플랭크 버티기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4104, "title": "턱걸이 하기",
+                     "period": "weekly", "countPerPeriod": 2},
+                    {"subjectId": 4105, "title": "데드리프트 배우기",
+                     "period": "weekly", "countPerPeriod": 1},
+                    {"subjectId": 4106, "title": "어깨 운동하기",
+                     "period": "weekly", "countPerPeriod": 2},
+                    {"subjectId": 4107, "title": "스트레칭하기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4108, "title": "폼롤러 마사지하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                ],
+            },
+            {
+                "domainId": 402,
+                "title": "학습",
+                "subjects": [
+                    {"subjectId": 4201, "title": "매일 알고리즘 1문제 풀기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4202, "title": "블로그에 정리하기",
+                     "period": "weekly", "countPerPeriod": 1},
+                ],
+            },
+        ]
+    },
+    # 실측 화면(2026-08-08 191657). **칸 이름이 최종목표와 같습니다** — 사용자가 그렇게
+    # 만들어 둔 시트이고(규칙 3이 권하는 모양은 아니지만) 화면에 그대로 나옵니다.
+    # 관측된 것: "매일 30분 걷기(일간·하루 1회)", "주 3회 근력 운동(주간·주 3회)",
+    # 그리고 그 칸에 자리가 남아 있었다는 사실(3개를 담자고 제안했습니다).
+    #
+    # **제목에 횟수가 박힌 "주 3회 근력 운동" 을 그대로 둡니다** — 프롬프트가 생성 시
+    # 금지하는 모양이지만 사용자가 편집기에서 만든 값이라 실제로 후보로 실려 옵니다.
+    "screenshot_goal_cell": {
+        "domains": [
+            {
+                "domainId": 411,
+                "title": "건강한 몸 만들기",
+                "subjects": [
+                    {"subjectId": 4301, "title": "매일 30분 걷기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4302, "title": "주 3회 근력 운동",
+                     "period": "weekly", "countPerPeriod": 3},
+                ],
+            }
+        ]
+    },
     # 8/8 이면서 칸이 **좁게** 몰려 있음. 취미·여가 쪽 발화가 갈 곳이 없습니다.
     #
     # **`full` 만으로는 "새 칸을 못 만든다" 를 못 잽니다.** 도메인은 사용자가 짓는
