@@ -4,7 +4,13 @@
   "이건 저 메뉴 이야기구나" 가 글자를 읽기 전에 전달된다. 코치만 메뉴에 없어서 코치 화면이
   쓰는 얼굴(`IconCoach`)을 가져온다.
 */
-import { IconCoach, IconGrid, IconHome, IconSparkle } from '../../components/common/Icons'
+import {
+  IconCoach,
+  IconGrid,
+  IconHome,
+  IconSparkle,
+  IconVillage,
+} from '../../components/common/Icons'
 import type { Tour, TourId } from './types'
 
 /**
@@ -224,6 +230,77 @@ export const TOURS: Record<TourId, Tour> = {
     ],
   },
 
+  /* ───────── 내 마을(3D) ───────── */
+  /*
+    <b>여기만 본문이 그림이다.</b> 다른 화면의 안내는 "이 버튼이 무엇을 하는가" 를 말하면
+    됐지만, 마을에서 정작 눌러야 하는 것(블록 · 건물)은 캔버스 안에 그려진 3D 라 `data-tour`
+    를 붙일 DOM 이 없다. 그래서 첫 두 단계가 <b>캔버스 전체를 가리키며 읽는 법</b>을 먼저
+    말하고, 그 뒤에야 얹혀 있는 조작 UI 를 하나씩 짚는다 — 표를 읽을 줄 알아야 조작이 뜻을
+    갖는다.
+  */
+  village: {
+    id: 'village',
+    label: '내 마을 둘러보기',
+    icon: IconVillage,
+    path: '/app/village',
+    steps: [
+      {
+        title: '만다라트가 그대로 마을이 됐어요',
+        body: '땅이 3x3 블록으로 나뉘어 있습니다. 바깥 8블록이 세부 목표 하나씩이고, 그 안의 8칸이 실천 과제예요. 한가운데는 핵심 목표 자리라 건물 대신 랜드마크가 섭니다.',
+      },
+      {
+        target: 'village-canvas',
+        title: '눌러서 고르고, 끌어서 돌립니다',
+        body: '블록을 누르면 그 세부 목표로 들어가고, 건물을 누르면 그 과제가 선택돼요. 건물은 과제를 해낼수록 한 단계씩 자랍니다 — 지금 낮은 건물이 아직 덜 한 과제예요.',
+        /* 캔버스는 화면에서 가장 큰 요소다. 기본 여백(8px)이면 테두리가 화면 밖으로 밀린다. */
+        padding: 4,
+      },
+      {
+        target: 'village-panel',
+        /*
+          패널은 기본으로 열려 있지만(`VillagePage` 의 `panelOpen`) 닫아 둔 채 안내를 다시
+          부를 수 있다. 그때는 이 단계를 통째로 뺀다 — 닫힌 패널을 두고 "여기서 세웁니다" 를
+          말하면 가리킬 것이 없다.
+        */
+        requireTarget: true,
+        title: '여기서 건물을 세웁니다',
+        body: '세부 목표를 고르고 → 그 안의 8칸 중 한 칸을 고르고 → 세울 건물을 고릅니다. 칸마다 진행률 막대가 붙어 있어서 어디가 비었는지 바로 보여요.',
+        hint: '세울 수 있는 것은 상점에서 포인트로 사 둔 건물뿐입니다. 패널을 닫으면 마을이 중앙으로 돌아와요.',
+      },
+      {
+        target: 'village-sheet',
+        title: '원래 표로 건너가기',
+        body: '지금 보고 있는 마을의 만다라트입니다. 과제 내용을 고치거나 완료 처리하는 것은 표에서 해요 — 마을은 그 결과가 자라는 곳입니다.',
+      },
+      {
+        target: 'village-camera',
+        title: '돌려 보고 당겨 보기',
+        body: '90도씩 회전하고, 3단계로 확대 가능합니다.',
+        hint: '어디를 보고 있는지 모르겠으면 같은 줄 오른쪽의 “원위치로”가 처음 상태로 되돌립니다.',
+      },
+      {
+        target: 'village-preview',
+        title: '다 지으면 어떤 모습일지',
+        body: '“완성형”으로 두면 모든 과제를 마쳤을 때의 마을이 보입니다. 실제 진행률은 그대로예요 — 보이는 것만 바뀝니다.',
+      },
+      {
+        target: 'village-terrain',
+        title: '땅의 분위기 고르기',
+        body: '여기서 지형을 바꿉니다.',
+        /*
+          배경 사진을 쓰는 동안에는 지형이 배경에 딸려 오므로 이 조작이 화면에 없다.
+          그때 이 단계를 남기면 "여기서" 가 가리킬 것 없이 가운데 카드로 뜬다.
+        */
+        requireTarget: true,
+        /*
+          맺음말 대신 상점으로 보낸다. 이 화면에서 막히는 지점은 언제나 <b>세울 건물이 없는
+          것</b>이라(건물은 포인트로만 산다), 마지막 한 걸음을 그쪽으로 둔다.
+        */
+        action: { label: '상점에서 건물 사기', to: '/app/shop' },
+      },
+    ],
+  },
+
   /*
     리포트에는 따로 안내를 두지 않는다. 그 화면은 결과를 읽는 곳이라 조작할 것이 "다시
     분석하기" 하나뿐이고, 무엇을 해 주는 기능인지는 위 홈 안내의 `nav-report` 단계가
@@ -236,4 +313,4 @@ export const TOURS: Record<TourId, Tour> = {
  *
  * <p>`welcome` 은 빠져 있다 — 이음매 한 장짜리라 목록에서 골라 다시 볼 것이 없다.
  */
-export const TOUR_ORDER: TourId[] = ['home', 'editor', 'coach']
+export const TOUR_ORDER: TourId[] = ['home', 'editor', 'coach', 'village']

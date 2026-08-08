@@ -82,6 +82,7 @@ from agent.listen import TrackListener, TranscriptionRegistry, build_stt
 from agent.reuse import (
     BACKENDS,
     DEMO_PROVIDERS,
+    PIPELINE_MODES,
     GoalPipeline,
     build_backend,
     get_settings,
@@ -331,11 +332,12 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.add_shutdown_callback(log_shutdown)
 
     settings = get_settings()
-    if settings.bot_mode != "goal":
-        # 조용히 chat 모드로 도는 것보다 세게 알립니다. 이 프로젝트의 존재 이유가
-        # 목표 설계 파이프라인이고, chat 모드로 뜨면 과제가 아예 안 나옵니다.
+    if settings.bot_mode not in PIPELINE_MODES:
+        # 조용히 도는 것보다 세게 알립니다. 이 프로젝트의 존재 이유가 목표 설계
+        # 파이프라인이고, 모르는 모드로 뜨면 과제가 아예 안 나옵니다.
         logger.warning(
-            "BOT_MODE=%s 입니다 — goal 이 아니면 과제를 만들지 않습니다", settings.bot_mode
+            "BOT_MODE=%s 입니다 — 아는 값은 %s 뿐이라 과제를 만들지 않습니다",
+            settings.bot_mode, "/".join(PIPELINE_MODES),
         )
 
     # **job 하나가 방 하나이므로 파이프라인도 방마다 새로 만들어집니다.** 각 백엔드가

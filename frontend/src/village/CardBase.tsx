@@ -22,29 +22,47 @@ const EDGE: Record<Terrain, string> = {
   WATER_WAY: '#a9c6cf',
 }
 
-export function CardBase({ terrain }: { terrain: Terrain }) {
+/** 판 윗면의 기본 높이. 지표면(y≈0)보다 살짝 아래에서 시작해 옆면만 드러낸다. */
+const DEFAULT_TOP = -0.06
+
+/**
+ * @param edge 옆면색 덮어쓰기. 배경 사진이 데려온 지형이 쓴다 — 이 면이 판의 두께로
+ *   보이는 자리라 배경과 바로 맞닿는다. 지형색과 어긋나면 판만 오려 붙인 것처럼 보인다.
+ * @param top 판 윗면 높이. <b>수면이 있는 지형은 이걸 내려야 한다</b> — 물은 지표면보다
+ *   한참 아래(−0.34)에 있고 수심 판은 더 아래(−0.79)라, 기본값(−0.06)이면 판이 그 둘을
+ *   통째로 삼켜 물이 보이지 않는다. `FloatingBase` 쪽은 같은 이유로 이미 물길에만
+ *   `topY: -0.85` 를 준다({@link ./terrain} 의 `BASE`).
+ */
+export function CardBase({
+  terrain,
+  edge: override,
+  top = DEFAULT_TOP,
+}: {
+  terrain: Terrain
+  edge?: string
+  top?: number
+}) {
   const size = SPAN + 1.2
-  const edge = EDGE[terrain] ?? EDGE.GRASS_PATH
+  const edge = override ?? EDGE[terrain] ?? EDGE.GRASS_PATH
 
   return (
     <group>
-      {/*
-        판 본체. 지표면(y≈0)보다 살짝 아래에서 시작해 옆면만 드러낸다.
-        윗면은 지형 렌더러가 덮으므로 여기서 그리지 않는다.
-      */}
-      <mesh position={[0, -THICKNESS / 2 - 0.06, 0]} receiveShadow castShadow>
+      {/* 판 본체. 윗면은 지형 렌더러가 덮으므로 여기서 그리지 않는다. */}
+      <mesh position={[0, top - THICKNESS / 2, 0]} receiveShadow castShadow>
         <boxGeometry args={[size, THICKNESS, size]} />
         <meshStandardMaterial color={edge} roughness={0.95} />
       </mesh>
 
       {/*
-        아래 그림자. 실제 그림자맵 대신 반투명 원을 깔아 "떠 있다"를 표현한다.
-        그림자 카메라 범위를 섬 아래까지 늘리지 않아도 되므로 그림자 해상도가 보존된다.
+        ⚠️ 판 아래 <b>가짜 그림자 원반을 두지 않는다.</b>
+
+        <p>예전에는 반지름 `size * 0.62` 짜리 반투명 원(#233238, opacity 0.12)을 판보다
+        0.84 아래에 깔아 "떠 있다"를 표현했다. 아래에 그림자가 질 바닥이 없어서 실제
+        그림자맵으로는 아무것도 안 생기니 그린 것이었다.
+        <p>걷어낸 이유: 받칠 바닥이 없다는 것은 <b>그림자가 질 이유도 없다</b>는 뜻이다.
+        허공에 뜬 원반은 판의 실루엣과 어긋나 얼룩으로 보였고, 배경 사진을 깔면서는
+        그림 위에 검은 자국을 남겼다.
       */}
-      <mesh position={[0, -THICKNESS - 0.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[size * 0.62, 48]} />
-        <meshBasicMaterial color="#233238" transparent opacity={0.12} depthWrite={false} />
-      </mesh>
     </group>
   )
 }

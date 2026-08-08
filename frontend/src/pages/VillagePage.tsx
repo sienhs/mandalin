@@ -9,14 +9,20 @@ import { CENTER_BLOCK_INDEX, PITCH } from '../village/layout'
 import { AUTO_CELL, type CellOverride } from '../village/GrowableObject'
 import { AUTO_LANDMARK, type LandmarkOverride } from '../village/Landmark'
 import { BUILD_PANEL_WIDTH, BuildPanel } from '../village/BuildPanel'
+import { BackdropLayer } from '../village/BackdropLayer'
+import { BackdropPicker } from '../village/BackdropPicker'
+import { NO_BACKDROP, backdropThumb, findBackdrop, useBackdrop } from '../village/backdrops'
+import { findTerrainSkin } from '../village/terrain/skins'
+import { skyGradientCss } from '../village/SkyBackdrop'
 import { useIsoCamera } from '../village/IsoCamera'
 import { ThumbnailBakery } from '../village/thumbnailBaker'
 import { buildOwnedCatalog } from '../village/ownedCatalog'
 import type { OwnedBuilding, Terrain, VillageData } from '../village/villageApi'
 import { TERRAINS } from '../village/villageApi'
 import { ALL_CONFIGS } from '../village/localCatalog'
+import { useAutoTour } from '../features/tour/TourProvider'
 import Button from '../components/common/ActionButton'
-import { Badge, EmptyState, ErrorState, Segmented, Skeleton } from '../components/common/Primitives'
+import { EmptyState, ErrorState, Segmented, Skeleton } from '../components/common/Primitives'
 import { useToast } from '../components/common/Toast'
 
 /**
@@ -98,7 +104,27 @@ export default function VillagePage() {
    */
   const [panelOpen, setPanelOpen] = useState(true)
 
+  /**
+   * 배치 패널이 캔버스 왼쪽을 덮은 폭(px). 좌우 여백(`left-4`)까지 더해야 실제로 가려지는 폭이다.
+   *
+   * <p>카메라와 3D 위 표시가 <b>같은 값을 본다.</b> 카메라는 이만큼을 빼고 남은 영역의
+   * 중앙으로 마을을 밀고, 표시는 같은 영역의 중앙에 앉는다 — 두 곳에 따로 적으면 패널을
+   * 열었을 때 마을은 비켜 가는데 표시만 제자리에 남는다.
+   */
+  const occludedLeft = panelOpen ? BUILD_PANEL_WIDTH + 32 : 0
+
   const [terrainPending, setTerrainPending] = useState<Terrain | null>(null)
+
+  /**
+   * 캔버스 뒤에 깔 배경 사진. 시트마다 따로 기억한다 — 자세한 이유는 {@link useBackdrop}.
+   *
+   * <p>시트가 아직 안 정해졌으면 null 을 넘긴다. 그동안은 기본(사진 없음)이고, 정해지는
+   * 순간 저장해 둔 것이 들어온다.
+   */
+  const [backdrop, setBackdrop] = useBackdrop(sheet && sheet !== 'none' ? sheet.id : null)
+  const [backdropOpen, setBackdropOpen] = useState(false)
+  /** 지금 배경이 데려온 지형. 배경이 없으면 null 이고 그때만 지형을 직접 고를 수 있다. */
+  const terrainSkin = findTerrainSkin(backdrop === NO_BACKDROP ? null : backdrop)
   /** 'now' = 지금 진행도, 'done' = 다 채웠을 때의 모습. */
   const [preview, setPreview] = useState<'now' | 'done'>('now')
   const [themeFilter, setThemeFilter] = useState<string>('all')
@@ -107,6 +133,16 @@ export default function VillagePage() {
     () => (sheet && sheet !== 'none' ? toMandalartFromModel(sheet) : null),
     [sheet],
   )
+
+  /*
+    마을이 <b>그려진 뒤에</b> 안내를 띄운다.
+
+    그 전까지 이 화면은 스켈레톤 두 장(`Skeleton`)이라 가리킬 것이 하나도 없다 — 캔버스도,
+    배치 패널도, 아래 조작 바도 아직 없으므로 모든 단계가 가운데 카드로 물러나거나
+    `requireTarget` 에 걸려 빠진다. 만다라트가 없는 사람(`sheet === 'none'`)은 빈 화면만
+    보게 되므로 여기서도 걸러진다.
+  */
+  useAutoTour('village', { ready: Boolean(mandalart && village) })
 
   /**
    * 어느 시트의 마을을 볼지.
@@ -446,8 +482,16 @@ export default function VillagePage() {
           인라인 `height` 를 쓰지 않는다 — flex-basis 와 height 중 무엇이 이기는지가 미묘해서,
           `lg:flex-1` 이 확실히 먹도록 `lg:h-auto` 로 명시적으로 넘긴다.
         */
+        data-tour="village-canvas"
         className="card relative h-[clamp(360px,calc(100dvh-228px),1000px)] min-h-[360px] overflow-hidden p-0 lg:h-auto lg:min-h-0 lg:flex-1"
       >
+        {/*
+          ⚠️ 배경 사진은 <b>`Scene` 보다 위에</b> 적는다. 둘 다 이 `section` 의 형제이고
+          R3F 캔버스 래퍼가 `position: relative` 라, DOM 순서가 그대로 겹침 순서가 된다.
+          아래로 내리면 사진이 마을을 덮는다.
+        */}
+        <BackdropLayer backdrop={backdrop} />
+
         <Scene
           mandalart={shown ?? mandalart}
           selected={block}
@@ -457,15 +501,13 @@ export default function VillagePage() {
           catalog={catalog}
           selectedTaskId={selectedTask}
           landmark={shownLandmark}
+          backdrop={backdrop}
           cameraRef={camera.ref}
           initialZoom={camera.zoom}
           onFacingChange={camera.setFacing}
           focus={focus}
-          /*
-            패널이 덮은 폭을 카메라에 알린다. 마을이 남은 영역 중앙으로 미끄러진다.
-            좌우 여백(left-4)까지 더해야 실제로 가려지는 폭이 된다.
-          */
-          occludedLeft={panelOpen ? BUILD_PANEL_WIDTH + 32 : 0}
+          /* 패널이 덮은 폭을 카메라에 알린다. 마을이 남은 영역 중앙으로 미끄러진다. */
+          occludedLeft={occludedLeft}
           onSelect={(i) => {
             if (i < 0) return
             setBlock(i)
@@ -516,55 +558,88 @@ export default function VillagePage() {
         {sheet && (
           <Link
             to={`/app/sheets/${sheet.id}`}
+            data-tour="village-sheet"
             className="card absolute top-4 right-4 z-10 flex items-center px-4 py-2.5 text-[13px] font-extrabold no-underline shadow-lg transition-transform hover:-translate-y-0.5"
           >
             만다라트 보기
           </Link>
         )}
+
+        {/*
+          완성형일 때 그렇다고 알린다. 3D 만 바뀌고 아래 패널의 진행률 막대는 실제 값 그대로라,
+          표시가 없으면 마을과 숫자가 어긋나 보인다.
+
+          <p><b>마을과 같이 움직인다.</b> 배치 패널이 왼쪽을 덮으면 카메라가 남은 영역 중앙으로
+          마을을 미는데, 이 표시가 캔버스 중앙에 고정돼 있으면 마을만 비켜 가고 표시는 제자리에
+          남아 딴 곳을 가리킨다. `left` 를 덮인 폭에 맞추면 <b>같은 영역의 중앙</b>이 되므로
+          픽셀 계산 없이 정확히 따라간다.
+
+          <p>미끄러지는 시간은 카메라의 감속(약 0.45초)에 맞췄다. 패널 자체는 즉시 나타났다
+          사라지므로 이 값은 패널이 아니라 마을을 따라간 것이다.
+
+          <p>`pointer-events-none` — 캔버스 위에 떠 있지만 끌어서 돌리는 것을 막지 않는다.
+        */}
+        {preview === 'done' && (
+          <div
+            className="pointer-events-none absolute top-4 z-10 flex justify-center transition-[left] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            style={{ left: occludedLeft, right: 0 }}
+          >
+            <span className="rounded-full bg-brand-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-lg">
+              모든 과제를 마쳤을 때의 모습
+            </span>
+          </div>
+        )}
       </section>
 
       {/* ───────── 시점 · 지형 ───────── */}
       <section className="card flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
-        <div className="flex items-center gap-2">
-          <span className="muted text-[12px] font-bold">시점</span>
-          <button
-            type="button"
-            onClick={camera.rotateCCW}
-            aria-label="왼쪽으로 90도 돌리기"
-            className="grid size-9 place-items-center rounded-full border text-[15px]"
-            style={{ borderColor: 'var(--border-hairline)' }}
-          >
-            ↺
-          </button>
-          <span className="muted min-w-[34px] text-center text-[11.5px] font-black">
-            {FACING_LABEL[camera.facing % 4]}
-          </span>
-          <button
-            type="button"
-            onClick={camera.rotateCW}
-            aria-label="오른쪽으로 90도 돌리기"
-            className="grid size-9 place-items-center rounded-full border text-[15px]"
-            style={{ borderColor: 'var(--border-hairline)' }}
-          >
-            ↻
-          </button>
+        {/*
+          시점과 확대를 <b>한 껍데기로 묶는다.</b> 둘 다 "지금 어디서 보고 있는가" 하나를
+          다루는 짝이라 안내도 한 단계로 짚는데, 표적(`data-tour`)은 요소 하나만 가리킬 수
+          있기 때문이다. 껍데기가 부모와 같은 flex 규칙을 그대로 쓰므로 배치는 달라지지 않는다.
+        */}
+        <div data-tour="village-camera" className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-2">
+            <span className="muted text-[12px] font-bold">시점</span>
+            <button
+              type="button"
+              onClick={camera.rotateCCW}
+              aria-label="왼쪽으로 90도 돌리기"
+              className="grid size-9 place-items-center rounded-full border text-[15px]"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
+              ↺
+            </button>
+            <span className="muted min-w-[34px] text-center text-[11.5px] font-black">
+              {FACING_LABEL[camera.facing % 4]}
+            </span>
+            <button
+              type="button"
+              onClick={camera.rotateCW}
+              aria-label="오른쪽으로 90도 돌리기"
+              className="grid size-9 place-items-center rounded-full border text-[15px]"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
+              ↻
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="muted text-[12px] font-bold">확대</span>
+            <Segmented
+              size="sm"
+              value={String(camera.zoom)}
+              onChange={(v) => camera.changeZoom(Number(v) as 0 | 1 | 2)}
+              options={[
+                { value: '0', label: '멀리' },
+                { value: '1', label: '보통' },
+                { value: '2', label: '가까이' },
+              ]}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="muted text-[12px] font-bold">확대</span>
-          <Segmented
-            size="sm"
-            value={String(camera.zoom)}
-            onChange={(v) => camera.changeZoom(Number(v) as 0 | 1 | 2)}
-            options={[
-              { value: '0', label: '멀리' },
-              { value: '1', label: '보통' },
-              { value: '2', label: '가까이' },
-            ]}
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
+        <div data-tour="village-preview" className="flex items-center gap-2">
           <span className="muted text-[12px] font-bold">보기</span>
           <Segmented
             size="sm"
@@ -577,18 +652,67 @@ export default function VillagePage() {
           />
         </div>
 
+        {/*
+          배경이 켜져 있으면 지형 조작을 <b>통째로 내린다.</b>
+
+          <p>그때 지형은 고르는 것이 아니라 배경에 딸려 오는 것이라, 네 칸짜리 토글을 남기면
+          눌러도 화면이 안 바뀌는 버튼이 된다 — 실제로 그려지는 지표면은 배경 쪽 설정이다.
+          이름표로 바꿔 두기도 했었는데, 조작할 수 없는 값을 굳이 이름으로 알릴 이유가 없다.
+          어느 지형인지는 배경 고르는 화면에 칸마다 적혀 있다.
+
+          <p>네 종으로 돌아가려면 배경을 '기본'으로 둔다.
+        */}
+        {!terrainSkin && (
+          <div data-tour="village-terrain" className="flex items-center gap-2">
+            <span className="muted text-[12px] font-bold">지형</span>
+            <Segmented
+              size="sm"
+              value={village.terrain}
+              onChange={(v) => void changeTerrain(v as Terrain)}
+              options={TERRAINS.map((t) => ({
+                value: t,
+                label: TERRAIN_LABEL[t],
+              }))}
+            />
+            {terrainPending && <span className="muted text-[11px] font-bold">저장 중…</span>}
+          </div>
+        )}
+
+        {/*
+          배경은 지형 옆에 둔다 — 둘 다 "마을을 어디에 놓을 것인가"라서 함께 만지는 짝이다.
+
+          지형처럼 `Segmented` 로 늘어놓지 않는다. 열한 칸이 이 바를 두 줄로 밀어내는 데다
+          '벚꽃'·'노르딕' 같은 이름만으로는 무엇이 나올지 알 수 없어서, 어차피 그림을 봐야
+          고를 수 있다. 지금 고른 것을 작은 그림으로 물고 있는 버튼 하나로 줄이고 나머지는
+          모달에 담았다.
+        */}
         <div className="flex items-center gap-2">
-          <span className="muted text-[12px] font-bold">지형</span>
-          <Segmented
-            size="sm"
-            value={village.terrain}
-            onChange={(v) => void changeTerrain(v as Terrain)}
-            options={TERRAINS.map((t) => ({
-              value: t,
-              label: TERRAIN_LABEL[t],
-            }))}
-          />
-          {terrainPending && <span className="muted text-[11px] font-bold">저장 중…</span>}
+          <span className="muted text-[12px] font-bold">배경</span>
+          <button
+            type="button"
+            onClick={() => setBackdropOpen(true)}
+            title="3D 마을 뒤에 깔 배경 고르기 — 지형도 그림에 맞춰 함께 바뀝니다"
+            className="flex h-9 items-center gap-2 rounded-full border py-0 pr-3.5 pl-1.5 text-[12px] font-bold text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+            style={{ borderColor: 'var(--border-hairline)' }}
+          >
+            <span
+              aria-hidden="true"
+              className="block h-6 w-9 shrink-0 rounded-full border bg-cover bg-center"
+              style={{
+                borderColor: 'var(--border-hairline)',
+                /*
+                  `background` 축약형을 쓰지 않는다 — 뒤에 오는 backgroundImage 를 덮을지가
+                  적는 순서에 달리게 된다. 사진을 안 쓰면 지금 지형의 하늘색을 그대로 보여 준다.
+                */
+                backgroundColor: findBackdrop(backdrop)?.tint,
+                backgroundImage:
+                  backdrop === NO_BACKDROP
+                    ? skyGradientCss(village.terrain)
+                    : `url(${backdropThumb(backdrop)})`,
+              }}
+            />
+            {findBackdrop(backdrop)?.label ?? '기본'}
+          </button>
         </div>
 
         {/*
@@ -607,17 +731,37 @@ export default function VillagePage() {
           원위치로
         </button>
 
-        {/*
-          완성형일 때는 그렇다고 알린다. 3D 만 바뀌고 아래 패널의 진행률 막대는 실제 값
-          그대로라, 표시가 없으면 마을과 숫자가 어긋나 보인다.
-        */}
-        {preview === 'done' && <Badge tone="brand">모든 과제를 마쳤을 때의 모습</Badge>}
+        {/* 완성형 표시는 이 바가 아니라 캔버스 위에 있다 — 위쪽 `preview === 'done'` 참고. */}
 
         <span className="muted ml-auto truncate text-[11.5px] font-semibold">
           {mandalart.center}
         </span>
       </section>
 
+      {/*
+        배경을 고르면 지형도 그 배경에 맞는 것으로 함께 바꾼다.
+
+        <p>마을 받침판이 그림의 빈 자리를 거의 덮으므로 화면에 남는 것은 <b>바깥 풍경</b>인데,
+        사막 그림 위에 아스팔트 섬이 떠 있으면 두 그림이 따로 논다. 짝은 배경마다 정해 뒀다
+        ({@link BACKDROPS} 의 `terrain`).
+
+        <p><b>고를 때만 바꾼다 — 화면에 들어올 때는 바꾸지 않는다.</b> 저장해 둔 배경을 되살릴
+        때마다 지형까지 덮어쓰면, 배경을 고른 뒤에 지형만 따로 바꿔 둔 사람은 들어올 때마다
+        그 선택을 잃는다. 아래 지형 버튼은 그대로 살아 있으므로 마음에 안 들면 바꾸면 된다.
+      */}
+      <BackdropPicker
+        open={backdropOpen}
+        value={backdrop}
+        terrain={village.terrain}
+        onChange={(next) => {
+          setBackdrop(next)
+          // 짝은 지형 쪽이 정본이다({@link TERRAIN_SKINS} 의 `base`) — 배경 목록에도 적어 두면
+          // 두 표가 갈라져, 어느 쪽을 고쳤는지에 따라 화면과 저장값이 어긋난다.
+          const paired = findTerrainSkin(next)?.base
+          if (paired) void changeTerrain(paired)
+        }}
+        onClose={() => setBackdropOpen(false)}
+      />
     </div>
   )
 }

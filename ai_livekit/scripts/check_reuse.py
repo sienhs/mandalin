@@ -33,6 +33,7 @@ def main() -> None:
     # ① 파이프라인이 import 되는가 (서드파티 셋: pydantic / pydantic-settings / httpx)
     try:
         from agent.reuse import (
+            PIPELINE_MODES,
             PROJECT_ROOT,
             REUSED_MODULES,
             TRANSPORT_ONLY,
@@ -99,8 +100,11 @@ def main() -> None:
         )
     else:
         print(f"  [OK]  GoalPipeline 생성 (BOT_PROVIDER={settings.bot_provider})")
-    if settings.bot_mode != "goal":
-        print(f"  [경고] BOT_MODE={settings.bot_mode} — goal 이 아니면 과제를 만들지 않습니다")
+    if settings.bot_mode not in PIPELINE_MODES:
+        print(
+            f"  [경고] BOT_MODE={settings.bot_mode} — 아는 값은 "
+            f"{'/'.join(PIPELINE_MODES)} 뿐이라 과제를 만들지 않습니다"
+        )
 
     # ⑦ 시트 전달 경로. LiveKit 없이 도는 부분입니다.
     from agent.sheet_transfer import sheet_from_participant

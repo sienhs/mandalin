@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { showcaseSheet } from '../data/showcaseSheet'
 import { auth } from '../api/endpoints'
 import type { TestAccountDto } from '../api/types'
 import Button from '../components/common/ActionButton'
+import { IconChevronDown } from '../components/common/Icons'
 import Logo from '../components/common/Logo'
 import IsoVillage from '../features/village/IsoVillage'
 import { cn } from '../utils/cn'
@@ -26,6 +27,25 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * 아이디·비밀번호 칸을 펼쳤는지. **기본 닫힘.**
+   *
+   * <p>이 화면에서 실제 사용자가 쓸 입구는 카카오 하나뿐인데, 입력 칸 두 개가 처음부터
+   * 펼쳐져 있으면 그쪽이 <b>본 로그인처럼</b> 보인다. 접어 두면 필요한 사람만 열어 쓴다.
+   */
+  const [testerOpen, setTesterOpen] = useState(false)
+  const panelId = useId()
+  const idInputRef = useRef<HTMLInputElement>(null)
+
+  /*
+    펼치면 첫 칸으로 초점을 옮긴다. 여는 이유가 입력하기 위해서라, 열어 놓고 다시 눌러야
+    하면 동작이 한 번 더 늘어난다. 접을 때는 옮기지 않는다 — 접는 길은 여는 버튼뿐이고
+    그때 초점은 이미 그 버튼에 있다.
+  */
+  useEffect(() => {
+    if (testerOpen) idInputRef.current?.focus()
+  }, [testerOpen])
 
   useEffect(() => {
     let alive = true
@@ -168,87 +188,126 @@ export default function Login() {
             테스트 계정 입구.
 
             카카오 버튼과 <b>같은 무게로 두지 않는다.</b> 실제 사용자가 쓸 입구는 위의 하나뿐이고
-            이건 평가용이라, 구분선 아래로 내리고 글자도 한 단계 작게 잡았다. 그렇다고 숨기지도
-            않는다 — 숨긴 기능은 켜 뒀는지 확인하려고 매번 코드를 열게 된다.
+            이건 평가용이라, 구분선 아래로 내리고 접어 둔다. 그렇다고 숨기지도 않는다 —
+            숨긴 기능은 켜 뒀는지 확인하려고 매번 코드를 열게 된다.
+
+            <p>여는 버튼과 보내는 버튼이 <b>서로 다르게 생겨야 한다.</b> 둘 다 채운 버튼이면
+            무엇을 눌러야 로그인이 되는지 알 수 없다. 여는 쪽은 글자와 꺾쇠만 둔 줄이고,
+            보내는 쪽만 테두리와 배경을 가진 버튼이다.
           */}
           {testers.length > 0 && (
-            <form
-              onSubmit={(event) => void submitTesterLogin(event)}
+            <div
               className="mt-9 border-t pt-7"
               style={{ borderColor: 'var(--border-hairline)' }}
             >
-              <h3 className="m-0 text-[13.5px] font-extrabold tracking-[-0.02em]">
-                테스트 계정으로 둘러보기
-              </h3>
-              <p className="muted m-0 mt-1.5 text-[12px] font-semibold leading-relaxed">
-                발급받은 아이디와 비밀번호로 들어오세요. 만다라트 2장과 건물이 채워진
-                계정이고, 카카오 로그인과 똑같이 시작합니다.
-              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setTesterOpen((open) => !open)
+                  // 접었다 다시 열었을 때 지난 실패 문구가 남아 있지 않게 한다.
+                  setError(null)
+                }}
+                aria-expanded={testerOpen}
+                aria-controls={panelId}
+                className="flex w-full items-center justify-between gap-2 border-0 bg-transparent p-0 text-left text-[13.5px] font-extrabold tracking-[-0.02em] text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+              >
+                테스트 계정으로 로그인
+                <IconChevronDown
+                  className={cn(
+                    'size-4 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none',
+                    testerOpen && 'rotate-180',
+                  )}
+                />
+              </button>
 
               {/*
-                아이디 목록만 보여준다. 비밀번호는 서버가 내려주지 않고 계정을 나눠 주는 사람이
-                따로 전한다 — 화면에 적어 두면 로그인 절차 자체가 의미를 잃는다.
+                높이를 <b>`grid-template-rows` 로</b> 편다(0fr → 1fr).
+
+                <p>`max-height` 로 하면 실제 높이보다 넉넉한 값을 손으로 박아야 하고, 그 값과
+                실제 높이의 차이만큼 애니메이션이 허공에서 시작해 끝이 뚝 끊긴다. 오류 문구가
+                한 줄 붙었다 떨어지는 것만으로도 높이가 달라지는 자리라 더 그렇다.
+                `0fr → 1fr` 은 내용이 몇 픽셀이든 브라우저가 재서 채운다.
+
+                <p>`inert` 를 반드시 준다. 접혀 있어도 칸은 DOM 에 그대로 있어서, 없으면
+                <b>보이지도 않는 입력 칸에 Tab 으로 들어가고</b> 브라우저 자동완성도 붙는다.
               */}
-              <p className="muted m-0 mt-2 text-[11.5px] font-semibold">
-                아이디: {testers.map((tester) => tester.loginId).join(' · ')}
-              </p>
-
-              <div className="mt-4 flex flex-col gap-2">
-                <input
-                  name="testLoginId"
-                  value={loginId}
-                  onChange={(event) => setLoginId(event.target.value)}
-                  placeholder="아이디"
-                  autoComplete="username"
-                  aria-label="테스트 계정 아이디"
-                  className="h-[46px] w-full rounded-xl border px-3.5 text-[13.5px] font-semibold outline-none transition focus:border-brand-400"
-                  style={{
-                    borderColor: 'var(--border-hairline)',
-                    background: 'var(--surface-sunken)',
-                  }}
-                />
-                <input
-                  name="testLoginPassword"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="비밀번호"
-                  autoComplete="current-password"
-                  aria-label="테스트 계정 비밀번호"
-                  className="h-[46px] w-full rounded-xl border px-3.5 text-[13.5px] font-semibold outline-none transition focus:border-brand-400"
-                  style={{
-                    borderColor: 'var(--border-hairline)',
-                    background: 'var(--surface-sunken)',
-                  }}
-                />
-              </div>
-
-              {error && (
-                <p className="m-0 mt-2.5 text-[12px] font-bold text-brand-600 dark:text-brand-400">
-                  {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={busy || loginId.trim() === '' || password === ''}
+              <div
+                id={panelId}
                 className={cn(
-                  'mt-3 grid h-[46px] w-full place-items-center rounded-xl border text-[13.5px] font-extrabold transition',
-                  'hover:-translate-y-px hover:border-brand-400 hover:text-brand-600',
-                  'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:border-[var(--border-hairline)]',
+                  'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none',
+                  testerOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
                 )}
-                style={{
-                  borderColor: 'var(--border-hairline)',
-                  background: 'var(--surface-sunken)',
-                }}
               >
-                {busy ? (
-                  <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-                ) : (
-                  '테스트 계정으로 로그인'
-                )}
-              </button>
-            </form>
+                <div className="overflow-hidden" inert={!testerOpen}>
+                  <form onSubmit={(event) => void submitTesterLogin(event)} className="pt-4">
+                    {/*
+                      아이디 목록만 보여준다. 비밀번호는 서버가 내려주지 않고 계정을 나눠 주는
+                      사람이 따로 전한다 — 화면에 적어 두면 로그인 절차 자체가 의미를 잃는다.
+                    */}
+                    <p className="muted m-0 text-[11.5px] font-semibold">
+                      아이디: {testers.map((tester) => tester.loginId).join(' · ')}
+                    </p>
+
+                    <div className="mt-3 flex flex-col gap-2">
+                      <input
+                        ref={idInputRef}
+                        name="testLoginId"
+                        value={loginId}
+                        onChange={(event) => setLoginId(event.target.value)}
+                        placeholder="아이디"
+                        autoComplete="username"
+                        aria-label="테스트 계정 아이디"
+                        className="h-[46px] w-full rounded-xl border px-3.5 text-[13.5px] font-semibold outline-none transition focus:border-brand-400"
+                        style={{
+                          borderColor: 'var(--border-hairline)',
+                          background: 'var(--surface-sunken)',
+                        }}
+                      />
+                      <input
+                        name="testLoginPassword"
+                        type="password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        placeholder="비밀번호"
+                        autoComplete="current-password"
+                        aria-label="테스트 계정 비밀번호"
+                        className="h-[46px] w-full rounded-xl border px-3.5 text-[13.5px] font-semibold outline-none transition focus:border-brand-400"
+                        style={{
+                          borderColor: 'var(--border-hairline)',
+                          background: 'var(--surface-sunken)',
+                        }}
+                      />
+                    </div>
+
+                    {error && (
+                      <p className="m-0 mt-2.5 text-[12px] font-bold text-brand-600 dark:text-brand-400">
+                        {error}
+                      </p>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={busy || loginId.trim() === '' || password === ''}
+                      className={cn(
+                        'mt-3 grid h-[46px] w-full place-items-center rounded-xl border text-[13.5px] font-extrabold transition',
+                        'hover:-translate-y-px hover:border-brand-400 hover:text-brand-600',
+                        'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:border-[var(--border-hairline)]',
+                      )}
+                      style={{
+                        borderColor: 'var(--border-hairline)',
+                        background: 'var(--surface-sunken)',
+                      }}
+                    >
+                      {busy ? (
+                        <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                      ) : (
+                        '로그인하기'
+                      )}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </section>

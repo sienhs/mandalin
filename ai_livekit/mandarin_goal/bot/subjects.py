@@ -173,19 +173,36 @@ def _bigrams(text: str) -> set[str]:
 #: 두 조건을 만족하는 가장 작은 값 근처입니다.
 DOMAIN_BONUS = 0.15
 
-#: 발화가 **명시한** 주기와 후보의 주기가 같을 때 주는 가점.
+#: 발화가 **명시한** 빈도와 후보의 빈도가 같을 때 주는 가점 — 주기와 횟수 둘 다.
 #:
-#: 도메인 가점보다 작습니다. 도메인은 사용자 시트의 어휘라 신뢰도가 높은데, 주기는
+#: 도메인 가점보다 작습니다. 도메인은 사용자 시트의 어휘라 신뢰도가 높은데, 빈도는
 #: 발화에 나온 경우에만 채워지는 값이라 근거가 얇습니다.
 #:
-#: **이 값이 실제로 일하는 자리는 제목이 거의 같고 주기만 다른 후보들입니다** —
+#: **이 값이 실제로 일하는 자리는 제목이 거의 같고 빈도만 다른 후보들입니다** —
 #: "주 1회 산책" 과 "매일 산책" 은 바이그램 유사도가 사실상 같아서 순서가 임의로
 #: 정해지고, `BOT_CANDIDATE_COUNT` 상한에서 맞는 쪽이 잘려 나갈 수 있습니다.
 #:
-#: **불일치에 감점은 주지 않습니다.** 주기가 다른 후보도 프롬프트에 남아야 합니다 —
+#: **불일치에 감점은 주지 않습니다.** 빈도가 다른 후보도 프롬프트에 남아야 합니다 —
 #: 판단은 모델이 하고(`prompts/system.md`: "행동과 빈도가 둘 다 같아야 겹친다"),
-#: 검색이 미리 지우면 모델이 "비슷하지만 주기가 다른 것이 있다" 를 알 수 없습니다.
+#: 검색이 미리 지우면 모델이 "비슷하지만 빈도가 다른 것이 있다" 를 알 수 없습니다.
 FREQUENCY_BONUS = 0.10
+
+#: 주기는 같고 **횟수만** 다를 때 주는 가점.
+#:
+#: **왜 필요한가.** 주기만 보던 동안 "주 1회 러닝" 과 "주 5회 러닝" 은 점수가 **완전히
+#: 같았습니다** — 제목 바이그램도 같고 주기(weekly)도 같아서, 순서가 임의로 정해지고
+#: `BOT_CANDIDATE_COUNT`(기본 5) 상한에서 맞는 쪽이 잘려 나갈 수 있었습니다. 주기가
+#: 1~7회로 갈라진 뒤로 생긴 구멍이고, 프롬프트는 그 사이 "횟수도 빈도의 일부" 라고
+#: 말하고 있었습니다(`prompts/system.md` 규칙 4).
+#:
+#: **`FREQUENCY_BONUS` 를 넘지 않게 나눕니다 — 더하지 않습니다.** 두 가점을 합치면
+#: 최대가 `DOMAIN_BONUS`(0.15)에 닿아, "다른 도메인의 확실한 매칭보다 같은 도메인이
+#: 이긴다" 는 그 값의 근거가 무너집니다. 횟수는 주기가 이미 맞은 뒤의 **미세 조정**이라
+#: 같은 예산 안에서 갈라 쓰는 것이 맞습니다.
+#:
+#: 값이 0 이 아닌 이유: 횟수가 달라도 "주 1회 러닝" 은 주기가 다른 후보보다 여전히
+#: 가까운 후보입니다. 0 으로 두면 그 순위가 주기 불일치와 같아집니다.
+FREQUENCY_PARTIAL_BONUS = 0.06
 
 
 def similarity(a: str, b: str) -> float:
@@ -194,6 +211,29 @@ def similarity(a: str, b: str) -> float:
     if not left or not right:
         return 0.0
     return len(left & right) / len(left | right)
+
+
+def frequency_score(
+    candidate: Candidate, frequency: str | None, count: int | None
+) -> float:
+    """빈도 가점. 주기가 맞아야 시작하고, 횟수가 그 안에서 등급을 가릅니다.
+
+    `count` 가 `None` 인 것은 **"발화가 횟수를 말하지 않았다"** 이고, 그때는 주기까지만
+    본 값(`FREQUENCY_BONUS`)을 그대로 줍니다 — 말하지 않은 것을 1 로 단정하면 "러닝하고
+    싶어" 가 주 5회 러닝을 **강등시킵니다.** (`normalise_count` 가 `None` 을 1 로 떨어뜨리는
+    것과 갈라야 하는 자리라 호출하는 쪽이 미리 가려서 넘깁니다 — `goal.py` 의 `_run`.)
+
+    후보 쪽 `count` 가 없는 경우도 같습니다. 시트에 주기는 있고 횟수가 없는 과제라,
+    다르다고 볼 근거가 없습니다.
+
+    고정 주기(daily·none)는 횟수가 1 로 고정이라 이 갈래가 사실상 타지 않습니다.
+    """
+    if not frequency or candidate.frequency != frequency:
+        # 주기가 다르면 가점 없음. **감점도 없습니다**(`FREQUENCY_BONUS` 주석).
+        return 0.0
+    if count is None or candidate.count is None:
+        return FREQUENCY_BONUS
+    return FREQUENCY_BONUS if candidate.count == count else FREQUENCY_PARTIAL_BONUS
 
 
 def to_candidates(domains: Sequence[DomainRef]) -> list[Candidate]:
@@ -237,8 +277,9 @@ def search(
     limit: int,
     *,
     frequency: str | None = None,
+    count: int | None = None,
 ) -> list[Candidate]:
-    """질의와 비슷한 순으로 상위 `limit` 개. 같은 도메인·주기를 우대합니다.
+    """질의와 비슷한 순으로 상위 `limit` 개. 같은 도메인·빈도를 우대합니다.
 
     **도메인으로 걸러내지 않고 가점만 줍니다.** 1단계의 도메인 판단이 사용자
     칸 이름과 어긋나면 정답이 후보에서 아예 빠지기 때문입니다. 실제 사례 —
@@ -250,8 +291,12 @@ def search(
     매칭할 게 없으니 모델은 `generate` 로 갔고, 새 제목을 쓰다 응답이
     무너졌습니다. 도메인 판단 하나가 틀리면 그 뒤가 전부 어긋나는 구조였습니다.
 
-    `frequency` 도 같은 규칙입니다 — **가점이고 필터가 아닙니다**(`FREQUENCY_BONUS`).
-    발화가 주기를 말하지 않았으면 `None` 이고 순위에 영향을 주지 않습니다.
+    `frequency`·`count` 도 같은 규칙입니다 — **가점이고 필터가 아닙니다**
+    (`FREQUENCY_BONUS`). 발화가 말하지 않았으면 `None` 이고 순위에 영향을 주지 않습니다.
+
+    **`count` 를 보는 이유**는 주기만으로 빈도가 정해지지 않아서입니다. 주간이 1~7회로
+    갈라진 뒤 "주 1회 러닝" 과 "주 5회 러닝" 은 점수가 완전히 같아졌고, 그러면 `limit`
+    상한에서 맞는 쪽이 임의로 잘려 나갑니다(`FREQUENCY_PARTIAL_BONUS`).
 
     `query` 는 원문보다 **정규화된 실천 내용**(1단계의 `what`)이 낫습니다. 원문은
     조사·어미·군말이 섞여 바이그램 유사도를 희석합니다.
@@ -263,7 +308,7 @@ def search(
         candidates,
         key=lambda c: similarity(query, c.title)
         + (DOMAIN_BONUS if c.domain == domain else 0.0)
-        + (FREQUENCY_BONUS if frequency and c.frequency == frequency else 0.0),
+        + frequency_score(c, frequency, count),
         reverse=True,
     )
     return ranked[: max(0, limit)]

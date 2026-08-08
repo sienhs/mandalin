@@ -62,10 +62,11 @@ async def test_a_turn_arriving_mid_generation_is_dropped_not_queued():
 
     original = conv._pipeline.run
 
-    # **`goal` 을 받아야 합니다.** `Conversation` 이 최종목표를 키워드로 함께 넘기므로
-    # (`set_goal` → `run(..., goal=...)`), 빼면 TypeError 가 광범위 except 에 먹혀
-    # `started` 가 세팅되지 않고 이 테스트가 **멈춥니다**(실패가 아니라 교착).
-    async def slow(history, domains, *, goal=None):
+    # **스텁은 `**_` 로 남은 키워드를 다 받습니다.** `Conversation` 이 넘기는 키워드
+    # (`goal` · `after_clarify` …) 중 하나를 못 받으면 TypeError 가 광범위 except 에
+    # 먹혀 `started` 가 세팅되지 않고 **실패가 아니라 교착**이 됩니다. 여기서 재려는
+    # 것은 시그니처가 아니라 락이라, 시그니처는 mypy 에 맡깁니다.
+    async def slow(history, domains, *, goal=None, **_):
         started.set()
         await release.wait()
         return await original(history, domains, goal=goal)
@@ -93,7 +94,7 @@ async def test_busy_says_when_the_utterance_would_be_dropped():
 
     original = conv._pipeline.run
 
-    async def slow(history, domains, *, goal=None):
+    async def slow(history, domains, *, goal=None, **_):
         started.set()
         await release.wait()
         return await original(history, domains, goal=goal)
@@ -115,7 +116,7 @@ async def test_a_timeout_still_says_something():
     """침묵하면 사용자는 AI 가 죽었는지 생각 중인지 알 수 없습니다."""
     conv = make_conversation(timeout=0.01)
 
-    async def never(history, domains, *, goal=None):
+    async def never(history, domains, *, goal=None, **_):
         await asyncio.sleep(10)
 
     conv._pipeline.run = never  # type: ignore[method-assign]
@@ -127,7 +128,7 @@ async def test_a_timeout_still_says_something():
 async def test_a_crash_still_says_something():
     conv = make_conversation()
 
-    async def boom(history, domains, *, goal=None):
+    async def boom(history, domains, *, goal=None, **_):
         raise RuntimeError("파이프라인 폭발")
 
     conv._pipeline.run = boom  # type: ignore[method-assign]
@@ -140,7 +141,7 @@ async def test_a_failure_does_not_poison_the_next_turn():
     """실패 응답을 히스토리에 그대로 남기면 모델이 자기 오류 메시지를 맥락으로 읽습니다."""
     conv = make_conversation()
 
-    async def boom(history, domains, *, goal=None):
+    async def boom(history, domains, *, goal=None, **_):
         raise RuntimeError("일시 실패")
 
     original = conv._pipeline.run
@@ -151,6 +152,33 @@ async def test_a_failure_does_not_poison_the_next_turn():
     reply, result = await conv.respond("두 번째 발화")
     assert reply and result is not None
     assert not any("파이프라인" in t.text for t in conv._history)
+
+
+async def test_a_state_claim_does_not_outlive_the_sheet_it_was_made_from():
+    """히스토리에 남는 것은 `text` 가 아니라 `history_entry` 입니다.
+
+    어느 응답을 대체할지는 파이프라인이 정하고(`GoalResult.history_text`), 여기서는
+    그 값을 실제로 쓰는지만 봅니다.
+    """
+    from agent.reuse import GoalResult
+
+    conv = make_conversation()
+
+    async def full(history, domains, *, goal=None, **_):
+        return GoalResult(
+            text="'운동' 칸은 과제 8개가 다 차서 더 담을 수 없어요.",
+            data={"action": "clarify"},
+            history_text="(담지 않고 되물었습니다)",
+        )
+
+    conv._pipeline.run = full  # type: ignore[method-assign]
+    reply, _ = await conv.respond("운동 더 추천해줘")
+
+    # 사용자는 이유를 그대로 듣는다.
+    assert "다 차서" in reply
+    # 다음 턴의 모델은 못 본다.
+    assert not any("다 차서" in t.text for t in conv._history)
+    assert conv._history[-1].text == "(담지 않고 되물었습니다)"
 
 
 async def test_history_is_capped():
@@ -215,7 +243,7 @@ async def test_an_llm_error_is_shown_to_the_user_not_swallowed():
 
     conv = make_conversation()
 
-    async def boom(history, domains, *, goal=None):
+    async def boom(history, domains, *, goal=None, **_):
         raise LlmError("gemini 429: 할당량을 초과했습니다")
 
     conv._pipeline.run = boom  # type: ignore[method-assign]
@@ -231,7 +259,7 @@ async def test_an_unexpected_exception_still_uses_the_generic_reply():
     """`LlmError` 가 아닌 것은 사용자에게 보여줄 값이 없습니다 — 내부 오류 문구가 새면 안 됩니다."""
     conv = make_conversation()
 
-    async def boom(history, domains, *, goal=None):
+    async def boom(history, domains, *, goal=None, **_):
         raise RuntimeError("내부 자료구조가 깨졌습니다 /srv/app/... 스택 정보")
 
     conv._pipeline.run = boom  # type: ignore[method-assign]
@@ -252,7 +280,7 @@ async def test_the_final_goal_reaches_the_pipeline():
     seen: list[str | None] = []
     original = conv._pipeline.run
 
-    async def spy(history, domains, *, goal=None):
+    async def spy(history, domains, *, goal=None, **_):
         seen.append(goal)
         return await original(history, domains, goal=goal)
 
