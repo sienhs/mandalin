@@ -136,6 +136,8 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `test_candidate_ranking.py` | 15 | 후보 검색 순위. 횟수가 순위를 가르는지, 가점이 필터가 아닌지, "안 말했다"와 "1이라고 말했다"를 가리는지 |
 | `test_recommend_lookup.py` | 7 | 지목한 `subject_id` 를 후보 밖(시트 전체)에서도 찾는지, 없는 번호는 지어내지 않는지 |
 | `test_violation_patterns.py` | 5 | eval 위반 지표의 정규식이 **실제로 나가는 로그 줄**과 맞는지(문구를 고치면 조용히 0 이 되는 결합) |
+| `test_screenshot_fixtures.py` | 11 | 실측 화면(2026-08-08)을 재현하는 시트 픽스처가 **화면에 찍힌 응답**과 어긋나지 않는지 |
+| `test_pipeline_wiring.py` | 8 | 가드를 `_run` 이 **실제로 부르는지**. 호출 한 줄을 지우면 깨진다(정적 메서드만 보던 테스트가 놓쳤던 자리) |
 | `test_hello.py` | 13 | 세션 능력 알림. `voice:false` 필수, LLM 상태와 `BACKENDS` 표의 일치 |
 | `test_history_reset.py` | 4 | 재입장하면 대화가 초기화되는지. 시트 상태는 남는지, 재입장 핸들러가 실제로 부르는지 |
 | `test_shutdown_reason.py` | 3 | job 종료 사유를 사람 말로 옮기는지. 라이브러리의 `parent process shutdown` 오독 방지 |
