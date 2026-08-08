@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from mandarin_goal.bot.goal import GoalPipeline
+from mandarin_goal.bot.goal import ACTION_EXHAUSTED, GoalPipeline
 from mandarin_goal.sheet import DomainRef
 
 
@@ -83,6 +83,27 @@ def test_recommend_is_left_alone():
     assert decided["matched_task"] == {"subject_id": 100}
 
 
+def test_a_retry_turn_does_not_become_recommend():
+    """"다른 거 달라" 에 "겹쳐요" 는 답이 될 수 없다.
+
+    재요청 턴은 모델이 소재가 떨어져 기존 제목을 그대로 다시 낼 확률이 가장 높은
+    자리다(실측 2026-08-08). 그때 `recommend` 로 전환하면 사용자가 방금 거부한 것을
+    다시 들이민다 — 겹친 것이 아니라 낼 것이 떨어진 것이라 `_run` 이 한 번 더 굴린다.
+    """
+    decided = generated("매일 알고리즘 1문제 풀기")
+    GoalPipeline._settle_duplicates(decided, domain("매일 알고리즘 1문제 풀기"), retry=True)
+    assert decided["action"] == ACTION_EXHAUSTED
+    assert decided["generated_tasks"] is None
+    # 지목할 과제를 채우지 않는다 — 지목이 목적이 아니다.
+    assert "matched_task" not in decided
+
+
+def test_a_retry_turn_still_keeps_the_new_ones():
+    """`retry` 가 중복 검사를 끄는 것은 아니다. 새 것이 있으면 그것만 남는다."""
+    decided = generated("매일 알고리즘 1문제 풀기", "기술 블로그 읽기")
+    GoalPipeline._settle_duplicates(decided, domain("매일 알고리즘 1문제 풀기"), retry=True)
+    assert decided["action"] == "generate"
+    assert [t["title"] for t in decided["generated_tasks"]] == ["기술 블로그 읽기"]
 # -- 겹친 것을 **전부** 알려준다 ----------------------------------------------
 #
 # 한 건만 보여주면 사용자는 AI 가 그것밖에 모른다고 읽습니다.

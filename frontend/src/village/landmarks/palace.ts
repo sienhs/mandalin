@@ -46,7 +46,9 @@ export const PALACE_LANDMARKS = {
       ]),
       // 3단계 — 좌우 윙(ㄷ자로 앞으로 뻗는다)
       ...at(3, [
-        ...mirrorX([{ k: 'box', w: 0.56, h: 0.4, d: 1.9, x: 1.06, z: 0.14, color: CREAM, rough: 0.85, windows: { from: 0.2, to: 0.85, color: 'glassWarm', glow: 0.2 } }]),
+        // y 를 빼면 기본 0 이라 윙이 부지 슬래브(0~0.05)에 잠기고, 4단계 2층(y 0.45)이
+        // 1층 윗면(0.40)에서 0.05 떠 버린다. 중앙 본관과 같은 0.05 에서 시작한다.
+        ...mirrorX([{ k: 'box', w: 0.56, h: 0.4, d: 1.9, x: 1.06, z: 0.14, y: 0.05, color: CREAM, rough: 0.85, windows: { from: 0.2, to: 0.85, color: 'glassWarm', glow: 0.2 } }]),
       ]),
       // 4단계 — 2층 + 코니스 띠
       ...at(4, [
@@ -59,9 +61,16 @@ export const PALACE_LANDMARKS = {
         { k: 'box', w: 0.72, h: 0.36, d: 0.8, z: -0.66, y: 0.9, color: CREAM, rough: 0.85, windows: { from: 0.15, to: 0.9, color: 'glassWarm', glow: 0.24 } },
         ...bigColumns(6, 0.6, -0.28, 0.9, 0.34, 0.045, CREAM2),
       ]),
-      // 6단계 — 만사르 지붕 + 윙 지붕
+      /*
+        6단계 — 만사르 지붕 + 윙 지붕.
+
+        `roof` 는 **중심 고정**이라(x/z 를 무시한다) z=-0.66 의 파빌리온 위에 얹을 수 없다 —
+        예전에는 광장 한가운데 공중에 떠 있었고, 8단계 금박 첨탑도 그걸 받침으로 삼아 같이
+        떠 있었다. 오프셋이 되는 box 2단으로 만사르 형태를 만든다(윗면 1.58 = 첨탑 밑).
+      */
       ...at(6, [
-        { k: 'roof', type: 'pyramid', w: 0.8, d: 0.86, y: 1.26, height: 0.3, color: SLATE },
+        { k: 'box', w: 0.8, h: 0.18, d: 0.86, z: -0.66, y: 1.26, color: SLATE, rough: 0.85 },
+        { k: 'box', w: 0.52, h: 0.14, d: 0.58, z: -0.66, y: 1.44, color: SLATE, rough: 0.85 },
         ...mirrorX([{ k: 'box', w: 0.56, h: 0.06, d: 1.9, x: 1.06, z: 0.14, y: 0.81, color: SLATE, rough: 0.85 }]),
         { k: 'box', w: 1.52, h: 0.06, d: 0.74, z: -0.7, y: 0.85, color: SLATE, rough: 0.85 },
       ]),
@@ -79,8 +88,14 @@ export const PALACE_LANDMARKS = {
         { k: 'box', w: 0.84, h: 0.05, d: 0.9, y: 1.24, z: -0.66, color: GOLD, rough: 0.4, metal: 0.6 },
         { k: 'box', w: 0.05, h: 0.26, d: 0.05, z: -0.66, y: 1.56, color: GOLD, emissive: true },
         ...mirrorX([{ k: 'box', w: 0.08, h: 0.26, d: 0.08, x: 0.3, z: 1.44, y: 0.05, color: GOLD, rough: 0.4, metal: 0.6 }]),
-        ...around(10, 1.3, 1.3, (x, z) => ({
-          k: 'panel', w: 0.09, h: 0.09, pos: [x, 0.12, z], color: 'glassWarm', glow: 0.75,
+        /*
+          야간 조명. **원주로 돌릴 수 없다** — 좌우 윙이 x 0.78~1.34 · z -0.81~1.09 를 통째로
+          차지해서 반경 1.3 링은 10장 중 6장이 윙 안에 파묻혔다. 비어 있는 곳은 앞 정원뿐이라
+          거기에 한 줄로 놓는다.
+        */
+        ...[-0.6, -0.36, -0.12, 0.12, 0.36, 0.6].map((x) => ({
+          k: 'panel' as const, w: 0.09, h: 0.09,
+          pos: [x, 0.12, 1.2] as [number, number, number], color: 'glassWarm', glow: 0.75,
         })),
       ]),
     ],
@@ -125,15 +140,22 @@ export const PALACE_LANDMARKS = {
         { k: 'box', w: 1.44, h: 0.05, d: 1.06, y: 1.69, color: DAN_G, rough: 0.85 },
         { k: 'roof', type: 'pyramid', w: 1.56, d: 1.16, y: 1.74, height: 0.34, color: HANOK_TILE },
       ]),
-      // 7단계 — 월대 난간·답도·품계석·향로
+      /*
+        7단계 — 월대 난간·답도·품계석·향로.
+
+        **월대는 위로 갈수록 좁아지는데 전각 몸체는 최상단보다 넓다.** 최상단(1.62×1.22)
+        위에는 난간이 설 자리가 없어서(몸체가 ±0.83) 예전에는 난간 12개·품계석 2개·향로 2개가
+        전부 월대 밖 공중에 떠 있었다. 각자 실제로 밟을 단에 내려놓는다 —
+        난간은 1단(2.3×1.9, 윗면 0.14), 향로는 2단(1.96×1.56, 윗면 0.24), 품계석은 바닥 슬래브.
+      */
       ...at(7, [
-        ...around(12, 1.14, 0.94, (x, z) => ({
-          k: 'box', w: 0.08, h: 0.16, d: 0.08, x, z, y: 0.34, color: HANOK_STONE, rough: 0.95,
+        ...around(12, 1.08, 0.88, (x, z) => ({
+          k: 'box', w: 0.08, h: 0.16, d: 0.08, x, z, y: 0.14, color: HANOK_STONE, rough: 0.95,
         })),
         { k: 'box', w: 0.44, h: 0.04, d: 0.68, z: 1.14, y: 0.04, color: HANOK_STONE, rough: 0.95 },
-        ...mirrorX([{ k: 'box', w: 0.12, h: 0.2, d: 0.12, x: 0.62, z: 1.0, y: 0.34, color: HANOK_STONE, rough: 0.95 }]),
+        ...mirrorX([{ k: 'box', w: 0.12, h: 0.2, d: 0.12, x: 0.62, z: 1.0, y: 0.04, color: HANOK_STONE, rough: 0.95 }]),
         // 향로 — cyl 은 x 오프셋이 없어 좌우로 못 놓는다. 팔각 기둥(polyPrism)으로 세운다.
-        ...mirrorX([{ k: 'polyPrism', sides: 8, r: 0.11, h: 0.2, x: 0.44, z: 0.76, y: 0.34, color: '#6E6A62', rough: 0.6, metal: 0.3 }]),
+        ...mirrorX([{ k: 'polyPrism', sides: 8, r: 0.11, h: 0.2, x: 0.44, z: 0.68, y: 0.24, color: '#6E6A62', rough: 0.6, metal: 0.3 }]),
       ]),
       // 8단계 — 용마루 장식·단청·현판 + 야간 등
       ...at(8, [
@@ -141,8 +163,8 @@ export const PALACE_LANDMARKS = {
         ...mirrorX([{ k: 'box', w: 0.1, h: 0.14, d: 0.1, x: 0.52, y: 2.08, color: GOLD, rough: 0.4, metal: 0.6 }]),
         { k: 'panel', w: 0.5, h: 0.16, pos: [0, 1.52, 0.44], color: HANOK_WOOD2 },
         { k: 'panel', w: 0.44, h: 0.1, pos: [0, 1.52, 0.45], color: GOLD, glow: 0.3 },
-        ...around(8, 1.06, 0.86, (x, z) => ({
-          k: 'panel', w: 0.1, h: 0.1, pos: [x, 0.62, z], color: 'accent', glow: 0.8,
+        ...around(8, 1.06, 0.86, (x, z, a) => ({
+          k: 'panel', w: 0.1, h: 0.1, pos: [x, 0.62, z], rotY: Math.PI / 2 - a, color: 'accent', glow: 0.8,
         })),
       ]),
     ],
@@ -176,8 +198,13 @@ export const PALACE_LANDMARKS = {
       // 5단계 — 돔 드럼 + 미나렛 하부
       ...at(5, [
         { k: 'cyl', rt: 0.42, rb: 0.46, h: 0.24, y: 0.89, color: MARBLE, seg: 16 },
+        /*
+          미나렛은 반경 1.16 인데 대리석 대는 2.0(±1.0) 이라 대 위가 아니다 — 예전에는 y 0.23
+          에서 시작해 사암 기단(윗면 0.05) 위 0.18 을 떠 있었다. 대를 넓히면 정원·수로가 그
+          아래로 들어가 사라지므로, 기단에서 바로 올려 세운다(윗면은 그대로 1.13).
+        */
         ...around(4, 1.16, 1.16, (x, z) => ({
-          k: 'box', w: 0.16, h: 0.9, d: 0.16, x, z, y: 0.23, color: MARBLE, rough: 0.7,
+          k: 'box', w: 0.16, h: 1.08, d: 0.16, x, z, y: 0.05, color: MARBLE, rough: 0.7,
         })),
       ]),
       // 6단계 — 양파돔 + 미나렛 상부·돔
@@ -208,10 +235,12 @@ export const PALACE_LANDMARKS = {
           { k: 'box' as const, w: 0.1, h: 0.1, d: 0.1, x, z, y: 1.53, color: GOLD, rough: 0.4, metal: 0.6 },
           { k: 'box' as const, w: 0.05, h: 0.12, d: 0.05, x, z, y: 1.63, color: GOLD, rough: 0.4, metal: 0.6 },
         ]),
-        { k: 'panel', w: 0.3, h: 0.3, pos: [0, 0.52, 0.68], color: INLAY, glow: 0.14 },
-        { k: 'panel', w: 0.3, h: 0.3, pos: [0, 0.52, -0.68], color: INLAY, glow: 0.14 },
-        ...around(8, 1.24, 1.24, (x, z) => ({
-          k: 'panel', w: 0.1, h: 0.1, pos: [x, 0.12, z], color: 'glassWarm', glow: 0.8,
+        // 팔각 본체(r 0.78)의 변까지가 0.72 다 — 0.68 은 그 안이라 문양이 묻혔다.
+        { k: 'panel', w: 0.3, h: 0.3, pos: [0, 0.52, 0.74], color: INLAY, glow: 0.14 },
+        { k: 'panel', w: 0.3, h: 0.3, pos: [0, 0.52, -0.74], color: INLAY, glow: 0.14 },
+        // 반경 1.24 는 대각선 4장이 대리석 대(±1.0) 위에 파묻힌다 — 대각선도 밖으로 나가는 1.44 로.
+        ...around(8, 1.44, 1.44, (x, z, a) => ({
+          k: 'panel', w: 0.1, h: 0.1, pos: [x, 0.12, z], rotY: Math.PI / 2 - a, color: 'glassWarm', glow: 0.8,
         })),
       ]),
     ],
