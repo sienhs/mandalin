@@ -81,14 +81,20 @@ class Conversation:
         #: 생성 중에 들어온 발화를 **버리기** 위한 락. 큐에 쌓으면 한참 뒤에 답변이
         #: 몰려 나와 대화 흐름이 깨집니다. **버리는 것이 기능입니다.**
         self._lock = asyncio.Lock()
+        #: 직전 응답이 되묻기였는가(`GoalPipeline.run` 의 `after_clarify`). 히스토리에는
+        #: 문장만 남으므로 여기서 듭니다.
+        self._asked = False
 
     def clear_history(self) -> None:
         """사용자가 방에 들어올 때마다 부릅니다(`entrypoint.py` 의 재입장 핸들러).
 
         **목표와 칸은 남깁니다.** 대화가 아니라 시트에서 온 상태라, 같이 비우면 재입장
         직후의 발화가 목표도 칸도 없이 판단됩니다 — 프론트의 시트 재전송은 그보다 뒤입니다.
+
+        **되묻기 표식(`_asked`)은 비웁니다.** 대화 쪽 상태입니다.
         """
         self._history.clear()
+        self._asked = False
 
     @property
     def busy(self) -> bool:
@@ -138,7 +144,12 @@ class Conversation:
             self._append(Turn(role="user", text=text))
             try:
                 result = await asyncio.wait_for(
-                    self._pipeline.run(list(self._history), self._domains, goal=self._goal),
+                    self._pipeline.run(
+                        list(self._history),
+                        self._domains,
+                        goal=self._goal,
+                        after_clarify=self._asked,
+                    ),
                     timeout=self._timeout,
                 )
             except TimeoutError:
@@ -167,7 +178,11 @@ class Conversation:
                 self._append(Turn(role="assistant", text=FAILURE_NOTE))
                 return FAILURE_REPLY, None
 
-            self._append(Turn(role="assistant", text=result.text))
+            # `text` 가 아니라 `history_entry` 입니다 — 시트 상태를 주장하는 응답은
+            # 파이프라인이 대체 문구를 채웁니다(`GoalResult.history_text`).
+            self._append(Turn(role="assistant", text=result.history_entry))
+            # 되묻기 갈래 셋(모델 `ask`, 서버 `no_domain`·`domain_full`)이 전부 `clarify`.
+            self._asked = (result.data or {}).get("action") == "clarify"
             return result.text, result
 
     def _append(self, turn: Turn) -> None:

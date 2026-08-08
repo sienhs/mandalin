@@ -65,15 +65,24 @@ class Settings(BaseSettings):
     # 그래서 8,000 에서 올렸습니다. 이 값은 **설계 예산이 아니라 사고 방지선**입니다 —
     # 주기 4종·횟수·칸 정원까지 담은 정본이 8천 자대라, 여유가 없으면 다음 편집자가
     # 같은 자리에서 같은 방식으로 넘깁니다.
-    bot_system_prompt_max_chars: int = 12000
+    #
+    # **12,000 에서 한 번 더 올렸습니다(2026-08-07).** 같은 발화에 슬롯만 다른 **대조 예시**를
+    # 넣으면서 정본이 11.5천 자가 됐습니다 — 그 예시가 필요한 이유는 실측입니다: 모델이
+    # `<domain_slots>` 를 무시하고 발화가 비슷한 예시의 출력을 통째로 베꼈습니다
+    # (`1/8 칸 사용` 인데 "8칸이 다 차서" 라고 답하고 없는 칸 목록을 나열).
+    # 여유 400자로는 다음 편집이 곧 상한에 닿습니다.
+    bot_system_prompt_max_chars: int = 16000
 
     # --- 목표 설계 파이프라인 -------------------------------------------------
-    # goal : 분류 -> 후보 검색 -> 판단. gemini 처럼 스키마 강제가 되는 백엔드 전용
+    # goal  : 분류 -> 후보 검색 -> 판단(`responseSchema`). 스키마 강제가 되는 백엔드 전용
+    # agent : 3단계만 **도구 루프**로. 나머지 둘은 그대로입니다
     #
-    # **`ai_livekit` 에는 goal 경로만 배선돼 있습니다.** 다른 값을 넣어도 파이프라인은
-    # 그대로 돌고 `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 경고만 남깁니다 —
-    # 이 값이 실제로 무언가를 가르는 자리는 없습니다(chat 페르소나는 프롬프트째로
-    # 지웠습니다). 남겨둔 것은 `.env` 와 README 가 가리키고 있어서입니다.
+    # 아는 값의 정본은 `bot/goal.py` 의 `PIPELINE_MODES` 이고, 모르는 값이면
+    # `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 경고를 남깁니다.
+    #
+    # **agent 는 한 발화에 모델 호출이 최대 `tools.MAX_STEPS` 번입니다**(goal 은 3단계가
+    # 1번). 지연과 토큰이 그만큼 늘고, 생성 중에는 마이크가 잠깁니다
+    # (`Conversation.busy` 를 `SpeechGate` 가 봅니다). 기본값을 goal 로 두는 이유입니다.
     bot_mode: str = "goal"
     bot_classify_prompt_file: str = "./prompts/classify.md"
     # 프롬프트에 넣을 중복 후보 개수. 후보는 클라이언트(Spring 이 서명한 토큰의

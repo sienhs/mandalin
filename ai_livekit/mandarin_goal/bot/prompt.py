@@ -50,6 +50,10 @@ PROMPTS_DIR = PROJECT_ROOT / "prompts"
 FRAGMENT_FILES: dict[str, str] = {
     "domain_capacity": "./prompts/fragments/domain_capacity.md",
     "no_domains": "./prompts/fragments/no_domains.md",
+    # 도구 설명(`BOT_MODE=agent`). 슬롯에 끼워 넣는 대신 `functionDeclarations` 의
+    # `description` 으로 나가지만, **모델에게 가는 텍스트라는 점은 같습니다** —
+    # 코드에 두면 문구를 다듬을 때 어디인지부터 찾게 됩니다.
+    "tools": "./prompts/fragments/tools.md",
 }
 
 #: **파일을 못 읽었을 때만** 쓰이는 비상 문구.
@@ -84,6 +88,15 @@ EMERGENCY: dict[str, str] = {
         "한 칸에는 과제를 8개까지만 담을 수 있다. 남은 자리보다 많이 만들지 않는다."
     ),
     "no_domains": "(아직 만든 칸이 없음 — 8칸 전부 비었으니 첫 칸 이름을 직접 짓는다)",
+    # 도구 설명이 통째로 사라져도 **도구는 그대로 선언됩니다** — 이름과 인자 모양은
+    # 코드가 들고 있으니 모델이 부를 수는 있습니다. 없으면 "언제 부르는가" 만 흐려지고,
+    # 그 판단의 근거는 `prompts/system.md` 에도 있습니다.
+    "tools": (
+        "## propose_tasks\n새 실천과제를 만들어 제안한다.\n"
+        "## point_to_existing\n이미 담은 과제와 같으면 그것을 지목한다(중복 알림).\n"
+        "## ask\n정보가 모자라면 되묻는다.\n"
+        "## decline\n만들어 줄 수 없는 발화를 끊는다.\n"
+    ),
 }
 
 
