@@ -86,9 +86,19 @@ def test_the_aerobic_filler_is_not_aerobic():
 # -- 191657 : 재요청에 "겹쳐요" 가 두 번 돌아간 화면 ----------------------------
 
 def test_the_cell_is_named_after_the_final_goal():
-    """화면: `(건강한 몸 만들기 칸)`. 칸 이름이 최종목표와 같은 시트다 —
-    규칙 3이 권하는 모양은 아니지만 사용자가 그렇게 만들어 둔 상태다."""
-    assert cell("screenshot_goal_cell", "건강한 몸 만들기") is not None
+    """화면: `(건강한 몸 만들기 칸)`. **칸 이름이 최종목표와 같은** 시트다 —
+    규칙 3이 권하는 모양은 아니지만 사용자가 그렇게 만들어 둔 상태이고, `s04` 가
+    재현하는 것이 바로 그 조합이다.
+
+    (예전에는 `assert cell(...) is not None` 이었는데 `cell()` 이 내부에서 이미
+    단언해서 **절대 실패할 수 없는 검사**였다.)
+    """
+    from evals.runner import load_cases
+
+    titles = [d.title for d in sheet("screenshot_goal_cell")]
+    assert titles == ["건강한 몸 만들기"], titles
+    goal = next(c["goal"] for c in load_cases() if c["id"] == "s04")
+    assert titles[0] == goal, "칸 이름과 최종목표가 갈리면 그 조합을 재지 못한다"
 
 
 def test_both_tasks_the_screen_pointed_at_are_present():

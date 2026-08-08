@@ -86,9 +86,34 @@ def test_the_first_turn_has_nothing_to_compare():
     ) is False
 
 
-def test_the_threshold_leaves_room_for_a_changed_option():
-    """문턱이 1.0 이면 토씨 하나로 빠져나가고, 낮으면 진전을 반복으로 잡는다."""
-    assert 0.8 < CLARIFY_REPEAT_THRESHOLD < 1.0
+#: 같은 질문을 살짝 고쳐 쓴 것. **잡혀야 한다** — 물음표 하나로 빠져나가면 가드가 없다.
+#: (자카드 바이그램 0.964)
+REPHRASED = QUESTION.rstrip("?")
+
+#: 선택지 하나를 바꾼 질문. **통과해야 한다** — 그건 진전이다. (0.583)
+PROGRESSED = QUESTION.replace("경청하는 연습하기", "긍정적인 표현 쓰기")
+
+
+def test_a_rephrased_question_is_still_the_same_question():
+    """문턱이 너무 높으면(예: 0.99) 물음표만 떼고 같은 질문을 다시 할 수 있다."""
+    assert GoalPipeline._repeats_clarify(clarify(REPHRASED), HISTORY) is True
+
+
+def test_a_changed_option_is_progress_not_a_repeat():
+    """문턱이 너무 낮으면 선택지를 바꾼 **진전**까지 반복으로 잡아 되묻기가 죽는다."""
+    assert GoalPipeline._repeats_clarify(clarify(PROGRESSED), HISTORY) is False
+
+
+def test_the_threshold_sits_between_those_two():
+    """위 두 테스트가 문턱을 실제로 가둔다 — 이 단언은 그 범위를 눈에 보이게 적어 둔다.
+
+    예전에는 `0.8 < 문턱 < 1.0` 이었는데, 그 범위는 0.999 도 통과시킨다(재표현이
+    0.964 라 그 값에서는 같은 질문이 그대로 두 번 나간다).
+    """
+    from mandarin_goal.bot.subjects import similarity
+
+    assert similarity(PROGRESSED, QUESTION) < CLARIFY_REPEAT_THRESHOLD
+    assert CLARIFY_REPEAT_THRESHOLD <= similarity(REPHRASED, QUESTION)
 
 
 # -- 꽉 찬 칸을 그 턴에 알리기 -------------------------------------------------
