@@ -622,22 +622,18 @@ export default function VillagePage() {
         </div>
 
         {/*
-          배경이 켜져 있으면 지형은 <b>고르는 것이 아니라 배경에 딸려 오는 것</b>이다.
-          그때도 네 칸짜리 토글을 남겨 두면, 눌러도 화면이 안 바뀌는 버튼이 된다 —
-          실제로 그려지는 지표면은 배경 쪽 설정이기 때문이다. 그래서 이름표로 바꾼다.
-          네 종으로 돌아가려면 배경을 '기본'으로 두면 된다.
+          배경이 켜져 있으면 지형 조작을 <b>통째로 내린다.</b>
+
+          <p>그때 지형은 고르는 것이 아니라 배경에 딸려 오는 것이라, 네 칸짜리 토글을 남기면
+          눌러도 화면이 안 바뀌는 버튼이 된다 — 실제로 그려지는 지표면은 배경 쪽 설정이다.
+          이름표로 바꿔 두기도 했었는데, 조작할 수 없는 값을 굳이 이름으로 알릴 이유가 없다.
+          어느 지형인지는 배경 고르는 화면에 칸마다 적혀 있다.
+
+          <p>네 종으로 돌아가려면 배경을 '기본'으로 둔다.
         */}
-        <div data-tour="village-terrain" className="flex items-center gap-2">
-          <span className="muted text-[12px] font-bold">지형</span>
-          {terrainSkin ? (
-            <span
-              title="배경에 딸린 지형입니다. 직접 고르려면 배경을 '기본'으로 두세요."
-              className="flex h-8 items-center rounded-full px-3 text-[12.5px] font-bold text-[var(--text-strong)]"
-              style={{ background: 'var(--surface-sunken)' }}
-            >
-              {terrainSkin.name}
-            </span>
-          ) : (
+        {!terrainSkin && (
+          <div data-tour="village-terrain" className="flex items-center gap-2">
+            <span className="muted text-[12px] font-bold">지형</span>
             <Segmented
               size="sm"
               value={village.terrain}
@@ -647,9 +643,9 @@ export default function VillagePage() {
                 label: TERRAIN_LABEL[t],
               }))}
             />
-          )}
-          {terrainPending && <span className="muted text-[11px] font-bold">저장 중…</span>}
-        </div>
+            {terrainPending && <span className="muted text-[11px] font-bold">저장 중…</span>}
+          </div>
+        )}
 
         {/*
           배경은 지형 옆에 둔다 — 둘 다 "마을을 어디에 놓을 것인가"라서 함께 만지는 짝이다.
