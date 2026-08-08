@@ -38,9 +38,38 @@ const ENV_MODE: Mode = (import.meta.env.VITE_DATA_MODE as Mode) ?? 'api'
 const MODE_KEY = 'mandarin.dataMode'
 const THEME_KEY = 'mandarin.theme'
 
+/**
+ * 데이터 출처는 <b>로그인할 때 한 번 정해지고, 그 뒤로는 바꿀 수 없다.</b>
+ *
+ * <p>목업이 되는 길은 로그인 화면의 "목업 데이터로 화면 보기"({@link Ctx.enterMockSession})
+ * 하나뿐이고, 실제 계정으로 들어오는 모든 길은 {@link clearMockSession} 으로 이 값을 지운다.
+ * 세션 도중에 뒤집는 수단은 두지 않는다 — 화면 절반은 서버 것, 절반은 브라우저 것을 보고
+ * 있는 상태가 만들어지고, 그 상태에서 저장을 누르면 무엇이 어디에 남았는지 알 수 없다.
+ *
+ * <p>localStorage 에 남기는 이유는 <b>새로고침을 견디기 위해서</b>다. 목업으로 보다가 F5 를
+ * 누르면 서버 데이터로 튕기는 것을 막는 것이 전부이고, 출처를 고르는 손잡이가 아니다.
+ */
 function initialMode(): Mode {
   const saved = window.localStorage.getItem(MODE_KEY)
   return saved === 'api' || saved === 'mock' ? saved : ENV_MODE
+}
+
+/**
+ * 실제 계정으로 로그인하는 길목에서 목업 표시를 지운다.
+ *
+ * <p>목업으로 화면을 보다가 카카오·테스트 계정으로 들어오면 저장분에 'mock' 이 남아 있어서,
+ * <b>로그인은 됐는데 화면은 계속 브라우저 안 데이터를 보여준다</b> — 서버 데이터를 확인하려고
+ * 들어온 것이므로 정확히 반대의 결과다.
+ *
+ * <p>스토어 밖(카카오 콜백 화면)에서도 불러야 해서 모듈 함수로 둔다. 두 로그인 경로 중
+ * 하나라도 빠뜨리면 위 증상이 그 경로에서만 되살아난다.
+ */
+export function clearMockSession(): void {
+  try {
+    window.localStorage.setItem(MODE_KEY, 'api')
+  } catch {
+    // 저장이 막힌 브라우저. 어차피 목업 표시도 남지 못했으므로 지울 것이 없다.
+  }
 }
 
 type SessionStatus = 'checking' | 'authed' | 'guest'
@@ -54,8 +83,11 @@ function messageOf(cause: unknown, fallback: string): string {
 }
 
 type Ctx = {
+  /**
+   * 지금 보고 있는 데이터의 출처. <b>읽기 전용이다</b> — 바꾸는 수단을 내보내지 않는다.
+   * 정하는 곳은 로그인뿐이다({@link initialMode} 주석).
+   */
   mode: Mode
-  setMode: (mode: Mode) => void
   gateway: Gateway
 
   session: SessionStatus
@@ -327,10 +359,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return {
       mode,
       gateway,
-      setMode: (next) => {
-        window.localStorage.setItem(MODE_KEY, next)
-        setModeState(next)
-      },
 
       session,
       user,
@@ -365,17 +393,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         테스트 계정 로그인.
 
         카카오와 달리 리다이렉트가 없어 콜백 화면(`OAuthCallbackPage`)을 지나지 않는다. 그래서
-        그 화면이 하던 두 가지를 여기서 한다 — 토큰 저장, 그리고 새로고침하며 /app 진입.
-        상태만 바꿔 들어가면 세션 복원이 다시 돌지 않아 사용자·시트가 비어 있는 첫 화면이 뜬다.
-
-        모드를 'api' 로 되돌리는 것이 중요하다. 목업으로 화면을 보다가 테스트 계정으로 들어오면
-        localStorage 에 'mock' 이 남아 있어서, 로그인은 됐는데 화면은 계속 목업 데이터를
-        보여준다(서버 데이터를 확인하려고 들어온 것이므로 정확히 반대의 결과다).
+        그 화면이 하던 세 가지를 여기서 한다 — 목업 표시 지우기, 토큰 저장, 그리고 새로고침하며
+        /app 진입. 상태만 바꿔 들어가면 세션 복원이 다시 돌지 않아 사용자·시트가 비어 있는
+        첫 화면이 뜬다.
       */
       loginAsTester: async (loginId, password) => {
         try {
           const data = await auth.testLogin(loginId, password)
-          window.localStorage.setItem(MODE_KEY, 'api')
+          clearMockSession()
           setAccessToken(data.accessToken)
           window.location.replace('/app')
           return true

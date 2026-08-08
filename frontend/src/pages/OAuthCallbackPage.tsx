@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { auth } from '../api/endpoints'
 import { setAccessToken } from '../api/client'
+import { clearMockSession } from '../data/store'
 import Button from '../components/common/ActionButton'
 
 /**
@@ -34,6 +35,12 @@ export default function OAuthCallback() {
     auth
       .exchange(code)
       .then((data) => {
+        /*
+          목업으로 화면을 보다가 카카오로 들어오면 저장분에 'mock' 이 남아 있어서, 로그인은
+          됐는데 화면은 계속 브라우저 안 데이터를 보여준다. 실제 계정으로 들어오는 길목이
+          여기와 테스트 계정 로그인 둘뿐이라, 양쪽에서 같이 지운다.
+        */
+        clearMockSession()
         setAccessToken(data.accessToken)
         // 세션 복원 로직이 토큰을 다시 읽도록 새로고침하며 들어간다.
         window.location.replace('/app')

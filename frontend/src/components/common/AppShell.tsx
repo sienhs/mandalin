@@ -67,8 +67,6 @@ export default function AppShell() {
     theme,
     toggleTheme,
     logout,
-    mode,
-    setMode,
     onboarded,
     notifications,
     reloadNotifications,
@@ -325,25 +323,15 @@ export default function AppShell() {
               overlayHeader && 'pointer-events-auto',
             )}
           >
-            {/* 페이지 제목이나 본문 폭과 무관하게 항상 오른쪽 도구 영역의 첫 자리에 둔다. */}
-            <button
-              type="button"
-              onClick={() => setMode(mode === 'mock' ? 'api' : 'mock')}
-              title={
-                mode === 'mock'
-                  ? '지금은 브라우저 안의 목업 데이터입니다. 눌러서 실제 서버로 전환'
-                  : '지금은 실제 백엔드에 연결돼 있습니다. 눌러서 목업으로 전환'
-              }
-              className={cn(
-                'hidden h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black text-white sm:flex',
-                mode === 'mock'
-                  ? 'bg-gradient-to-br from-amber-400 to-amber-600'
-                  : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
-              )}
-            >
-              {mode === 'mock' ? '목업 데이터' : '서버 연결됨'}
-            </button>
+            {/*
+              데이터 출처(목업/서버) 전환 버튼이 여기 있었다. <b>세션 도중에 뒤집을 수 있다는
+              것 자체가 문제</b>였다 — 눌러도 이미 화면에 그려진 것은 그대로라 절반은 서버 것,
+              절반은 브라우저 것을 보게 되고, 그 상태에서 저장을 누르면 무엇이 어디에 남았는지
+              알 수 없다. 게다가 상단 바 오른쪽에 늘 떠 있어 실제 사용자에게도 보였다.
 
+              출처는 이제 로그인할 때만 정해진다(`store.tsx` 의 `initialMode` 주석).
+              목업 세션인지는 마이페이지의 '목업 계정' 배지로 확인한다.
+            */}
             <NavLink
               to="/app/shop"
               data-tour="top-point"
