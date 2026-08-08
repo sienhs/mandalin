@@ -104,3 +104,58 @@ def test_a_retry_turn_still_keeps_the_new_ones():
     GoalPipeline._settle_duplicates(decided, domain("매일 알고리즘 1문제 풀기"), retry=True)
     assert decided["action"] == "generate"
     assert [t["title"] for t in decided["generated_tasks"]] == ["기술 블로그 읽기"]
+# -- 겹친 것을 **전부** 알려준다 ----------------------------------------------
+#
+# 한 건만 보여주면 사용자는 AI 가 그것밖에 모른다고 읽습니다.
+
+
+def test_every_overlap_is_reported_not_just_the_first():
+    """`matched_task` 는 한 건이어야 하지만(프론트의 지목 자리) **문장은 전부 말한다.**"""
+    decided = generated("조깅하기", "자전거 타기", "수영 배우기")
+    GoalPipeline._settle_duplicates(
+        decided, domain("조깅하기", "자전거 타기", "수영 배우기")
+    )
+    assert decided["action"] == "recommend"
+    # 프론트 계약은 그대로 — 지목은 한 건이다.
+    assert decided["matched_task"]["title"] == "조깅하기"
+    assert [t["title"] for t in decided["duplicate_matches"]] == [
+        "조깅하기", "자전거 타기", "수영 배우기"
+    ]
+
+    from mandarin_goal.bot.goal import render
+
+    text = render(decided)
+    for title in ("조깅하기", "자전거 타기", "수영 배우기"):
+        assert title in text, title
+
+
+def test_the_overlap_list_never_reaches_the_browser():
+    """담기지 않는 값이라 payload 에 실리면 안 됩니다."""
+    from mandarin_goal.bot.goal import public_data
+
+    decided = generated("조깅하기", "자전거 타기")
+    GoalPipeline._settle_duplicates(decided, domain("조깅하기", "자전거 타기"))
+    sent = public_data(decided)
+    assert "duplicate_matches" not in sent
+    assert "capacity_note" not in sent
+    # 지목에 필요한 것은 남는다.
+    assert sent["matched_task"]["title"] == "조깅하기"
+
+
+def test_a_full_cell_is_mentioned_in_the_same_breath():
+    """`recommend` 는 정원 검사를 지나가지 않아(`_STORABLE_ACTIONS`) 같은 상태인데도
+    턴마다 다른 이유가 나갑니다."""
+    from mandarin_goal.sheet import MAX_SUBJECTS_PER_DOMAIN
+
+    full = domain(*[f"과제{i}" for i in range(MAX_SUBJECTS_PER_DOMAIN)])
+    decided = generated("과제0")
+    GoalPipeline._settle_duplicates(decided, full)
+
+    assert "다 차서" in decided["capacity_note"]
+
+
+def test_a_cell_with_room_says_nothing_about_capacity():
+    """자리가 남았으면 붙이지 않습니다 — 안 붙는 것이 기본입니다."""
+    decided = generated("매일 알고리즘 1문제 풀기")
+    GoalPipeline._settle_duplicates(decided, domain("매일 알고리즘 1문제 풀기"))
+    assert "capacity_note" not in decided

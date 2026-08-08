@@ -18,8 +18,10 @@ n=6 에서 1/6 의 95% 구간은 [0.03, 0.56] 이고 5/6 은 [0.44, 0.97] 이라
 - **안전 recall** — `harmful` 을 놓친 비율. 프롬프트가 *"목표를 놓치는 것보다 해로운
   내용을 실천과제로 만드는 쪽이 훨씬 나쁘다"* 라고 적어 둔 대로 **따로 봅니다**
 - **위반율** — 프롬프트가 자기 규칙을 어겨 서버가 잡아낸 횟수. 라벨이 필요 없습니다
-- **자기일관성** — `--repeat` 을 올리면 같은 입력의 답이 갈리는 비율. `temperature` 를
-  지정하지 않아 기본값(1.0)으로 돌기 때문에 **1회만 재면 그 분산이 개선분을 삼킵니다**
+- **자기일관성** — `--repeat` 을 올리면 같은 입력의 답이 갈리는 비율. `temperature` 는
+  **실서버와 같은 값**입니다(`Settings` 기본값: classify 0.0 / decide 0.3) — `build_settings`
+  가 덮지 않으므로 여기서 나온 분산이 곧 실사용의 분산입니다. 0.0 도 결정론은 아니라
+  **1회만 재면 남은 분산이 개선분을 삼킬 수 있습니다**
 
 ## 라벨을 믿지 마세요
 
@@ -234,6 +236,102 @@ SHEETS: dict[str, dict] = {
             )
         ]
     },
+    # 칸 **안**이 찬 시트. 위 셋의 "8/8" 은 *칸 수*이고 칸 안은 전부 0/8 이라
+    # `_settle_capacity`·`domain_full_reply` 를 실행하지 못합니다.
+    #
+    # 칸 수는 3 이라 새 칸 자리는 남아 있습니다 — "그 칸이 찼다" 와 "칸을 못 만든다"
+    # (`full_tight`)를 섞지 않기 위해서입니다.
+    "full_cell": {
+        "domains": [
+            {
+                "domainId": 300,
+                "title": "코딩테스트",
+                "subjects": [
+                    {"subjectId": 300 + i, "title": t, "period": "daily",
+                     "countPerPeriod": 1}
+                    for i, t in enumerate(
+                        [
+                            "매일 알고리즘 1문제 풀기",
+                            "매일 자료구조 복습하기",
+                            "기출 문제 다시 풀기",
+                            "오답 노트 정리하기",
+                            "구현 연습하기",
+                            "시간 재고 풀기",
+                            "그리디 문제 풀기",
+                            "DP 문제 풀기",
+                        ]
+                    )
+                ],
+            },
+            # 두 자리 남은 칸. 한 턴이 3개를 내므로 **자르기**가 여기서 일어납니다.
+            {
+                "domainId": 310,
+                "title": "체력",
+                "subjects": [
+                    {"subjectId": 310 + i, "title": t, "period": "weekly",
+                     "countPerPeriod": 2}
+                    for i, t in enumerate(
+                        [
+                            "주 2회 달리기",
+                            "주 2회 근력 운동",
+                            "계단으로 다니기",
+                            "스트레칭하기",
+                            "주말에 등산하기",
+                            "자전거 타기",
+                        ]
+                    )
+                ],
+            },
+            {"domainId": 320, "title": "생활", "subjects": []},
+        ]
+    },
+    # 칸 수도 차고 칸 안도 거의 찬 시트. 새 칸을 못 만들고 담을 자리도 한 칸에만 둘입니다.
+    "nearly_full": {
+        "domains": [
+            {
+                "domainId": 400,
+                "title": "운동",
+                "subjects": [
+                    {"subjectId": 400 + i, "title": t, "period": "weekly",
+                     "countPerPeriod": 2}
+                    for i, t in enumerate(
+                        ["주 2회 달리기", "근력 운동하기", "계단 이용하기",
+                         "주말 등산하기", "자전거 타기", "스트레칭하기"]
+                    )
+                ],
+            },
+        ] + [
+            {
+                "domainId": 410 + d * 10,
+                "title": name,
+                "subjects": [
+                    {"subjectId": 410 + d * 10 + i, "title": f"{name} 과제{i}",
+                     "period": "daily", "countPerPeriod": 1}
+                    for i in range(8)
+                ],
+            }
+            for d, name in enumerate(
+                ["식단", "수면", "스트레스", "검진", "자세", "수분", "절주"]
+            )
+        ]
+    },
+    # 8칸 x 8과제. 담을 곳이 실제로 없는 유일한 경우입니다.
+    "saturated": {
+        "domains": [
+            {
+                "domainId": 500 + d * 10,
+                "title": name,
+                "subjects": [
+                    {"subjectId": 500 + d * 10 + i, "title": f"{name} 과제{i}",
+                     "period": "daily", "countPerPeriod": 1}
+                    for i in range(8)
+                ],
+            }
+            for d, name in enumerate(
+                ["운동", "식단", "수면", "스트레스", "검진", "자세", "수분", "절주"]
+            )
+        ]
+    },
 }
 
 INTENTS = ("goal", "chitchat", "injection", "harmful", "self_harm", "unclear")
@@ -266,6 +364,14 @@ VIOLATION_PATTERNS: dict[str, str] = {
     # 알 수 없습니다.
     "capacity_trimmed": r"goal/capacity",
     "domain_full": r"goal/domain_full",
+    # 이미 담은 과제를 다시 만든 횟수(프롬프트 규칙 4). 서버가 `recommend` 로 뒤집으므로
+    # action 정확도로는 드러나지 않습니다.
+    "duplicate_dropped": r"goal/duplicate",
+    # 한 턴 상한(`TASK_COUNT`)을 넘겨 잘린 횟수.
+    "turn_size_trimmed": r"goal/turn_size",
+    # 1단계가 되묻기 직후 발화를 무관하다고 판단한 횟수. **골든셋에서는 언제나 0 입니다** —
+    # 케이스가 단일 발화라 `after_clarify` 가 성립하지 않습니다. 실사용 로그용입니다.
+    "after_clarify": r"goal/after_clarify",
     "truncated_retry": r"응답이 잘렸습니다",
     "rate_limited": r"429",
 }
@@ -480,6 +586,10 @@ def build_settings(
 
     단계 타임아웃도 여기서 덮습니다(`BATCH_STEP_TIMEOUT_SECONDS`). 대화와 배치는
     기다릴 수 있는 시간이 다른데, 덮지 않으면 `.env` 의 대화용 값이 그대로 옵니다.
+
+    **`temperature` 는 일부러 덮지 않습니다.** `Settings` 기본값(classify 0.0 /
+    decide 0.3)이 실서버가 쓰는 값이고, 다른 값으로 재면 위 독스트링의 *"여기서 나온
+    수치가 곧 그 프롬프트의 수치입니다"* 가 거짓이 됩니다.
 
     ## 폴더가 없으면 **여기서 멈춥니다**
 
@@ -1037,9 +1147,10 @@ def select(report: dict, pick: Sequence[str] = DEFAULT_PICK) -> list[str]:
 def _before(report: dict) -> dict[str, dict]:
     """지난 판정을 케이스 id 로 색인. 재실행 리포트에 `이전 → 이번` 을 싣습니다.
 
-    **재실행의 핵심이 이 대조입니다.** `temperature` 가 기본값(1.0)이라 실패 중에는
-    프롬프트 문제가 아니라 그날 샘플링이 튄 것도 섞여 있습니다. 다시 돌려서 통과하면
-    후자였고, 또 틀리면 전자입니다 — 이전 값이 없으면 그 둘을 가를 수 없습니다.
+    **재실행의 핵심이 이 대조입니다.** `temperature` 가 0 이 아닌 단계가 있어
+    (decide 0.3) 실패 중에는 프롬프트 문제가 아니라 그날 샘플링이 튄 것도 섞여 있습니다.
+    다시 돌려서 통과하면 후자였고, 또 틀리면 전자입니다 — 이전 값이 없으면 그 둘을 가를 수
+    없습니다.
     """
     return {
         r["id"]: {
@@ -1669,8 +1780,8 @@ def _print(report: dict) -> None:
         print(f"\n  실패 {len(s['errors'])}건: {s['errors'][0]['error'][:90]}")
 
     if m.get("subset"):
-        # 재실행이면 **이전 대비**가 본론입니다. `temperature` 가 1.0 이라 실패 중에는
-        # 프롬프트 문제와 그날 튄 샘플링이 섞여 있는데, 다시 돌려 통과하면 후자이고
+        # 재실행이면 **이전 대비**가 본론입니다. decide 가 `temperature` 0.3 이라 실패
+        # 중에는 프롬프트 문제와 그날 튄 샘플링이 섞여 있는데, 다시 돌려 통과하면 후자이고
         # 또 틀리면 전자입니다. 이 표가 그 둘을 가릅니다.
         def was(r: dict) -> str:
             return (r.get("before") or {}).get("verdict", "—")

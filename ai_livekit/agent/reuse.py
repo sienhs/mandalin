@@ -13,8 +13,10 @@ from __future__ import annotations
 
 from mandarin_goal.bot.goal import (
     BLOCKED_REPLIES,
+    DOMAIN_FULL_NOTE,
     DOMAIN_UNKNOWN_REPLY,
     OFF_TOPIC_REPLY,
+    PIPELINE_MODES,
     GoalPipeline,
     GoalResult,
     escape_slot_value,
@@ -22,14 +24,19 @@ from mandarin_goal.bot.goal import (
 from mandarin_goal.bot.llm import (
     BACKENDS,
     DEMO_PROVIDERS,
+    GEMINI_BASE_URL,
     EchoBackend,
     LlmError,
     LlmRateLimitedError,
     LlmTruncatedError,
     MisconfiguredBackend,
+    ToolCall,
+    ToolReply,
+    ToolResult,
     Turn,
     build_backend,
     normalize_provider,
+    supports_tools,
 )
 from mandarin_goal.bot.prompt import PROJECT_ROOT, SystemPrompt
 from mandarin_goal.bot.subjects import FREQUENCY_LABELS, frequency_label
@@ -62,11 +69,14 @@ __all__ = [
     "BACKENDS",
     "BLOCKED_REPLIES",
     "DEMO_PROVIDERS",
+    "DOMAIN_FULL_NOTE",
     "DOMAIN_UNKNOWN_REPLY",
     "FREQUENCY_LABELS",
+    "GEMINI_BASE_URL",
     "MAX_DOMAINS",
     "MAX_SHEET_TITLE_LENGTH",
     "OFF_TOPIC_REPLY",
+    "PIPELINE_MODES",
     "REUSED_MODULES",
     "TRANSPORT_ONLY",
     "PROJECT_ROOT",
@@ -81,6 +91,9 @@ __all__ = [
     "Settings",
     "SubjectRef",
     "SystemPrompt",
+    "ToolCall",
+    "ToolReply",
+    "ToolResult",
     "Turn",
     "build_backend",
     "drop_untitled_domains",
@@ -88,4 +101,5 @@ __all__ = [
     "frequency_label",
     "get_settings",
     "normalize_provider",
+    "supports_tools",
 ]

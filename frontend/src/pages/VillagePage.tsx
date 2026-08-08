@@ -15,6 +15,7 @@ import { buildOwnedCatalog } from '../village/ownedCatalog'
 import type { OwnedBuilding, Terrain, VillageData } from '../village/villageApi'
 import { TERRAINS } from '../village/villageApi'
 import { ALL_CONFIGS } from '../village/localCatalog'
+import { useAutoTour } from '../features/tour/TourProvider'
 import Button from '../components/common/ActionButton'
 import { Badge, EmptyState, ErrorState, Segmented, Skeleton } from '../components/common/Primitives'
 import { useToast } from '../components/common/Toast'
@@ -107,6 +108,16 @@ export default function VillagePage() {
     () => (sheet && sheet !== 'none' ? toMandalartFromModel(sheet) : null),
     [sheet],
   )
+
+  /*
+    마을이 <b>그려진 뒤에</b> 안내를 띄운다.
+
+    그 전까지 이 화면은 스켈레톤 두 장(`Skeleton`)이라 가리킬 것이 하나도 없다 — 캔버스도,
+    배치 패널도, 아래 조작 바도 아직 없으므로 모든 단계가 가운데 카드로 물러나거나
+    `requireTarget` 에 걸려 빠진다. 만다라트가 없는 사람(`sheet === 'none'`)은 빈 화면만
+    보게 되므로 여기서도 걸러진다.
+  */
+  useAutoTour('village', { ready: Boolean(mandalart && village) })
 
   /**
    * 어느 시트의 마을을 볼지.
@@ -446,6 +457,7 @@ export default function VillagePage() {
           인라인 `height` 를 쓰지 않는다 — flex-basis 와 height 중 무엇이 이기는지가 미묘해서,
           `lg:flex-1` 이 확실히 먹도록 `lg:h-auto` 로 명시적으로 넘긴다.
         */
+        data-tour="village-canvas"
         className="card relative h-[clamp(360px,calc(100dvh-228px),1000px)] min-h-[360px] overflow-hidden p-0 lg:h-auto lg:min-h-0 lg:flex-1"
       >
         <Scene
@@ -516,6 +528,7 @@ export default function VillagePage() {
         {sheet && (
           <Link
             to={`/app/sheets/${sheet.id}`}
+            data-tour="village-sheet"
             className="card absolute top-4 right-4 z-10 flex items-center px-4 py-2.5 text-[13px] font-extrabold no-underline shadow-lg transition-transform hover:-translate-y-0.5"
           >
             만다라트 보기
@@ -525,46 +538,53 @@ export default function VillagePage() {
 
       {/* ───────── 시점 · 지형 ───────── */}
       <section className="card flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
-        <div className="flex items-center gap-2">
-          <span className="muted text-[12px] font-bold">시점</span>
-          <button
-            type="button"
-            onClick={camera.rotateCCW}
-            aria-label="왼쪽으로 90도 돌리기"
-            className="grid size-9 place-items-center rounded-full border text-[15px]"
-            style={{ borderColor: 'var(--border-hairline)' }}
-          >
-            ↺
-          </button>
-          <span className="muted min-w-[34px] text-center text-[11.5px] font-black">
-            {FACING_LABEL[camera.facing % 4]}
-          </span>
-          <button
-            type="button"
-            onClick={camera.rotateCW}
-            aria-label="오른쪽으로 90도 돌리기"
-            className="grid size-9 place-items-center rounded-full border text-[15px]"
-            style={{ borderColor: 'var(--border-hairline)' }}
-          >
-            ↻
-          </button>
+        {/*
+          시점과 확대를 <b>한 껍데기로 묶는다.</b> 둘 다 "지금 어디서 보고 있는가" 하나를
+          다루는 짝이라 안내도 한 단계로 짚는데, 표적(`data-tour`)은 요소 하나만 가리킬 수
+          있기 때문이다. 껍데기가 부모와 같은 flex 규칙을 그대로 쓰므로 배치는 달라지지 않는다.
+        */}
+        <div data-tour="village-camera" className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-2">
+            <span className="muted text-[12px] font-bold">시점</span>
+            <button
+              type="button"
+              onClick={camera.rotateCCW}
+              aria-label="왼쪽으로 90도 돌리기"
+              className="grid size-9 place-items-center rounded-full border text-[15px]"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
+              ↺
+            </button>
+            <span className="muted min-w-[34px] text-center text-[11.5px] font-black">
+              {FACING_LABEL[camera.facing % 4]}
+            </span>
+            <button
+              type="button"
+              onClick={camera.rotateCW}
+              aria-label="오른쪽으로 90도 돌리기"
+              className="grid size-9 place-items-center rounded-full border text-[15px]"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
+              ↻
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="muted text-[12px] font-bold">확대</span>
+            <Segmented
+              size="sm"
+              value={String(camera.zoom)}
+              onChange={(v) => camera.changeZoom(Number(v) as 0 | 1 | 2)}
+              options={[
+                { value: '0', label: '멀리' },
+                { value: '1', label: '보통' },
+                { value: '2', label: '가까이' },
+              ]}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="muted text-[12px] font-bold">확대</span>
-          <Segmented
-            size="sm"
-            value={String(camera.zoom)}
-            onChange={(v) => camera.changeZoom(Number(v) as 0 | 1 | 2)}
-            options={[
-              { value: '0', label: '멀리' },
-              { value: '1', label: '보통' },
-              { value: '2', label: '가까이' },
-            ]}
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
+        <div data-tour="village-preview" className="flex items-center gap-2">
           <span className="muted text-[12px] font-bold">보기</span>
           <Segmented
             size="sm"
@@ -577,7 +597,7 @@ export default function VillagePage() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div data-tour="village-terrain" className="flex items-center gap-2">
           <span className="muted text-[12px] font-bold">지형</span>
           <Segmented
             size="sm"

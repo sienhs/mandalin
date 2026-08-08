@@ -215,16 +215,28 @@ async def test_the_empty_sheet_fragment_reaches_the_prompt():
     assert fragment[:30] in backend.systems[0], "빈 시트 안내 조각이 프롬프트에 없습니다"
 
 
-# -- _mark_domain_full 을 부르는가 -----------------------------------------------
+# -- 꽉 찬 칸을 그 턴에 알리는가 (`capacity_note`) -------------------------------
 
-async def test_a_recommend_on_a_full_cell_says_so_in_the_same_turn():
-    """꽉 찬 사실이 다음 턴이 아니라 이 턴에 나가야 한다 — 거절 이유가 바뀌지 않게."""
+async def test_a_duplicate_on_a_full_cell_says_so_in_the_same_turn():
+    """꽉 찬 사실이 다음 턴이 아니라 **이 턴에** 나가야 한다 — 거절 이유가
+    "겹친다" → "꽉 찼다" 로 바뀌면 사용자는 이유가 바뀌었다고 읽는다.
+
+    `recommend` 는 정원 검사를 지나가지 않으므로(`_STORABLE_ACTIONS`) 그 사실을
+    붙이는 것은 `_settle_duplicates` 의 `capacity_note` 다. 여기서는 그 값이
+    파이프라인을 지나 **사용자 문장까지 닿는지**만 본다.
+    """
     backend = ScriptedBackend(
-        {"action": "recommend", "domain": "운동", "matched_task": {"subject_id": 100}}
+        {
+            "action": "generate",
+            "domain": "운동",
+            "generated_tasks": generated("운동 과제0", "운동 과제1", "운동 과제2"),
+        }
     )
     result = await pipeline(backend).run(turns("운동 과제0 하고 싶어"), FULL_CELL)
-    assert result.data["action"] == "recommend"
-    assert "자리가 다 차서" in result.text
+    assert result.data["action"] == "recommend", "전부 중복이면 지목으로 바뀐다"
+    assert "다 차서" in result.text
+    # 담기지 않는 값이라 브라우저로 나가면 안 된다.
+    assert "capacity_note" not in result.data
 
 
 # -- _resolve_match 에 domains 를 넘기는가 --------------------------------------

@@ -11,6 +11,12 @@
  * 그쪽으로 옮길 때(README "남은 일") 배선만 들고 가면 되도록, **여기서 만드는 마크업도
  * 저쪽 클래스 구성을 따릅니다.** 다른 점은 `web/index.html` 머리 주석에 있습니다.
  *
+ * **저쪽이 화면을 바꾸면 여기는 따라가지 않습니다.** 색만 어긋나는 것이 아니라 구성이
+ * 갈립니다 — 실제로 프론트가 캐릭터 그림과 빠른 문장 칩을 지우고 오른쪽 패널을 "담은 과제
+ * → 만다라트 초안" 으로 바꾼 뒤에도, 이 파일은 한동안 없어진 자리를 가리키는 주석을 달고
+ * 있었습니다. 토픽 문자열과 달리 **테스트로 묶여 있지 않으므로**(어긋나도 기능은 멀쩡합니다)
+ * 저쪽을 손대면 이 세 파일도 같이 열어 보세요.
+ *
  * ## 빌드 도구가 없습니다
  *
  * `livekit-client` 를 CDN 에서 ESM 으로 가져옵니다. 정적 파일을 그냥 서빙하는
@@ -92,12 +98,15 @@ function frequencyLabel(frequency, count) {
 }
 
 //: 마크업에 끼워 넣는 아이콘. `index.html` 의 것과 같은 규격입니다(24 그리드, 굵기 1.8).
-//: `frontend/src/components/common/Icons.tsx` 의 `IconCoach` · `IconCheck` 입니다.
+//: `frontend/src/components/common/Icons.tsx` 의 `IconCoach` · `IconCheck` ·
+//: `IconChevronDown` 이고, path 까지 같은 값입니다.
 const ICON_COACH =
   '<svg viewBox="0 0 24 24" class="i17"><rect x="4" y="8" width="16" height="12" rx="4" />' +
   '<path d="M12 8V4.5" /><circle cx="12" cy="3.4" r="1.3" />' +
   '<path d="M9.3 13.2v1.6M14.7 13.2v1.6" /></svg>'
 const ICON_CHECK = '<svg viewBox="0 0 24 24" class="i16"><path d="m4.5 12.5 5 5L20 7" /></svg>'
+const ICON_CHEVRON =
+  '<svg viewBox="0 0 24 24" class="dom-chev"><path d="m5.5 9 6.5 6.5L18.5 9" /></svg>'
 
 const $ = (id) => document.getElementById(id)
 const badge = $('badge')
@@ -114,50 +123,86 @@ let sheet = { title: '', domains: [] }
 let aiLabel = 'AI'
 let voiceAvailable = false
 
-//: 방금 담은 과제(`"칸 제목 과제 제목"`). 그 줄만 한 번 튀어 오르게 하고 비웁니다.
+//: 방금 담은 과제. 그 줄만 한 번 튀어 오르게 하고(`.fresh`) 비웁니다.
+//:
+//: 형식은 `칸 제목 + NUL + 과제 제목` 입니다. **구분자가 NUL 인 이유**는 제목에 들어갈 수
+//: 없는 유일한 문자라서입니다 — 공백으로 이으면 `"A B" + "C"` 와 `"A" + "B C"` 가 같은 키가
+//: 됩니다. **만드는 쪽과 비교하는 쪽이 같은 구분자를 써야 합니다**(`keep()` ·
+//: `renderSheet()`). 한동안 한쪽은 NUL, 한쪽은 공백이어서 이 애니메이션이 죽어 있었습니다.
+//:
+//: 소스에는 **이스케이프로 적습니다.** 진짜 NUL 바이트를 박아 두면 git 이 이 파일을
+//: binary(`-text`)로 분류해서 diff 가 통째로 바뀐 것처럼 나오고 ripgrep 도 건너뜁니다.
 let freshKey = ''
 
 // ── 렌더링 ────────────────────────────────────────────────────────────
-/** 연결 상태 배지. 프론트에는 없는 자리입니다(저쪽은 방에 붙지 않습니다). */
+/**
+ * 연결 상태 배지. 페이지 머리의 배지는 프론트에 없는 자리입니다(저쪽은 앱 셸이 열리면 바로
+ * 방에 붙습니다). 다만 **대화 카드의 상태 문구는 저쪽에도 있고**, 아직 준비되지 않았을 때
+ * 거기에 뜨는 것이 바로 이 연결 상태입니다(`thinking ? … : ready ? … : status`).
+ * 그래서 마지막 문구를 들고 있다가 `paintAgentState()` 에 넘깁니다.
+ */
+let statusText = '연결 전'
+
 function setStatus(text, kind) {
+  statusText = text
   badge.textContent = text
   badge.className = `badge ${kind}`
+  paintAgentState()
 }
 
-/**
- * 캐릭터와 대화 카드의 상태 점.
+/*
+ * 대화 카드의 상태는 **두 깃발로만 갈립니다** — 프론트의 `thinking` · `ready` 와 같습니다.
  *
- * 배지는 **연결** 상태를 말하고 이쪽은 **AI 가 지금 무엇을 하는지**를 말합니다 — 둘을
- * 한 곳에 합치면 "연결됨" 만 떠 있는 동안 응답을 기다리는 중인지 알 수 없습니다.
+ * 예전에는 `idle · thinking · answering` 세 상태에 캐릭터 그림을 물려 두었는데, 그림이
+ * 없어진 뒤로 `idle` 과 `answering` 은 화면에서 완전히 같은 모양입니다 — 구분을 남겨 두면
+ * 없는 차이를 있는 것처럼 읽게 됩니다.
  *
- *   idle      char_3  방에 들어와 시트를 읽는 중 (아무것도 안 하는 상태)
- *   thinking  char_2  내 말을 보냈고 답을 기다리는 중
- *   answering char_1  답이 도착함
+ *   thinking  내 말을 보냈고 답을 기다리는 중   (브랜드색 점 + 숨쉬는 머리 + 점 세 개)
+ *   ready     에이전트가 방에 있고 대화 가능    (에메랄드 점)
+ *   그 밖      아직/이미 못 붙은 상태            (회색 점 + 연결 상태 문구)
  */
-const AVATAR = {
-  idle: { src: './images/char_3.png', state: '시트를 보고 있어요', dot: 'ready' },
-  thinking: { src: './images/char_2.png', state: '생각하고 있어요', dot: 'busy' },
-  answering: { src: './images/char_1.png', state: '답을 드렸어요', dot: 'ready' },
+let ready = false
+let thinking = false
+
+//: 연결이 없고 **사람이 다시 시도해야 하는** 상태인가. 끊긴 경우와 붙는 데 실패한 경우
+//: (토큰 발급 실패 · 방 접속 실패) 둘 다입니다.
+//:
+//: 참이면 카드 안 배지 자리에 "다시 연결" 이 섭니다. 아직 한 번도 시도하지 않았을 때는
+//: 거짓이라 배지가 그대로 있습니다 — 그때는 머리의 연결하기 버튼이 할 일이고, 버튼이 둘
+//: 다 서 있으면 어느 것을 눌러야 하는지가 흐려집니다(프론트에는 머리 버튼이 없어서 이
+//: 자리가 유일한 길입니다).
+let connectionLost = false
+
+//: 배지에 쓸 에이전트 이름. `mandarin.hello` 가 실제 이름을 알려주면 덮입니다.
+let agentName = 'AI 코치'
+
+function setReady(on) {
+  ready = on
+  paintAgentState()
 }
 
-// 미리 받아 둡니다. 안 하면 상태가 처음 바뀔 때 그림이 잠깐 빕니다.
-for (const { src } of Object.values(AVATAR)) new Image().src = src
-
-function setAvatar(state) {
-  const next = AVATAR[state]
-  if (!next) return
-  const box = $('avatar')
-  if (box.dataset.state === state) return
-  box.dataset.state = state
-  $('avatar-img').src = next.src
-  $('state-text').textContent = next.state
-  $('state-dot').className = `dot ${next.dot}`
-  // 생각 중에만 점 세 개를 띄웁니다 — 프론트의 `thinking` 표시와 같은 자리입니다.
-  setThinking(state === 'thinking')
-}
-
-/** 응답 대기 표시. 답(또는 실패)이 오면 지웁니다. */
 function setThinking(on) {
+  thinking = on
+  paintAgentState()
+}
+
+function paintAgentState() {
+  $('state-dot').className = `dot ${thinking ? 'busy' : ready ? 'ready' : ''}`
+  $('state-text').textContent = thinking ? '생각하는 중' : ready ? '준비됨' : statusText
+  // 점 하나만 깜빡이면 카드 위쪽에서는 눈에 안 들어옵니다 — 머리의 표시도 같이 숨을 쉽니다.
+  $('coach-mark').classList.toggle('busy', thinking)
+  paintThinkingDots(thinking)
+
+  // 배지와 "다시 연결" 은 같은 자리를 번갈아 씁니다(프론트의 `connection === 'off'` 분기).
+  const chip = $('mode-badge')
+  chip.textContent = ready ? agentName : room ? '연결 중' : '연결 전'
+  chip.className = `badge ${ready ? 'busy' : 'off'}`
+  chip.hidden = connectionLost
+  $('rejoin').hidden = !connectionLost
+}
+
+/** 응답 대기 표시(점 세 개). 답(또는 실패)이 오면 지웁니다. */
+function paintThinkingDots(on) {
   const existing = $('thinking')
   if (!on) {
     existing?.remove()
@@ -169,16 +214,59 @@ function setThinking(on) {
   dots.id = 'thinking'
   dots.setAttribute('aria-label', '응답 생성 중')
   dots.innerHTML = '<span></span><span></span><span></span>'
+  // 늘 맨 아래입니다 — `place()` 가 이 노드를 기준으로 다른 줄을 그 앞에 넣습니다.
   $('log').appendChild(dots)
   scrollLog()
 }
 
-function scrollLog() {
-  $('log').scrollTop = $('log').scrollHeight
+/*
+ * 새 줄이 왔을 때 따라 내려갈지. **바닥을 벗어나 읽고 있으면 끌어내리지 않습니다** —
+ * 대신 "새 메시지" 버튼을 띄워 사용자가 정하게 합니다(프론트와 같은 장치). 예전에는
+ * 무조건 내려서, 위쪽 payload 를 펼쳐 읽는 중에 답이 오면 자리를 잃었습니다.
+ */
+let atBottom = true
+
+/** 80px 여유. 0 으로 보면 반올림·애니메이션 도중에 "바닥 아님" 으로 튑니다. */
+function nearBottom(el) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 80
 }
+
+function scrollLog() {
+  if (!atBottom) {
+    $('jump').hidden = false
+    return
+  }
+  // 내려가면 알림은 필요 없습니다. scroll 이벤트가 어차피 끄지만 여기서 먼저 끕니다 —
+  // 이벤트는 다음 프레임에 오므로 그 사이 한 프레임 동안 버튼이 남습니다.
+  $('jump').hidden = true
+  const el = $('log')
+  el.scrollTop = el.scrollHeight
+}
+
+$('log').addEventListener('scroll', () => {
+  atBottom = nearBottom($('log'))
+  if (atBottom) $('jump').hidden = true
+})
+
+$('jump').addEventListener('click', () => {
+  const el = $('log')
+  el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  atBottom = true
+  $('jump').hidden = true
+})
+
+//: 펼쳐 둔 세부 목표의 제목. **한 번에 하나만 폅니다** — 8칸 x 8개면 72줄이라 다 펴 두면
+//: 스크롤밖에 남지 않습니다(프론트의 `openDomain` 과 같은 규칙). `null` 이면 전부 접힘.
+let openDomain = null
 
 function renderSheet() {
   const host = $('sheet')
+  // **읽던 자리를 지킵니다.** 이 함수는 목록을 통째로 다시 만들기 때문에(펼치기 한 번,
+  // 담기 한 번마다) 그대로 두면 스크롤이 맨 위로 튑니다 — 아래쪽 칸을 펼치려고 누른 순간
+  // 그 칸이 화면 밖으로 사라집니다. 프론트는 React 가 노드를 유지해서 겪지 않는 문제입니다.
+  // 펼친 만큼 내용이 길어지므로 값이 정확히 같은 자리는 아니지만, 0 으로 돌아가는 것보다
+  // 훨씬 낫습니다.
+  const keptScroll = host.scrollTop
   host.innerHTML = ''
 
   const domains = sheet.domains ?? []
@@ -188,14 +276,20 @@ function renderSheet() {
   $('domain-count').textContent = `세부 목표 ${domains.length}/${DOMAIN_SLOTS}`
   $('progress-fill').style.width = `${Math.min(100, (domains.length / DOMAIN_SLOTS) * 100)}%`
 
+  // 핵심 목표. 서버가 이 값을 `<final_goal>` 로 씁니다 — 비어 있으면 그렇다고 적습니다.
+  // 조용히 빈칸으로 두면 "아직 안 받았다" 와 "받았는데 빈 값" 이 구별되지 않습니다.
+  const goal = (sheet.title ?? '').trim()
+  $('goal-title').textContent = goal || '(시트에 title 이 없습니다)'
+  $('goal-title').title = goal
+
   if (!domains.length) {
     host.innerHTML =
       '<div class="empty"><span class="mark" aria-hidden="true">' +
       '<svg viewBox="0 0 24 24" class="i24"><rect x="4" y="8" width="16" height="12" rx="4" />' +
       '<path d="M12 8V4.5" /><circle cx="12" cy="3.4" r="1.3" />' +
       '<path d="M9.3 13.2v1.6M14.7 13.2v1.6" /></svg></span>' +
-      '<strong>시트가 비어 있어요</strong>' +
-      '<p>AI 가 모든 칸을 새로 제안합니다. 담기를 누르면 여기에 쌓이고 중복 검사에 들어갑니다.</p></div>'
+      '<strong>아직 담은 과제가 없어요</strong>' +
+      '<p>왼쪽에서 코치에게 목표를 말하고, 마음에 드는 과제를 <b>담기</b>로 모아 보세요.</p></div>'
     return
   }
 
@@ -203,21 +297,30 @@ function renderSheet() {
     const color = domainColor(index)
     const subjects = domain.subjects ?? []
     const used = subjects.length || domain.subjectCount || 0
+    const open = openDomain === domain.title
 
     const box = document.createElement('div')
+    // 줄 전체가 펼치기 버튼입니다. 꺾쇠만 누르게 두면 과녁이 14px 이라 계속 헛누릅니다.
     box.innerHTML =
-      '<div class="dom-head">' +
-      `<span class="dom-dot" style="background:${color}" aria-hidden="true"></span>` +
+      `<button class="dom-head" type="button" aria-expanded="${open}">` +
+      ICON_CHEVRON +
       `<strong>${escapeHtml(domain.title)}</strong>` +
-      `<span class="muted nums">${used}/${DOMAIN_CAPACITY}</span></div>` +
+      `<span class="muted nums">${used}/${DOMAIN_CAPACITY}</span></button>` +
+      // 접혀도 눈금과 개수는 남습니다 — 펴 보지 않고도 어느 칸이 비었는지 보입니다.
       `<div class="ticks" aria-hidden="true" title="${used}/${DOMAIN_CAPACITY} 칸">` +
       Array.from({ length: DOMAIN_CAPACITY }, (_, slot) =>
         `<span${slot < used ? ` style="background:${color}"` : ''}></span>`
       ).join('') +
       '</div>'
 
+    box.querySelector('.dom-head').addEventListener('click', () => {
+      openDomain = open ? null : domain.title
+      renderSheet()
+    })
+
     const list = document.createElement('ul')
     list.className = 'items'
+    list.hidden = !open
     for (const subject of subjects) {
       const li = document.createElement('li')
       li.className = 'item'
@@ -236,41 +339,62 @@ function renderSheet() {
         `<span class="body"><span class="title">${escapeHtml(subject.title)}</span>` +
         (freq ? `<span class="meta">${freq}</span>` : '') +
         '</span>'
-      if (freshKey === `${domain.title} ${subject.title}`) li.classList.add('fresh')
+      if (freshKey === `${domain.title}\u0000${subject.title}`) li.classList.add('fresh')
       list.appendChild(li)
     }
     box.appendChild(list)
     host.appendChild(box)
   })
 
+  host.scrollTop = keptScroll
+
   // 한 번만 띄웁니다. 안 비우면 시트를 다시 그릴 때마다 같은 줄이 계속 튑니다.
   freshKey = ''
 }
 
 /**
- * 대화 한 줄. `kind` 로 말풍선 모양이 갈립니다 —
+ * 대화 한 줄. `kind` 로 모양이 갈립니다 —
  *
  *   me    오른쪽 브랜드색 말풍선
  *   ai    왼쪽 가라앉은 말풍선 + 코치 아이콘
  *   sys   배선 상태. **말풍선을 주지 않습니다** — 대화가 아니라 진단 정보입니다
- *   warn  같은 자리, 브랜드색으로
+ *   warn  같은 자리, 빨간 글자로
+ *
+ * **말한 사람을 앞에 적지 않습니다.** 예전에는 `<b>시스템</b>` · `<b>경고</b>` 를 붙였는데,
+ * 프론트는 그 자리를 가운데 정렬 + 색으로만 구분합니다 — 이름을 붙이면 sys 줄도 누군가
+ * 한 말처럼 읽히고, 실제로 서버 사정("입장 토큰을 받지 못했습니다")을 코치의 대답으로
+ * 받아들인 적이 있습니다. `ai` · `me` 는 원래도 이름을 그리지 않았습니다.
  */
-function log(who, text, kind = '') {
+function log(kind, text) {
   const line = document.createElement('div')
   if (kind === 'me') {
     line.className = 'turn-me'
     line.innerHTML = `<p>${escapeHtml(text)}</p>`
+    // **내 말은 늘 따라 내려갑니다.** 위를 읽던 중이어도 방금 내가 보낸 것은 보여야 합니다 —
+    // 안 그러면 보낸 뒤 "새 메시지" 버튼만 뜨고 내 말은 화면 밖에 남습니다(프론트도 보낸
+    // 직후에는 `scrollToBottom()` 을 부릅니다). 텍스트 전송과 최종 전사 둘 다 이 길입니다.
+    atBottom = true
   } else if (kind === 'ai') {
     line.className = 'turn-ai'
     line.innerHTML =
       `<span class="coach-mini" aria-hidden="true">${ICON_COACH}</span><p>${escapeHtml(text)}</p>`
   } else {
     line.className = `turn-sys ${kind}`
-    line.innerHTML = `<b>${escapeHtml(who)}</b><span>${escapeHtml(text)}</span>`
+    line.textContent = text
   }
-  $('log').appendChild(line)
-  scrollLog()
+  place(line)
   return line
+}
+
+/**
+ * 대화 칸에 붙입니다. **전사 캡션과 생각 중 표시는 늘 맨 아래에 둡니다** — 둘은 "지금 벌어지는
+ * 일" 이라 그 뒤로 다른 줄이 들어오면 지나간 것처럼 보입니다.
+ */
+function place(node) {
+  const host = $('log')
+  const tail = $('caption') ?? $('thinking')
+  host.insertBefore(node, tail ?? null)
+  scrollLog()
 }
 
 /**
@@ -298,10 +422,14 @@ function renderGoal(data) {
     box.appendChild(label)
   }
 
+  // 카드는 목록입니다 — 화면이 넓으면 두 장씩 나란히 섭니다(`.sugs` 의 grid).
+  const cards = document.createElement('ul')
+  cards.className = 'sugs'
+
   for (const task of tasks) {
     if (!task?.title) continue
     const freq = frequencyLabel(task.frequency, task.count)
-    const card = document.createElement('div')
+    const card = document.createElement('li')
     card.className = 'sug'
     card.innerHTML =
       '<div class="sug-top">' +
@@ -341,8 +469,9 @@ function renderGoal(data) {
       btn.disabled = true
     }
     card.appendChild(btn)
-    box.appendChild(card)
+    cards.appendChild(card)
   }
+  box.appendChild(cards)
 
   // 원본도 접어서 보여줍니다. 배선을 확인하는 화면이라 payload 를 볼 수 있어야 합니다.
   const raw = document.createElement('details')
@@ -351,12 +480,11 @@ function renderGoal(data) {
     `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`
   box.appendChild(raw)
 
-  $('log').appendChild(box)
-  scrollLog()
+  place(box)
 
   if ('reasoning' in data) {
     // 여기 오면 서버가 `public_data()` 를 건너뛴 것입니다.
-    log('경고', 'payload 에 reasoning 이 들어 있습니다 — 서버에서 제거되어야 합니다', 'warn')
+    log('warn', 'payload 에 reasoning 이 들어 있습니다 — 서버에서 제거되어야 합니다')
   }
 }
 
@@ -394,14 +522,14 @@ async function keep(data, task, btn) {
     // 경계(`DOMAIN_SLOTS`)를 지키지만, 그건 제안을 막는 층이고 여기는 담기를 막는
     // 층입니다. 없으면 9번째 칸이 로컬 시트에만 생겨 다음 턴에 서버가 거부합니다.
     if (sheet.domains.length >= DOMAIN_SLOTS) {
-      log('시스템', `세부 목표가 ${DOMAIN_SLOTS}칸으로 꽉 차 새 칸을 만들 수 없습니다`, 'warn')
+      log('warn', `세부 목표가 ${DOMAIN_SLOTS}칸으로 꽉 차 새 칸을 만들 수 없습니다`)
       return
     }
     domain = { id: null, title: data.domain, subjectCount: 0, subjects: [] }
     sheet.domains.push(domain)
   }
   if ((domain?.subjects?.length ?? 0) >= DOMAIN_CAPACITY) {
-    log('시스템', `${domain.title} 칸이 ${DOMAIN_CAPACITY}개로 꽉 찼습니다`, 'warn')
+    log('warn', `${domain.title} 칸이 ${DOMAIN_CAPACITY}개로 꽉 찼습니다`)
     return
   }
 
@@ -420,9 +548,13 @@ async function keep(data, task, btn) {
   btn.textContent = '담았어요'
   // 방금 담은 줄을 한 번 띄워 **어디에 들어갔는지** 보여줍니다. 렌더가 그 줄을 알아야
   // 해서 키로 넘깁니다 — DOM 을 다시 뒤져 찾으면 목록 순서에 기대는 코드가 됩니다.
-  freshKey = `${domain.title} ${title}`
+  //
+  // **담은 칸을 폅니다.** 접힌 채로 담기면 위 눈금이 한 칸 차는 것 말고는 아무 일도 일어나지
+  // 않아 보이고, 띄우려는 줄도 `hidden` 안에서 튑니다(프론트도 담은 칸을 같이 폅니다).
+  openDomain = domain.title
+  freshKey = `${domain.title}\u0000${title}`
   renderSheet()
-  log('시스템', `"${title}" 을 ${domain.title} 칸에 담았습니다`, 'sys')
+  log('sys', `"${title}" 을 ${domain.title} 칸에 담았습니다`)
 
   // **전체 목록을 보냅니다.** 증분은 하나 유실되면 서버와 조용히 갈라집니다.
   await room.localParticipant.sendText(JSON.stringify(sheet), { topic: SHEET_TOPIC })
@@ -430,6 +562,8 @@ async function keep(data, task, btn) {
 
 // ── 연결 ──────────────────────────────────────────────────────────────
 async function connect() {
+  // 다시 붙는 중에는 "다시 연결" 을 치웁니다 — 두 번 누르면 방이 둘 생깁니다.
+  connectionLost = false
   $('connect').disabled = true
   setStatus('연결 중…', 'busy')
 
@@ -439,8 +573,9 @@ async function connect() {
     if (!res.ok) throw new Error(`토큰 발급 실패 (${res.status})`)
     info = await res.json()
   } catch (err) {
+    connectionLost = true
     setStatus('토큰 실패', 'off')
-    log('시스템', `${err.message} — dev_server.py 가 떠 있나요?`, 'warn')
+    log('warn', `${err.message} — dev_server.py 가 떠 있나요?`)
     $('connect').disabled = false
     return
   }
@@ -462,12 +597,16 @@ async function connect() {
     voiceAvailable = !!hello.voice
     aiLabel = hello.mode ? `${hello.name} · ${hello.mode}` : hello.name || 'AI'
     $('mic').disabled = !voiceAvailable
-    if (hello.mode) $('mode-badge').textContent = hello.mode
+    // **배지에는 이름을 씁니다.** 예전에는 여기에 `hello.mode`(`goal`)를 넣었는데, 그건
+    // 서버 설정값이라 프론트에 없는 자리였고 사용자에게도 뜻이 없습니다. 저쪽처럼
+    // "누가 붙어 있는가" 를 말하고, 모드는 `aiLabel` 로 sys 줄에 남습니다.
+    agentName = hello.name || 'AI 코치'
+    paintAgentState()
 
     // LLM 이 못 쓰는 상태면 **먼저** 알립니다. 발화를 던지고 실패를 기다리게 두면
     // 사용자는 자기 말이 문제인 줄 압니다. 음성과 달리 LLM 은 선택 기능이 아닙니다.
     if (hello.llmMessage) {
-      log('시스템', hello.llmMessage, 'warn')
+      log('warn', hello.llmMessage)
       // **아는 데모 하나만 데모로 부르고 나머지는 사용 불가로 둡니다.** `missing_key` 만
       // 특별 취급하면 서버가 상태를 하나 더 늘린 날(`unknown_provider`) 쓸 수 없는 상태가
       // "데모 백엔드" 로 표시됩니다 — 관리자에게 알려야 할 일이 정상처럼 읽힙니다.
@@ -475,13 +614,13 @@ async function connect() {
     }
     if (voiceAvailable) {
       $('mic').title = '누르면 15분간 듣습니다 (응답을 만드는 동안에는 잠시 멈춥니다)'
-      log('시스템', `${aiLabel} 준비됨 — 말하기 버튼을 쓸 수 있습니다`, 'sys')
+      log('sys', `${aiLabel} 준비됨 — 말하기 버튼을 쓸 수 있습니다`)
     } else {
       // 이유를 화면에 남깁니다. 서버 로그에만 있으면 사용자는 버튼이 왜 안 되는지
       // 알 수 없습니다.
       $('mic').title = '서버에 음성이 꺼져 있습니다 (DEEPGRAM_API_KEY 없음)'
       setMicLabel('음성 꺼짐', false)
-      log('시스템', `${aiLabel} 준비됨 — 음성이 꺼져 있어 텍스트로만 대화합니다`, 'sys')
+      log('sys', `${aiLabel} 준비됨 — 음성이 꺼져 있어 텍스트로만 대화합니다`)
     }
   })
 
@@ -489,11 +628,11 @@ async function connect() {
     const text = await reader.readAll()
     // 답이 도착했으니 잠금을 풀고, 생성 때문에 멈춘 창이면 **남은 시간만큼 다시 엽니다.**
     endGenerating()
-    log(aiLabel, text, 'ai')
+    log('ai', text)
     void resumeTalking()
     // 답이 도착한 시점입니다 — 스트림을 다 읽고 나서 바꿉니다. 열리자마자 바꾸면
     // 아직 아무 글자도 안 뜬 화면에서 캐릭터만 먼저 답한 얼굴이 됩니다.
-    setAvatar('answering')
+    setThinking(false)
   })
 
   // 전사문은 `lk.chat` 이 아니라 이 토픽으로 옵니다 — 섞으면 내 말과 AI 답을 구분할
@@ -514,9 +653,9 @@ async function connect() {
     }
     if (payload.final) {
       showCaption('')
-      log('나', payload.text, 'me')
+      log('me', payload.text)
       // 최종 전사가 곧 발화의 끝입니다 — 여기서부터 에이전트가 답을 만듭니다.
-      setAvatar('thinking')
+      setThinking(true)
       // **그래서 여기서 창을 닫습니다.** 이 동안의 발화는 서버가 버리므로 열어 둘 이유가
       // 없고, 열어 두면 버려질 오디오를 계속 올려보낸 뒤 생성이 끝나는 순간 STT 스트림이
       // 다시 열립니다. 무음 감시로는 못 막습니다 — 답을 기다리며 계속 말하고 있으면
@@ -530,9 +669,9 @@ async function connect() {
   room.registerTextStreamHandler(GOAL_TOPIC, async (reader) => {
     try {
       renderGoal(JSON.parse(await reader.readAll()))
-      setAvatar('answering')
+      setThinking(false)
     } catch (err) {
-      log('시스템', `goal payload 파싱 실패: ${err.message}`, 'warn')
+      log('warn', `goal payload 파싱 실패: ${err.message}`)
     }
   })
 
@@ -541,10 +680,16 @@ async function connect() {
   // 방에 넣는 다른 참가자는 없습니다. `p.kind` 를 보지 않으므로, 사람이 둘일 수 있는
   // 설계로 바뀌면 여기와 아래 `remoteParticipants.size` 판정을 같이 고쳐야 합니다.
   room.on(RoomEvent.ParticipantConnected, (p) => {
-    log('시스템', `참가자 입장: ${p.identity}`, 'sys')
+    log('sys', `참가자 입장: ${p.identity}`)
     setStatus('에이전트 연결됨', 'on')
+    // 여기서부터 대화가 됩니다 — 상태 점이 초록으로, 배지가 에이전트 이름으로 바뀝니다.
+    setReady(true)
   })
   room.on(RoomEvent.Disconnected, () => {
+    // 카드 안에 "다시 연결" 을 세웁니다. **`setStatus` 보다 먼저 둡니다** — 저쪽이
+    // `paintAgentState()` 를 부르므로, 뒤에 두면 배지가 한 번 잘못 그려집니다.
+    connectionLost = true
+    setReady(false)
     setStatus('연결 끊김', 'off')
     setComposerEnabled(false)
     $('mic').disabled = true
@@ -559,7 +704,6 @@ async function connect() {
     endGenerating()
     setMicLabel('말하기', false)
     // 끊긴 뒤에 "생각 중" 으로 굳어 있으면 오지 않을 답을 기다리게 됩니다.
-    setAvatar('idle')
     setThinking(false)
     // 재접속하면 hello 를 다시 받습니다. 그때까지 음성은 없는 것으로 둡니다.
     voiceAvailable = false
@@ -568,35 +712,61 @@ async function connect() {
   try {
     await room.connect(info.url, info.token)
   } catch (err) {
+    connectionLost = true
     setStatus('접속 실패', 'off')
-    log('시스템', `${err.message} — LiveKit 서버가 떠 있나요? (${info.url})`, 'warn')
+    log('warn', `${err.message} — LiveKit 서버가 떠 있나요? (${info.url})`)
     $('connect').disabled = false
     return
   }
 
   setStatus('방 접속됨 · 에이전트 대기', 'busy')
-  log('시스템', `방 "${info.room}" 에 ${info.identity} 로 접속했습니다`, 'sys')
-  setAvatar('idle')
+  log('sys', `방 "${info.room}" 에 ${info.identity} 로 접속했습니다`)
+  setThinking(false)
 
-  // 에이전트가 이미 들어와 있을 수도 있습니다(재접속 등).
-  if (room.remoteParticipants.size > 0) setStatus('에이전트 연결됨', 'on')
+  // 에이전트가 이미 들어와 있을 수도 있습니다(재접속 등). 그때는
+  // `ParticipantConnected` 가 오지 않으므로 여기서 같이 열어 줍니다.
+  if (room.remoteParticipants.size > 0) {
+    setStatus('에이전트 연결됨', 'on')
+    setReady(true)
+  }
 
   // 마이크는 `mandarin.hello` 가 음성 가능이라고 알려줄 때까지 잠겨 있습니다.
   setComposerEnabled(true)
   $('input').focus()
 }
 
-/** 입력·보내기·빠른 문장을 한꺼번에 잠그고 엽니다. */
+/** 입력과 보내기를 한꺼번에 잠그고 엽니다. */
 function setComposerEnabled(on) {
   $('input').disabled = $('send').disabled = !on
-  for (const chip of $('chips').children) chip.disabled = !on
+  // 잠긴 동안에는 왜 못 쓰는지를 placeholder 가 말합니다 — 프론트도 `ready` 가 아니면
+  // 자리글에 연결 상태를 넣습니다(`${status}…`).
+  $('input').placeholder = on ? '이루고 싶은 것을 적어보세요' : `${statusText}…`
 }
 
-/** 진행 중인 전사문. 빈 문자열이면 감춥니다. */
+/**
+ * 진행 중인 전사문. 빈 문자열이면 지웁니다.
+ *
+ * **대화 목록 안에, 맨 아래에 둡니다.** 예전에는 대화 칸과 입력줄 사이의 별도 띠였는데,
+ * 그러면 "지금 말하는 내용" 이 대화 흐름 밖에 앉아 다음 줄로 이어지는 것처럼 안 보입니다.
+ * 프론트처럼 내 말과 같은 자리·같은 모양(오른쪽 정렬)이되 **채우지 않고 점선**만 둡니다 —
+ * 최종 전사가 오면 이 노드는 사라지고 같은 자리에 채운 말풍선이 남습니다.
+ */
 function showCaption(text) {
-  const el = $('caption')
-  el.textContent = text
-  el.hidden = !text
+  const existing = $('caption')
+  if (!text) {
+    existing?.remove()
+    return
+  }
+  const node = existing ?? document.createElement('div')
+  if (!existing) {
+    node.id = 'caption'
+    node.className = 'turn-caption'
+    node.innerHTML = '<p></p>'
+    // 생각 중 표시보다는 위입니다(`place()` 와 같은 순서).
+    $('log').insertBefore(node, $('thinking') ?? null)
+  }
+  node.firstChild.textContent = text
+  scrollLog()
 }
 
 /**
@@ -689,7 +859,7 @@ async function openWindow(remaining, note) {
   } catch (err) {
     // 권한 거부·장치 없음이 여기로 옵니다. localhost 는 secure context 로 취급되어
     // getUserMedia 가 동작하지만, 다른 기기에서 열면 HTTPS 가 필요합니다.
-    log('시스템', `마이크를 켤 수 없습니다: ${err.message}`, 'warn')
+    log('warn', `마이크를 켤 수 없습니다: ${err.message}`)
     $('mic').disabled = false
     return
   }
@@ -701,7 +871,7 @@ async function openWindow(remaining, note) {
   clearTalkTimers()
   talking = true
   setMicLabel(`듣는 중 ${clock(Math.ceil(remaining / 1000))}`, true)
-  if (note) log('시스템', note, 'sys')
+  if (note) log('sys', note)
 
   // 기준이 처음 누른 시각이라 재개해도 남은 시간이 이어집니다.
   countdownTimer = setInterval(() => {
@@ -732,7 +902,7 @@ async function resumeTalking() {
   if (talking || !room || !voiceAvailable) return
   const left = TALK_WINDOW_MS - (Date.now() - talkStartedAt)
   if (left < RESUME_MIN_MS) {
-    log('시스템', '듣기 창이 끝났습니다 (15분) — 더 말하려면 다시 눌러 주세요', 'sys')
+    log('sys', '듣기 창이 끝났습니다 (15분) — 더 말하려면 다시 눌러 주세요')
     return
   }
   await openWindow(left, null)
@@ -756,12 +926,12 @@ async function stopTalking(reason, { quiet = false, resumable = false } = {}) {
   try {
     await room.localParticipant.setMicrophoneEnabled(false)
   } catch (err) {
-    log('시스템', `마이크를 끄지 못했습니다: ${err.message}`, 'warn')
+    log('warn', `마이크를 끄지 못했습니다: ${err.message}`)
   }
   $('mic').disabled = false
   setMicLabel('말하기', false)
   showCaption('')
-  if (!quiet) log('시스템', `듣기를 멈췄습니다 (${reason})`, 'sys')
+  if (!quiet) log('sys', `듣기를 멈췄습니다 (${reason})`)
 }
 
 async function toggleTalk() {
@@ -775,9 +945,9 @@ async function toggleTalk() {
     if (generating) {
       if (resumeAfterReply) {
         resumeAfterReply = false
-        log('시스템', '듣기를 멈췄습니다 (직접 멈춤) — 답이 와도 다시 듣지 않습니다', 'sys')
+        log('sys', '듣기를 멈췄습니다 (직접 멈춤) — 답이 와도 다시 듣지 않습니다')
       } else {
-        log('시스템', 'AI가 답하는 중입니다 — 끝나면 말해 주세요', 'sys')
+        log('sys', 'AI가 답하는 중입니다 — 끝나면 말해 주세요')
       }
       return
     }
@@ -787,18 +957,18 @@ async function toggleTalk() {
   const held = Date.now() - talkStartedAt
   if (held < MISCLICK_GUARD_MS) {
     // 켜자마자 끄면 전사도 못 얻고 STT 연결 비용만 냅니다.
-    log('시스템', '너무 빨리 눌렀습니다 — 계속 듣고 있어요', 'sys')
+    log('sys', '너무 빨리 눌렀습니다 — 계속 듣고 있어요')
     return
   }
   await stopTalking('직접 멈춤')
 }
 
-/** 텍스트 한 줄을 보냅니다. 입력창과 빠른 문장 칩이 같이 씁니다. */
+/** 텍스트 한 줄을 보냅니다. */
 async function send(text) {
   const value = text.trim()
   if (!value || !room) return
-  log('나', value, 'me')
-  setAvatar('thinking')
+  log('me', value)
+  setThinking(true)
   // 텍스트로 물어도 생성은 생성입니다 — 음성 경로와 같은 구간을 잠그고, 듣고 있었다면
   // 창도 멈춥니다(그 발화는 어차피 버려집니다). 답이 오면 남은 창이 다시 열립니다.
   beginGenerating()
@@ -807,6 +977,9 @@ async function send(text) {
 }
 
 $('connect').addEventListener('click', () => void connect())
+// 카드 안의 "다시 연결". 머리의 연결하기와 같은 일을 합니다 — 끊긴 상태에서 이 카드만 보고
+// 있으면 머리 버튼이 시야 밖일 수 있어서 프론트가 여기에도 둡니다.
+$('rejoin').addEventListener('click', () => void connect())
 $('mic').addEventListener('click', () => void toggleTalk())
 
 $('composer').addEventListener('submit', (event) => {
@@ -815,12 +988,6 @@ $('composer').addEventListener('submit', (event) => {
   $('input').value = ''
   void send(text)
 })
-
-// 빠른 문장. 프론트의 quick 칩과 같은 자리입니다 — 여기서는 시트 fixture 에 맞춰
-// 중복(recommend) 과 신규(generate) 를 둘 다 밟도록 골라 두었습니다.
-for (const chip of $('chips').children) {
-  chip.addEventListener('click', () => void send(chip.textContent))
-}
 
 function escapeHtml(value) {
   // `&` 를 먼저 바꿔야 합니다. 나중에 바꾸면 앞서 만든 `&lt;` 가 이중 이스케이프됩니다
@@ -833,12 +1000,10 @@ function escapeHtml(value) {
 
 renderSheet()
 setComposerEnabled(false)
+paintAgentState()
 
-// 첫 화면의 대화 칸을 비워 두지 않습니다. 프론트도 코치의 첫 인사로 시작하는데
-// (`AiCoachPage.tsx` 의 `messages` 초기값), 여기서는 아직 방에 붙지 않았으니 **AI 가
-// 한 말처럼 쓰지 않고** 무엇을 눌러야 하는지만 적습니다.
-log(
-  aiLabel,
-  '연결하기를 누르면 방에 들어갑니다. 그다음 이루고 싶은 것을 적거나 아래 문장을 눌러 보세요.',
-  'ai'
-)
+// 첫 화면의 대화 칸을 비워 두지 않습니다. 다만 **말풍선을 주지 않습니다** — 코치가 한 말이
+// 아닌데 말풍선 모양이면 인사한 것처럼 읽히고, 접속 전에도 늘 떠 있어서 화면이 살아 있는
+// 듯한 착각을 줍니다. 프론트가 고정 인사말을 지운 이유이기도 합니다(실제로 목업으로
+// 오해된 적이 있습니다 — `AiCoachPage.tsx` 의 `messages` 자리 주석).
+log('sys', '연결하기를 누르면 방에 들어갑니다. 그다음 이루고 싶은 것을 적어 보세요.')

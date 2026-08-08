@@ -20,17 +20,43 @@ import type { TourId, TourStep } from './types'
  * 판정하는 것이 요점이다 — 도중에 다시 걸러 내면 단계 번호가 흔들려서 "3/8" 을 읽던
  * 사용자가 갑자기 "3/6" 을 보게 된다.
  */
+/** 이 표식이 붙은 것이 지금 화면에 <b>보이는가</b>. 폭·높이가 0 인 것은 없는 것으로 본다. */
+function visible(target: string): boolean {
+  const nodes = document.querySelectorAll<HTMLElement>(`[data-tour="${CSS.escape(target)}"]`)
+  for (const el of nodes) {
+    const r = el.getBoundingClientRect()
+    if (r.width > 0 && r.height > 0) return true
+  }
+  return false
+}
+
 function resolveSteps(id: TourId): TourStep[] {
   return TOURS[id].steps.filter((step) => {
     if (!step.requireTarget || !step.target) return true
-    const nodes = document.querySelectorAll<HTMLElement>(`[data-tour="${CSS.escape(step.target)}"]`)
-    for (const el of nodes) {
-      const r = el.getBoundingClientRect()
-      if (r.width > 0 && r.height > 0) return true
-    }
-    return false
+    return visible(step.target)
   })
 }
+
+/**
+ * 이 안내가 가리키는 것 중 <b>하나라도</b> 화면에 나와 있는가.
+ *
+ * <p>"화면이 그려졌는가" 를 대신 재는 값이다. 표적이 하나도 없다는 것은 아직 스켈레톤이라는
+ * 뜻이므로, 그 상태에서 안내를 시작하면 모든 단계가 가운데 카드로 물러나거나
+ * `requireTarget` 에 걸려 빠진다.
+ *
+ * <p>가리킬 것이 애초에 없는 안내(들머리 한 장짜리)는 언제나 참이다 — 기다릴 이유가 없다.
+ */
+function anyTargetVisible(id: TourId): boolean {
+  const targets = TOURS[id].steps.flatMap((s) => (s.target ? [s.target] : []))
+  return targets.length === 0 || targets.some(visible)
+}
+
+/** 옮겨 간 화면이 자리를 잡기를 기다리는 시간. */
+const SETTLE_MS = 500
+/** 그래도 아직이면 이만큼마다 다시 본다. */
+const RETRY_MS = 120
+/** 여기까지 기다려도 안 나오면 그냥 시작한다. 영영 안 뜨는 것보다는 낫다. */
+const GIVE_UP_MS = 5000
 
 /** 본 안내를 기억해 두는 자리. 화면마다 한 줄이라 키를 나눠 둔다. */
 const seenKey = (id: TourId) => `mandarin.tour.${id}`
@@ -120,9 +146,27 @@ export function TourProvider({ children }: { children: ReactNode }) {
     옮겨 간 화면이 자리를 잡은 뒤에 띄운다. 도착 즉시 띄우면 아직 데이터가 없어 첫 단계의
     표적이 없고(카드가 가운데로 물러난다), 그 뒤에 목록이 그려지며 화면이 통째로 움직인다.
   */
+  /*
+    <b>0.5초로 끝내지 않고, 가리킬 것이 나올 때까지 다시 본다.</b>
+
+    고정 시간만으로는 마을 화면을 못 따라간다 — 그 경로는 코드가 따로 떨어져 있어(`Lazy`)
+    묶음을 내려받는 시간이 먼저 들고, 그다음 시트와 마을 데이터를 받는 동안은 스켈레톤 두
+    장뿐이다. 그 사이에 시작해 버리면 여덟 단계가 전부 <b>없는 것을 설명하게 된다</b> —
+    배치 패널 단계는 통째로 빠지고 나머지는 가운데 카드로 물러난다.
+
+    빠른 화면(편집기·코치)에서는 첫 판정에 바로 통과하므로 예전과 똑같이 0.5초에 뜬다.
+  */
   useEffect(() => {
     if (!pending || location.pathname !== TOURS[pending].path) return
-    const timer = window.setTimeout(() => {
+
+    const deadline = Date.now() + GIVE_UP_MS
+    let timer = 0
+
+    const attempt = () => {
+      if (!anyTargetVisible(pending) && Date.now() < deadline) {
+        timer = window.setTimeout(attempt, RETRY_MS)
+        return
+      }
       const steps = resolveSteps(pending)
       /*
         예약을 <b>띄우는 순간에</b> 지운다. 여기서 먼저 지우면 그 리렌더에 안내가 아직 없어서,
@@ -130,7 +174,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
       */
       setPending(null)
       if (steps.length > 0) setState({ id: pending, index: 0, steps })
-    }, 500)
+    }
+
+    timer = window.setTimeout(attempt, SETTLE_MS)
     return () => window.clearTimeout(timer)
   }, [location.pathname, pending])
 

@@ -17,12 +17,10 @@ from mandarin_goal.bot.goal import (
     CLARIFY_REPEAT_THRESHOLD,
     EXHAUSTED_REPLY,
     GoalPipeline,
-    public_data,
-    render,
 )
 from mandarin_goal.bot.llm import Turn
 from mandarin_goal.config import Settings
-from mandarin_goal.sheet import MAX_SUBJECTS_PER_DOMAIN, DomainRef
+from mandarin_goal.sheet import DomainRef
 
 QUESTION = "특정 주제로 대화하기 / 경청하는 연습하기 중 어떤 것에 집중해 볼까요?"
 
@@ -117,55 +115,15 @@ def test_the_threshold_sits_between_those_two():
 
 
 # -- 꽉 찬 칸을 그 턴에 알리기 -------------------------------------------------
-
-def matched(subject_id: int = 100) -> dict:
-    return {
-        "action": "recommend",
-        "domain": "운동",
-        "matched_task": {
-            "subject_id": subject_id,
-            "title": "조깅하기",
-            "frequency": "weekly",
-            "count": 3,
-        },
-    }
-
-
-def test_a_full_cell_is_flagged_and_said_in_the_same_turn():
-    decided = matched()
-    GoalPipeline._mark_domain_full(
-        decided, domain("운동", *[f"과제{i}" for i in range(MAX_SUBJECTS_PER_DOMAIN)])
-    )
-    assert decided["domain_full"] is True
-    assert "자리가 다 차서" in render(decided)
-
-
-def test_the_flag_does_not_reach_the_browser():
-    """`render()` 전용 힌트다. 프론트가 이 값으로 그리는 것이 없다."""
-    decided = matched()
-    decided["domain_full"] = True
-    assert "domain_full" not in public_data(decided)
-
-
-def test_a_cell_with_room_is_not_flagged():
-    decided = matched()
-    GoalPipeline._mark_domain_full(decided, domain("운동", "조깅하기"))
-    assert "domain_full" not in decided
-
-
-def test_recommend_offers_a_way_forward_in_the_same_cell():
-    """예전 꼬리말은 "다른 목표를 말씀해 주시면" 이라 같은 칸에서 이어갈 길이 없었다 —
-    중복이라고 들은 사용자가 하려던 것은 대개 그 칸의 다른 방법이다."""
-    text = render(matched())
-    assert "다른 방식으로" in text
-    assert "다른 목표를 말씀해" not in text
-
-
-def test_a_domain_without_a_name_is_left_alone():
-    decided = {"action": "generate", "domain": ""}
-    GoalPipeline._mark_domain_full(decided, domain("운동", "조깅하기"))
-    assert "domain_full" not in decided
-
+#
+# **이 자리는 `_settle_duplicates` 의 `capacity_note` 가 맡습니다.** 원래 여기 있던
+# `_mark_domain_full` 검사는 머지(2026-08-08)에서 걷어냈습니다 — 같은 문제를 저쪽이
+# 더 넓게 풀어 두었기 때문입니다: 꽉 찬 사실을 그 턴에 붙이는 것은 같고, 거기에 겹친
+# 과제를 **전부** 알려주는 `duplicate_matches` 까지 있습니다(한 건만 보여주면 사용자는
+# AI 가 그것밖에 모른다고 읽습니다).
+#
+# 그쪽 동작은 `tests/test_duplicate_tasks.py` 가 봅니다. 파이프라인이 실제로 부르는지는
+# `tests/test_pipeline_wiring.py` 가 봅니다.
 
 # -- 재요청 턴 (파이프라인 통째로) ---------------------------------------------
 

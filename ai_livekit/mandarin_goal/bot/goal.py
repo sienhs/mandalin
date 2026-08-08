@@ -47,9 +47,11 @@ from mandarin_goal.bot.llm import (
     LlmError,
     LlmRateLimitedError,
     LlmTruncatedError,
+    ToolReply,
     Turn,
     build_backend,
     supports_json,
+    supports_tools,
 )
 from mandarin_goal.bot.prompt import EMERGENCY, SystemPrompt, fragment
 
@@ -65,6 +67,13 @@ from mandarin_goal.bot.subjects import (
     to_candidates,
 )
 from mandarin_goal.bot.subjects import search as search_subjects
+from mandarin_goal.bot.tools import (
+    MAX_STEPS,
+    TASK_COUNT,
+    build_tools,
+    parse_descriptions,
+    run_tool_loop,
+)
 from mandarin_goal.config import Settings
 from mandarin_goal.sheet import (
     DOMAIN_SLOTS,
@@ -76,6 +85,15 @@ from mandarin_goal.sheet import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: 실제로 배선된 `BOT_MODE` 값. **문자열을 비교하는 곳이 여기 하나여야 합니다** —
+#: `agent/entrypoint.py` 와 `scripts/check_reuse.py` 가 각자 `!= "goal"` 로 비교하고
+#: 있었는데, 모드를 하나 늘리면 **파이프라인은 맞게 돌고 경고만 조용히 틀립니다**
+#: ("과제를 만들지 않습니다" 라고 알리면서 실제로는 만드는 조합).
+#:
+#:   goal   분류 → 검색 → 판단(`responseSchema`)
+#:   agent  분류 → 검색 → 판단(도구 루프). 3단계만 다릅니다
+PIPELINE_MODES = ("goal", "agent")
 
 #: 429 를 만났을 때 재시도까지 기다리는 시간(초). `Retry-After` 가 오면 그 값을 씁니다.
 #:
@@ -133,14 +151,12 @@ UNCLEAR_REPLY = (
 #: 직전 되묻기와 "같은 질문" 으로 볼 유사도 문턱. 자카드 바이그램(`similarity`) 기준이라
 #: 조사·어미만 바뀐 재표현까지 같은 질문으로 잡습니다.
 #:
-#: 0.9 인 이유: 선택지 하나를 바꾼 되묻기는 통과해야 하고(그건 진전입니다), 토씨만 다른
-#: 같은 문장은 걸려야 합니다. 실측한 두 문장 사이가 이 값 근처입니다.
+#: 실측으로 가둔 값입니다 — 물음표만 뗀 재표현이 0.964(잡혀야 한다), 선택지 하나를
+#: 바꾼 질문이 0.583(통과해야 한다). `tests/test_stuck_loop.py` 가 그 둘을 지킵니다.
 CLARIFY_REPEAT_THRESHOLD = 0.9
 
 #: 같은 질문을 반복하려 할 때 decide 에 한 번 더 붙이는 되새김.
-#:
-#: **프롬프트에 규칙을 적어도 어기면 조용히 통과합니다** — `_settle_counts`·
-#: `_settle_capacity` 와 같은 이유로 서버가 한 번 더 굴립니다.
+#: **프롬프트에 규칙을 적어도 어기면 조용히 통과합니다** — 서버가 한 번 더 굴립니다.
 CLARIFY_REPEAT_NUDGE = (
     "직전 턴에 같은 질문을 이미 했다. 되묻지 말고 사용자의 마지막 답을 그대로 받아들여 "
     "그 칸의 과제를 generate 한다. 정말 만들 수 없으면 **다른 것을** 묻는다."
@@ -149,14 +165,15 @@ CLARIFY_REPEAT_NUDGE = (
 #: 재요청 턴에서 겹침·소진으로 빠졌을 때 붙이는 되새김.
 RETRY_NUDGE = (
     "사용자는 앞 제안 말고 다른 것을 달라고 했다. 이미 담은 과제를 지목하지 말고, "
-    "이미 담긴 것과 다른 방식으로 세 개를 새로 만든다."
+    "이미 담긴 것과 다른 방식으로 새로 만든다."
 )
 
-#: 재시도 뒤에도 같은 질문이면 쓸 문구. **같은 말을 세 번째로 내보내지 않습니다** —
-#: 모델이 못 빠져나온 것이므로 서버가 루프를 끊고 다른 것을 묻습니다.
+#: 재시도 뒤에도 같은 질문이면 쓸 문구. **같은 말을 세 번째로 내보내지 않습니다.**
 CLARIFY_STUCK_REPLY = (
-    "제가 같은 질문을 반복했네요. 하고 싶은 일을 행동 하나로 말씀해 주시면 "
-    "(예: “주 2회 러닝”) 바로 과제로 정리해 드릴게요."
+    "제가 같은 질문을 반복했네요. "
+    "하고 싶은 일을 행동 하나로 "
+    "말씀해 주시면 바로 과제로 "
+    "정리해 드릴게요."
 )
 
 #: 재요청인데 재시도 뒤에도 새 것이 안 나올 때. **"겹쳐요" 로 끝내지 않습니다** —
@@ -175,14 +192,32 @@ NO_CANDIDATES_NOTE_RETRY = (
 
 #: `_settle_duplicates` 가 재요청 턴에서 쓰는 내부 표시. **스키마 밖 값입니다** —
 #: `_run` 이 반드시 걸러내므로 `render()` 나 `BLOCKED_REPLIES` 까지 가지 않습니다.
-#: 새 `action` 을 스키마에 추가하는 것보다 모델 출력 계약을 안 건드립니다.
 ACTION_EXHAUSTED = "exhausted"
 
-#: 담을 칸을 정하지 못한 경우
+#: `<existing_domain_tasks>` 슬롯만의 상한. **`MAX_SLOT_CHARS` 보다 큽니다.**
+#:
+#: 크기가 시트 정원으로 미리 정해진 슬롯이라(8칸 x 8과제) 다른 슬롯과 문턱이 다릅니다.
+#: 2,000자에서는 8칸이 다 찬 시트가 과제 제목 평균 17자만 넘으면 걸려 **뒤쪽 칸의
+#: 과제가 조용히 사라집니다** — 그 목록이 곧 중복 판정의 근거입니다.
+MAX_CAPACITY_SLOT_CHARS = 4000
+
+#: 그래도 넘칠 때 제목을 자를 길이 — **들어갈 때까지 순서대로** 시도합니다.
+#: 과제를 빼면 모델에게 없는 것이 되지만, 제목이 줄어든 과제는 여전히 "이미 담긴 것"
+#: 으로 보입니다. 여러 값인 이유는 전송 상한(`MAX_DOMAINS` 16)이 정원(8)보다 커서
+#: 과제가 128건까지 올 수 있기 때문입니다.
+CAPACITY_TITLE_CLIPS = (24, 16, 12, 8)
+
+#: `no_domain` 이 히스토리에 남기는 문구(`GoalResult.history_text`). 사용자에게 가는
+#: 문장은 `domain_unknown_reply()` 가 칸 이름을 열거해 만듭니다 — 그 이름은 다음 턴이면
+#: 옛 시트라 빼고, 질문만 남깁니다.
 DOMAIN_UNKNOWN_REPLY = (
     "어느 칸에 담을지 정하지 못했어요. "
     "어느 칸에 넣고 싶은지 알려주시면 정리해 드릴게요."
 )
+
+#: `domain_full` 이 히스토리에 남기는 표식. 자리 상태는 적지 않습니다 — 다음 턴이면
+#: 어긋날 주장입니다.
+DOMAIN_FULL_NOTE = "(담지 않고 되물었습니다)"
 
 
 def domain_unknown_reply(domains: Sequence[DomainRef] = ()) -> str:
@@ -242,15 +277,31 @@ def domain_full_reply(title: str, domains: Sequence[DomainRef] = ()) -> str:
     **"어느 과제를 뺄까요" 로 묻지 않습니다.** AI 코치 화면에는 과제를 빼는 수단이
     없어서, 그 되묻기는 8칸이 찼을 때 "칸을 먼저 만들어 주세요" 라고 안내했던 것과
     같은 막다른 골목입니다. 정리는 편집기에서 사용자가 합니다.
+
+    빠져나갈 길을 셋으로 가릅니다. **새 칸 자리(`DOMAIN_SLOTS`)도 셉니다** — 편집기는
+    정말로 아무 자리도 없을 때만 남습니다.
+
+      - 다른 칸에 자리가 있다 → 그 칸들을 열거한다(새 칸도 되면 같이 알린다)
+      - 칸 자리가 남았다 → 새 칸을 만들자고 한다. **이름은 짓지 않습니다** — 칸을
+        지을 권한은 3단계 모델에 있습니다
+      - 8칸이 다 찼고 그 칸들도 다 찼다 → 이때만 편집기
     """
     room = [
         d.title
         for d in domains
         if d.title and d.title != title and subject_count(d) < MAX_SUBJECTS_PER_DOMAIN
     ]
+    #: 새 칸을 지을 자리. `domain_unknown_reply` 와 같은 셈법입니다 — 제목이 있는
+    #: 칸만 세고(빈 칸은 `drop_untitled_domains` 가 이미 버립니다) `DOMAIN_SLOTS` 와
+    #: 견줍니다. 꽉 찬 칸도 **자리는 차지하므로** 빼지 않습니다.
+    new_cell = len([d for d in domains if d.title]) < DOMAIN_SLOTS
     head = f"'{title}' 칸은 과제 {MAX_SUBJECTS_PER_DOMAIN}개가 다 차서 더 담을 수 없어요. "
+    if room and new_cell:
+        return head + f"{' / '.join(room)} 중에 담을까요? 새 칸을 만들어 담아도 됩니다."
     if room:
         return head + f"{' / '.join(room)} 중에 담을까요? 아니면 편집기에서 정리해 주세요."
+    if new_cell:
+        return head + "새 칸을 만들어 담을 수 있어요. 어느 쪽으로 나눠볼지 알려주세요."
     return head + "편집기에서 과제를 정리한 뒤 다시 말씀해 주세요."
 
 
@@ -296,24 +347,21 @@ CLASSIFY_SCHEMA: dict = {
         # 성립하지 않는데, 검색은 `what` 이 비면 원문으로 폴백해 유사도 0짜리 후보를
         # `<existing_subjects>`("발화와 비슷한 것") 에 실어 보냅니다 — 모델이 그중 하나를
         # 지목하면 "다른 거 달라" 에 "겹쳐요" 가 돌아갑니다(실측 2026-08-08).
-        #
-        # 서버가 정규식으로 보지 않는 이유는 오탐입니다 — "걷기 말고 수영하고 싶어" 는
-        # `말고` 가 있어도 내용이 있는 새 발화입니다. bool 하나가 붙는 출력 토큰보다
-        # 이 값이 건너뛰게 하는 2단계 쪽이 큽니다.
         "retry": {"type": "boolean", "nullable": True},
         # 발화가 **명시한** 횟수("주 3회" 의 3). `frequency` 와 짝입니다.
         #
         # **예전에는 묻지 않았고, 그 이유는 "읽는 코드가 없다" 였습니다** — 후보 검색의
         # 가점이 주기까지만 봤기 때문입니다. 이제 `frequency_score` 가 횟수로 등급을
         # 가르므로(`subjects.py`) 그 조건이 사라졌습니다: 주기만 보던 동안 "주 1회 러닝"
-        # 과 "주 5회 러닝" 은 점수가 완전히 같아서, 상한에서 맞는 쪽이 임의로 잘려
-        # 나갔습니다. 프롬프트는 그 사이 "횟수도 빈도의 일부" 라고 말하고 있었습니다.
+        # 과 "주 5회 러닝" 은 점수가 완전히 같아서 상한에서 맞는 쪽이 임의로 잘렸습니다.
         #
-        # **생성 과제의 횟수를 메우는 값이 아닙니다.** 그건 여전히 3단계가 원문에서
-        # 직접 읽습니다 — 한 턴이 과제를 3개 내고 횟수는 과제마다 다를 수 있어서
-        # 1단계의 단일 값으로는 못 메웁니다(`_settle_domain` 과 다릅니다). 여기 값이
-        # 쓰이는 곳은 **검색 질의 하나**이고, 질의는 발화 하나라 단일 값이 맞는 모양입니다.
+        # **생성 과제의 횟수를 메우는 값이 아닙니다** — 그건 3단계가 원문에서 직접
+        # 읽습니다(한 턴이 과제를 여러 개 내고 횟수가 과제마다 다를 수 있습니다).
         "count": {"type": "integer", "nullable": True},
+        #
+        # 3단계는 원문 전체를 `contents` 로 받으므로 "주 3회" 의 3 을 직접 읽습니다.
+        # 게다가 한 턴이 과제를 3개까지 내는데 횟수는 과제마다 다를 수 있어서,
+        # 1단계의 단일 값으로는 애초에 메울 수 없습니다(`_settle_domain` 과 다릅니다).
     },
     "required": ["intent"],
 }
@@ -469,9 +517,9 @@ GOAL_SCHEMA: dict = {
 #: 적혀 있습니다. 화면 문장에서 빼는 것만으로는 부족합니다 — 구조화 결과가
 #: 채팅 payload 에 실려 브라우저까지 가기 때문에, 나가기 전에 지워야 합니다.
 #:
-#: `domain_full` 은 `render()` 전용 힌트라 브라우저로 보낼 이유가 없습니다 — 프론트가
-#: 이 값으로 그리는 것이 없고, 나가면 payload 계약만 넓어집니다.
-PRIVATE_FIELDS = ("reasoning", "domain_full")
+#: `duplicate_matches` · `capacity_note` 는 `_settle_duplicates` 가 넣고 `render()` 만
+#: 읽습니다. 프론트가 지목에 쓰는 값은 `matched_task` 하나입니다.
+PRIVATE_FIELDS = ("reasoning", "duplicate_matches", "capacity_note")
 
 
 def public_data(result: dict) -> dict:
@@ -493,6 +541,15 @@ class GoalResult:
     transcript: str | None = None
     #: 어느 단계까지 갔는지 (로깅·테스트용).
     stages: list[str] = field(default_factory=list)
+    #: 히스토리에 남길 대체 문구. `None` 이면 `text` 를 그대로 남깁니다.
+    #: **`text` 가 시트 상태를 주장할 때만 채웁니다** — 시트는 매 턴 갱신되지만
+    #: 히스토리 문장은 `bot_history_turns` 동안 남아 옛 상태를 주장합니다.
+    history_text: str | None = None
+
+    @property
+    def history_entry(self) -> str:
+        """히스토리에 남길 문장. 호출부는 `text` 대신 **이 값**을 씁니다."""
+        return self.history_text if self.history_text is not None else self.text
 
 
 #: 슬롯 하나에 넣을 수 있는 최대 길이. 긴 주입값이 진짜 지시문을 뒤로 밀어내
@@ -502,33 +559,6 @@ class GoalResult:
 #: 칸 이름·후보 목록·정원 집계처럼 서버가 만든 값이고, 그것도 무해화합니다
 #: (칸 이름은 사용자가 지은 것이라 꺾쇠가 들어올 수 있습니다).
 MAX_SLOT_CHARS = 2000
-
-#: `<existing_domain_tasks>` 슬롯만의 상한. **`MAX_SLOT_CHARS` 보다 큽니다.**
-#:
-#: 이 슬롯은 성질이 다릅니다 — 크기가 시트 정원으로 **미리 정해져 있고**(8칸 x 8과제),
-#: 잘리면 잃는 것이 중복 판정의 근거입니다. 2,000자에서는 8칸이 다 찬 시트가 과제 제목
-#: 평균 17자만 넘으면 걸립니다(실측: 12자 1,744 / 16자 2,000 / 20자 2,256). 그리고
-#: **재요청 턴에는 후보 검색을 건너뛰므로**(`_run`) 그때는 이 목록이 유일한 근거입니다.
-#:
-#: 4,000 인 이유: 64과제 x (id + 제목 + 빈도 + 구분자)에 제목 평균 50자까지 들어갑니다.
-#: 시트 상한(`MAX_SUBJECT_TITLE_LENGTH` 60)의 최악(약 5,300자)까지 열지 않은 것은
-#: 토큰 때문입니다 — 이 슬롯 1,000자가 decide 단계에 매 턴 약 500 토큰입니다.
-MAX_CAPACITY_SLOT_CHARS = 4000
-
-#: 그래도 넘칠 때 제목을 자를 길이 — **들어갈 때까지 순서대로** 시도합니다.
-#:
-#: **과제를 빼는 것보다 제목을 줄입니다.** 목록에서 사라진 과제는 모델에게 존재하지 않는
-#: 것이 되지만, 제목이 줄어든 과제는 여전히 "이미 담긴 것" 으로 보입니다 — 칸이 몇 개
-#: 찼는지도 그대로 남습니다. 정확 일치 중복은 어차피 서버가 시트 원본으로 잡으므로
-#: (`_settle_duplicates`) 이 줄임이 중복 검사를 깨지는 않습니다.
-#:
-#: **여러 값을 두는 이유는 과제 수가 정해져 있지 않아서입니다.** 정원은 8칸(=64건)이지만
-#: `_capacity_context` 가 훑는 것은 넘어온 칸 전부이고 전송 상한은 `MAX_DOMAINS`(16)라
-#: 128건까지 옵니다. 24자 하나로는 그때 상한을 넘어(실측 4,006자) 과제가 사라졌습니다.
-#:
-#: 8자가 마지막인 이유: 128건 x (id + 8자 + 빈도 + 구분자) ≈ 2,900자로 확실히 들어가고,
-#: 그보다 짧으면 제목이 무엇인지 알아볼 수 없어 목록의 쓸모가 없어집니다.
-CAPACITY_TITLE_CLIPS = (24, 16, 12, 8)
 
 
 def escape_slot_value(value: str, *, max_chars: int = MAX_SLOT_CHARS) -> str:
@@ -562,6 +592,10 @@ def fill_slots(
 ) -> str:
     """`<tag>...</tag>` 안쪽을 통째로 갈아끼웁니다.
 
+    `caps` 로 **슬롯별 상한**을 줄 수 있습니다. 기본값(`MAX_SLOT_CHARS`)은 "얼마나
+    커질지 모르는 주입값" 을 재는 값인데, 크기가 시트 정원으로 미리 정해진 슬롯에는
+    그 문턱이 맞지 않습니다(`MAX_CAPACITY_SLOT_CHARS` 주석).
+
     `{{...}}` 같은 별도 문법을 도입하지 않은 이유는, 프롬프트가 이미 XML 태그로
     슬롯을 이름 붙여 두었기 때문입니다. 태그 이름이 곧 키라서 프롬프트 작성자가
     안쪽에 무슨 설명을 적어두든(예: `{{벡터 유사도로 필터링된 상위 N개}}`)
@@ -573,10 +607,6 @@ def fill_slots(
 
     태그가 없으면 조용히 넘어갑니다. 프롬프트를 고치는 쪽이 슬롯을 지웠다면
     그건 의도일 테니, 코드가 막을 일이 아닙니다.
-
-    `caps` 로 **슬롯별 상한**을 줄 수 있습니다. 기본값(`MAX_SLOT_CHARS`)은 "얼마나 커질지
-    모르는 주입값" 을 재는 값인데, 크기가 시트 정원으로 미리 정해진 슬롯에는 그 문턱이
-    맞지 않습니다(`MAX_CAPACITY_SLOT_CHARS` 주석 참고).
     """
     caps = caps or {}
     for tag, value in values.items():
@@ -730,22 +760,15 @@ def render(result: dict) -> str:
         # 과제는 이미 그 칸에 있고 담지 않습니다. 담기 버튼도 붙지 않는 응답에서
         # "담습니다" 라고 하면 사용자는 담긴 줄 압니다.
         where = (result.get("domain") or "").strip()
-        # **막다른 골목으로 끝내지 않습니다.** 예전 꼬리말은 "다른 목표를 말씀해 주시면"
-        # 이라 같은 칸에서 이어갈 길이 없었습니다 — 중복이라고 들은 사용자가 하려던 것은
-        # 대개 그 칸의 다른 방법이지 다른 목표가 아닙니다.
-        #
-        # 칸이 꽉 찼으면 그 사실을 **이 턴에** 말합니다. `recommend` 는 담지 않으므로
-        # `_settle_capacity` 를 타지 않고(`_is_storable`), 그대로 두면 다음 턴에야
-        # `domain_full_reply` 로 나와 거절 이유가 "겹친다"→"꽉 찼다" 로 바뀝니다.
-        tail = (
-            f"그런데 '{where}' 칸은 자리가 다 차서 새로 담을 수도 없어요. "
-            "편집기에서 정리해 주세요."
-            if result.get("domain_full")
-            else "그 칸에서 다른 방식으로 만들어 드릴까요?"
-        )
+        # 겹친 것을 전부 나열합니다. 서버가 뒤집은 경우가 아니면 목록이 없으므로
+        # `matched_task` 하나로 떨어집니다.
+        overlaps = [
+            t for t in (result.get("duplicate_matches") or []) if t.get("title")
+        ] or [matched]
         return (
-            f"이미 담아 두신 과제와 겹쳐요 — {titled(matched)}"
-            f"{f' ({where} 칸)' if where else ''}.\n{tail}"
+            f"이미 담아 두신 과제와 겹쳐요 — {' · '.join(titled(t) for t in overlaps)}"
+            f"{f' ({where} 칸)' if where else ''}.\n"
+            "다른 목표를 말씀해 주시면 새로 정리해 드릴게요."
         )
 
     if action == "generate":
@@ -815,6 +838,12 @@ class GoalPipeline:
         #: `prompts/fragments/` 를 고치면 재시작 없이 다음 응답부터 반영됩니다.
         self._capacity_rule = fragment(settings, "domain_capacity")
         self._no_domains_note = fragment(settings, "no_domains")
+        #: 도구 설명도 같은 로더를 씁니다 — 저장하면 재시작 없이 다음 응답부터 반영됩니다.
+        self._tool_descriptions = fragment(settings, "tools")
+        #: `BOT_MODE=agent` 면 3단계(판단)를 도구 루프가 대신합니다. 1·2단계는 그대로예요 —
+        #: 1단계는 **싼 모델로 차단 갈래를 먼저 끊는** 자리고(비싼 루프에 들어가기 전에),
+        #: 2단계는 LLM 이 아니라 바이그램 검색이라 도구로 바꿀 이유가 없습니다.
+        self._agent_mode = settings.bot_mode.strip().lower() == "agent"
         #: 개발용 결과 캐시(`BOT_CACHE_SIZE`). 기본값 0 이면 아무것도 담기지 않습니다.
         self._cache: OrderedDict[str, GoalResult] = OrderedDict()
 
@@ -843,6 +872,7 @@ class GoalPipeline:
         domains: Sequence[DomainRef] = (),
         *,
         goal: str | None = None,
+        after_clarify: bool = False,
     ) -> GoalResult:
         """`BOT_CACHE_SIZE` 가 0 보다 크면 같은 발화의 결과를 재사용합니다.
 
@@ -854,6 +884,9 @@ class GoalPipeline:
         `goal` 은 사용자의 **최종목표**(만다라트 가운데 칸)입니다. 키워드 인자로 둔 이유는
         호출하는 쪽이 셋(에이전트 · eval 러너 · 테스트)인데 대부분 시트가 없기 때문입니다 —
         기본값이 있으면 그쪽은 고칠 것이 없습니다.
+
+        `after_clarify` 는 직전 응답이 되묻기(`action="clarify"`)였는지입니다. 히스토리에는
+        문장만 남아 알 수 없으므로 호출부가 넘깁니다.
         """
         key = self._cache_key(history, domains, goal)
         if key is not None and key in self._cache:
@@ -864,7 +897,9 @@ class GoalPipeline:
             # 다음 적중 때 "cache" 가 계속 쌓입니다.
             return replace(cached, stages=[*cached.stages, "cache"])
 
-        result = await self._run(history, domains, goal=goal)
+        result = await self._run(
+            history, domains, goal=goal, after_clarify=after_clarify
+        )
 
         if key is not None:
             self._cache[key] = result
@@ -878,6 +913,7 @@ class GoalPipeline:
         domains: Sequence[DomainRef] = (),
         *,
         goal: str | None = None,
+        after_clarify: bool = False,
     ) -> GoalResult:
         for backend in (self._classify_backend, self._decide_backend):
             if supports_json(backend):
@@ -885,6 +921,13 @@ class GoalPipeline:
             raise LlmError(
                 f"{backend.name} 백엔드는 스키마 강제 출력을 지원하지 않아 "
                 "BOT_MODE=goal 로 쓸 수 없습니다 (BOT_PROVIDER=gemini 사용)"
+            )
+        # **1단계는 agent 모드에서도 스키마 강제입니다** — 분류는 도구를 부를 일이
+        # 없는 단계고, 거기까지 도구로 바꾸면 차단 갈래가 한 왕복 더 걸립니다.
+        if self._agent_mode and not supports_tools(self._decide_backend):
+            raise LlmError(
+                f"{self._decide_backend.name} 백엔드는 도구 호출을 지원하지 않아 "
+                "BOT_MODE=agent 로 쓸 수 없습니다 (BOT_PROVIDER=gemini 사용)"
             )
 
         stages = ["classify"]
@@ -945,7 +988,19 @@ class GoalPipeline:
         if intent != "goal":
             # 서비스와 무관한 발화. **여기서 끝냅니다** — 3단계 프롬프트도, 잡담
             # 페르소나도 태우지 않습니다. 발화 1건에 호출 1회로 끝납니다.
-            return self._off_topic(intent, transcript, stages)
+            #
+            #
+            # **단, 우리가 방금 되물었으면 3단계로 넘깁니다.** 그 턴의 발화는 정의상
+            # 우리 질문에 대한 답입니다. 3단계가 `out_of_scope` 로 뒤집으면 같은 문구로
+            # 끝나므로(`render()` → `_off_topic`) 막다른 골목이 되지는 않습니다.
+            # 차단 갈래는 위에서 이미 끊겼습니다(`intent in BLOCKED_REPLIES`).
+            if not after_clarify:
+                return self._off_topic(intent, transcript, stages)
+            stages.append("after_clarify")
+            logger.info(
+                "goal/after_clarify intent=%s 지만 직전이 되묻기라 3단계로 넘깁니다: %r",
+                intent, transcript[:60],
+            )
 
         stages.append("retrieve")
         # 후보는 **사용자 시트에 이미 담긴 과제**입니다(`join` 의 `domains[].subjects`).
@@ -954,22 +1009,9 @@ class GoalPipeline:
         # 모델이 비워도 검색이 멈추면 안 됩니다.
         #
         # **단 재요청 턴에는 아예 검색하지 않습니다.** "다른 거 줘" 는 하려는 일을 말한
-        # 적이 없어 겹침을 검사할 대상이 없는데, 위 폴백이 원문으로 검색해(유사도 전부 0,
-        # 순서는 사실상 `DOMAIN_BONUS` 만으로 정해짐) 아무 과제 5건을 "발화와 비슷한 것"
-        # 이라는 이름표로 실어 보냅니다. 모델이 그중 하나를 지목하면 "다른 거 달라" 에
-        # "겹쳐요" 가 돌아갑니다(실측 2026-08-08).
-        #
-        # **중복 방지는 그대로입니다** — `<existing_domain_tasks>`(`_capacity_context`)가
-        # 칸별 전체 목록을 이미 싣습니다. 비는 것은 "겹치는지 볼 목록" 쪽뿐이라 모델이
-        # recommend 를 고를 유인이 크게 줄어듭니다.
-        #
-        # **다만 구조적으로 막히는 것은 아닙니다.** `_resolve_match` 가 후보 밖(시트
-        # 전체)에서도 지목을 찾도록 넓어진 뒤로는, 모델이 `<existing_domain_tasks>` 에서
-        # 본 id 를 쓰면 그대로 채워집니다. 사용자에게 "겹쳐요" 가 가지 않는 것은 아래
-        # `stuck()` 이 재요청 턴의 recommend 를 잡아 한 번 더 굴리고, 그래도 같으면
-        # `EXHAUSTED_REPLY` 로 끊기 때문입니다
-        # (`tests/test_stuck_loop.py::test_a_retry_turn_never_ends_in_a_duplicate_notice`
-        # 가 정확히 그 경로 — 시트에 있는 id 를 계속 내미는 백엔드 — 를 봅니다).
+        # 적이 없어 겹침을 검사할 대상이 없는데, 위 폴백이 원문으로 검색해(유사도 전부 0)
+        # 아무 과제나 "발화와 비슷한 것" 이라는 이름표로 실어 보냅니다. 중복 방지는
+        # `<existing_domain_tasks>` 가 그대로 지고 갑니다.
         retry = bool(classified.get("retry"))
         candidates: list[Candidate] = []
         if retry:
@@ -978,9 +1020,8 @@ class GoalPipeline:
             what = (classified.get("what") or "").strip()
             wanted_frequency = (classified.get("frequency") or "").strip() or None
             # **`None`(안 말했다)과 1(한 번이라고 말했다)을 갈라야 합니다.**
-            # `normalise_count` 는 값이 없으면 1 을 돌려주므로(주기를 아는 이상 "최소
-            # 한 번" 은 확실하다는 그쪽 규칙) 여기서 미리 가립니다 — 그러지 않으면
-            # "러닝하고 싶어" 가 주 5회 러닝을 강등시킵니다(`frequency_score`).
+            # `normalise_count` 는 값이 없으면 1 을 돌려주므로 여기서 미리 가립니다 —
+            # 그러지 않으면 "러닝하고 싶어" 가 주 5회 러닝을 강등시킵니다.
             raw_count = classified.get("count")
             wanted_count = (
                 normalise_count(wanted_frequency, raw_count) if raw_count is not None else None
@@ -1029,16 +1070,24 @@ class GoalPipeline:
         # (`Conversation` 이 사용자 턴을 넣은 뒤 부릅니다).
         system, reminder = split_reminder(prompt)
         turns = [*history, Turn(role="user", text=reminder)] if reminder else history
-        decided = await self._step(
-            "decide",
-            lambda: self._decide_backend.reply_json(
-                system,
-                turns,
-                GOAL_SCHEMA,
-                max_output_tokens=self._settings.bot_goal_max_output_tokens,
-                temperature=self._settings.bot_decide_temperature,
-            ),
-        )
+
+        async def decide(contents: list[Turn]) -> dict:
+            """3단계 한 번. **되새김 재시도가 같은 경로를 타야** 합니다 —
+            툴콜 모드에서만 다른 답이 나오면 그 모드에만 있는 버그가 생깁니다."""
+            if self._agent_mode:
+                return await self._decide_with_tools(system, contents)
+            return await self._step(
+                "decide",
+                lambda: self._decide_backend.reply_json(
+                    system,
+                    contents,
+                    GOAL_SCHEMA,
+                    max_output_tokens=self._settings.bot_goal_max_output_tokens,
+                    temperature=self._settings.bot_decide_temperature,
+                ),
+            )
+
+        decided = await decide(turns)
         logger.info(
             "goal/decide action=%s reasoning=%r",
             decided.get("action"),
@@ -1069,7 +1118,7 @@ class GoalPipeline:
             """
             self._resolve_match(result, candidates, domains)
             drop_polluted(result)
-            # **길이를 먼저 맞춥니다.** 아래 `_settle_domain`·`_mark_new_domain` 이
+            # **길이를 먼저 맞춥니다.** 아래 `_settle_duplicates`·`_mark_new_domain` 이
             # 칸 이름을 시트와 글자 단위로 비교하므로, 자르기 전에 비교하면 "같은
             # 칸인데 다르다" 는 판정이 나옵니다.
             self._settle_lengths(result)
@@ -1077,16 +1126,15 @@ class GoalPipeline:
             self._settle_domain(result, domain, domains)
             # 칸이 정해진 뒤에, 자리 계산 전에 봅니다 — 버릴 과제로 자리를 세면 안 됩니다.
             self._settle_duplicates(result, domains, retry=retry)
+            # 중복을 버린 뒤에 셉니다. 먼저 자르면 남길 3개가 중복일 수 있습니다.
+            self._settle_turn_size(result)
             return result
 
         def stuck(result: dict) -> str | None:
             """이 응답을 그대로 내보내면 사용자가 **같은 자리로 돌아오는가.**
 
-            돌려주는 값은 루프를 끊을 때 쓸 문구입니다(`None` 이면 정상).
-
             두 모양을 같이 봅니다 — 방금 한 질문을 또 하는 것과, "다른 거 달라" 에
-            이미 담긴 과제를 들이미는 것입니다. 사용자가 겪는 것은 둘 다 "방금 그거
-            아니냐" 이고, 빠져나가는 방법도 같습니다(한 번 더 굴린다).
+            이미 담긴 과제를 들이미는 것입니다. 빠져나가는 방법도 같습니다.
             """
             if self._repeats_clarify(result, history):
                 return CLARIFY_STUCK_REPLY
@@ -1097,31 +1145,16 @@ class GoalPipeline:
         settle(decided)
         escape = stuck(decided)
         if escape is not None:
-            # **한 번만 더 굴립니다.** 프롬프트에 "같은 질문을 두 번 하지 않는다" 를
-            # 적어도 어기면 조용히 통과하고(온도 0.3), 그대로 내보내면 사용자는 방금
-            # 들은 말을 다시 듣습니다 — 실측 2026-08-08 의 세 화면이 전부 이 모양입니다.
-            #
-            # 예산은 `BOT_TIMEOUT_SECONDS`(45초)이고 단계당 실측 1~2초라 3호출이
-            # 들어갑니다. 비용은 **걸린 턴에만** 붙습니다.
+            # **한 번만 더 굴립니다.** 프롬프트에 규칙을 적어도 어기면 조용히 통과하고,
+            # 그대로 내보내면 사용자는 방금 들은 말을 다시 듣습니다(실측 2026-08-08).
             stages.append("nudge")
             logger.warning(
                 "goal/nudge action=%s 로 같은 자리로 돌아가 한 번 더 시도합니다: %r",
                 decided.get("action"), transcript[:80],
             )
             nudge = RETRY_NUDGE if retry else CLARIFY_REPEAT_NUDGE
-            nudged = [*turns, Turn(role="user", text=nudge)]
-            decided = await self._step(
-                "decide",
-                lambda: self._decide_backend.reply_json(
-                    system,
-                    nudged,
-                    GOAL_SCHEMA,
-                    max_output_tokens=self._settings.bot_goal_max_output_tokens,
-                    temperature=self._settings.bot_decide_temperature,
-                ),
-            )
-            # **되새김을 받은 응답도 뒤집을 수 있습니다.** 위 2차 방어선을 건너뛰면
-            # 재시도 경로만 방어가 없는 구멍이 됩니다.
+            decided = await decide([*turns, Turn(role="user", text=nudge)])
+            # **되새김을 받은 응답도 뒤집을 수 있습니다.** 이 경로만 방어가 없으면 구멍입니다.
             if decided.get("action") in BLOCKED_REPLIES:
                 stages.append("blocked")
                 logger.warning(
@@ -1137,20 +1170,16 @@ class GoalPipeline:
             settle(decided)
             escape = stuck(decided)
             if escape is not None:
-                # 같은 말을 **세 번째로** 내보내지 않습니다. 모델이 못 빠져나온
-                # 것이므로 서버가 끊고 다른 것을 묻습니다.
+                # 같은 말을 **세 번째로** 내보내지 않습니다. 서버가 끊습니다.
                 logger.warning("goal/stuck 되새김 뒤에도 같은 자리라 루프를 끊습니다")
                 return GoalResult(
                     text=escape,
-                    # 담기 버튼을 그리지 않는 값입니다(`web/app.js`) — `no_domain`·
-                    # `domain_full` 과 같은 이유로 `clarify` 입니다.
                     data={"action": "clarify"},
                     transcript=transcript,
                     stages=[*stages, "stuck"],
                 )
 
         self._mark_new_domain(decided, domains)
-        self._mark_domain_full(decided, domains)
 
         unknown = self._unknown_domain(decided, domains)
         if unknown is not None:
@@ -1169,9 +1198,13 @@ class GoalPipeline:
                 data={"action": "clarify"},
                 transcript=transcript,
                 stages=stages,
+                # 열거한 칸 이름은 다음 턴이면 옛 시트다(`DOMAIN_UNKNOWN_REPLY`).
+                history_text=DOMAIN_UNKNOWN_REPLY,
             )
 
-        full = self._settle_capacity(decided, domains)
+        full = self._settle_capacity(decided, domains) or self._clarified_full_cell(
+            decided, domains
+        )
         if full is not None:
             # 칸은 정했는데 그 칸에 자리가 없다. `no_domain` 과 갈라 두는 이유는
             # 사용자에게 줄 안내가 다르기 때문입니다(`domain_full_reply`).
@@ -1187,6 +1220,9 @@ class GoalPipeline:
                 data={"action": "clarify"},
                 transcript=transcript,
                 stages=stages,
+                # "8개가 다 차서" 를 히스토리에 남기면 사용자가 하나를 뺀 뒤에도
+                # 모델이 그 문장을 따라 되묻습니다(`DOMAIN_FULL_NOTE`).
+                history_text=DOMAIN_FULL_NOTE,
             )
 
         text = render(decided)
@@ -1199,9 +1235,56 @@ class GoalPipeline:
         # `domain_is_new` 와 `domain_id` 는 남습니다 — 프론트가 `subject` 를 만들 때
         # 칸을 새로 만들어야 하는지 판단하는 값입니다.
         data = public_data(decided)
-        return GoalResult(text=text, data=data, transcript=transcript, stages=stages)
+        # 자리 상태는 사용자에게만 붙이고 히스토리에서는 뺍니다(`history_text`).
+        note = decided.get("capacity_note")
+        return GoalResult(
+            text=f"{text}\n{note}" if note else text,
+            data=data,
+            transcript=transcript,
+            stages=stages,
+            history_text=text if note else None,
+        )
 
     # -- 내부 ---------------------------------------------------------------
+    async def _decide_with_tools(self, system: str, turns: list[Turn]) -> dict:
+        """3단계를 도구 루프로. 결과는 `GOAL_SCHEMA` 와 **같은 모양**입니다.
+
+        같은 모양이어야 하는 이유는 이 뒤에 오는 층 전부가 그걸 전제하기 때문입니다 —
+        `_resolve_match`·`_settle_counts`·`_settle_duplicates`·`_settle_capacity`·
+        `render()`. 그 층이 "아는 값은 서버가 정한다" 를 실제로 강제하는 자리라,
+        모델이 인자를 직접 건네는 이 경로에서 더 필요합니다.
+
+        **스텝 예산을 나눠 씁니다.** `BOT_STEP_TIMEOUT_SECONDS` 를 스텝마다 그대로
+        쓰면 스텝 수만큼 곱해져 `BOT_TIMEOUT_SECONDS` 가 먼저 터집니다 — 그러면 어느
+        스텝이 느렸는지도 모르는 채 매번 타임아웃 문구로 끝납니다. 전체 예산을 스텝
+        수로 나누고, 원래 단계 예산보다 크지는 않게 둡니다.
+        """
+        tools = build_tools(parse_descriptions(self._tool_descriptions.text()))
+        budget = min(
+            self._settings.bot_step_timeout_seconds,
+            self._settings.bot_timeout_seconds / MAX_STEPS,
+        )
+
+        async def ask(
+            working: list[Turn], allowed: Sequence[str] | None
+        ) -> ToolReply:
+            # `_step` 을 그대로 지납니다 — 잘림 재시도와 429 백오프가 도구 경로에만
+            # 빠지면, 디코딩 붕괴 한 번에 그 턴이 통째로 죽습니다.
+            return await self._step(
+                "decide",
+                lambda: self._decide_backend.reply_tools(
+                    system,
+                    working,
+                    tools,
+                    allowed=allowed,
+                    max_output_tokens=self._settings.bot_goal_max_output_tokens,
+                    temperature=self._settings.bot_decide_temperature,
+                ),
+                timeout=budget,
+            )
+
+        return await run_tool_loop(ask, turns)
+
     def _cache_key(
         self,
         history: list[Turn],
@@ -1229,23 +1312,11 @@ class GoalPipeline:
         """`recommend` 의 제목·빈도를 사용자 시트에서 채웁니다 (제자리 수정).
 
         모델은 `subject_id` 만 고릅니다. 제목을 베끼게 두면 그 필드에서 생성이
-        무너지는 일이 있었습니다(반복 루프로 토큰 상한까지). 우리가 이미 프롬프트로
+        무너지는 일이 있었습니다(반복 루프로 토큰 상한까지). 우리가 방금 후보로
         보낸 값이므로 조회하면 됩니다.
 
-        **후보 목록이 아니라 시트 전체에서 찾습니다.** 예전에는 `candidates`
-        (=`<existing_subjects>`, `bot_candidate_count` 기본 5건) 안에서만 찾았는데,
-        프롬프트 규칙 4는 `<existing_domain_tasks>`(칸별 **전체 목록**, id 가 64~128건
-        보입니다)로도 지목하라고 시킵니다 — 그쪽 id 를 고르면 제목을 못 채워
-        "비슷한 과제를 찾았는데 제목을 읽지 못했습니다" 로 끝났습니다. **규칙이 시킨
-        일을 서버가 막고 있던 셈**이고, 그 규칙에는 이유가 있습니다: 상위 5건은 글자
-        바이그램으로 뽑아서 진짜 중복을 놓치기 때문에 전체 목록을 함께 싣습니다.
-
-        찾는 범위를 넓혀도 안전한 것은 **후보와 전체 목록이 같은 출처**라서입니다 —
-        둘 다 `join` 으로 받은 사용자 시트입니다(`to_candidates`). 그래서 아래에서
-        도메인을 덮어써도 없는 칸이 생기지 않습니다.
-
-        시트에도 없는 id 는 채우지 않습니다 — `render()` 가 "제목을 읽지 못했습니다"
-        로 정직하게 끝냅니다. 없는 과제를 지어내지 않습니다.
+        모르는 id 를 받으면 채우지 않습니다 — `render()` 가 "제목을 읽지
+        못했습니다" 로 정직하게 끝냅니다. 없는 과제를 지어내지 않습니다.
         """
         if decided.get("action") != "recommend":
             return
@@ -1253,15 +1324,17 @@ class GoalPipeline:
         subject_id = matched.get("subject_id")
         found = next((c for c in candidates if c.id == subject_id), None)
         if found is None:
+            # **후보 밖(시트 전체)에서도 찾습니다.** 프롬프트 규칙 4는
+            # `<existing_domain_tasks>`(id 가 64~128건 보입니다)로도 지목하라고 시키는데,
+            # 후보 5건 안에서만 찾으면 그 id 가 제목을 못 채워 "제목을 읽지 못했습니다"
+            # 로 끝났습니다 — 규칙이 시킨 일을 서버가 막고 있던 셈입니다.
             found = next(
                 (c for c in to_candidates(domains) if c.id == subject_id), None
             )
             if found is not None:
-                # **검색 품질 신호입니다.** 지목은 맞았는데 우리가 보낸 상위 N건에는
-                # 없었다는 뜻이라, 바이그램 랭커가 그 짝을 놓쳤다는 얘기입니다.
+                # **검색 품질 신호입니다** — 지목은 맞았는데 랭커가 놓친 짝입니다.
                 logger.info(
-                    "goal/match subject_id=%s 를 후보 %d건 밖(시트)에서 지목했습니다 "
-                    "— 랭커가 놓친 짝입니다",
+                    "goal/match subject_id=%s 를 후보 %d건 밖(시트)에서 지목했습니다",
                     subject_id, len(candidates),
                 )
         if found is None:
@@ -1287,22 +1360,14 @@ class GoalPipeline:
     def _settle_lengths(decided: dict) -> None:
         """칸 이름과 과제 제목을 **저장이 버티는 길이로** 자릅니다 (제자리 수정).
 
-        프롬프트 규칙 6은 domain 20자 / title 40자를 요구하지만, 그건 **품질 기준**이고
-        (만다라트는 3x3 블록에 글자를 넣는 화면입니다) 어겨도 조용히 통과했습니다 —
-        `_settle_counts`·`_settle_capacity` 가 막는 것들과 달리 이 축에는 서버 확인이
-        아예 없었습니다. 그 사이 `_capacity_context` 의 주석이 프롬프트의 40자를 저장
-        상한으로 착각해 슬롯 예산을 절반쯤 잘못 계산하고 있었습니다.
-
-        **자르는 기준은 프롬프트의 숫자가 아니라 `sheet.py` 의 상한입니다.** 20자를
-        강제하면 사용자가 받아들일 만한 30자짜리 칸 이름이 이유 없이 잘립니다. 여기서
-        막으려는 것은 "품질이 아쉬운 이름" 이 아니라 **저장·화면이 깨지는 길이**입니다.
+        프롬프트 규칙 6의 숫자는 **품질 기준**이고(만다라트는 3x3 블록에 글자를 넣는
+        화면입니다), 여기서 막는 것은 **저장·화면이 깨지는 길이**입니다. 그래서 기준은
+        프롬프트가 아니라 `sheet.py` 의 상한입니다 — 규칙보다 조금 긴 이름을 이유 없이
+        자르지 않습니다.
 
         `DomainRef`/`SubjectRef` 의 검증기는 **들어오는** 시트에만 걸립니다. 우리가
         내보내는 제안은 그 층을 지나지 않고 프론트가 그대로 `subject` 를 만드는 데
         쓰므로, 여기서 보지 않으면 상한을 넘는 값이 그대로 저장됩니다.
-
-        **`recommend` 는 볼 것이 없습니다** — `_resolve_match` 가 시트 값으로 덮어써서
-        이미 상한 안입니다. 그래도 순서에 기대지 않고 같은 규칙을 적용합니다.
         """
         title = (decided.get("domain") or "").strip()
         if len(title) > MAX_DOMAIN_TITLE_LENGTH:
@@ -1322,6 +1387,28 @@ class GoalPipeline:
                     len(name), MAX_SUBJECT_TITLE_LENGTH, name[:60],
                 )
                 task["title"] = name[:MAX_SUBJECT_TITLE_LENGTH]
+
+    @staticmethod
+    def _repeats_clarify(decided: dict, history: Sequence[Turn]) -> bool:
+        """이번 되묻기가 **직전에 한 말과 같은가.**
+
+        프롬프트에 "같은 질문을 두 번 하지 않는다" 를 적어도 어기면 조용히 통과합니다.
+        여기서 걸리는 것이 사용자가 실제로 겪는 루프입니다(선택지에 답했는데 같은
+        질문이 다시 오는 화면, 실측 2026-08-08).
+
+        `history` 의 마지막 assistant 턴이 직전 응답입니다 — `Conversation` 이 사용자
+        턴을 넣은 뒤 부르므로 그 앞이 우리가 방금 한 말입니다.
+        """
+        if decided.get("action") != "clarify":
+            return False
+        question = " ".join((decided.get("clarify_question") or "").split())
+        if not question:
+            # 빈 질문은 `render()` 가 다른 문장으로 메웁니다 — 이 판정의 몫이 아닙니다.
+            return False
+        previous = next((t for t in reversed(history) if t.role == "assistant"), None)
+        if previous is None:
+            return False
+        return similarity(question, " ".join(previous.text.split())) >= CLARIFY_REPEAT_THRESHOLD
 
     @staticmethod
     def _settle_counts(decided: dict) -> None:
@@ -1397,6 +1484,28 @@ class GoalPipeline:
             return None
         return title
 
+    @staticmethod
+    def _settle_turn_size(decided: dict) -> None:
+        """한 턴이 내는 과제를 `TASK_COUNT` 로 자릅니다 (제자리 수정).
+
+        **`_settle_counts` 와 다릅니다** — 그쪽은 한 과제의 *빈도 횟수*("주 3회" 의 3)이고
+        이쪽은 *한 턴의 과제 개수*입니다.
+
+        3 은 `GOAL_SCHEMA.generated_tasks` 와 도구 파라미터의 `maxItems` 에도 있지만 둘 다
+        지키는 주체가 제공자이고, 도구 경로(`BOT_MODE=agent`)에서는 강제가 약합니다.
+        `_settle_capacity` 는 *칸의 남은 자리*로만 자르므로 빈 칸에서는 안 걸립니다.
+        """
+        tasks = decided.get("generated_tasks")
+        if not isinstance(tasks, list) or len(tasks) <= TASK_COUNT:
+            return
+        logger.warning(
+            "goal/turn_size 한 턴 상한 %d 개를 넘겨 %d 개를 잘랐습니다: %s",
+            TASK_COUNT,
+            len(tasks) - TASK_COUNT,
+            [t.get("title") for t in tasks[TASK_COUNT:] if isinstance(t, dict)][:5],
+        )
+        decided["generated_tasks"] = tasks[:TASK_COUNT]
+
     @classmethod
     def _settle_duplicates(
         cls, decided: dict, domains: Sequence[DomainRef], *, retry: bool = False
@@ -1415,12 +1524,6 @@ class GoalPipeline:
         전부 중복이면 `recommend` 로 바꿉니다. 빈 목록을 그대로 두면 `render()` 가
         "제목을 정하지 못했습니다" 로 끝나는데, 사실은 제목을 정한 것이고 이미 있었을
         뿐입니다. `_resolve_match` 는 후보 5건 안에서만 조회하므로 여기서 직접 채웁니다.
-
-        **`retry` 면 그 전환을 하지 않습니다.** 사용자가 방금 "다른 거 달라" 고 했는데
-        이미 담긴 과제를 들이미는 것이 되기 때문입니다 — 재요청 턴은 모델이 소재가
-        떨어져 기존 제목을 그대로 다시 낼 확률이 가장 높은 자리라 실제로 걸립니다
-        (실측 2026-08-08). 그때는 겹친 것이 아니라 **낼 것이 떨어진** 것이고, 필요한
-        것은 알림이 아니라 재시도입니다.
         """
         if not cls._is_storable(decided):
             return
@@ -1458,8 +1561,9 @@ class GoalPipeline:
             return
 
         if retry:
-            # `_run` 의 `stuck()` 이 이 값을 보고 한 번 더 굴립니다. 스키마 밖 값이라
-            # `render()` 까지 가지 않습니다(반드시 걸러집니다).
+            # **재요청에는 "겹쳐요" 가 답이 될 수 없습니다.** 사용자가 방금 다른 것을
+            # 달라고 했는데 이미 담긴 과제를 들이미는 것이 됩니다 — 겹친 것이 아니라
+            # 낼 것이 떨어진 것이고, `_run` 의 `stuck()` 이 한 번 더 굴립니다.
             logger.warning(
                 "goal/duplicate 재요청 턴에 기존 제목만 나와 recommend 전환을 막습니다: %s",
                 [t for t, _ in dropped],
@@ -1477,6 +1581,36 @@ class GoalPipeline:
             "frequency": first.frequency,
             "count": first.count,
         }
+        # 버린 것 전부. `matched_task` 는 프론트가 지목에 쓰는 자리라 한 건이지만,
+        # 문장에는 겹친 것을 다 싣습니다(`render()`).
+        decided["duplicate_matches"] = [
+            {"title": found.title, "frequency": found.frequency, "count": found.count}
+            for _, found in dropped
+        ]
+        # `recommend` 는 `_settle_capacity` 를 지나가지 않으므로(`_STORABLE_ACTIONS`)
+        # 자리 상태를 여기서 붙입니다.
+        if subject_count(match) >= MAX_SUBJECTS_PER_DOMAIN:
+            decided["capacity_note"] = domain_full_reply(title, domains)
+
+    @staticmethod
+    def _clarified_full_cell(
+        decided: dict, domains: Sequence[DomainRef]
+    ) -> str | None:
+        """모델이 **꽉 찬 칸을 두고 되물었으면** 그 칸 이름을. 아니면 `None`.
+
+        `_settle_capacity` 는 `generate` 만 봅니다(`_STORABLE_ACTIONS`). 모델이 스스로
+        `clarify` 를 고르면 그 검사를 지나가고 `clarify_question` 이 그대로 나갑니다.
+        그 문장은 시트를 안 봐서 자리가 남은 칸을 못 짚습니다 — 상태는 서버가 압니다.
+        """
+        if decided.get("action") != "clarify":
+            return None
+        title = (decided.get("domain") or "").strip()
+        if not title:
+            return None
+        match = next((d for d in domains if d.title == title), None)
+        if match is None or subject_count(match) < MAX_SUBJECTS_PER_DOMAIN:
+            return None
+        return title
 
     @classmethod
     def _settle_capacity(
@@ -1499,6 +1633,9 @@ class GoalPipeline:
         시트에 없는 칸(새 칸)은 비어 있으므로 검사할 것이 없습니다. `recommend` 는
         새로 담는 것이 아니라 이미 담긴 과제를 지목하는 것이라 여기 오지 않습니다
         (`_is_storable`).
+
+        남은 자리보다 많이 오면 **뒤에서** 자릅니다. 담기 시점의 정원은 `web/app.js` 의
+        `keep()` 이 따로 봅니다.
         """
         if not cls._is_storable(decided):
             return None
@@ -1604,50 +1741,6 @@ class GoalPipeline:
             logger.info("goal/decide 새 도메인을 제안했습니다: %r", title)
 
     @staticmethod
-    def _mark_domain_full(decided: dict, domains: Sequence[DomainRef]) -> None:
-        """지목한 칸에 남은 자리가 없으면 표시합니다 (제자리 수정).
-
-        **`recommend` 는 `_settle_capacity` 를 타지 않습니다**(`_is_storable`) — 담지
-        않으니 자를 것도 없어서입니다. 그래서 중복을 알리는 턴에서는 "그 칸이 꽉 찼다"
-        가 사용자에게 닿지 않고, 다음 턴에야 `domain_full_reply` 로 나옵니다. 사용자가
-        보는 것은 거절 이유가 "겹친다" → "꽉 찼다" 로 **바뀌는** 화면이고, 그건 서버가
-        처음부터 알고 있던 사실입니다(`_capacity_context` 가 칸별 n/8 을 싣습니다).
-
-        여기서 표시하고 `render()` 가 한 문장으로 붙입니다. 값은 `PRIVATE_FIELDS` 라
-        브라우저까지 가지 않습니다.
-        """
-        title = (decided.get("domain") or "").strip()
-        if not title:
-            return
-        match = next((d for d in domains if d.title == title), None)
-        if match is not None and subject_count(match) >= MAX_SUBJECTS_PER_DOMAIN:
-            decided["domain_full"] = True
-
-    @staticmethod
-    def _repeats_clarify(decided: dict, history: Sequence[Turn]) -> bool:
-        """이번 되묻기가 **직전에 한 말과 같은가.**
-
-        프롬프트에 "같은 질문을 두 번 하지 않는다" 를 적어도 어기면 조용히 통과합니다 —
-        `_settle_counts`·`_settle_capacity` 와 같은 이유로 서버가 한 번 더 봅니다.
-        여기서 걸리는 것이 사용자가 실제로 겪는 루프입니다(선택지에 답했는데 같은
-        질문이 다시 오는 화면, 실측 2026-08-08).
-
-        `history` 의 마지막 assistant 턴이 직전 응답입니다 — `Conversation` 이 사용자
-        턴을 넣은 뒤 부르므로 그 앞이 우리가 방금 한 말입니다. 히스토리가 비었거나
-        첫 턴이면 비교할 것이 없어 `False` 입니다.
-        """
-        if decided.get("action") != "clarify":
-            return False
-        question = " ".join((decided.get("clarify_question") or "").split())
-        if not question:
-            # 빈 질문은 `render()` 가 다른 문장으로 메웁니다 — 그건 이 판정의 몫이 아닙니다.
-            return False
-        previous = next((t for t in reversed(history) if t.role == "assistant"), None)
-        if previous is None:
-            return False
-        return similarity(question, " ".join(previous.text.split())) >= CLARIFY_REPEAT_THRESHOLD
-
-    @staticmethod
     def _slots_context(domains: Sequence[DomainRef] = ()) -> str:
         """`<domain_slots>` 슬롯 — 세부 목표 8칸 중 몇 칸이 찼는지.
 
@@ -1681,15 +1774,8 @@ class GoalPipeline:
         (`<existing_subjects>` 는 그대로 둡니다 — 그쪽은 **다른 칸**의 비슷한 과제까지
         훑고, 그 형식이 `subject_id` 지목의 정본입니다.)
 
-        **길이는 유계지만 작지는 않습니다.** 칸당 8개(`MAX_SUBJECTS_PER_DOMAIN`, `sheet.py`
-        가 자릅니다) × `MAX_SUBJECT_TITLE_LENGTH`(60)라 최악이 64건 약 5,300자입니다.
-        실측: 8칸이 다 찬 시트에서 제목 12자 1,744 / 16자 2,000 / 20자 2,256자.
-
-        **그래서 이 슬롯은 `MAX_SLOT_CHARS`(2,000)로 재지 않습니다**(`caps` 로
-        `MAX_CAPACITY_SLOT_CHARS` 를 줍니다). 예전에는 8칸이 다 차고 제목이 평균 17자를
-        넘으면 슬롯이 잘려 **뒤쪽 칸의 과제가 조용히 사라졌습니다** — 그 목록이 곧 중복
-        판정의 근거이고, 재요청 턴에는 후보 검색을 건너뛰므로 유일한 근거입니다.
-        그 상한마저 넘으면 과제를 빼지 않고 **제목을 줄입니다**(`CAPACITY_TITLE_CLIP`).
+        **길이는 유계입니다.** 칸당 8개(`MAX_SUBJECTS_PER_DOMAIN`, `sheet.py` 가 자릅니다)
+        × 제목 40자 상한이라 최악이 64건이고, 실측 규모에서는 100~200토큰입니다.
 
         개수는 여전히 `subject_count` 로 셉니다 — 강제하는 쪽(`_settle_capacity`)과 같은
         함수여야 "꽉 찼다고 알려주면서 서버는 자리가 있다고 판단하는" 조합이 안 생깁니다.
@@ -1699,13 +1785,8 @@ class GoalPipeline:
         text = self._capacity_lines(domains)
         if len(text) <= MAX_CAPACITY_SLOT_CHARS:
             return text
-        # **과제를 빼지 않는 것이 목적**이라 들어갈 때까지 제목을 줄입니다.
-        #
-        # 한 번만 줄이면 부족합니다 — `_capacity_context` 가 훑는 것은 정원
-        # (`DOMAIN_SLOTS` 8)이 아니라 **넘어온 칸 전부**이고, 전송 상한은
-        # `MAX_DOMAINS`(16)입니다. 16칸 x 8과제 = 128건이면 24자로 줄여도 상한을
-        # 넘어(실측 4,006자) 뒤쪽 20건이 사라졌습니다. 개수가 정해지지 않은 쪽이라
-        # 고정 길이가 아니라 예산에서 끌어냅니다.
+        # **과제를 빼지 않는 것이 목적**이라 들어갈 때까지 제목을 줄입니다. 이 슬롯이
+        # 잘리면 뒤쪽 칸의 과제가 사라지고, 그게 곧 중복 판정의 근거입니다.
         for clip in CAPACITY_TITLE_CLIPS:
             clipped = self._capacity_lines(domains, clip=clip)
             if len(clipped) <= MAX_CAPACITY_SLOT_CHARS:
@@ -1715,13 +1796,9 @@ class GoalPipeline:
                     len(text), MAX_CAPACITY_SLOT_CHARS, clip, len(clipped),
                 )
                 return clipped
-        # 여기까지 오면 `escape_slot_value` 가 뒤를 자릅니다 — 과제가 사라집니다.
-        # 도달하려면 시트가 `MAX_DOMAINS` x `MAX_SUBJECTS_PER_DOMAIN` 을 넘겨야 하는데
-        # `sheet.py` 가 그 전에 자르므로, 나면 그쪽 상한이 바뀐 것입니다.
         logger.error(
-            "goal/capacity_slot 제목을 %d자로 줄여도 %d자로 상한(%d)을 넘습니다 — "
-            "과제가 프롬프트에서 사라집니다(칸 %d개)",
-            CAPACITY_TITLE_CLIPS[-1], len(clipped), MAX_CAPACITY_SLOT_CHARS, len(domains),
+            "goal/capacity_slot 제목을 %d자로 줄여도 상한을 넘습니다 — 과제가 사라집니다",
+            CAPACITY_TITLE_CLIPS[-1],
         )
         return clipped
 
@@ -1742,7 +1819,7 @@ class GoalPipeline:
                 # 빼는 것과 같은 이유). 그래도 **목록에는 남깁니다** — 지목만 못 할 뿐
                 # "이미 담은 과제" 라는 사실은 중복 판정에 그대로 필요합니다.
                 marker = f"[{subject.subjectId}]" if subject.subjectId is not None else ""
-                # 줄였다는 표시를 남깁니다 — 없으면 모델이 잘린 제목을 온전한 제목으로
+                # 줄였다는 표시를 남깁니다 — 없으면 모델이 잘린 제목을 온전한 이름으로
                 # 읽고, 그 이름으로 "이미 있다/없다" 를 판단합니다.
                 title = subject.title
                 if clip is not None and len(title) > clip:
@@ -1770,8 +1847,14 @@ class GoalPipeline:
             stages=stages,
         )
 
-    async def _step(self, name: str, make_coro: Callable[[], Awaitable]):
+    async def _step(
+        self, name: str, make_coro: Callable[[], Awaitable], *, timeout: float | None = None
+    ):
         """단계마다 따로 타임아웃을 걸고, **잘림만 한 번 재시도**합니다.
+
+        `timeout` 을 주면 `BOT_STEP_TIMEOUT_SECONDS` 대신 그 값을 씁니다 — 도구 루프가
+        한 턴에 여러 번 부르므로 전체 예산을 스텝 수로 나눠 넘깁니다
+        (`_decide_with_tools`). 안 주면 예전과 똑같습니다.
 
         `BOT_TIMEOUT_SECONDS` 하나로 전체를 덮으면, 1단계가 그 시간을 다 쓰고
         3단계에 남는 시간이 없어도 "전체 타임아웃" 으로만 보입니다. 어느 단계가
@@ -1793,12 +1876,12 @@ class GoalPipeline:
         없어서, 재시도할 대상을 매번 새로 만들어야 합니다.
         """
         try:
-            return await self._attempt(name, make_coro)
+            return await self._attempt(name, make_coro, timeout)
         except LlmTruncatedError:
             logger.warning(
                 "%s 단계 응답이 잘렸습니다(디코딩 붕괴로 추정) — 한 번 재시도합니다", name
             )
-            return await self._attempt(name, make_coro)
+            return await self._attempt(name, make_coro, timeout)
         except LlmRateLimitedError as exc:
             wait = exc.retry_after if exc.retry_after is not None else RATE_LIMIT_WAIT_SECONDS
             if wait > MAX_RATE_LIMIT_WAIT_SECONDS:
@@ -1815,9 +1898,11 @@ class GoalPipeline:
                 name, wait, "" if exc.retry_after is None else " (Retry-After)",
             )
             await asyncio.sleep(wait)
-            return await self._attempt(name, make_coro)
+            return await self._attempt(name, make_coro, timeout)
 
-    async def _attempt(self, name: str, make_coro: Callable[[], Awaitable]):
+    async def _attempt(
+        self, name: str, make_coro: Callable[[], Awaitable], timeout: float | None = None
+    ):
         """`_step` 의 한 번의 시도. 타임아웃만 여기서 문장으로 바꿉니다.
 
         **송신 대기는 이 예산에 들어가지 않습니다.** `BOT_STEP_TIMEOUT_SECONDS` 는
@@ -1848,7 +1933,9 @@ class GoalPipeline:
         경우를 여기서 막지 못합니다 — eval 은 `Conversation` 을 지나지 않아
         `BOT_TIMEOUT_SECONDS` 의 보호를 받지 못하고 무한정 매달립니다.
         """
-        step = self._settings.bot_step_timeout_seconds
+        step = (
+            timeout if timeout is not None else self._settings.bot_step_timeout_seconds
+        )
         queue_wait = QUEUE_MAX_INTERVAL if self._settings.bot_max_rpm > 0 else 0.0
         try:
             return await asyncio.wait_for(make_coro(), timeout=step + queue_wait)
