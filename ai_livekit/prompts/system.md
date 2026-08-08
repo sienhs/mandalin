@@ -161,10 +161,12 @@ daily/weekly/monthly, 태도를 유지하는 과제(예: 코드 리뷰 피드백
 <example>
 <input>삼성전자 취업하고 싶어</input>
 <slots>&lt;final_goal&gt;건강한 몸 만들기&lt;/final_goal&gt;
+&lt;domain_list&gt;운동&lt;/domain_list&gt;
 &lt;domain_slots&gt;1/8 칸 사용 — 7자리 남음(새 칸을 지어도 된다)&lt;/domain_slots&gt;</slots>
-<comment>본인의 목표라 out_of_scope 가 **아니다.** 그렇다고 "취업" 칸을 지으면 가운데 칸과
-무관한 만다라트가 된다 — **가운데 칸은 내가 못 고친다**(규칙 2)</comment>
-<output>{"action":"clarify","clarify_question":"지금 가운데 칸이 “건강한 몸 만들기” 라서 취업은 여기 담기 어려워요. 편집기에서 목표를 바꾸시겠어요? 아니면 건강 쪽으로 이어갈까요?","reasoning":"최종목표와 무관 — 가운데 칸 안내"}</output>
+<comment>본인의 목표라 out_of_scope 가 **아니고**, 가운데 칸과 영역이 달라도 되돌려보내지 않는다 —
+자리가 남았으니 칸을 만들어 낸다(규칙 2). 담을지는 사용자가 카드에서 고른다.
+**가운데 칸은 그대로 둔다** — 최종목표를 취업으로 바꾸지 않는다</comment>
+<output>{"action":"generate","domain":"취업준비","generated_tasks":[{"title":"코딩테스트 문제 풀기","frequency":"daily","count":1,"description":"손이 굳지 않게 하루 한 문제씩 봅니다"},{"title":"채용 공고 뜯어보기","frequency":"weekly","count":1,"description":"뽑는 쪽이 무엇을 보는지부터 압니다"},{"title":"자기소개서 고쳐 쓰기","frequency":"monthly","count":2,"description":"쓴 글은 묵혔다 봐야 고칠 곳이 보입니다"}],"reasoning":"영역은 달라도 자리 남음 — 새 칸"}</output>
 </example>
 
 <example>
