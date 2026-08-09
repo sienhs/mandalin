@@ -67,8 +67,6 @@ export default function AppShell() {
     theme,
     toggleTheme,
     logout,
-    mode,
-    setMode,
     onboarded,
     notifications,
     reloadNotifications,
@@ -272,7 +270,17 @@ export default function AppShell() {
           이벤트를 받으면 그 띠에서 마을을 돌리거나 클릭할 수 없다. 그래서 판은
           `pointer-events-none` 으로 통과시키고 **실제 버튼 묶음에만** 다시 켠다(아래 세 곳).
         */}
-        <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center gap-3 px-4 sm:px-6">
+        {/*
+          마을 화면에서는 읽기 폭 제한을 풀어 <b>화면 끝까지</b> 쓴다. 아래 본문이 그렇게
+          바뀌었는데 헤더만 1320px 에 묶여 있으면, 넓은 모니터에서 오른쪽 버튼 묶음이
+          캔버스 오른쪽 모서리보다 한참 안쪽에 떠 있게 된다.
+        */}
+        <div
+          className={cn(
+            'mx-auto flex h-16 w-full items-center gap-3 px-4 sm:px-6',
+            !overlayHeader && 'max-w-[1320px]',
+          )}
+        >
           {/*
             펴기 버튼은 접혔을 때만, 그리고 사이드바가 있던 자리에 그대로 둔다.
             화면 위에 떠다니는 버튼으로 만들면 3D 캔버스나 카드 위에 얹혀 다시 가리게 되는데,
@@ -315,25 +323,15 @@ export default function AppShell() {
               overlayHeader && 'pointer-events-auto',
             )}
           >
-            {/* 페이지 제목이나 본문 폭과 무관하게 항상 오른쪽 도구 영역의 첫 자리에 둔다. */}
-            <button
-              type="button"
-              onClick={() => setMode(mode === 'mock' ? 'api' : 'mock')}
-              title={
-                mode === 'mock'
-                  ? '지금은 브라우저 안의 목업 데이터입니다. 눌러서 실제 서버로 전환'
-                  : '지금은 실제 백엔드에 연결돼 있습니다. 눌러서 목업으로 전환'
-              }
-              className={cn(
-                'hidden h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-black text-white sm:flex',
-                mode === 'mock'
-                  ? 'bg-gradient-to-br from-amber-400 to-amber-600'
-                  : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
-              )}
-            >
-              {mode === 'mock' ? '목업 데이터' : '서버 연결됨'}
-            </button>
+            {/*
+              데이터 출처(목업/서버) 전환 버튼이 여기 있었다. <b>세션 도중에 뒤집을 수 있다는
+              것 자체가 문제</b>였다 — 눌러도 이미 화면에 그려진 것은 그대로라 절반은 서버 것,
+              절반은 브라우저 것을 보게 되고, 그 상태에서 저장을 누르면 무엇이 어디에 남았는지
+              알 수 없다. 게다가 상단 바 오른쪽에 늘 떠 있어 실제 사용자에게도 보였다.
 
+              출처는 이제 로그인할 때만 정해진다(`store.tsx` 의 `initialMode` 주석).
+              목업 세션인지는 마이페이지의 '목업 계정' 배지로 확인한다.
+            */}
             <NavLink
               to="/app/shop"
               data-tour="top-point"
@@ -437,11 +435,23 @@ export default function AppShell() {
 
           <b>줄인 것은 여백뿐이다</b> — 캔버스도 조작 바도 버튼도 크기가 그대로다.
           모바일 하단 탭바를 피하는 `pb-28` 은 남긴다(그 자리에 탭바가 실제로 있다).
+
+          <b>그리고 마을 화면에만 읽기 폭 제한(1320px)을 걸지 않는다.</b> 다른 화면에서 그
+          값은 글줄이 너무 길어지지 않게 하는 장치인데, 마을에는 읽을 글줄이 없다. 오히려
+          넓은 모니터에서 그 제한이 캔버스를 세로로 길쭉하게 만들어 <b>마을을 작게 그리게</b>
+          한다 — `IsoCamera` 는 가로·세로 중 모자란 쪽에 맞추므로(contain), 폭이 묶여 비율이
+          1 에 가까워지면 세로가 아니라 가로가 기준이 되어 배율이 떨어진다.
+          2560×1440 에서 실측 폭 1272 → 2512 로 늘면 배율이 24.5 → 30.3 px/unit 로 오른다.
+
+          덤으로 배치 패널이 마을을 오른쪽으로 미는 만큼(276px)의 여유도 생긴다. 비율이 1
+          근처일 때는 마을이 이미 폭을 꽉 채우고 있어서 그 밀기가 곧 <b>오른쪽 잘림</b>이었다.
         */}
         <div
           className={cn(
-            'mx-auto w-full max-w-[1320px] px-4 pb-28 sm:px-6',
-            overlayHeader ? 'pt-3 lg:flex lg:h-dvh lg:flex-col lg:pb-4' : 'pt-6 lg:pb-16',
+            'mx-auto w-full px-4 pb-28 sm:px-6',
+            overlayHeader
+              ? 'pt-3 lg:flex lg:h-dvh lg:flex-col lg:pb-4'
+              : 'max-w-[1320px] pt-6 lg:pb-16',
           )}
         >
           <Outlet />

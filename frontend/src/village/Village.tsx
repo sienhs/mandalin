@@ -1,6 +1,7 @@
 import { Block } from './Block'
 import { PITCH } from './layout'
 import { TerrainGround } from './terrain'
+import type { TerrainSkin } from './terrain/skins'
 import type { CellOverride } from './GrowableObject'
 import type { LandmarkOverride } from './Landmark'
 import type { ThemeKey } from './partTypes'
@@ -14,6 +15,8 @@ interface Props {
   overrides: Record<string, CellOverride>
   themes: Record<string, ThemeKey>
   terrain: Terrain
+  /** 배경 사진이 데려온 지형. 없으면 위 `terrain` 의 기본 4종을 그린다. */
+  skin?: TerrainSkin | null
   catalog: OwnedCatalog
   selectedTaskId: string | null
   landmark: LandmarkOverride
@@ -32,12 +35,12 @@ interface Props {
  * 블록 사이 통로는 선택한 지형(도시 도로/비포장/초원길/물길)이 채운다.
  */
 export function Village({
-  mandalart, selected, overrides, themes, terrain, catalog, selectedTaskId, landmark,
+  mandalart, selected, overrides, themes, terrain, skin = null, catalog, selectedTaskId, landmark,
   islandBase = false, details = true, labels = true, onSelect, onSelectTask,
 }: Props) {
   return (
     <group>
-      <TerrainGround terrain={terrain} islandBase={islandBase} />
+      <TerrainGround terrain={terrain} islandBase={islandBase} skin={skin} />
 
       {mandalart.domains.slice(0, 9).map((domain, i) => {
         const gx = (i % 3) - 1
@@ -52,6 +55,7 @@ export function Village({
             overrides={overrides}
             theme={themes[domain.id] ?? 'warm'}
             terrain={terrain}
+            skinBlock={skin?.block}
             catalog={catalog}
             selectedTaskId={selectedTaskId}
             landmark={landmark}

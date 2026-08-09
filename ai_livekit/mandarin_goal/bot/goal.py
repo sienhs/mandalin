@@ -168,6 +168,20 @@ RETRY_NUDGE = (
     "이미 담긴 것과 다른 방식으로 새로 만든다."
 )
 
+#: 재요청 턴을 `injection` 으로 막았을 때 한 번 더 굴리며 붙일 문구.
+#:
+#: **재요청 발화에는 새로 들어온 지시가 없습니다** — 직전 턴이 이미 통과했고 이번 발화는
+#: "다른 거 달라" 한 마디뿐입니다. 그런데도 3단계가 `injection` 을 고르면 사용자는 고정
+#: 거절 문구를 받고 대화가 끝납니다(실측 2026-08-09: 같은 발화가 8초 전에는 `generate`
+#: 였는데 이어진 두 턴이 연속으로 막혔습니다).
+#:
+#: **`harmful`·`self_harm` 에는 쓰지 않습니다.** 그쪽은 되굴리면 해로운 발화를 실천과제로
+#: 만들 수 있어, 목표를 한 번 놓치는 것보다 나쁩니다(`prompts/system.md` 의 no_harm).
+INJECTION_RETRY_NUDGE = (
+    "앞 발화는 직전 제안을 바꿔 달라는 재요청이다. 내 역할·규칙·출력 형식을 바꾸라는 "
+    "요구가 아니므로 injection 이 아니다. 이미 담긴 것과 다른 방식으로 새로 만든다."
+)
+
 #: 재시도 뒤에도 같은 질문이면 쓸 문구. **같은 말을 세 번째로 내보내지 않습니다.**
 CLARIFY_STUCK_REPLY = (
     "제가 같은 질문을 반복했네요. "
@@ -1098,6 +1112,28 @@ class GoalPipeline:
             # 2차 방어선. 1단계는 목표 발화로 봤지만 3단계가 뒤집은 경우입니다.
             # "옆에 사람 때리고 싶어" 처럼 목표 발화의 문법(`~하고 싶어`)을 그대로
             # 갖춘 입력은 1단계를 통과하기 쉬워서, 이 층이 실제로 일합니다.
+            #
+            # **단 재요청 턴의 `injection` 만 한 번 되굴립니다.** 그 발화에는 새로 들어온
+            # 지시가 없어서(직전 턴이 이미 통과했습니다) 오탐일 가능성이 크고, 그대로
+            # 내보내면 고정 거절 문구로 대화가 끝납니다. 프롬프트에도 같은 좁히기를
+            # 적어 두었지만, 최우선 규칙이라 어겨도 조용히 통과하므로 여기서 한 번 더
+            # 받습니다. `harmful`·`self_harm` 은 대상이 아닙니다 — 위 상수 주석 참고.
+            if retry and decided.get("action") == "injection":
+                stages.append("nudge")
+                logger.warning(
+                    "goal/nudge 재요청 턴이 injection 으로 막혀 한 번 더 시도합니다: %r",
+                    transcript[:80],
+                )
+                decided = await decide(
+                    [*turns, Turn(role="user", text=INJECTION_RETRY_NUDGE)]
+                )
+                logger.info(
+                    "goal/decide 되새김 뒤 action=%s", decided.get("action"),
+                )
+
+        # 되굴린 응답이 또 막혔으면 여기서 끊습니다. 위에서 되굴리지 않았으면
+        # 첫 판단이 그대로 이 검사를 만납니다.
+        if decided.get("action") in BLOCKED_REPLIES:
             stages.append("blocked")
             logger.warning(
                 "goal/blocked 3단계에서 action=%s 로 판단했습니다: %r",

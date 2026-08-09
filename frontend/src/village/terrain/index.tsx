@@ -7,6 +7,8 @@ import { DirtRoad } from './DirtRoad'
 import { FloatingBase } from './FloatingBase'
 import { GrassPath } from './GrassPath'
 import { WaterWay } from './WaterWay'
+import { SkinnedSurface } from './SkinnedSurface'
+import type { TerrainSkin } from './skins'
 
 /**
  * 지형 4종 진입점.
@@ -56,12 +58,35 @@ function TerrainSurface({ terrain }: { terrain: Terrain }) {
  * 자세한 이유는 {@link ../CardBase.tsx} 주석에 적었다.
  */
 export function TerrainGround({
-  terrain, islandBase = false,
-}: { terrain: Terrain; islandBase?: boolean }) {
+  terrain,
+  islandBase = false,
+  skin = null,
+}: {
+  terrain: Terrain
+  islandBase?: boolean
+  /**
+   * 배경 사진이 데려온 지형({@link ./skins}). 있으면 지표면과 받침판 옆면이 이쪽을 따른다.
+   *
+   * <p>지형 4종을 지우지 않는다 — 배경을 쓰지 않는 '기본' 화면과 홈 미리보기·썸네일이
+   * 계속 그쪽을 쓴다. 여기서 하는 일은 <b>있으면 갈아 끼우는 것</b>뿐이다.
+   *
+   * <p>섬 받침(`islandBase`)은 갈아 끼우지 않는다. 갤러리·썸네일처럼 배경 사진이 없는
+   * 화면에서만 켜지는 옵션이라 스킨과 만날 일이 없다.
+   */
+  skin?: TerrainSkin | null
+}) {
   return (
     <group>
-      {islandBase ? <FloatingBase {...BASE[terrain]} /> : <CardBase terrain={terrain} />}
-      <TerrainSurface terrain={terrain} />
+      {islandBase ? (
+        <FloatingBase {...BASE[terrain]} />
+      ) : (
+        <CardBase
+          terrain={terrain}
+          edge={skin?.edge}
+          top={skin?.kind === 'water' ? skin.cardTop : undefined}
+        />
+      )}
+      {skin ? <SkinnedSurface skin={skin} /> : <TerrainSurface terrain={terrain} />}
     </group>
   )
 }
@@ -69,15 +94,19 @@ export function TerrainGround({
 /**
  * 블록 바닥색. 지형 기본색에서 도시화(urban 0~1)만큼 광장색으로 당긴다.
  * 지형 정체성을 유지하면서 진행률이 바닥으로도 읽히던 기존 표현을 살린다.
+ *
+ * @param override 배경 지형이 정한 출발색. 도시화로 당기는 규칙은 그대로 적용된다 —
+ *   블록 바닥은 진행률을 읽는 자리이기도 해서, 색만 갈아 끼우고 그 표현은 남긴다.
  */
-export function blockGroundColor(terrain: Terrain, urban: number): Color {
+export function blockGroundColor(terrain: Terrain, urban: number, override?: string): Color {
   const base: Record<Terrain, Color> = {
     CITY_ROAD: PALETTE.plaza,
     DIRT_ROAD: PALETTE.path,
     GRASS_PATH: PALETTE.grass,
     WATER_WAY: PALETTE.grass.clone().lerp(PALETTE.bush, 0.3),
   }
-  return base[terrain].clone().lerp(PALETTE.plaza, urban * 0.55)
+  const start = override ? new Color(override) : base[terrain]
+  return start.clone().lerp(PALETTE.plaza, urban * 0.55)
 }
 
 /** 마을풍 장식(관목·꽃밭)을 블록에 얹을지. 도시·물길은 지형이 이미 꽉 차 있어 뺀다. */

@@ -118,6 +118,19 @@ function applyFrustum(
   camera.updateProjectionMatrix()
 }
 
+/**
+ * UI 가 좌·우를 덮었을 때 마을이 화면에서 옮겨 가야 할 거리(px).
+ *
+ * <p>노출된 영역의 중심이 캔버스 중심에서 얼마나 벗어났는지다. 왼쪽이 덮였으면 노출
+ * 중심이 오른쪽에 있으므로 양수 = 마을을 오른쪽으로.
+ *
+ * <p>원래 식은 `(oL + (w - oR))/2 - w/2` 였는데 펴면 캔버스 폭이 지워진다. 폭에 의존하지
+ * 않는다는 사실이 식에 드러나 있어야 "창 크기가 바뀌면 이 값도 바뀌나" 를 매번 되짚지 않는다.
+ */
+function exposedCenterOffset(occludedLeft: number, occludedRight: number): number {
+  return (occludedLeft - occludedRight) / 2
+}
+
 export type IsoCameraHandle = {
   /** 시계 방향으로 90° 돈다. */
   rotateCW: () => void
@@ -211,14 +224,32 @@ export function IsoCamera({
   const half = Math.max(WORLD_HEIGHT / 2, WORLD_WIDTH / 2 / aspect)
 
   /**
-   * 마을이 화면에서 옮겨 가야 할 거리(px).
+   * 마을이 화면에서 옮겨 가야 할 거리(px). {@link exposedCenterOffset} 참고.
    *
-   * <p>노출된 영역의 중심이 캔버스 중심에서 얼마나 벗어났는지를 잰다. 왼쪽이 덮였으면 노출
-   * 중심이 오른쪽에 있으므로 양수 = 마을을 오른쪽으로.
+   * <p>밀되 <b>마을을 프레임 밖으로 내보내지는 않는다</b> — 절두체가 마을보다 넓을 때
+   * 남는 여백(`slack`)까지만 민다. 이 제한이 없으면 배치 패널을 여는 순간 마을 오른쪽
+   * 끝이 캔버스 밖으로 나간다.
+   *
+   * <p><b>여백은 확대 <i>목표값</i>(`ZOOM_PRESETS[zoom]`)으로 잰다. 프레임마다 움직이는
+   * `zoomRef` 로 재면 안 된다.</b> 확대가 진행되는 동안 여백이 줄다가 어느 지점에서
+   * 음수로 넘어가는데(비율 1.78 에서 zoom≈1.44), 거기서 제한이 통째로 풀리면 밀기 값이
+   * 잘린 값에서 원래 값으로 <b>한 프레임에</b> 되돌아간다 — 실측 화면상 260px 이라
+   * '멀리'에서 '가까이'로 한 번에 갈 때 카메라가 눈에 띄게 끊겼다.
+   *
+   * <p>목표값으로 재면 이 값은 <b>버튼을 누른 순간에만</b> 바뀌고, 그 차이는 아래
+   * `offsetRef` 감속이 회전·확대와 같은 리듬으로 메운다. 잘라야 할 것은 여전히 잘리되
+   * (확대가 끝난 상태에서는 목표값 = 실제값이라 결과가 같다) 도중에 튀지 않는다.
+   *
+   * <p>절두체가 마을보다 좁으면(확대한 상태) 제한하지 않는다. 그때는 잘라 보는 것이
+   * 목적이고, 0 으로 묶으면 고른 블록이 패널 뒤에 숨어 확대가 쓸모없어진다.
    */
-  const offsetGoal = ready
-    ? (occludedLeft + (size.width - occludedRight)) / 2 - size.width / 2
-    : 0
+  const wantedOffset = ready ? exposedCenterOffset(occludedLeft, occludedRight) : 0
+  const slack = (half * aspect) / ZOOM_PRESETS[zoom] - WORLD_WIDTH / 2
+  const offsetLimit = (slack * ZOOM_PRESETS[zoom] * size.width) / (2 * half * aspect)
+  const offsetGoal =
+    ready && slack > 0
+      ? Math.max(-offsetLimit, Math.min(offsetLimit, wantedOffset))
+      : wantedOffset
 
   useImperativeHandle(
     handleRef,
@@ -366,7 +397,13 @@ export function IsoCamera({
     */
     offsetRef.current += (offsetGoal - offsetRef.current) * t
 
-    // 화면 1px 이 월드 몇 단위인지. zoom 이 크면(확대) 1px 이 덮는 월드가 작아진다.
+    /*
+      화면 1px 이 월드 몇 단위인지. zoom 이 크면(확대) 1px 이 덮는 월드가 작아진다.
+
+      여기서는 <b>자르지 않는다.</b> 잘라야 할 몫은 위에서 목표 픽셀값에 이미 반영했고,
+      이 자리는 그 값을 월드로 옮기기만 한다 — 매 프레임 다시 자르면 확대 도중에 조건이
+      뒤집히며 카메라가 튄다(위 `offsetGoal` 주석 참고).
+    */
     const worldPerPx = (2 * half * aspect) / zoomRef.current / size.width
     const wantShift = -offsetRef.current * worldPerPx
 
