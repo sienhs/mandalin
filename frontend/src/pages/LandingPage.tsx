@@ -55,19 +55,25 @@ function Section({
   children,
   className,
   pad = 'both',
+  id,
 }: {
   children: ReactNode
   className?: string
   /** 다음 구간과 이어 붙일 때 한쪽 여백을 접는다. */
   pad?: 'both' | 'top' | 'bottom'
+  /** 앵커로 삼을 구간에만 준다(둘러보기 버튼의 목적지). */
+  id?: string
 }) {
   const full = 'clamp(84px, 13vh, 150px)'
   const short = 'clamp(40px, 6vh, 64px)'
 
   return (
     <section
+      id={id}
       className={cn('px-6', className)}
       style={{
+        // 상단 헤더(h-16)가 sticky 라 앵커로 뛰어오면 그만큼을 덮는다. 미리 비워 둔다.
+        scrollMarginTop: '64px',
         /*
           구간마다 색을 갈아 끼우지 않는다. 앱과 같은 바탕(흰색)으로 끝까지 가야
           로그인 버튼을 누르는 순간 배경이 바뀌지 않는다 — 소개 페이지와 앱이
@@ -219,6 +225,24 @@ const FEATURES = [
 
 /** 만든 사람들. 푸터에만 쓴다. */
 const TEAM = ['정희성', '황우찬', '김재현', '권병수', '이성현', '지상근'] as const
+
+/**
+ * 히어로의 "둘러보기" 가 데려갈 곳 — 소개가 시작되는 첫 구간.
+ *
+ * <p>`<a href="#...">` 대신 스크롤을 직접 시킨다. 해시 링크는 주소창에 `#` 이 남고
+ * 뒤로 가기 기록도 한 칸 먹는데, 이 버튼이 하는 일은 이동이 아니라 <b>같은 페이지에서
+ * 아래를 보여주는 것</b>이다.
+ */
+const INTRO_ID = 'intro'
+
+function scrollToIntro() {
+  const target = document.getElementById(INTRO_ID)
+  if (!target) return
+
+  // 애니메이션을 꺼 둔 사용자에게는 부드러운 스크롤도 멀미의 원인이다. 바로 옮긴다.
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
+}
 
 const FAQ = [
   {
@@ -436,7 +460,7 @@ export default function Landing() {
                 <Button size="lg" to={home}>
                   {authed ? '내 도시로 가기' : '무료로 시작하기'}
                 </Button>
-                <Button size="lg" variant="quiet" to="/login">
+                <Button size="lg" variant="quiet" onClick={scrollToIntro}>
                   둘러보기
                 </Button>
               </div>
@@ -485,8 +509,8 @@ export default function Landing() {
         </section>
       </div>
 
-      {/* ───────── 문제 제기 ───────── */}
-      <Section>
+      {/* ───────── 문제 제기 (둘러보기의 목적지) ───────── */}
+      <Section id={INTRO_ID}>
         <Headline
           align="center"
           title={

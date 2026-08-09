@@ -33,6 +33,18 @@ export class ApiError extends Error {
  */
 const TOKEN_KEY = 'mandarin.dev.accessToken'
 
+/**
+ * 사용자가 직접 로그아웃했다는 표시.
+ *
+ * <p>액세스 토큰을 비우는 것만으로는 로그아웃이 끝나지 않는다. 부팅할 때마다 리프레시
+ * 쿠키로 세션을 되살리려 하기 때문에(`store.tsx` 의 세션 복원), 쿠키가 한 박자 늦게
+ * 지워지거나 서버 요청이 실패하면 새로 고치는 순간 다시 로그인된 화면이 뜬다.
+ * 그래서 "되살리지 말라"는 뜻을 이 탭에 남겨 둔다.
+ *
+ * <p>탭 단위(sessionStorage)로 둔다 — 다른 탭에서 쓰던 세션까지 끌어내리지 않는다.
+ */
+const LOGGED_OUT_KEY = 'mandarin.loggedOut'
+
 let accessToken: string | null =
   typeof window === 'undefined' ? null : window.sessionStorage.getItem(TOKEN_KEY)
 
@@ -43,6 +55,20 @@ export function getAccessToken(): string | null {
 export function setAccessToken(token: string): void {
   accessToken = token
   window.sessionStorage.setItem(TOKEN_KEY, token)
+  // 토큰이 새로 들어왔다 = 다시 로그인했다. 표시를 남겨 두면 다음 부팅에서 게스트가 된다.
+  window.sessionStorage.removeItem(LOGGED_OUT_KEY)
+}
+
+export function markLoggedOut(): void {
+  window.sessionStorage.setItem(LOGGED_OUT_KEY, '1')
+}
+
+export function clearLoggedOut(): void {
+  window.sessionStorage.removeItem(LOGGED_OUT_KEY)
+}
+
+export function wasLoggedOut(): boolean {
+  return window.sessionStorage.getItem(LOGGED_OUT_KEY) === '1'
 }
 
 export function clearAccessToken(): void {
