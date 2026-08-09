@@ -21,11 +21,13 @@ mandarin_goal/  목표 설계 파이프라인. 전송 계층을 모릅니다
 prompts/        프롬프트 정본
 web/            브라우저 프론트. 빌드 도구 없음
 scripts/        진단, 스모크, 개발용 토큰 서버
+evals/          골든셋과 채점기. 프롬프트를 고쳤을 때 좋아졌는지 잽니다
 ```
 
 | 파일 | 역할 | LiveKit |
 |---|---|:---:|
 | `mandarin_goal/` | 분류, 검색, 판단, LLM, 프롬프트, 시트 모델 | |
+| `mandarin_goal/bot/tools.py` | 도구 선언과 호출 루프(`BOT_MODE=agent`) | |
 | `agent/reuse.py` | 파이프라인 import 통로 | |
 | `agent/sheet_transfer.py` | 시트 수신과 파싱 | |
 | `agent/conversation.py` | 대화 규율(히스토리, 동시성, 실패 처리) | |
@@ -33,8 +35,10 @@ scripts/        진단, 스모크, 개발용 토큰 서버
 | `agent/entrypoint.py` | worker 배선(`AgentServer`, 토픽, 이벤트) | 필요 |
 | `agent/__main__.py` | `.env` 로딩, `worker.log`, worker 기동 | 필요 |
 | `scripts/check_reuse.py` | 환경 진단 | |
+| `scripts/probe_tools.py` | 도구 호출 지원 여부 진단(모델·게이트웨이) | |
 | `scripts/smoke_client.py` | 파이썬 클라이언트로 왕복 확인 | 필요 |
 | `scripts/dev_server.py` | 프론트 서빙과 토큰 발급. Spring 자리 | 필요 |
+| `evals/runner.py` | 골든셋을 실제 파이프라인에 태워 채점 | |
 
 LiveKit 이 필요한 파일은 `entrypoint.py` 하나입니다. 나머지에 로직을 몰아둔 이유는
 버그가 주로 파싱, 폴백, 동시성에서 나는데 그게 `livekit.agents` import 뒤에 숨으면
@@ -109,14 +113,33 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 ## 확인
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q                                    # 125 tests
-.venv\Scripts\python.exe -m ruff check agent mandarin_goal tests scripts
+.venv\Scripts\python.exe -m pytest -q                                    # 373 tests
+.venv\Scripts\python.exe -m ruff check agent mandarin_goal tests scripts evals
 .venv\Scripts\python.exe -m mypy agent mandarin_goal scripts --ignore-missing-imports
 .venv\Scripts\python.exe scripts\smoke_client.py "화 안 내는 사람이 되고 싶어"
 ```
 
+커버리지는 옵트인입니다. 퍼센트가 아니라 **어떤 갈래가 안 도는지**를 보는 용도입니다.
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q --cov=agent --cov=mandarin_goal --cov-report=term-missing
+```
+
+`pytest` 는 LLM 을 부르지 않습니다. **프롬프트를 고쳤으면 골든셋을 돌리세요** — 그쪽은
+크레딧을 씁니다(케이스당 왕복 2회).
+
+```powershell
+.venv\Scripts\python.exe -m evals.runner --provider echo      # 배선만, 호출 0회
+.venv\Scripts\python.exe -m evals.runner --only c01 --repeat 5
+.venv\Scripts\python.exe -m evals.runner --vs prompts_v2 --repeat 3   # 프롬프트 변경은 전체 A/B
+```
+
+골든셋은 케이스당 발화가 **하나**입니다. 히스토리가 다음 턴에 미치는 영향(되묻기 직후
+판정, 상태 문구의 수명)은 여기서 안 잡히고 `pytest` 가 유일한 방어선입니다.
+
 `mypy` 는 **`tests/` 를 빼고** 돌립니다. 테스트 대역(`FlakyBackend` 등)이 프로토콜의 필요한
-부분만 구현하는 것이 의도라서, 넣으면 그 11건이 매번 나와 진짜 신호를 덮습니다.
+부분만 구현하는 것이 의도라 넣으면 그 오류가 진짜 신호를 덮고, `tests/` 는 패키지가
+아니라서 모듈 이름이 겹친다는 오류로 먼저 멈추기도 합니다.
 `--ignore-missing-imports` 는 `livekit.*` 에 타입 스텁이 없어서 필요합니다.
 
 `entrypoint.py` 는 LiveKit API 를 호출하는 유일한 파일이라 단위 테스트로 덮을 수
@@ -126,21 +149,38 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 
 | 테스트 파일 | 개수 | 대상 |
 |---|---:|---|
-| `test_conversation.py` | 11 | 생성 중 버리기, 타임아웃, 크래시 복구, 히스토리 상한 |
-| `test_reuse.py` | 15 | 파이프라인 자립, 전송 스택 없이 import, 텍스트 턴 왕복, 인젝션 방어, 원문의 출처, 발화가 모델에 그대로 실리는지 |
-| `test_sheet_transfer.py` | 13 | 시트 파싱. Spring 모양, 상한, fail-open, 폴백 |
-| `test_listen.py` | 10 | STT fail-open, 플러그인 import 위치, 언어 기본값 |
-| `test_event_signatures.py` | 8 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
+| `test_conversation.py` | 14 | 생성 중 버리기, 타임아웃, 크래시 복구, 히스토리 상한, 상태 문구가 히스토리에 남지 않는지 |
+| `test_reuse.py` | 10 | 파이프라인 자립, 전송 스택 없이 import, 텍스트 턴 왕복, 인젝션 방어, 원문의 출처, 발화가 모델에 그대로 실리는지 |
+| `test_sheet_transfer.py` | 18 | 시트 파싱. Spring 모양, 상한, fail-open, 폴백 |
+| `test_listen.py` | 34 | STT fail-open, 플러그인 import 위치, 언어 기본값, 무음 게이트, 스트림이 도중에 깨질 때 |
+| `test_event_signatures.py` | 2 | LiveKit 이벤트 인자 순서(SDK `emit` 과 대조) |
+| `test_stuck_loop.py` | 16 | 같은 되묻기 반복, 재요청에 "겹쳐요" 로 답하기, 꽉 찬 칸을 다음 턴에야 알리기 |
+| `test_capacity_slot.py` | 11 | 꽉 찬 시트에서 담긴 과제가 프롬프트 슬롯에서 사라지지 않는지, 칸 이름·과제 제목이 저장 상한을 넘지 않는지 |
+| `test_candidate_ranking.py` | 15 | 후보 검색 순위. 횟수가 순위를 가르는지, 가점이 필터가 아닌지, "안 말했다"와 "1이라고 말했다"를 가리는지 |
+| `test_recommend_lookup.py` | 7 | 지목한 `subject_id` 를 후보 밖(시트 전체)에서도 찾는지, 없는 번호는 지어내지 않는지 |
+| `test_violation_patterns.py` | 5 | eval 위반 지표의 정규식이 **실제로 나가는 로그 줄**과 맞는지(문구를 고치면 조용히 0 이 되는 결합) |
+| `test_screenshot_fixtures.py` | 11 | 실측 화면(2026-08-08)을 재현하는 시트 픽스처가 **화면에 찍힌 응답**과 어긋나지 않는지 |
+| `test_pipeline_wiring.py` | 18 | 가드를 `_run` 이 **실제로 부르는지**. 호출 한 줄을 지우면 깨진다 — **안전 차단(harmful·self_harm·injection)이 배선 테스트 없이 있던 자리**를 포함 |
 | `test_hello.py` | 13 | 세션 능력 알림. `voice:false` 필수, LLM 상태와 `BACKENDS` 표의 일치 |
 | `test_history_reset.py` | 4 | 재입장하면 대화가 초기화되는지. 시트 상태는 남는지, 재입장 핸들러가 실제로 부르는지 |
 | `test_shutdown_reason.py` | 3 | job 종료 사유를 사람 말로 옮기는지. 라이브러리의 `parent process shutdown` 오독 방지 |
 | `test_single_user_room.py` | 12 | 사용자 1명 + 에이전트 1개. 발신자 대조, 오디오만 구독, `max_participants: 2`, 방 수명이 상속이 아닌지 |
 | `test_transcription_registry.py` | 6 | mute/unmute 경합, 중복 시작, 누수 |
-| `test_domain_authority.py` | 6 | 도메인 정본이 시트인지, 없는 칸을 만들지 않는지 |
-| `test_prompts_are_one_folder.py` | 5 | 모델에게 가는 텍스트가 `prompts/` 에만 있는지, 슬롯이 제 자리에 채워지는지 |
+| `test_domain_authority.py` | 28 | 칸을 지을 자리, 칸 안의 정원, 한 턴이 내는 과제 수, 되묻기 문구가 히스토리보다 오래 살지 않는지 |
+| `test_server_replies.py` | 13 | 서버가 만드는 문장 — 차단·범위 밖은 모델을 더 부르지 않는지, 모델이 규칙을 어겼을 때의 대체 문구, 되묻기 직후 턴 |
+| `test_duplicate_tasks.py` | 10 | 이미 담은 과제를 다시 만들지 않는지, 겹친 것을 전부 알려주는지 |
+| `test_prompt_loading.py` | 12 | 프롬프트 파일이 없거나·비거나·상한을 넘거나·인코딩이 틀렸을 때 어디로 내려가는지 |
+| `test_llm_failures.py` | 10 | LLM 실패 시 사용자에게 나가는 문구. 원인이 갈리는지, 응답 본문이 화면까지 새지 않는지 |
+| `test_prompts_are_one_folder.py` | 7 | 모델에게 가는 텍스트가 `prompts/` 에만 있는지, 슬롯이 제 자리에 채워지는지 |
 | `test_versions_match.py` | 2 | compose 가 띄우는 LiveKit 서버 태그와 README 의 기준 버전이 같은지, 패치까지 고정됐는지 |
 | `test_worker_limits.py` | 4 | 버스터블 baseline 에 맞춘 `load_threshold`·유휴 프로세스 수. 인스턴스를 바꾸면 실패합니다 |
 | `test_topics_match.py` | 3 | 토픽 문자열이 서버·`web/app.js`·React 훅 세 곳에서 같은지(이름→값 짝으로) |
+| `test_tool_calls.py` | 15 | `functionResponse` 의 role, `mode=ANY` 강제, 평문 누출 보고, 잘림이 도구 경로에도 걸리는지 |
+| `test_tool_loop.py` | 24 | 두 모드가 같은 판단을 낼 수 있는지(action↔도구 짝), 종결 강제, 평문이 결정까지 못 오는지, 되먹임, 핸들러 실패 복구 |
+
+`tests/conftest.py` 가 게이트 조율값(`STT_*`)을 테스트마다 지웁니다. `scripts/dev_server.py`
+가 import 시점에 `load_dotenv()` 를 부르므로, 안 지우면 그 사람의 `.env` 가 pytest 세션
+전체에 올라가 게이트 테스트가 그 머신에서만 깨집니다.
 
 `test_event_signatures.py` 부터 `test_transcription_registry.py` 까지는 예외 없이
 조용히 실패하던 버그에서 나왔습니다(HANDOFF 2절). 그래서 문구가 아니라 구조를
@@ -162,7 +202,7 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 | `BOT_BASE_URL` | | 게이트웨이를 쓰면 필수. 빠뜨리면 공식 엔드포인트로 나갑니다 |
 | `BOT_STEP_TIMEOUT_SECONDS` | `25` | 게이트웨이는 느립니다. 기본값 15 면 정상 응답이 잘립니다 |
 | `BOT_TIMEOUT_SECONDS` | `45` | 위와 같음(기본값 20) |
-| `BOT_MODE` | `goal` | `goal` 경로만 배선돼 있습니다. 다른 값은 경고만 남고 동작은 같습니다 |
+| `BOT_MODE` | `goal` | `goal` 또는 `agent`(도구 루프 — 아래 절). 아는 값의 정본은 `PIPELINE_MODES` 이고, 모르는 값이면 경고가 남습니다 |
 | `BOT_MAX_CONCURRENT_ROOMS` | `0` | worker 하나가 맡을 방 수 상한(0=무제한). 넘으면 `admit()` 이 거절하고 다른 worker 로 넘깁니다. t3.micro 권장 4 — 근거와 실측치는 `.env.example` 주석에 있습니다(유휴 430MB + 세션당 약 45MB, 1 GiB 라 스왑 없이는 더 올리지 마세요) |
 | `BOT_SYSTEM_PROMPT_FILE` | `./prompts/system.md` | 생략 가능. 기본값이 저장소의 정본을 |
 | `BOT_CLASSIFY_PROMPT_FILE` | `./prompts/classify.md` | 가리킵니다 — 다른 파일로 실험할 때만 |
@@ -208,6 +248,79 @@ worker 를 두 개 띄우지 마세요. job 이 나뉘어 배정돼서 증상이
 `mandarin.goal` 로는 `public_data()` 를 거친 것만 내보냅니다. 안 거치면 프롬프트가
 사용자에게 노출하지 않는다고 적어 둔 `reasoning` 이 브라우저까지 갑니다
 (`test_the_structured_result_never_carries_reasoning`).
+
+## 도구 모드 (`BOT_MODE=agent`)
+
+3단계(판단)를 **도구 호출 루프**로 대신합니다. 1단계(분류)와 2단계(검색)는 그대로예요 —
+1단계는 싼 모델로 차단 갈래를 먼저 끊는 자리고, 2단계는 LLM 이 아니라 바이그램 검색입니다.
+
+```
+action="generate"   → propose_tasks(domain, tasks[3])
+action="recommend"  → point_to_existing(subject_id)
+action="clarify"    → ask(question, domain)
+나머지 넷            → decline(kind)
+```
+
+**넷이 전부이고 전부 종결입니다 — 에이전트는 만드는 일만 합니다.** 담은 과제를 빼거나
+고치는 도구를 붙여 봤다가 걷어냈습니다(2026-08-07, 아래 절). 정리는 편집기에서
+사용자가 합니다.
+
+`GOAL_SCHEMA` 는 평평한 객체 하나가 모든 action 을 겸해서, action 을 늘릴 때마다 다른
+action 에서는 항상 `null` 인 필드가 늘고 잘림 위험이 커집니다. 도구로 가르면 각 도구의
+`parameters` 가 그 action 전용이라 서로를 밀어내지 않습니다.
+
+**`responseSchema` 를 같이 쓸 수 없습니다.** Gemini 가 거부합니다 — *Function calling
+with a response mime type: 'application/json' is unsupported*. 확인은
+`scripts/probe_tools.py` 가 합니다.
+
+```powershell
+.venv\Scripts\python.exe scripts\probe_tools.py            # 다섯 항목 전부
+.venv\Scripts\python.exe scripts\probe_tools.py --only parallel
+```
+
+`MAX_STEPS` 는 **2** 입니다 — 첫 시도와, 평문으로 샜을 때의 종결 강제 재시도. 도구가 전부
+종결이라 정상 턴은 1스텝입니다.
+
+그래서 **스키마 강제가 하던 일을 `mode=ANY` 가 합니다**(`reply_tools(force=True)`).
+AUTO 로 두면 모델이 도구를 건너뛰고 평문으로 답하는 것이 실측으로 확인됐고, 그 문장은
+어떤 스키마도 거치지 않은 채 말풍선까지 갑니다. 루프는 평문이 오면 종결 도구로 좁혀
+다시 묻고, 그 문장을 히스토리에 넣지 않습니다.
+
+| 지키는 것 | 어디서 |
+|---|---|
+| 스키마 밖 출력 금지 | `mode=ANY`. 마지막 스텝은 `allowedFunctionNames` 로 종결 도구만 |
+| 잘림 재시도·429 백오프 | `_step` 을 그대로 지납니다 |
+| 아는 값은 서버가 정함 | 루프 결과가 `GOAL_SCHEMA` **같은 모양**이라 `_settle_*` 와 `render()` 가 그대로 돕니다 |
+| 스텝 예산 | `BOT_TIMEOUT_SECONDS / MAX_STEPS`. 단계 예산을 스텝마다 그대로 쓰면 곱해져서 전체가 먼저 터집니다 |
+
+도구 설명의 정본은 `prompts/fragments/tools.md` 입니다 — 이름과 인자 모양은 코드가
+정하지만(`bot/tools.py`) "언제 부르는가" 는 문구라 `prompts/` 에 둡니다.
+
+**`system.md` 의 낱말과 이어 줘야 합니다.** 그쪽 규칙은 `generate`·`recommend` 라는
+action 이름으로 적혀 있는데 도구 모드에는 그 이름이 없습니다. 이어 주지 않았을 때
+`"정보처리기사 준비하고 싶어"` 가 중복 알림 대신 새 과제 생성으로 샜습니다(2026-08-07).
+이어 준 뒤로는 골든 케이스 5건이 두 모드에서 같은 action 을 냅니다.
+
+**병렬 호출을 합니다.** 최소 프롬프트로 잰 프로브에서는 한 응답에 도구 하나만 와서 없는
+줄 알았는데, 정본 프롬프트에서는 두 도구가 **한 응답에 같이** 옵니다(3회 재현). 프로브의
+축소 조건으로 모델 행동을 단정하면 안 된다는 사례입니다. 지금은 도구가 전부 종결이라
+첫 호출에서 턴이 끝나지만, 비종결 도구를 다시 붙이면 이 성질이 그대로 쓰입니다.
+
+### 빼거나 고치는 도구는 두지 않습니다
+
+`remove_task`·`update_task` 를 붙여 실서버까지 돌려 봤습니다(2026-08-07). 파이프라인은
+잘 돌았습니다 — 한 응답에 `remove_task` 와 `propose_tasks` 가 같이 오고 1스텝 2.9초,
+빼기 제안만큼 정원도 늘어났습니다. **걷어낸 이유는 화면 쪽입니다:** 되돌릴 수단 없이
+과제가 사라지는 버튼이 대화 안에 생깁니다. 담기는 잘못 눌러도 다시 빼면 그만이지만
+이쪽은 아닙니다.
+
+**지우는 것은 사용자가 합니다** — 시트 패널의 휴지통 버튼과 편집기가 그 자리입니다.
+`domain_full_reply` 가 "어느 과제를 뺄까요" 로 묻지 않고 "편집기에서 정리해 주세요" 로
+끝나는 것과 같은 경계입니다.
+
+다시 붙일 때 필요한 것은 셋입니다 — 비종결 도구 선언, `HANDLERS` 에 등록할 핸들러
+(시트에 있는 `subject_id` 만 받고 제목·칸은 시트에서 채웁니다), 그리고 **되돌리기가 있는
+확인 UI**. 루프 쪽(`_run_handler`·되먹임)은 그대로 남아 있습니다.
 
 ## 시트
 
@@ -534,6 +647,7 @@ worker 는 밖에서 들어오는 요청을 받지 않습니다. 반대로 LiveK
 | 마이크를 켰는데 캡션이 안 뜸 | `DEEPGRAM_API_KEY` 없음. 기동 로그의 `음성=` 확인 |
 | `마이크를 켤 수 없습니다` | 브라우저 권한이나 장치 문제. `localhost` 는 secure context 지만 다른 기기에서 열면 HTTPS 가 필요합니다 |
 | 전사가 중간에 멈춤 | worker 로그의 STT 스트림 예외. 태스크가 GC 되면 조용히 멈춥니다 |
+| 말하는 중에 끊김 | `STT_HANGOVER_MS`(기본 800)가 짧습니다. 로그의 `보낸 오디오` 가 `마이크` 보다 크게 짧으면 그쪽이 아니라 `STT_SILENCE_DBFS` 입니다 |
 | STT 가 됐다 안 됐다 함 | worker 가 두 개. `.env` 를 고쳤으면 옛 것을 끄세요 |
 | 전사에 카타카나나 한자 | `STT_LANGUAGE` 가 `multi` |
 

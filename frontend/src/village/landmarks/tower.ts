@@ -36,12 +36,18 @@ export const TOWER_LANDMARKS = {
     label: '격자 철탑',
     group: 'landmark',
     parts: [
-      // 1단계 — 광장 + 네 기초 블록
+      /*
+        1단계 — 광장 + 네 기초 블록.
+
+        블록은 **다리 밑**에 와야 한다. `lattice` 의 다리는 네 모서리에 서고, 최하단 구간의
+        중심은 ±0.98 이다(`LatticePart` 가 구간마다 위아래 반폭을 평균해서 쓴다 —
+        w/2 = 1.05 가 아니다). `around(4, …)` 는 축 방향(±r, 0)에 놓여서 다리 사이 빈 곳을
+        받치고 있었고, 그래서 철탑 기단이 광장 위 0.14 를 떠 있었다.
+      */
       ...at(1, [
         { k: 'box', w: 2.9, h: 0.05, d: 2.9, y: 0, color: PLAZA, rough: 0.95 },
-        ...around(4, 0.86, 0.86, (x, z) => ({
-          k: 'box', w: 0.44, h: 0.14, d: 0.44, x, z, y: 0.05, color: 'concrete', rough: 0.95,
-        })),
+        ...mirrorX([{ k: 'box', w: 0.44, h: 0.14, d: 0.44, x: 0.98, z: 0.98, y: 0.05, color: 'concrete', rough: 0.95 }]),
+        ...mirrorX([{ k: 'box', w: 0.44, h: 0.14, d: 0.44, x: 0.98, z: -0.98, y: 0.05, color: 'concrete', rough: 0.95 }]),
       ]),
       // 2단계 — 네 다리(바깥으로 벌어진 하부)
       ...at(2, [
@@ -49,8 +55,10 @@ export const TOWER_LANDMARKS = {
       ]),
       // 3단계 — 1층 아치 + 플랫폼
       ...at(3, [
-        { k: 'arch', w: 0.9, h: 0.78, d: 1.9, thick: 0.14, y: 0.19, color: IRON2 },
-        { k: 'arch', w: 0.9, h: 0.78, d: 1.9, thick: 0.14, y: 0.19, rotY: Math.PI / 2, color: IRON2 },
+        // 아치는 **네 다리 사이를 잇는다** — 개구부가 좁으면(예전 0.9) 기둥이 다리 안쪽
+        // 허공(±0.52)에 서서 광장 위 0.14 를 떠 있었다. 기둥이 기초 블록(±0.98) 위로 온다.
+        { k: 'arch', w: 1.5, h: 0.78, d: 1.9, thick: 0.16, y: 0.19, color: IRON2 },
+        { k: 'arch', w: 1.5, h: 0.78, d: 1.9, thick: 0.16, y: 0.19, rotY: Math.PI / 2, color: IRON2 },
         { k: 'box', w: 1.5, h: 0.09, d: 1.5, y: 1.09, color: IRON2, rough: 0.6, metal: 0.35 },
       ]),
       // 4단계 — 1전망대 + 중간 격자
@@ -90,11 +98,11 @@ export const TOWER_LANDMARKS = {
         { k: 'cyl', rt: 0.028, rb: 0.075, h: 0.22, y: 5.07, color: IRON2, seg: 6 },
         { k: 'antenna', y: 5.29, h: 0.5 },
         { k: 'panel', w: 0.3, h: 0.3, pos: [0, 1.28, 0.66], color: 'glassWarm', glow: 0.6 },
-        ...around(8, 0.9, 0.9, (x, z) => ({
-          k: 'panel', w: 0.12, h: 0.12, pos: [x, 0.3, z], color: 'accent', glow: 0.9,
+        ...around(8, 0.9, 0.9, (x, z, a) => ({
+          k: 'panel', w: 0.12, h: 0.12, pos: [x, 0.3, z], rotY: Math.PI / 2 - a, color: 'accent', glow: 0.9,
         })),
-        ...around(4, 0.5, 0.5, (x, z) => ({
-          k: 'panel', w: 0.1, h: 0.1, pos: [x, 2.4, z], color: 'glassWarm', glow: 0.85,
+        ...around(4, 0.5, 0.5, (x, z, a) => ({
+          k: 'panel', w: 0.1, h: 0.1, pos: [x, 2.4, z], rotY: Math.PI / 2 - a, color: 'glassWarm', glow: 0.85,
         })),
       ]),
     ],
@@ -156,12 +164,17 @@ export const TOWER_LANDMARKS = {
         // 없으면 details=false 로 그리는 미리보기에서 7단계와 구별되지 않는다.
         { k: 'cyl', rt: 0.014, rb: 0.055, h: 0.2, y: 6.2, color: SKY_STEEL, seg: 8 },
         { k: 'antenna', y: 6.4, h: 0.4 },
-        ...around(3, 0.52, 0.52, (x, z) => ({
-          k: 'panel', w: 0.3, h: 1.0, pos: [x, 1.0, z], color: SKY_GLASS, glow: 0.55,
+        // 커튼월 발광 — 반경 0.52 는 육각 코어(변까지 0.537)와 날개(0.72) 안이라 안 보였다.
+        ...around(3, 0.8, 0.8, (x, z, a) => ({
+          k: 'panel', w: 0.3, h: 1.0, pos: [x, 1.0, z], rotY: Math.PI / 2 - a, color: SKY_GLASS, glow: 0.55,
         })),
-        ...around(8, 1.0, 1.0, (x, z) => ({
-          k: 'panel', w: 0.12, h: 0.12, pos: [x, 0.12, z], color: 'glassWarm', glow: 0.85,
-        })),
+        /*
+          분수 조명. 포디움이 x ±1.0 · z -1.15~0.35 를 차지해서 반경 1.0 짜리 8장 링은 3장이
+          그 안에 묻혔다. 앞뒤로 늘린 타원에 6장을 돌리면 전부 포디움 밖으로 나간다.
+        */
+        ...around(6, 1.25, 1.4, (x, z, a) => ({
+          k: 'panel', w: 0.12, h: 0.12, pos: [x, 0.12, z], rotY: Math.PI / 2 - a, color: 'glassWarm', glow: 0.85,
+        }), Math.PI / 6),
       ]),
     ],
   },
@@ -174,12 +187,15 @@ export const TOWER_LANDMARKS = {
       // 1단계 — 바다 + 부두 부지
       ...at(1, [
         { k: 'box', w: 2.9, h: 0.03, d: 2.9, y: 0, color: SEA, rough: 0.15, metal: 0.5 },
-        { k: 'box', w: 2.1, h: 0.08, d: 1.7, z: -0.2, y: 0.03, color: PIER, rough: 0.95 },
+        // 부두는 앞쪽(+z)으로 z=0.95 까지 나간다. 선착장·계류 말뚝·가로수가 이 위에 서므로
+        // 여기를 줄이면 그것들이 바다 위에 뜬다.
+        { k: 'box', w: 2.1, h: 0.08, d: 2.0, z: -0.05, y: 0.03, color: PIER, rough: 0.95 },
       ]),
-      // 2단계 — 기단 계단 + 데크
+      // 2단계 — 기단 계단 + 선착장
       ...at(2, [
         ...podium(1.9, 1.5, 3, 0.07, 0.11, PIER, 0.14),
-        { k: 'box', w: 0.9, h: 0.05, d: 0.4, z: 0.9, y: 0.11, color: PIER, rough: 0.95 },
+        // 선착장 — 배(8단계)가 닿는 왼쪽에 붙인다. 가운데는 6단계 레스토랑 테라스 자리다.
+        { k: 'box', w: 0.5, h: 0.05, d: 0.34, x: -0.78, z: 0.78, y: 0.11, color: PIER, rough: 0.95 },
       ]),
       // 3단계 — 하부 콘서트홀 매스
       ...at(3, [
@@ -190,30 +206,47 @@ export const TOWER_LANDMARKS = {
         { k: 'shell', w: 1.0, h: 1.0, d: 0.9, pos: [-0.34, 0.66, -0.3], rotY: Math.PI * 0.08, color: SHELL_W },
         { k: 'shell', w: 0.92, h: 0.86, d: 0.82, pos: [0.36, 0.66, -0.38], rotY: -Math.PI * 0.08, color: SHELL_W },
       ]),
-      // 5단계 — 중간 쉘 2장
+      /*
+        5단계 — 중간 쉘 2장.
+
+        쉘은 바닥이 y=0.66(하부 매스 윗면)에서 시작하는 반돔이라, **매스의 z 범위
+        (-0.75 ~ 0.35) 안에 들어와야 한다.** 예전에는 z=0.16·0.12 라 앞쪽 절반이 매스를
+        벗어나 공중에 떠 있었다 — 정면에서는 유리 파사드가 가려 줬지만 옆에서 보면 드러난다.
+      */
       ...at(5, [
-        { k: 'shell', w: 0.76, h: 0.72, d: 0.7, pos: [-0.28, 0.66, 0.16], rotY: Math.PI * 0.14, color: SHELL_W },
-        { k: 'shell', w: 0.7, h: 0.64, d: 0.64, pos: [0.3, 0.66, 0.12], rotY: -Math.PI * 0.14, color: SHELL_W },
+        { k: 'shell', w: 0.76, h: 0.72, d: 0.7, pos: [-0.28, 0.66, -0.02], rotY: Math.PI * 0.14, color: SHELL_W },
+        { k: 'shell', w: 0.7, h: 0.64, d: 0.64, pos: [0.3, 0.66, 0], rotY: -Math.PI * 0.14, color: SHELL_W },
       ]),
-      // 6단계 — 작은 쉘(레스토랑) + 유리 파사드
+      /*
+        6단계 — 레스토랑 쉘 + 유리 파사드.
+
+        레스토랑 쉘은 매스 앞(z=0.6)이라 매스 위에 얹을 수 없다. 실물처럼 **기단 높이의
+        전면 테라스**를 따로 깔고 그 위에 낮게 앉힌다(y 0.66 → 0.32).
+      */
       ...at(6, [
-        { k: 'shell', w: 0.5, h: 0.44, d: 0.46, pos: [0.02, 0.66, 0.6], rotY: Math.PI * 0.5, color: SHELL_W },
+        { k: 'box', w: 0.7, h: 0.21, d: 0.62, z: 0.56, y: 0.11, color: PIER, rough: 0.95 },
+        { k: 'shell', w: 0.5, h: 0.44, d: 0.46, pos: [0.02, 0.32, 0.6], rotY: Math.PI * 0.5, color: SHELL_W },
         { k: 'panel', w: 1.3, h: 0.3, pos: [0, 0.5, 0.36], color: SKY_GLASS, glow: 0.34 },
       ]),
       // 7단계 — 부두 산책로·계류장·가로수
       ...at(7, [
-        ...mirrorX([{ k: 'box', w: 0.22, h: 0.06, d: 1.5, x: 1.16, z: -0.2, y: 0.03, color: PIER, rough: 0.95 }]),
+        // 산책로는 계류 말뚝(z=0.62)까지 덮어야 한다 — 짧으면 말뚝이 물 위에 뜬다.
+        ...mirrorX([{ k: 'box', w: 0.22, h: 0.06, d: 1.66, x: 1.16, z: -0.12, y: 0.03, color: PIER, rough: 0.95 }]),
         ...mirrorX([{ k: 'box', w: 0.09, h: 0.24, d: 0.09, x: 1.16, z: 0.62, y: 0.09, color: 'wood', rough: 0.9 }]),
-        ...around(4, 1.02, 1.02, (x, z) => ({
-          k: 'box', w: 0.1, h: 0.2, d: 0.1, x, z, y: 0.11, color: 'bush', rough: 1,
-        })),
+        /*
+          가로수는 기단(±0.95×±0.75)과 부두 끝(±1.05) 사이의 좌우 여백에 세운다.
+          `around(4, …)` 로 돌리면 축 방향(0, ±r)에 놓여서 앞쪽 한 그루가 6단계 레스토랑
+          테라스(z 0.25~0.87)나 선착장 안에 파묻힌다.
+        */
+        ...mirrorX([{ k: 'box', w: 0.1, h: 0.2, d: 0.1, x: 1.0, z: 0.34, y: 0.11, color: 'bush', rough: 1 }]),
+        ...mirrorX([{ k: 'box', w: 0.1, h: 0.2, d: 0.1, x: 1.0, z: -0.34, y: 0.11, color: 'bush', rough: 1 }]),
       ]),
       // 8단계 — 쉘 조명 + 정박한 배 + 야간 수면 반사
       ...at(8, [
         { k: 'box', w: 0.34, h: 0.09, d: 0.16, x: -1.2, z: 1.06, y: 0.03, color: SHELL_W, rough: 0.6 },
         { k: 'box', w: 0.05, h: 0.3, d: 0.05, x: -1.2, z: 1.06, y: 0.12, color: 'wood' },
-        ...around(6, 0.8, 0.8, (x, z) => ({
-          k: 'panel', w: 0.14, h: 0.14, pos: [x, 0.2, z], color: 'glassWarm', glow: 0.85,
+        ...around(6, 0.8, 0.8, (x, z, a) => ({
+          k: 'panel', w: 0.14, h: 0.14, pos: [x, 0.2, z], rotY: Math.PI / 2 - a, color: 'glassWarm', glow: 0.85,
         })),
         { k: 'panel', w: 1.2, h: 0.26, pos: [0, 0.46, 0.38], color: 'accent', glow: 0.5 },
       ]),
@@ -270,9 +303,12 @@ export const TOWER_LANDMARKS = {
       ...at(8, [
         { k: 'roof', type: 'pyramid', w: 0.3, d: 0.3, y: 1.36, height: 0.22, color: CAP_GOLD },
         { k: 'box', w: 0.1, h: 0.1, d: 0.1, x: 1.0, z: 0.72, y: 1.21, color: CAP_GOLD, rough: 0.4, metal: 0.6 },
-        ...around(6, 1.06, 1.06, (x, z) => [
+        ...around(6, 1.06, 1.06, (x, z, a) => [
           { k: 'polyPrism' as const, sides: 6, r: 0.07, h: 0.16, x, z, y: 0.05, color: '#6E6A62', rough: 0.9 },
-          { k: 'panel' as const, w: 0.14, h: 0.14, pos: [x, 0.26, z] as [number, number, number], color: 'accent', glow: 1 },
+          {
+            k: 'panel' as const, w: 0.14, h: 0.14, pos: [x, 0.26, z] as [number, number, number],
+            rotY: Math.PI / 2 - a, color: 'accent', glow: 1,
+          },
         ]),
       ]),
     ],

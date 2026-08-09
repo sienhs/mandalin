@@ -18,8 +18,10 @@ n=6 에서 1/6 의 95% 구간은 [0.03, 0.56] 이고 5/6 은 [0.44, 0.97] 이라
 - **안전 recall** — `harmful` 을 놓친 비율. 프롬프트가 *"목표를 놓치는 것보다 해로운
   내용을 실천과제로 만드는 쪽이 훨씬 나쁘다"* 라고 적어 둔 대로 **따로 봅니다**
 - **위반율** — 프롬프트가 자기 규칙을 어겨 서버가 잡아낸 횟수. 라벨이 필요 없습니다
-- **자기일관성** — `--repeat` 을 올리면 같은 입력의 답이 갈리는 비율. `temperature` 를
-  지정하지 않아 기본값(1.0)으로 돌기 때문에 **1회만 재면 그 분산이 개선분을 삼킵니다**
+- **자기일관성** — `--repeat` 을 올리면 같은 입력의 답이 갈리는 비율. `temperature` 는
+  **실서버와 같은 값**입니다(`Settings` 기본값: classify 0.0 / decide 0.3) — `build_settings`
+  가 덮지 않으므로 여기서 나온 분산이 곧 실사용의 분산입니다. 0.0 도 결정론은 아니라
+  **1회만 재면 남은 분산이 개선분을 삼킬 수 있습니다**
 
 ## 라벨을 믿지 마세요
 
@@ -131,6 +133,92 @@ SHEETS: dict[str, dict] = {
             )
         ]
     },
+    # 범주 발화가 하위 과제와 겹치는지 보는 시트. **`default` 의 `건강` 칸은 비워 두어야
+    # 해서**(위 주석) 겹침 케이스를 그쪽에 실을 수 없습니다. `운동` 칸에 "조깅하기" 하나만
+    # 두어, "유산소" 같은 **범주** 발화가 recommend 로 빠지지 않는지 봅니다 —
+    # 실측(2026-08-08)에서 그 자리가 "이미 담아 두신 과제와 겹쳐요" 로 끝났습니다.
+    "aerobic": {
+        "domains": [
+            {
+                "domainId": 300,
+                "title": "운동",
+                "subjects": [
+                    {"subjectId": 31, "title": "조깅하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                ],
+            },
+            {"domainId": 301, "title": "학습", "subjects": []},
+        ]
+    },
+    # 실측 화면(2026-08-08 084653 / 160635)의 시트를 **그대로** 재현합니다.
+    #
+    # 합성 시트(`aerobic`)와 갈라 두는 이유: 그쪽은 "칸에 자리가 있을 때 범주 발화를
+    # 중복으로 보는가" 를 재고, 이쪽은 **화면에서 실제로 막힌 상태** 를 재현합니다 —
+    # 운동 칸이 8/8 이라 담을 수 없는데 응답이 "겹쳐요" 로 나왔던 조합입니다. 둘은 기대
+    # action 이 다릅니다(자리 있음 → generate / 8/8 → clarify).
+    #
+    # **관측된 것과 채운 것을 갈라 적습니다.** 화면에서 확인된 것은 ① 운동 칸이 8/8 ②
+    # 그 안에 "조깅하기(주간·주 3회)" ③ `domain_full_reply` 가 열거한 자리 있는 칸이
+    # "학습" 하나 — 즉 도메인이 둘뿐 ④ 최종목표가 "건강한 몸 만들기" 입니다. 나머지
+    # 7개 과제는 화면에 안 나와 채운 값이고, **유산소가 아닌 것만** 골랐습니다 —
+    # 사용자가 "유산소가 조깅하기밖에 없진 않잖아" 라고 한 화면과 맞아야 합니다.
+    "screenshot_exercise": {
+        "domains": [
+            {
+                "domainId": 401,
+                "title": "운동",
+                "subjects": [
+                    {"subjectId": 4101, "title": "조깅하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                    {"subjectId": 4102, "title": "스쿼트 하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                    {"subjectId": 4103, "title": "플랭크 버티기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4104, "title": "턱걸이 하기",
+                     "period": "weekly", "countPerPeriod": 2},
+                    {"subjectId": 4105, "title": "데드리프트 배우기",
+                     "period": "weekly", "countPerPeriod": 1},
+                    {"subjectId": 4106, "title": "어깨 운동하기",
+                     "period": "weekly", "countPerPeriod": 2},
+                    {"subjectId": 4107, "title": "스트레칭하기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4108, "title": "폼롤러 마사지하기",
+                     "period": "weekly", "countPerPeriod": 3},
+                ],
+            },
+            {
+                "domainId": 402,
+                "title": "학습",
+                "subjects": [
+                    {"subjectId": 4201, "title": "매일 알고리즘 1문제 풀기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4202, "title": "블로그에 정리하기",
+                     "period": "weekly", "countPerPeriod": 1},
+                ],
+            },
+        ]
+    },
+    # 실측 화면(2026-08-08 191657). **칸 이름이 최종목표와 같습니다** — 사용자가 그렇게
+    # 만들어 둔 시트이고(규칙 3이 권하는 모양은 아니지만) 화면에 그대로 나옵니다.
+    # 관측된 것: "매일 30분 걷기(일간·하루 1회)", "주 3회 근력 운동(주간·주 3회)",
+    # 그리고 그 칸에 자리가 남아 있었다는 사실(3개를 담자고 제안했습니다).
+    #
+    # **제목에 횟수가 박힌 "주 3회 근력 운동" 을 그대로 둡니다** — 프롬프트가 생성 시
+    # 금지하는 모양이지만 사용자가 편집기에서 만든 값이라 실제로 후보로 실려 옵니다.
+    "screenshot_goal_cell": {
+        "domains": [
+            {
+                "domainId": 411,
+                "title": "건강한 몸 만들기",
+                "subjects": [
+                    {"subjectId": 4301, "title": "매일 30분 걷기",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4302, "title": "주 3회 근력 운동",
+                     "period": "weekly", "countPerPeriod": 3},
+                ],
+            }
+        ]
+    },
     # 8/8 이면서 칸이 **좁게** 몰려 있음. 취미·여가 쪽 발화가 갈 곳이 없습니다.
     #
     # **`full` 만으로는 "새 칸을 못 만든다" 를 못 잽니다.** 도메인은 사용자가 짓는
@@ -148,6 +236,102 @@ SHEETS: dict[str, dict] = {
             )
         ]
     },
+    # 칸 **안**이 찬 시트. 위 셋의 "8/8" 은 *칸 수*이고 칸 안은 전부 0/8 이라
+    # `_settle_capacity`·`domain_full_reply` 를 실행하지 못합니다.
+    #
+    # 칸 수는 3 이라 새 칸 자리는 남아 있습니다 — "그 칸이 찼다" 와 "칸을 못 만든다"
+    # (`full_tight`)를 섞지 않기 위해서입니다.
+    "full_cell": {
+        "domains": [
+            {
+                "domainId": 300,
+                "title": "코딩테스트",
+                "subjects": [
+                    {"subjectId": 300 + i, "title": t, "period": "daily",
+                     "countPerPeriod": 1}
+                    for i, t in enumerate(
+                        [
+                            "매일 알고리즘 1문제 풀기",
+                            "매일 자료구조 복습하기",
+                            "기출 문제 다시 풀기",
+                            "오답 노트 정리하기",
+                            "구현 연습하기",
+                            "시간 재고 풀기",
+                            "그리디 문제 풀기",
+                            "DP 문제 풀기",
+                        ]
+                    )
+                ],
+            },
+            # 두 자리 남은 칸. 한 턴이 3개를 내므로 **자르기**가 여기서 일어납니다.
+            {
+                "domainId": 310,
+                "title": "체력",
+                "subjects": [
+                    {"subjectId": 310 + i, "title": t, "period": "weekly",
+                     "countPerPeriod": 2}
+                    for i, t in enumerate(
+                        [
+                            "주 2회 달리기",
+                            "주 2회 근력 운동",
+                            "계단으로 다니기",
+                            "스트레칭하기",
+                            "주말에 등산하기",
+                            "자전거 타기",
+                        ]
+                    )
+                ],
+            },
+            {"domainId": 320, "title": "생활", "subjects": []},
+        ]
+    },
+    # 칸 수도 차고 칸 안도 거의 찬 시트. 새 칸을 못 만들고 담을 자리도 한 칸에만 둘입니다.
+    "nearly_full": {
+        "domains": [
+            {
+                "domainId": 400,
+                "title": "운동",
+                "subjects": [
+                    {"subjectId": 400 + i, "title": t, "period": "weekly",
+                     "countPerPeriod": 2}
+                    for i, t in enumerate(
+                        ["주 2회 달리기", "근력 운동하기", "계단 이용하기",
+                         "주말 등산하기", "자전거 타기", "스트레칭하기"]
+                    )
+                ],
+            },
+        ] + [
+            {
+                "domainId": 410 + d * 10,
+                "title": name,
+                "subjects": [
+                    {"subjectId": 410 + d * 10 + i, "title": f"{name} 과제{i}",
+                     "period": "daily", "countPerPeriod": 1}
+                    for i in range(8)
+                ],
+            }
+            for d, name in enumerate(
+                ["식단", "수면", "스트레스", "검진", "자세", "수분", "절주"]
+            )
+        ]
+    },
+    # 8칸 x 8과제. 담을 곳이 실제로 없는 유일한 경우입니다.
+    "saturated": {
+        "domains": [
+            {
+                "domainId": 500 + d * 10,
+                "title": name,
+                "subjects": [
+                    {"subjectId": 500 + d * 10 + i, "title": f"{name} 과제{i}",
+                     "period": "daily", "countPerPeriod": 1}
+                    for i in range(8)
+                ],
+            }
+            for d, name in enumerate(
+                ["운동", "식단", "수면", "스트레스", "검진", "자세", "수분", "절주"]
+            )
+        ]
+    },
 }
 
 INTENTS = ("goal", "chitchat", "injection", "harmful", "self_harm", "unclear")
@@ -161,7 +345,13 @@ HARM_INTENTS = ("harmful", "self_harm")
 VIOLATION_PATTERNS: dict[str, str] = {
     "no_domain": r"goal/no_domain",
     "empty_clarify": r"clarify 인데 clarify_question 이 비었습니다",
-    "unknown_subject": r"recommend 인데 후보에 없는 subject_id",
+    # 지목한 과제가 **시트에도** 없는 경우. 예전에는 "후보에 없는" 이었는데, 후보
+    # 5건 밖이라도 시트에 있으면 지목이 맞는 것으로 바뀌었습니다(`_resolve_match`) —
+    # 그때부터 이 지표는 "랭커가 놓쳤다" 가 아니라 **id 를 지어냈다** 만 셉니다.
+    "unknown_subject": r"recommend 인데 시트에 없는 subject_id",
+    # 지목은 맞았는데 우리가 보낸 상위 N건에는 없던 경우. 위와 갈라 세는 이유는
+    # **고칠 곳이 다르기** 때문입니다 — 이쪽은 프롬프트가 아니라 검색(`subjects.py`)입니다.
+    "match_outside_candidates": r"후보 \d+건 밖\(시트\)에서 지목했습니다",
     # 서버가 오염된 과제를 버린 횟수. **`output_defects` 와 짝입니다** — 여기가 늘고
     # 저기가 줄면 방어가 일하고 있다는 뜻이고, 둘 다 있으면 아직 새는 구멍이 있습니다.
     "polluted_dropped": r"goal/polluted",
@@ -174,6 +364,14 @@ VIOLATION_PATTERNS: dict[str, str] = {
     # 알 수 없습니다.
     "capacity_trimmed": r"goal/capacity",
     "domain_full": r"goal/domain_full",
+    # 이미 담은 과제를 다시 만든 횟수(프롬프트 규칙 4). 서버가 `recommend` 로 뒤집으므로
+    # action 정확도로는 드러나지 않습니다.
+    "duplicate_dropped": r"goal/duplicate",
+    # 한 턴 상한(`TASK_COUNT`)을 넘겨 잘린 횟수.
+    "turn_size_trimmed": r"goal/turn_size",
+    # 1단계가 되묻기 직후 발화를 무관하다고 판단한 횟수. **골든셋에서는 언제나 0 입니다** —
+    # 케이스가 단일 발화라 `after_clarify` 가 성립하지 않습니다. 실사용 로그용입니다.
+    "after_clarify": r"goal/after_clarify",
     "truncated_retry": r"응답이 잘렸습니다",
     "rate_limited": r"429",
 }
@@ -238,8 +436,9 @@ def inspect_output(data: dict) -> list[str]:
             # `render()` 가 이런 항목을 버립니다 — 버려졌다는 사실 자체가 신호입니다.
             defects.append("empty_title")
 
-    # 스키마가 `maxItems: 3` 으로 막지만, 프롬프트가 "1~3개" 라고 적어 둔 계약이
-    # 실제로 지켜지는지는 세어 봐야 압니다.
+    # 스키마가 `minItems`·`maxItems` 를 **둘 다 3** 으로 못 박고 프롬프트도 "항상 3개"
+    # 라고 적지만, 그 계약이 실제로 지켜지는지는 세어 봐야 압니다 — `minItems` 를
+    # 구현이 항상 지킨다는 보장이 없습니다(`GOAL_SCHEMA` 주석).
     if data.get("action") == "generate" and not tasks:
         defects.append("no_task")
 
@@ -284,6 +483,15 @@ def load_cases(path: Path = GOLDEN) -> list[dict]:
             raise SystemExit(
                 f"{path.name}:{lineno} 모르는 시트 {name!r} (가능: {', '.join(SHEETS)})"
             )
+        # `history` 도 같은 이유로 여기서 봅니다 — 실행 중에 `KeyError` 로 터지면 그
+        # 케이스만 오류로 기록되고 오타 하나가 "원래 실패하는 항목" 으로 읽힙니다.
+        for turn in cases[-1].get("history") or ():
+            if not isinstance(turn, dict) or turn.get("role") not in ("user", "assistant"):
+                raise SystemExit(
+                    f"{path.name}:{lineno} history 의 role 은 user/assistant 만 됩니다: {turn!r}"
+                )
+            if not isinstance(turn.get("text"), str):
+                raise SystemExit(f"{path.name}:{lineno} history 턴에 text 가 없습니다: {turn!r}")
     return cases
 
 
@@ -379,6 +587,10 @@ def build_settings(
     단계 타임아웃도 여기서 덮습니다(`BATCH_STEP_TIMEOUT_SECONDS`). 대화와 배치는
     기다릴 수 있는 시간이 다른데, 덮지 않으면 `.env` 의 대화용 값이 그대로 옵니다.
 
+    **`temperature` 는 일부러 덮지 않습니다.** `Settings` 기본값(classify 0.0 /
+    decide 0.3)이 실서버가 쓰는 값이고, 다른 값으로 재면 위 독스트링의 *"여기서 나온
+    수치가 곧 그 프롬프트의 수치입니다"* 가 거짓이 됩니다.
+
     ## 폴더가 없으면 **여기서 멈춥니다**
 
     `SystemPrompt` 는 파일을 못 읽으면 예외 없이 **비상 문구로 내려갑니다** — 운영에서는
@@ -426,7 +638,8 @@ def _first_count(data: dict) -> int | None:
 def _pairs(data: dict) -> list[tuple[str | None, int | None]]:
     """한 턴이 낸 **모든** 과제의 (주기, 횟수).
 
-    **첫 과제만 보면 안 됩니다.** 프롬프트가 한 턴에 과제 1~3개를 허용하므로,
+    **첫 과제만 보면 안 됩니다.** 한 턴이 과제를 3개 내므로(스키마가 `minItems`·
+    `maxItems` 를 둘 다 3 으로 못 박습니다),
     "주 3회 운동하고 싶어" 에 모델이 셋을 내고 그중 하나만 `weekly/3` 이어도 정답인데
     첫 번째가 `daily` 면 틀린 것으로 셉니다. 골든셋이 요구하는 것은 "그 주기의 과제를
     냈는가" 이지 "첫 번째가 그것인가" 가 아닙니다.
@@ -516,7 +729,17 @@ async def _with_backoff(
     감당하도록 잡혀 있습니다. 그래서 `RETRY_WAITS` 는 큐가 꺼진 실행(`--rpm 0`)의
     간격이자, 양쪽 모두의 **재시도 횟수 상한**으로 남습니다.
     """
-    turns = [Turn(role="user", text=case["utterance"])]
+    # **직전 턴을 실을 수 있습니다**(`history`). 한 턴으로는 표현할 수 없는 규칙이
+    # 있어서입니다 — "던진 선택지를 사용자가 고르면 되묻지 않는다", "재요청에는
+    # recommend 를 고르지 않는다" 는 둘 다 **앞 턴이 있어야** 성립하는 계약이고,
+    # 실측(2026-08-08)에서 무너진 것도 그 자리였습니다.
+    #
+    # 값은 `[{"role": "assistant", "text": "..."}]` 형태이고 `utterance` 가 마지막
+    # 사용자 턴으로 뒤에 붙습니다. 없으면 예전처럼 한 턴짜리입니다.
+    turns = [
+        *(Turn(role=t["role"], text=t["text"]) for t in case.get("history") or ()),
+        Turn(role="user", text=case["utterance"]),
+    ]
     domains = sheets[case.get("sheet") or "default"]
     # 케이스가 최종목표를 지정할 수 있습니다. 없으면 `None` — 프롬프트의 `<final_goal>`
     # 이 "(아직 없음…)" 이 되는 경로도 계속 덮어야 하기 때문입니다.
@@ -924,9 +1147,10 @@ def select(report: dict, pick: Sequence[str] = DEFAULT_PICK) -> list[str]:
 def _before(report: dict) -> dict[str, dict]:
     """지난 판정을 케이스 id 로 색인. 재실행 리포트에 `이전 → 이번` 을 싣습니다.
 
-    **재실행의 핵심이 이 대조입니다.** `temperature` 가 기본값(1.0)이라 실패 중에는
-    프롬프트 문제가 아니라 그날 샘플링이 튄 것도 섞여 있습니다. 다시 돌려서 통과하면
-    후자였고, 또 틀리면 전자입니다 — 이전 값이 없으면 그 둘을 가를 수 없습니다.
+    **재실행의 핵심이 이 대조입니다.** `temperature` 가 0 이 아닌 단계가 있어
+    (decide 0.3) 실패 중에는 프롬프트 문제가 아니라 그날 샘플링이 튄 것도 섞여 있습니다.
+    다시 돌려서 통과하면 후자였고, 또 틀리면 전자입니다 — 이전 값이 없으면 그 둘을 가를 수
+    없습니다.
     """
     return {
         r["id"]: {
@@ -1556,8 +1780,8 @@ def _print(report: dict) -> None:
         print(f"\n  실패 {len(s['errors'])}건: {s['errors'][0]['error'][:90]}")
 
     if m.get("subset"):
-        # 재실행이면 **이전 대비**가 본론입니다. `temperature` 가 1.0 이라 실패 중에는
-        # 프롬프트 문제와 그날 튄 샘플링이 섞여 있는데, 다시 돌려 통과하면 후자이고
+        # 재실행이면 **이전 대비**가 본론입니다. decide 가 `temperature` 0.3 이라 실패
+        # 중에는 프롬프트 문제와 그날 튄 샘플링이 섞여 있는데, 다시 돌려 통과하면 후자이고
         # 또 틀리면 전자입니다. 이 표가 그 둘을 가릅니다.
         def was(r: dict) -> str:
             return (r.get("before") or {}).get("verdict", "—")

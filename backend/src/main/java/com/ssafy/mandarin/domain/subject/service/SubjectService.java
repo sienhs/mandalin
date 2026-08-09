@@ -180,8 +180,9 @@ public class SubjectService {
                   하루 1회 제한. 주기와 무관하게 적용한다 —
                   "주 3회" 라도 하루에 세 번 몰아서 누르면 실천이 아니라 클릭이 된다.
                 */
+                boolean hasTried = subject.getTryCount() != null && subject.getTryCount() > 0;
                 LocalDateTime updatedAt = subject.getUpdatedAt();
-                if (updatedAt != null && updatedAt.toLocalDate().isEqual(today)) {
+                if (updatedAt != null && hasTried && updatedAt.toLocalDate().isEqual(today)) {
                     continue;
                 }
 
@@ -239,7 +240,6 @@ public class SubjectService {
 
             }
         }
-
 
         return SubjectCompleteResponse.builder()
                 .completedSubjectIds(completedSubjectIds)

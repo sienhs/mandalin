@@ -1,18 +1,23 @@
 <!doctype html>
 <!--
-  로컬 확인용 화면. **레이아웃과 토큰을 React 프론트의 AI 코치 화면에 맞춰 둡니다**
+  로컬 확인용 화면. **레이아웃과 구성을 React 프론트의 AI 코치 화면에 맞춰 둡니다**
   (`frontend/src/pages/AiCoachPage.tsx`). 나중에 그쪽으로 옮길 때 두 파일을 나란히 놓고
   비교할 수 있어야 하고, 지금도 "실제 화면에서 이렇게 보인다" 를 확인할 수 있어야 합니다.
 
-  다른 점은 셋뿐이고 전부 의도한 것입니다 —
+  다른 점은 하나뿐이고 의도한 것입니다 —
 
-    ① 연결 버튼과 상태 배지가 있습니다. 저쪽은 규칙 기반 목업이라 방에 붙지 않습니다
-    ② 오른쪽 패널이 "담은 과제 -> 만다라트" 가 아니라 **내 시트**입니다. 이 화면의 목적은
-       AI 가 중복 판단에 쓰는 목록을 눈으로 확인하는 것입니다(과제 삭제·편집기 인계는
-       README "남은 일")
-    ③ 대화 카드에 캐릭터 그림이 섭니다. 진단용 화면이라 "지금 무엇을 하는 중인지" 가
-       보여야 하고, 프론트에도 같은 자리가 있습니다(`styles/ai-coach.css` 의
-       `.ai-coach-figure` — 말풍선 바로 위)
+    **페이지 머리에 연결 버튼과 상태 배지가 있습니다.** 저쪽은 앱 셸 안에서 화면이 열리면
+    바로 방에 붙지만 여기는 셸도 라우터도 없어 사람이 눌러야 합니다. 대화 카드 안의
+    "다시 연결" 은 저쪽에도 있는 자리입니다(끊겼을 때만 배지 대신 섭니다).
+
+  오른쪽 패널은 구성이 같고 **데이터 출처가 다릅니다** — 저쪽은 편집기 초안에서 시작해
+  담은 과제를 모으고, 여기는 토큰 `participant metadata` 로 들어온 시트에서 시작합니다.
+  어느 쪽이든 담은 것을 통째로 에이전트에 되돌려 보내는 것은 같습니다(`mandarin.sheet`).
+
+  **없앤 것 둘.** 캐릭터 그림과 빠른 문장 칩은 프론트에 없어서 지웠습니다 — 저쪽의
+  `styles/ai-coach.css`(`.ai-coach-figure`)는 지금 아무 파일도 import 하지 않는 죽은
+  CSS 입니다. 그림 파일(`web/images/char_*.png`)도 같이 지웠으니, 다시 세우려면 저쪽에
+  자리가 살아 있는지부터 확인하세요.
 
   **id 를 지우거나 바꾸지 마세요.** `app.js` 가 `$('...')` 로 찾습니다.
 -->
@@ -29,7 +34,7 @@
     <header class="page-head">
       <div>
         <h1 class="page-title">AI 코치</h1>
-        <p class="page-caption">대화로 과제를 모으고, 시트에 담아 중복을 확인합니다.</p>
+        <p class="page-caption">대화로 과제를 모으고, 그대로 새 만다라트를 만듭니다.</p>
       </div>
       <div class="page-actions">
         <span id="badge" class="badge">연결 안 됨</span>
@@ -41,47 +46,44 @@
       <!-- ───────── 대화 ───────── -->
       <section class="card chat">
         <div class="chat-head">
-          <span class="coach-mark" aria-hidden="true">
+          <span class="coach-mark" id="coach-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" class="i22"><rect x="4" y="8" width="16" height="12" rx="4" /><path d="M12 8V4.5" /><circle cx="12" cy="3.4" r="1.3" /><path d="M9.3 13.2v1.6M14.7 13.2v1.6" /></svg>
           </span>
           <div class="chat-who">
             <strong>만다린 코치</strong>
             <!-- 상태를 글자로만 쓰면 "대기 중" 이 늘 붙어 있어 아무 정보도 주지 않습니다.
                  점 색으로 두면 흘깃 봐도 지금 답하는 중인지 알 수 있습니다(프론트와 같은 판단). -->
-            <span class="chat-state muted" id="chat-state">
+            <span class="chat-state muted">
               <span class="dot" id="state-dot" aria-hidden="true"></span>
               <span id="state-text">연결 전</span>
             </span>
           </div>
-          <span class="badge" id="mode-badge">lk.chat</span>
+
+          <!-- 배지와 "다시 연결" 이 같은 자리를 번갈아 씁니다 — 연결이 끊긴 상태에서 아무
+               버튼도 없으면 이 카드 안에서는 새로고침밖에 방법이 없습니다(프론트와 같은 자리).
+               머리의 연결하기 버튼도 같이 열리므로 눌러야 하는 곳은 두 군데입니다. -->
+          <span class="badge" id="mode-badge">연결 전</span>
+          <button class="btn btn-secondary btn-sm" id="rejoin" type="button" hidden>다시 연결</button>
         </div>
 
-        <!-- 캐릭터. `app.js` 의 `setAvatar()` 가 `data-state` 를 바꾸면 그림이 따라갑니다 —
-             입장 = char_3(읽는 중) · 생각 중 = char_2(턱 괴기) · 응답 = char_1(손가락 들기). -->
-        <div class="coach-figure" id="avatar" data-state="idle">
-          <img id="avatar-img" src="./images/char_3.png" alt="" />
-        </div>
-
-        <div class="msgs no-scrollbar" id="log"></div>
-
-        <!-- 진행 중인 전사문. 최종 전사가 오면 대화 로그로 옮겨가고 여기는 비워집니다.
-             "지워질 글자" 와 "로그에 남을 글자" 를 갈라 두어야 사용자가 헷갈리지 않습니다. -->
-        <div class="caption" id="caption" hidden></div>
-
-        <!-- 프론트의 quick 칩과 같은 자리입니다. 값은 이 저장소의 시트 fixture 에 맞춰
-             중복(recommend) 과 신규(generate) 를 둘 다 밟도록 골랐습니다. -->
-        <div class="chips no-scrollbar" id="chips">
-          <button class="chip" type="button">매일 알고리즘 문제 풀고 싶어</button>
-          <button class="chip" type="button">매일 아침 스트레칭 10분 하고 싶어</button>
-          <button class="chip" type="button">이력서를 분기마다 손보고 싶어</button>
-          <button class="chip" type="button">화 안 내는 사람이 되고 싶어</button>
+        <!-- "새 메시지" 버튼을 띄우기 위한 기준. 스크롤은 안쪽 `.msgs` 가 맡습니다. -->
+        <div class="msgs-wrap">
+          <!-- 진행 중인 전사문(`.turn-caption`)과 생각 중 표시도 이 안에 들어갑니다 —
+               예전에는 대화 칸 아래 별도 띠였는데, 프론트는 "지워질 글자" 도 대화 흐름의
+               같은 자리에 둡니다. -->
+          <div class="msgs no-scrollbar" id="log"></div>
+          <button class="jump" id="jump" type="button" hidden>
+            새 메시지 <span aria-hidden="true">↓</span>
+          </button>
         </div>
 
         <form class="composer" id="composer">
           <button id="mic" class="icon-btn" type="button" disabled title="누르면 15분간 듣습니다"
                   aria-label="말하기">
             <svg viewBox="0 0 24 24" class="i19"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" /><path d="M12 18v3" /></svg>
-            <span id="mic-label">말하기</span>
+            <!-- 남은 초가 글자로 들어와 폭이 흔들립니다. 숫자만 tabular 로 두면
+                 "듣는 중 9:59" → "듣는 중 10:00" 에서 버튼이 덜 튑니다. -->
+            <span id="mic-label" class="nums">말하기</span>
           </button>
           <input id="input" class="input pill" type="text" autocomplete="off"
                  placeholder="이루고 싶은 것을 적어보세요" aria-label="에이전트에게 보낼 메시지" disabled />
@@ -91,17 +93,25 @@
         </form>
       </section>
 
-      <!-- ───────── 내 시트 ───────── -->
+      <!-- ───────── 새 만다라트 초안 ───────── -->
       <aside class="card sheet">
         <div class="sheet-head">
           <div class="row">
-            <h2 class="section-title">내 시트</h2>
-            <span class="badge" id="task-count">과제 0개</span>
+            <h2 class="section-title">새 만다라트 초안</h2>
+            <span class="badge" id="task-count">과제 0/64</span>
           </div>
-          <p class="muted src-note">
-            토큰 <code>participant metadata</code> 로 들어온 목록입니다 — AI 가 중복을
-            판단하는 근거입니다.
-          </p>
+
+          <!-- 핵심 목표. 서버가 이 값을 `<final_goal>` 로 프롬프트에 넣습니다 — 무엇을 기준으로
+               중복을 판단하는지가 여기서 보여야 합니다. -->
+          <div class="field">
+            <span class="field-label">핵심 목표</span>
+            <p class="field-value" id="goal-title">연결하면 토큰에서 읽어옵니다</p>
+            <span class="field-hint">
+              토큰 <code>participant metadata</code> 의 <code>title</code> 입니다 — 서버가
+              <code>&lt;final_goal&gt;</code> 로 씁니다.
+            </span>
+          </div>
+
           <div class="progress-row">
             <span class="progress" aria-hidden="true"><span id="progress-fill"></span></span>
             <span class="muted nums" id="domain-count">세부 목표 0/8</span>
@@ -115,7 +125,7 @@
             <b>담기</b>를 누르면 이 목록에 추가되고 <code>mandarin.sheet</code> 토픽으로
             에이전트에 통째로 다시 보냅니다. 담긴 과제는 다음 턴 중복 검사에 들어갑니다.
           </p>
-          <p class="muted foot-note" id="mic-note">
+          <p class="muted foot-note">
             <b>말하기</b>는 15분간 듣고 자동으로 멈춥니다 — <b>과금되는 것은 말한
             시간뿐입니다.</b> 무음은 서버가 걸러내고 Deepgram 스트림도 닫습니다.
             응답은 텍스트로만 옵니다(TTS 없음).

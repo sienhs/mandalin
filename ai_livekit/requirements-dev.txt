@@ -7,8 +7,17 @@ pytest-timeout>=2.3
 # Type checking. It found three real things ruff cannot see: _HttpBackend used self.name
 # without declaring it (fails only on the error path), TranscriptionRegistry.start typed
 # its callback as Awaitable while asyncio.create_task needs a Coroutine, and the
-# deepgram=None import fallback. Run it on the source dirs only -- see README "확인".
+# deepgram=None import fallback. Run it on the source dirs only -- see the README
+# verification section for the exact command and why tests/ is excluded.
 mypy>=1.11
+# Coverage, opt-in via --cov (no pytest.ini entry, so a plain `pytest -q` is unchanged).
+# It is here because percentages are not the point -- which *kind* of branch is unrun is.
+# The 2026-08-08 sweep found every server-composed refusal and fallback reply unexecuted:
+# the blocked/off-topic exits, the empty-clarify_question filler, the unknown-subject_id
+# recommend. Those only run when the model breaks a prompt rule, so no eval reaches them,
+# and they fail silently -- the class HANDOFF section 2 collects.
+#   python -m pytest -q --cov=agent --cov=mandarin_goal --cov-report=term-missing
+pytest-cov>=7.1
 # tests/test_single_user_room.py parses deploy/livekit.yaml. A mis-indented key is
 # silently ignored by the server, so the test parses instead of grepping. PyYAML is
 # already present transitively -- pinning it here keeps the test from depending on that.

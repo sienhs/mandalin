@@ -27,12 +27,20 @@ import {
   IconVillage,
 } from './Icons'
 import OnboardingTour from './OnboardingTour'
+import Modal from './Modal'
+import { useTour } from '../../features/tour/TourProvider'
+import { TOURS, TOUR_ORDER } from '../../features/tour/tours'
 
 type NavItem = {
   to: string
   label: string
   icon: (props: { className?: string }) => React.ReactElement
   primary?: boolean
+  /**
+   * 오버레이 안내가 가리킬 표식. 사이드바와 모바일 탭바에 <b>같은 값</b>이 붙는데,
+   * 안내는 그중 화면에 실제로 보이는 쪽을 골라 잡는다(`SpotlightOverlay.findTarget`).
+   */
+  tour?: string
 }
 
 /**
@@ -44,11 +52,11 @@ type NavItem = {
  * 쓰던 초안을 두고 떠나는 이동이 된다. `/app/coach` 경로 자체는 살아 있다.
  */
 const NAV: NavItem[] = [
-  { to: '/app', label: '홈', icon: IconHome, primary: true },
-  { to: '/app/sheets', label: '내 만다라트', icon: IconGrid, primary: true },
-  { to: '/app/village', label: '내 마을', icon: IconVillage, primary: true },
-  { to: '/app/shop', label: '상점', icon: IconShop },
-  { to: '/app/report', label: '리포트', icon: IconChart },
+  { to: '/app', label: '홈', icon: IconHome, primary: true, tour: 'nav-home' },
+  { to: '/app/sheets', label: '내 만다라트', icon: IconGrid, primary: true, tour: 'nav-sheets' },
+  { to: '/app/village', label: '내 마을', icon: IconVillage, primary: true, tour: 'nav-village' },
+  { to: '/app/shop', label: '상점', icon: IconShop, tour: 'nav-shop' },
+  { to: '/app/report', label: '리포트', icon: IconChart, tour: 'nav-report' },
   { to: '/app/friends', label: '친구', icon: IconFriends },
   { to: '/app/leaderboard', label: '리더보드', icon: IconTrophy },
 ]
@@ -69,8 +77,11 @@ export default function AppShell() {
   const location = useLocation()
   /** 링크가 아닌 이동(알림 항목·로그아웃)도 같은 확인을 거친다. */
   const { guard } = useUnsavedGuard()
+  const tour = useTour()
   const [moreOpen, setMoreOpen] = useState(false)
   const [notiOpen, setNotiOpen] = useState(false)
+  /** 사용법 안내 목록. 화면마다 흩어진 안내를 한곳에서 다시 열 수 있게 모아 둔다. */
+  const [helpOpen, setHelpOpen] = useState(false)
 
   /**
    * 3D 마을 화면인가.
@@ -112,12 +123,26 @@ export default function AppShell() {
     }
   }, [navOpen])
 
+  /**
+   * 안내가 메뉴 항목을 가리키는 동안에는 <b>접혀 있어도 펼친다.</b>
+   *
+   * <p>접은 채로 안내를 보면 "리포트" 같은 단계에서 가리킬 것이 화면에 없어, 설명 카드만
+   * 한가운데에 붕 뜬 채 무엇을 말하는지 알 수 없었다. 표식(`nav-*`)은 사이드바와 모바일
+   * 탭바에 같이 붙어 있는데, 사이드바는 `lg:` 에서만 그려지므로 좁은 화면은 그대로다.
+   *
+   * <p><b>`navOpen` 자체는 건드리지 않는다.</b> 그 값이 곧 저장되는 사용자의 선택이라,
+   * 여기서 켜 버리면 안내 한 번에 접어 둔 설정이 조용히 바뀐다. 화면에 쓰는 값만 따로 두면
+   * 안내가 그 단계를 지나는 순간 저절로 원래대로 접힌다.
+   */
+  const navShown = navOpen || Boolean(tour.activeTarget?.startsWith('nav-'))
+
   /** 수락/거절이 필요한 항목 수. 서버가 계산해 준다. */
   const pending = notifications.data.actionRequiredCount
 
   useEffect(() => {
     setMoreOpen(false)
     setNotiOpen(false)
+    setHelpOpen(false)
   }, [location.pathname])
 
   /**
@@ -153,7 +178,7 @@ export default function AppShell() {
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r px-4 py-6',
-          navOpen && 'lg:flex',
+          navShown && 'lg:flex',
         )}
         style={{ background: 'var(--surface-card)', borderColor: 'var(--border-hairline)' }}
       >
@@ -179,11 +204,12 @@ export default function AppShell() {
         </div>
 
         <nav aria-label="주 메뉴" className="flex flex-1 flex-col gap-1">
-          {NAV.map(({ to, label, icon: Icon }) => (
+          {NAV.map(({ to, label, icon: Icon, tour: tourTarget }) => (
             <NavLink
               key={to}
               to={to}
               end={to === '/app'}
+              data-tour={tourTarget}
               className={({ isActive }) =>
                 cn(
                   'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold no-underline transition-all duration-200',
@@ -222,7 +248,7 @@ export default function AppShell() {
           'top-0 z-30',
           // 사이드바와 같은 200ms — 다르면 본문이 먼저 도착해 빈틈이 잠깐 보인다.
           'transition-[padding] duration-200 ease-out motion-reduce:transition-none',
-          navOpen && 'lg:pl-[248px]',
+          navShown && 'lg:pl-[248px]',
           /*
             마을 화면만 흐름에서 빼 본문 위에 겹친다(`absolute`). `sticky` 로는 자리를 계속
             차지해서 아래 내용을 밀어낸다 — 되찾으려는 것이 바로 그 64px 이다.
@@ -253,7 +279,7 @@ export default function AppShell() {
             사이드바를 접는 이유가 화면을 비우기 위해서라 그건 앞뒤가 맞지 않는다.
             헤더 안이면 항상 같은 자리에 있고 본문을 침범하지 않는다.
           */}
-          {!navOpen && (
+          {!navShown && (
             <button
               type="button"
               onClick={() => setNavOpen(true)}
@@ -275,7 +301,7 @@ export default function AppShell() {
             to="/app"
             className={cn(
               'flex items-center gap-2 no-underline',
-              navOpen ? 'lg:hidden' : 'lg:flex',
+              navShown ? 'lg:hidden' : 'lg:flex',
               overlayHeader && 'pointer-events-auto',
             )}
           >
@@ -310,6 +336,7 @@ export default function AppShell() {
 
             <NavLink
               to="/app/shop"
+              data-tour="top-point"
               className="flex h-10 items-center gap-1.5 rounded-full border px-3 text-[13px] font-extrabold no-underline transition-colors hover:border-brand-300"
               style={{ borderColor: 'var(--border-hairline)', background: 'var(--surface-card)' }}
               aria-label={`보유 포인트 ${num(user?.point ?? 0)} 포인트, 상점으로 이동`}
@@ -322,6 +349,27 @@ export default function AppShell() {
               </span>
               {num(user?.point ?? 0)}
             </NavLink>
+
+            {/*
+              사용법 안내. 화면마다 흩어진 오버레이 안내로 들어가는 입구다. 첫 방문 때
+              저절로 뜨는 안내는 건너뛰면 그만이라, 나중에 다시 볼 길이 없으면 "아까 그
+              설명" 을 찾을 방법이 새로고침 + 저장소 비우기밖에 없다.
+
+              <b>좁은 화면에서는 숨긴다.</b> 상단 바 오른쪽에는 이미 동그란 버튼이 넷이라
+              (포인트 · 테마 · 알림 · 프로필) 하나를 더 얹으면 왼쪽 로고가 "만/다/린" 으로
+              세 줄이 된다. 그쪽에서는 하단 '더보기' 시트에 같은 입구를 둔다.
+            */}
+            <button
+              type="button"
+              data-tour="top-help"
+              onClick={() => setHelpOpen(true)}
+              aria-label="사용법 안내 보기"
+              title="사용법 안내"
+              className="hidden size-10 place-items-center rounded-full border text-[15px] font-black text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)] sm:grid"
+              style={{ borderColor: 'var(--border-hairline)', background: 'var(--surface-card)' }}
+            >
+              ?
+            </button>
 
             <button
               type="button"
@@ -371,7 +419,7 @@ export default function AppShell() {
         id="main"
         className={cn(
           'transition-[padding] duration-200 ease-out motion-reduce:transition-none',
-          navOpen && 'lg:pl-[248px]',
+          navShown && 'lg:pl-[248px]',
         )}
       >
         {/*
@@ -411,11 +459,12 @@ export default function AppShell() {
       >
         {/* primary 3개 + '더 보기' = 4칸. NAV 의 primary 개수를 바꾸면 여기도 함께 고친다. */}
         <div className="mx-auto grid max-w-lg grid-cols-4">
-          {NAV.filter((item) => item.primary).map(({ to, label, icon: Icon }) => (
+          {NAV.filter((item) => item.primary).map(({ to, label, icon: Icon, tour: tourTarget }) => (
             <NavLink
               key={to}
               to={to}
               end={to === '/app'}
+              data-tour={tourTarget}
               className={({ isActive }) =>
                 cn(
                   'flex flex-col items-center gap-1 py-2.5 text-[10.5px] font-bold no-underline transition-colors',
@@ -473,6 +522,20 @@ export default function AppShell() {
               >
                 마이페이지
               </NavLink>
+
+              {/* 좁은 화면에서 상단 바의 물음표 버튼을 대신하는 자리. */}
+              <button
+                type="button"
+                data-tour="top-help"
+                onClick={() => {
+                  setMoreOpen(false)
+                  setHelpOpen(true)
+                }}
+                className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-bold"
+                style={{ background: 'var(--surface-sunken)' }}
+              >
+                사용법 안내
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -589,6 +652,51 @@ export default function AppShell() {
           </div>
         </div>
       )}
+
+      {/* ───────── 사용법 안내 목록 ───────── */}
+      {/*
+        <b>이름만 있는 목록이다.</b> 한 줄 설명도, 아이콘도, 안내가 어떻게 동작하는지에 대한
+        문장도 두지 않는다 — 고르면 곧바로 그 화면에서 보여 주는 것이라, 고르기 전에 읽어야
+        할 것을 늘리면 그 자체가 또 하나의 설명거리가 된다. 닫기 버튼도 없다(머리말의 × 하나면
+        충분하다).
+      */}
+      <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title="사용법 안내" size="sm">
+        <div className="grid gap-1.5">
+          {TOUR_ORDER.map((id) => {
+            const { label, icon: Icon } = TOURS[id]
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setHelpOpen(false)
+                  /*
+                    작성 중인 만다라트를 두고 옮겨 갈 수 있다. 사이드바와 같은 확인을 거친다 —
+                    여기만 맨 이동으로 두면 이 버튼으로만 초안이 조용히 날아간다.
+                  */
+                  const go = () => tour.reset(id)
+                  if (!guard(go)) go()
+                }}
+                className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-[13.5px] font-bold transition-colors hover:bg-black/[.04] dark:hover:bg-white/[.05]"
+                style={{ background: 'var(--surface-sunken)' }}
+              >
+                {/* 사이드바 메뉴와 같은 크기·같은 흐린 색이다. 나란히 놓아도 한 벌로 보인다. */}
+                <Icon className="size-[21px] shrink-0 text-[var(--text-muted)]" />
+                <span className="min-w-0 flex-1 truncate">{label}</span>
+                {/* 아직 안 본 안내만 표시해 둔다 — 목록에서 눈이 갈 곳을 정해 준다. */}
+                {!tour.seen(id) && (
+                  <span className="shrink-0 text-[10px] font-black text-brand-600 dark:text-brand-400">
+                    NEW
+                  </span>
+                )}
+                <span aria-hidden="true" className="muted shrink-0 text-[13px]">
+                  →
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </Modal>
 
       {!onboarded && <OnboardingTour />}
     </div>
