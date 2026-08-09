@@ -10,10 +10,13 @@ import {
 } from 'react'
 import {
   clearAccessToken,
+  clearLoggedOut,
   getAccessToken,
+  markLoggedOut,
   onSessionExpired,
   reissueAccessToken,
   setAccessToken,
+  wasLoggedOut,
 } from '../api/client'
 import { auth } from '../api/endpoints'
 import { apiGateway, type Gateway, type SheetDraft } from './gateway'
@@ -202,6 +205,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let alive = true
 
     const restore = async () => {
+      /*
+        직접 로그아웃한 탭이면 아무 방법으로도 세션을 되살리지 않는다.
+
+        <p>목업 모드는 `me()` 가 늘 성공하고, api 모드는 리프레시 쿠키가 남아 있으면
+        재발급이 성공한다. 그래서 이 확인이 없으면 로그아웃한 뒤 주소창으로 다시 들어오는
+        순간(= 앱이 처음부터 뜨는 순간) 로그인 상태로 돌아간다.
+      */
+      if (wasLoggedOut()) {
+        setUser(null)
+        setSession('guest')
+        return
+      }
+
       if (mode === 'mock') {
         const me = await mockGateway.me()
         if (!alive) return
@@ -411,10 +427,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       enterMockSession: () => {
+        // 로그아웃 표시를 지우지 않으면 세션 복원이 목업 세션까지 게스트로 되돌린다.
+        clearLoggedOut()
         window.localStorage.setItem(MODE_KEY, 'mock')
         setModeState('mock')
       },
 
+      /*
+        로그아웃.
+
+        <p>세 곳을 같이 비워야 끝난다 — 액세스 토큰, 데이터 모드, 그리고 "되살리지 말라"는
+        표시다. 토큰만 비우면 상태로만 게스트가 되고, 앱이 처음부터 뜨는 순간(주소창 입력·
+        새로 고침) 복원 로직이 목업 세션이나 리프레시 쿠키로 다시 로그인시킨다.
+
+        <p>모드를 'api' 로 되돌리는 것이 특히 중요하다. 목업으로 화면을 보다가 로그아웃하면
+        localStorage 에 'mock' 이 남고, 목업 게이트웨이의 `me()` 는 늘 성공하므로
+        <b>토큰이 없어도</b> 다음 부팅에서 로그인 상태가 된다.
+      */
       logout: async () => {
         try {
           await gatewayRef.current.logout()
@@ -422,6 +451,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           // 서버가 실패해도 로컬 세션은 비운다.
         }
         clearAccessToken()
+        markLoggedOut()
+        // 저장분과 지금 화면의 출처를 함께 되돌린다 — 앞은 다음 부팅, 뒤는 지금을 위한 것이다.
+        clearMockSession()
+        setModeState('api')
         setUser(null)
         setSession('guest')
       },
