@@ -8,6 +8,11 @@ package com.ssafy.mandarin.domain.reward.entity;
  * {@code landmarkStageFromPercent} 가 같은 폭으로 랜드마크 단계를 정하므로, 구간 하나를
  * 넘길 때마다 "랜드마크가 한 단계 자라고 보상이 하나 열린다" 가 된다.
  *
+ * <p>이 등식은 <b>양쪽이 같은 수를 볼 때만</b> 성립한다. 랜드마크 단계는 줄곧
+ * {@code progress}(과제별 진행률의 평균)를 봤는데 보상 판정만 {@code achievementRate}(완료
+ * 과제 ÷ 64)를 보던 시절이 있었고, 그때는 링이 48% 인데 12.5% 구간만 열렸다. 지금은 판정도
+ * {@code progress} 다({@code RewardTrackService.rewardRateOf}).
+ *
  * <pre>
  *   구간      1      2      3      4      5      6      7      8
  *   진행률  12.5   25.0   37.5   50.0   62.5   75.0   87.5  100.0 %
