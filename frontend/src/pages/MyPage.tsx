@@ -10,10 +10,8 @@ import {
   Field,
   Input,
   ProgressBar,
-  Segmented,
   Skeleton,
 } from '../components/common/Primitives'
-import { IconGrid, IconShop, IconVillage } from '../components/common/Icons'
 import { formatDate, fromNow, num } from '../utils/format'
 import type { PointLog } from '../data/types'
 import { cn } from '../utils/cn'
@@ -24,8 +22,6 @@ export default function Profile() {
     details,
     shop,
     sheets,
-    theme,
-    toggleTheme,
     logout,
     updateName,
     mode,
@@ -244,40 +240,6 @@ export default function Profile() {
         </section>
 
         <div className="flex flex-col gap-5">
-          <section className="card p-6">
-            <h2 className="section-title m-0 mb-4">바로가기</h2>
-            <div className="flex flex-col gap-2">
-              {[
-                {
-                  to: '/app/sheets',
-                  icon: IconGrid,
-                  title: '내 만다라트 목록',
-                  body: `${sheets.data.length}개의 표`,
-                },
-                { to: '/app/village', icon: IconVillage, title: '내 마을', body: '도시 보기' },
-                {
-                  to: '/app/shop',
-                  icon: IconShop,
-                  title: '상점',
-                  body: `${stats.owned}/${shop.data.length}종 보유`,
-                },
-              ].map(({ to, icon: Icon, title, body }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className="flex items-center gap-3 rounded-xl px-4 py-3.5 no-underline transition-colors hover:brightness-95"
-                  style={{ background: 'var(--surface-sunken)' }}
-                >
-                  <Icon className="size-5 shrink-0" />
-                  <span className="min-w-0 text-left">
-                    <span className="block text-[13.5px] font-extrabold">{title}</span>
-                    <span className="muted block text-[11.5px] font-semibold">{body}</span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
-
           {/*
             예전에는 점선 박스(p-4) + 전체폭 복사 버튼으로 세로 100px 넘게 썼다.
             36자짜리 문자열 하나를 보여 주는 데 카드 하나를 통째로 쓸 이유가 없다 —
@@ -291,52 +253,30 @@ export default function Profile() {
             </p>
           </section>
 
-          <section className="card p-6">
-            <h2 className="section-title m-0 mb-4">설정</h2>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-[13px] font-bold">화면 테마</span>
-                <Segmented
-                  size="sm"
-                  value={theme}
-                  onChange={(v) => {
-                    if (v !== theme) toggleTheme()
-                  }}
-                  options={[
-                    { value: 'light', label: '밝게' },
-                    { value: 'dark', label: '어둡게' },
-                  ]}
-                />
-              </div>
-
-              {/*
-                데이터 출처(목업/서버) 토글이 여기 있었다. 세션 도중에 뒤집으면 이미 그려진
-                화면은 그대로라 절반은 서버 것, 절반은 브라우저 것을 보게 된다. 출처는 이제
-                로그인할 때만 정해진다(`store.tsx` 의 `initialMode` 주석). 지금 어느 쪽인지는
-                위쪽 이름 옆 '목업 계정' 배지로 읽는다.
-              */}
-
-              <div className="border-t pt-4" style={{ borderColor: 'var(--border-hairline)' }}>
-                {mode === 'mock' && (
-                  <Button variant="secondary" size="sm" full onClick={resetMockData}>
-                    목업 데이터 초기화
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  full
-                  className="mt-2"
-                  onClick={async () => {
-                    await logout()
-                    navigate('/')
-                  }}
-                >
-                  로그아웃
-                </Button>
-              </div>
-            </div>
-          </section>
+          {/*
+            설정 카드에는 화면 테마 토글과 로그아웃만 남아 있었다. 테마는 헤더에서 다루므로
+            카드 자체를 없애고, 버튼만 카드 밖으로 꺼냈다.
+            데이터 출처(목업/서버)는 로그인할 때만 정해진다(`store.tsx` 의 `initialMode` 주석).
+            지금 어느 쪽인지는 위쪽 이름 옆 '목업 계정' 배지로 읽는다.
+          */}
+          <div className="flex flex-col gap-2">
+            {mode === 'mock' && (
+              <Button variant="secondary" size="sm" full onClick={resetMockData}>
+                목업 데이터 초기화
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              full
+              onClick={async () => {
+                await logout()
+                navigate('/')
+              }}
+            >
+              로그아웃
+            </Button>
+          </div>
         </div>
       </div>
 

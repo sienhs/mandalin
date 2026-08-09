@@ -268,19 +268,30 @@ export default function Coach() {
   )
 
   /**
-   * 구조화 결과 도착. **`generate` 만 카드로 만든다.**
+   * 구조화 결과 도착. **`generate` 만 카드로 만들고, 나머지는 카드를 걷는다.**
    *
    * 서버의 `_STORABLE_ACTIONS` 와 같은 조건이다. `recommend` 는 이미 시트에 있는 과제를
-   * 지목한 것이라 담으면 중복이고, `clarify`·`out_of_scope` 는 되묻기·거절이다 — 그
-   * 문장들은 말풍선으로 이미 도착해 있으므로 여기서 더 할 일이 없다.
+   * 지목한 것이라 담으면 중복이고, `clarify`·`out_of_scope` 는 되묻기·거절이다.
+   *
+   * <p>그때 <b>직전 턴의 카드를 남기지 않는다</b> — `send()` 가 텍스트 전송 때 하는 정리와
+   * 같은 이유다(어느 것이 지금 이야기인지 흐려지고, 코치가 방향을 바꾼 뒤에도 옛 제안을
+   * 담을 수 있다). 음성 발화는 `send()` 를 타지 않아 그 정리가 걸리지 않으므로, 응답이
+   * 도착하는 여기서 걷어야 두 경로가 같아진다.
    */
   const handleGoal = useCallback((payload: GoalPayload) => {
-    if (payload.action !== 'generate') return
+    if (payload.action !== 'generate') {
+      setProposal(null)
+      return
+    }
     const domain = (payload.domain ?? '').trim().slice(0, MAX_DOMAIN_TITLE)
     const items = (payload.generated_tasks ?? []).flatMap(toSuggestion)
     // 칸 이름이나 과제가 비어 있으면 담을 수 없다. 서버가 이미 같은 검사를 하지만
     // (`_unknown_domain`), 빈 카드를 그려 놓고 담기가 안 되는 쪽이 더 나쁘다.
-    if (!domain || items.length === 0) return
+    // 이때도 옛 카드를 남기지 않는다 — 담을 수 없는 응답인 것은 위와 같다.
+    if (!domain || items.length === 0) {
+      setProposal(null)
+      return
+    }
     setProposal({ key: Date.now(), domain, domainIsNew: payload.domain_is_new ?? false, items })
   }, [])
 

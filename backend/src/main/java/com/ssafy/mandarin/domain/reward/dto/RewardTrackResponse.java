@@ -24,7 +24,15 @@ public record RewardTrackResponse(
 		)
 		Long sheetId,
 
-		@Schema(description = "그 시트의 달성률(%)", example = "37.5")
+		/**
+		 * 판정 시트의 진행률(%).
+		 *
+		 * <p>이름은 {@code achievementRate} 지만 담기는 값은 <b>{@code progress}</b>(과제별
+		 * 진행률의 평균)다 — 화면의 진행률 링·랜드마크 성장 단계와 같은 수다. 이름을 그대로 둔
+		 * 것은 프론트가 이 필드명을 쓰고 있어서이고, 값의 정의는
+		 * {@code RewardTrackService.rewardRateOf} 가 정본이다.
+		 */
+		@Schema(description = "판정 시트의 진행률(%). 화면의 진행률 링과 같은 값", example = "37.5")
 		Double achievementRate,
 
 		List<MilestoneResponse> milestones

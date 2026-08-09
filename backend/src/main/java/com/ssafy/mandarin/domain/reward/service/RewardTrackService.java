@@ -49,6 +49,10 @@ import lombok.extern.slf4j.Slf4j;
  * 구간만 골라 넘길 수 있다. 첫 시트로 묶으면 하나를 끝까지 밀어야 한다. 첫 시트를 지웠으면
  * 남은 것 중 가장 오래된 것으로 넘어간다 — 이미 받은 것은 계정에 남으니 잃지 않는다.
  *
+ * <h3>어느 수로 판정하는가</h3>
+ * <p><b>{@code progress}</b> — 과제 64개의 개별 진행률 평균이다. 화면의 진행률 링과 랜드마크
+ * 성장 단계가 보는 것과 같은 수다. 자세한 사정은 {@link #rewardRateOf} 주석에 있다.
+ *
  * <h3>진행률은 되돌아가지 않는다</h3>
  * <p>과제 수행에는 취소가 없어 {@code tryCount} 가 줄지 않는다. 그래서 "도달했다가 내려가
  * 수령을 놓치는" 상황은 없고, 도달 판정을 그 순간의 값으로 해도 안전하다.
@@ -76,7 +80,7 @@ public class RewardTrackService {
 	/** 보상 트랙 현황. 구간 8개의 보상 종류·도달 여부·수령 여부를 함께 돌려준다. */
 	public RewardTrackResponse getTrack(Long userId) {
 		Optional<Sheet> bound = findBoundSheet(userId);
-		double rate = bound.map(sheet -> achievementRateOf(userId, sheet.getId())).orElse(0.0);
+		double rate = bound.map(sheet -> rewardRateOf(userId, sheet.getId())).orElse(0.0);
 
 		Map<Short, RewardClaim> claims = claimsByMilestone(userId);
 
@@ -119,7 +123,7 @@ public class RewardTrackService {
 		}
 
 		Sheet bound = findBoundSheet(userId).orElseThrow(() -> new BusinessException(ErrorCode.SHEET_NOT_FOUND));
-		double rate = achievementRateOf(userId, bound.getId());
+		double rate = rewardRateOf(userId, bound.getId());
 		if (rate < RewardTrack.percentOf(milestone)) {
 			throw new BusinessException(ErrorCode.REWARD_NOT_REACHED);
 		}
@@ -220,13 +224,29 @@ public class RewardTrackService {
 				.min(Comparator.comparing(Sheet::getCreatedAt));
 	}
 
-	private double achievementRateOf(Long userId, Long sheetId) {
+	/**
+	 * 보상 판정에 쓰는 진행률 — <b>{@code progress}(과제별 진행률의 평균)</b>다.
+	 *
+	 * <p>예전에는 {@code achievementRate}(완전히 끝낸 과제 ÷ 64)를 썼다. 그런데 화면이 크게
+	 * 보여주는 수는 {@code progress} 라서(`SheetDetail.tsx` 의 진행률 링, `IsoVillage` 의 랜드마크
+	 * 성장 단계) 사용자는 둘이 같은 값이라고 읽는다. 반쯤 한 과제가 많으면 두 수가 두 배 가까이
+	 * 벌어져(예: 링 47.5% 대 판정 23.4%) "48% 인데 12.5% 구간만 열린다" 가 된다.
+	 *
+	 * <p>랜드마크 단계는 {@code landmarkStageFromPercent(progress)} 로 이미 {@code progress} 를
+	 * 보고 있었다. 보상만 다른 수를 보고 있었던 것이라, 여기를 맞추면 {@link RewardTrack} 이
+	 * 말하는 "구간 하나를 넘길 때마다 랜드마크가 한 단계 자라고 보상이 하나 열린다" 가 비로소
+	 * 성립한다.
+	 *
+	 * <p>되돌아가지 않는 성질은 그대로다 — 과제 수행에 취소가 없어 {@code tryCount} 가 줄지 않고,
+	 * 평균도 따라서 줄지 않는다.
+	 */
+	private double rewardRateOf(Long userId, Long sheetId) {
 		Map<Long, SheetProgressDto> progresses = sheetRepository.findSheetProgressesByUserId(userId);
 		SheetProgressDto dto = progresses.get(sheetId);
-		if (dto == null || dto.achievementRate() == null) {
+		if (dto == null || dto.progress() == null) {
 			return 0.0;
 		}
-		return dto.achievementRate();
+		return dto.progress();
 	}
 
 	private Map<Short, RewardClaim> claimsByMilestone(Long userId) {
