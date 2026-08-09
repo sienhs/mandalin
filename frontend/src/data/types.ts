@@ -263,6 +263,10 @@ export type RewardMilestone = {
 export type RewardTrack = {
   /** 보상 판정에 쓰는 시트(가장 먼저 만든 것). 이 시트에만 선물상자를 그린다. */
   sheetId: number | null
+  /**
+   * 판정 시트의 진행률(%). **이름과 달리 담기는 값은 `Sheet.progress`** — 과제별 진행률의
+   * 평균이고, 헤더의 진행률 링·랜드마크 성장 단계와 같은 수다. 이름만 예전 것이 남았다.
+   */
   achievementRate: number
   milestones: RewardMilestone[]
 }
