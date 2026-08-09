@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from mandarin_goal.bot.goal import (
+    BLOCKED_REPLIES,
     CLARIFY_REPEAT_THRESHOLD,
     EXHAUSTED_REPLY,
     GoalPipeline,
@@ -234,3 +235,89 @@ async def test_a_retry_turn_that_recovers_uses_the_second_answer():
     assert len(titles) == 3
     # 이미 담긴 과제를 다시 내지 않는다.
     assert "조깅하기" not in titles
+
+
+# -- 재요청 턴이 injection 으로 막히는 경우 -------------------------------------
+#
+# 실측(2026-08-09): `"다른 거 추천해줘"` 가 3단계에서 `injection` 으로 빠져 고정 거절
+# 문구가 나갔다. **8초 전 같은 발화는 `generate` 였다.** 1단계는 세 번 다 intent=goal 로
+# 정확히 넘겼으므로 이 층에서 받아야 한다.
+
+
+class InjectingBackend(StubbornBackend):
+    """3단계가 재요청 턴을 계속 `injection` 으로 막는다."""
+
+    async def reply_json(self, system, history, schema, **kwargs):
+        if "intent" in schema.get("properties", {}):
+            return {"intent": "goal", "domain": "운동", "what": None, "retry": True}
+        self.decide_calls += 1
+        return {"action": "injection", "reasoning": ""}
+
+
+class InjectingOnceBackend(StubbornBackend):
+    """되새김을 받고 두 번째에 제대로 낸다 — 오탐이 걷히는 경로."""
+
+    async def reply_json(self, system, history, schema, **kwargs):
+        if "intent" in schema.get("properties", {}):
+            return {"intent": "goal", "domain": "운동", "what": None, "retry": True}
+        self.decide_calls += 1
+        if self.decide_calls == 1:
+            return {"action": "injection", "reasoning": ""}
+        return {
+            "action": "generate",
+            "domain": "운동",
+            "generated_tasks": [
+                {"title": "수영하기", "frequency": "weekly", "count": 2,
+                 "description": "관절이 편합니다"},
+                {"title": "줄넘기 하기", "frequency": "weekly", "count": 3,
+                 "description": "짧고 강합니다"},
+                {"title": "계단 오르기", "frequency": "daily", "count": 1,
+                 "description": "따로 시간이 안 듭니다"},
+            ],
+            "reasoning": "",
+        }
+
+
+class HarmfulBackend(StubbornBackend):
+    """재요청 턴이어도 `harmful` 은 되굴리지 않는다."""
+
+    async def reply_json(self, system, history, schema, **kwargs):
+        if "intent" in schema.get("properties", {}):
+            return {"intent": "goal", "domain": "운동", "what": None, "retry": True}
+        self.decide_calls += 1
+        return {"action": "harmful", "reasoning": ""}
+
+
+async def test_a_retry_turn_blocked_as_injection_is_rolled_once_more():
+    result = await pipeline(InjectingOnceBackend()).run(
+        RETRY_HISTORY, AEROBIC, goal="건강한 몸 만들기"
+    )
+
+    assert "nudge" in result.stages, "되새김으로 한 번 더 굴려야 한다"
+    assert "blocked" not in result.stages
+    assert result.data["action"] == "generate"
+    assert result.text != BLOCKED_REPLIES["injection"]
+
+
+async def test_a_retry_turn_still_injecting_is_blocked():
+    """가드는 오탐만 받는다 — 두 번째에도 injection 이면 그대로 끊는다."""
+    backend = InjectingBackend()
+    result = await pipeline(backend).run(RETRY_HISTORY, AEROBIC, goal="건강한 몸 만들기")
+
+    assert backend.decide_calls == 2, "재시도는 **한 번만** — 예산이 45초다"
+    assert result.stages[-1] == "blocked"
+    assert result.text == BLOCKED_REPLIES["injection"]
+
+
+async def test_harm_is_never_rolled_again():
+    """`harmful`·`self_harm` 은 되굴리지 않는다.
+
+    되굴리면 해로운 발화가 실천과제가 될 수 있다 — 목표를 한 번 놓치는 것보다 나쁘다
+    (`prompts/system.md` 의 no_harm).
+    """
+    backend = HarmfulBackend()
+    result = await pipeline(backend).run(RETRY_HISTORY, AEROBIC, goal="건강한 몸 만들기")
+
+    assert backend.decide_calls == 1, "한 번도 되굴리지 않는다"
+    assert "nudge" not in result.stages
+    assert result.text == BLOCKED_REPLIES["harmful"]
