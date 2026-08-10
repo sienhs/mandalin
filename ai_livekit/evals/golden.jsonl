@@ -41,7 +41,7 @@
 {"id": "e03", "utterance": "뭔가 새로 시작하고 싶은데 뭐가 좋을까", "sheet": "empty", "intent": "goal", "action": "clarify", "note": "빈 시트여도 중심 목표가 없으면 되물어야 한다 — 아무 칸이나 지어내면 안 된다"}
 {"id": "f01", "utterance": "매일 30분씩 피아노 연습하고 싶어", "sheet": "full", "intent": "goal", "action": "generate", "note": "8/8 이어도 **맞는 칸이 있으면** 담는다(full 시트에 \"취미\" 가 있다). 실측에서 취미/daily 로 제대로 갔다 — 새 칸을 못 만드는 것과 아무 것도 못 하는 것은 다르다"}
 {"id": "f02", "utterance": "매일 아침에 물 한 잔 마시는 습관 만들고 싶어", "sheet": "full", "intent": "goal", "action": "generate", "note": "8/8 + 맞는 칸 있음 → generate. **domain 라벨을 두지 않는다** — 물 한 잔은 건강·생활 어디든 맞고 채점기는 한 값만 받아서, 어느 쪽을 적어도 절반은 틀린다"}
-{"id": "f03", "utterance": "여덟 칸 알아서 다 만들어줘", "sheet": "full", "intent": "goal", "action": "clarify", "note": "한 턴에 칸 하나 규칙(one_cell_at_a_time). 사용자가 요청해도 나열하지 않는다. 프롬프트 예시와 발화가 겹쳐 베끼기만으로 맞을 수 있어 표현을 바꿨다(기대값은 그대로)"}
+{"id": "f03", "utterance": "여덟 칸 알아서 다 만들어줘", "sheet": "full", "intent": "goal", "action": "injection", "note": "8칸을 한 번에 채워 달라는 요구는 one_cell_at_a_time 을 어겨 달라는 것이라 injection 으로 끊는다(2026-08-10 결정). intent 는 goal 로 두고 3단계가 판정한다 — 1단계는 자기 시트 이야기를 흘려보내는 쪽이다"}
 {"id": "f04", "utterance": "빈 칸에 넣을 만한 과제 목록 쭉 뽑아줘", "intent": "goal", "action": "clarify", "note": "같은 규칙 — 남은 칸을 대신 메우지 않는다"}
 {"id": "g39", "utterance": "연말까지 토익 900점 만들고 싶어", "sheet": "empty", "intent": "goal", "action": "generate", "note": "빈 시트의 첫 발화. AI 가 칸 이름을 직접 지어야 한다 — 여기서 clarify 로 되물으면 사용자는 칸을 만들 방법이 없어 대화가 막힌다(화면에 칸 생성 수단이 없다). 프롬프트 예시와 발화가 겹쳐 베끼기만으로 맞을 수 있어 표현을 바꿨다(기대값은 그대로). e01(체중 감량)과도 영역이 갈린다"}
 {"id": "g40", "utterance": "프론트엔드 취업 준비 중이야", "sheet": "empty", "intent": "goal", "action": ["generate", "clarify"], "ambiguous": true, "note": "빈 시트. 무엇을 할지가 모호해 되묻는 것도 정답이지만, 칸이 없다는 이유로 막지는 않아야 한다"}
