@@ -1261,6 +1261,18 @@ class GoalPipeline:
                 history_text=DOMAIN_FULL_NOTE,
             )
 
+        if self._clarify_needs_sheet(decided):
+            # 어느 칸에 담을지 묻는 되묻기. **문장을 모델이 쓰면 예시의 칸 이름이 그대로
+            # 나갑니다**(실측 2026-08-10) — 칸 목록은 서버가 아는 값이라 서버가 씁니다.
+            stages.append("no_domain")
+            return GoalResult(
+                text=domain_unknown_reply(domains),
+                data={"action": "clarify"},
+                transcript=transcript,
+                stages=stages,
+                history_text=DOMAIN_UNKNOWN_REPLY,
+            )
+
         text = render(decided)
         if not text:
             # 3단계가 out_of_scope 로 뒤집은 경우. 1단계가 걸러내지 못한 것이므로
@@ -1648,6 +1660,19 @@ class GoalPipeline:
             return None
         return title
 
+    @staticmethod
+    def _clarify_needs_sheet(decided: dict) -> bool:
+        """칸을 고르라는 되묻기인데 질문이 비었는가 (`prompts/system.md` 규칙 5의 예외).
+
+        칸이 정해진 되묻기는 해당하지 않습니다 — 그쪽은 무엇을 할지를 묻는 것이라
+        시트로 문장을 만들 수 없습니다(`render()` 가 처리).
+        """
+        return (
+            decided.get("action") == "clarify"
+            and not (decided.get("clarify_question") or "").strip()
+            and not (decided.get("domain") or "").strip()
+        )
+
     @classmethod
     def _settle_capacity(
         cls, decided: dict, domains: Sequence[DomainRef]
@@ -1786,15 +1811,22 @@ class GoalPipeline:
 
         조각 파일로 빼지 않은 이유는 규칙이 아니라 **사실**이기 때문입니다. 다듬을
         문구가 없으면 정본이 둘로 갈릴 일도 없습니다.
+
+        **분수(`n/8`)를 쓰지 않습니다.** 다음 슬롯(`<existing_domain_tasks>`)이 같은
+        표기를 칸 **안의 과제** 수로 씁니다(`취업 준비 6/8`). 정원이 둘 다 8 이라
+        구분이 안 돼, 실측(2026-08-10)에서 칸 1개·과제 6개인 시트에 "8칸이 다 차서"
+        가 나갔습니다. 저쪽은 그대로 둡니다 — 한쪽만 달라지면 겹침은 없어집니다.
         """
         used = len([d for d in domains if d.title])
         left = max(0, DOMAIN_SLOTS - used)
         if left == 0:
             return (
-                f"{used}/{DOMAIN_SLOTS} 칸 사용 — 자리가 없다. "
+                f"세부 목표 칸: {DOMAIN_SLOTS}개 모두 사용, 빈 칸 없음 — "
                 "새 칸 이름을 쓰지 말고 위 목록에서만 고른다"
             )
-        return f"{used}/{DOMAIN_SLOTS} 칸 사용 — {left}자리 남음(새 칸을 지어도 된다)"
+        return (
+            f"세부 목표 칸: {used}개 사용, {left}개 비어 있음 — 새 칸을 지어도 된다"
+        )
 
     def _capacity_context(self, domains: Sequence[DomainRef] = ()) -> str:
         """칸별로 **담은 과제를 전부** 싣습니다 — 개수와 함께.
