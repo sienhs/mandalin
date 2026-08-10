@@ -765,12 +765,11 @@ export default function SheetCreate() {
     coachAppliedRef.current = true
     navigate('/app/sheets/new', { replace: true, state: null })
     toast.show({
-      tone: initialCoachMerge.added > 0 ? 'success' : 'info',
+      tone: 'success',
       title:
         initialCoachMerge.added > 0
           ? `코치 제안 ${initialCoachMerge.added}칸을 빈 칸에 채웠어요`
-          : '빈 칸에 넣을 새 제안이 없었어요',
-      body: initialCoachMerge.added > 0 ? undefined : '이미 8×8 이 찼거나 같은 과제였어요.',
+          : '성공적으로 적용되었어요.',
     })
   }, [initialCoachMerge, navigate, toast])
 
