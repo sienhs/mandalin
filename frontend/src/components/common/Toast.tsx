@@ -79,7 +79,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              'animate-toast pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border px-4 py-3',
+              'animate-toast pointer-events-auto flex w-full max-w-sm gap-3 rounded-2xl border px-4 py-3',
+              t.body ? 'items-start' : 'items-center',
               TONE[t.tone].ring,
             )}
             style={{ background: 'var(--surface-raised)', boxShadow: 'var(--shadow-pop)' }}
@@ -87,7 +88,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <span
               aria-hidden="true"
               className={cn(
-                'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[13px] font-black',
+                'grid size-6 shrink-0 place-items-center rounded-full text-[13px] font-black',
+                t.body && 'mt-0.5',
                 TONE[t.tone].iconWrap,
               )}
             >
