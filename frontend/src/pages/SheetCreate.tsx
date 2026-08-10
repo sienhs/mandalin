@@ -429,11 +429,8 @@ export default function SheetCreate() {
   /** 이 탭에서 쓰다 나간 초안. 마운트할 때 한 번만 읽는다. */
   const [restored] = useState<StoredDraft | null>(() => loadDraft())
 
-  /**
-   * 쓰던 초안과 코치 초안이 둘 다 있는 상태 — 편집기에서 코치를 다녀온 경로다.
-   * 어느 쪽을 살릴지는 사람만 알 수 있으므로 묻는다.
-   */
-  const [mergeAsk, setMergeAsk] = useState(Boolean(seeded && restored))
+  /** 쓰던 초안이 있으면 코치 제안을 즉시 빈 칸에만 합친다. */
+  const initialCoachMerge = seeded && restored ? mergeCoach(restored.domains, seeded) : null
 
   /** 되살렸다는 사실을 알리는 줄. 닫으면 이번 작성 동안 다시 뜨지 않는다. */
   const [restoreNotice, setRestoreNotice] = useState(Boolean(restored) && !seeded)
@@ -445,11 +442,8 @@ export default function SheetCreate() {
   /** 취소로 작성을 그만둘지 묻는 팝업. */
   const [cancelOpen, setCancelOpen] = useState(false)
 
-  /*
-    편집기 안내는 <b>팝업이 하나도 없을 때</b> 뜬다. 방식 선택이나 병합 확인이 떠 있는 채로
-    안내가 겹치면 판이 두 겹이 되고, 안내가 가리키는 격자·버튼은 그 팝업에 덮여 안 보인다.
-  */
-  useAutoTour('editor', { ready: !pickerOpen && !mergeAsk })
+  /* 편집기 안내는 방식 선택 팝업이 닫힌 뒤에 뜬다. */
+  useAutoTour('editor', { ready: !pickerOpen })
 
   /*
     <b>안내가 방식 선택보다 먼저다.</b>
@@ -463,16 +457,15 @@ export default function SheetCreate() {
   */
   const { active: activeTour, pending: pendingTour } = useTour()
   const tourFirst = activeTour === 'editor' || pendingTour === 'editor'
-  /*
-    쓰던 초안이 있으면 그것으로 시작한다 — 코치 제안은 아직 얹지 않는다. 무엇을 살릴지
-    답을 받기 전에 화면을 바꿔 버리면, 팝업을 닫기만 해도 이미 덮여 있게 된다.
-  */
-  const [title, setTitle] = useState(restored?.title ?? seeded?.title ?? '')
+  /* 쓰던 내용은 보존하고, 비어 있는 핵심 목표와 격자 칸만 코치 제안으로 채운다. */
+  const [title, setTitle] = useState(
+    restored?.title.trim() ? restored.title : (seeded?.title ?? ''),
+  )
   const [expiredAt, setExpiredAt] = useState(restored?.expiredAt || IN_SIX_MONTHS)
   const [isOpen, setIsOpen] = useState(restored?.isOpen ?? true)
 
   const [domains, setDomains] = useState<DraftDomain[]>(
-    () => restored?.domains ?? (seeded ? fromCoach(seeded) : emptyDomains()),
+    () => initialCoachMerge?.domains ?? restored?.domains ?? (seeded ? fromCoach(seeded) : emptyDomains()),
   )
   const [selected, setSelected] = useState<CellRef | null>(
     seeded || restored ? { kind: 'domain', domainIndex: 0 } : { kind: 'core' },
@@ -762,41 +755,23 @@ export default function SheetCreate() {
     navigate('/app/coach', tour ? { state: { tour: true } } : undefined)
   }
 
-  /**
-   * 코치 초안을 다 쓴 뒤 라우터 state 를 비운다.
-   *
-   * <p>비우지 않으면 이 history 항목에 코치 초안이 남아, 새로고침할 때마다 "어떻게 넣을까요?"
-   * 가 다시 뜬다.
+  /*
+   * 코치에서 돌아온 첫 렌더부터 병합된 초안을 보여 주고, 안내 토스트만 한 번 띄운다.
+   * 라우터 state 도 곧바로 비워 새로고침 때 같은 제안을 다시 적용하지 않는다.
    */
-  const dropSeeded = () => navigate('/app/sheets/new', { replace: true, state: null })
-
-  /** 코치 제안을 빈 칸에만 채운다. 쓰던 칸은 그대로 남는다. */
-  const applyCoachMerge = () => {
-    if (!seeded) return
-    const { domains: merged, added } = mergeCoach(domains, seeded)
-    setDomains(merged)
-    if (!title.trim() && seeded.title) setTitle(seeded.title)
-    setMergeAsk(false)
-    dropSeeded()
+  const coachAppliedRef = useRef(false)
+  useEffect(() => {
+    if (!initialCoachMerge || coachAppliedRef.current) return
+    coachAppliedRef.current = true
+    navigate('/app/sheets/new', { replace: true, state: null })
     toast.show({
-      tone: added > 0 ? 'success' : 'info',
+      tone: 'success',
       title:
-        added > 0
-          ? `코치 제안 ${added}칸을 빈 칸에 채웠어요`
-          : '빈 칸에 넣을 새 제안이 없었어요',
-      body: added > 0 ? undefined : '이미 8×8 이 찼거나 같은 과제였어요.',
+        initialCoachMerge.added > 0
+          ? `코치 제안 ${initialCoachMerge.added}칸을 빈 칸에 채웠어요`
+          : '성공적으로 적용되었어요.',
     })
-  }
-
-  /** 쓰던 초안을 버리고 코치 초안만으로 다시 시작한다. */
-  const replaceWithCoach = () => {
-    if (!seeded) return
-    setTitle(seeded.title ?? '')
-    setDomains(fromCoach(seeded))
-    setSelected({ kind: 'domain', domainIndex: 0 })
-    setMergeAsk(false)
-    dropSeeded()
-  }
+  }, [initialCoachMerge, navigate, toast])
 
   /**
    * 작성을 그만두고 목록으로. 보관한 초안까지 지운다.
@@ -1316,34 +1291,6 @@ export default function SheetCreate() {
           </p>
         </div>
       </Modal>
-
-      {/*
-        코치를 다녀왔다. 쓰던 초안과 코치 제안 중 무엇을 살릴지는 사람만 안다.
-        기본값(첫 버튼)은 잃는 것이 없는 쪽 — 빈 칸에만 채우기다.
-      */}
-      <Modal
-        open={mergeAsk}
-        /* ESC·배경 클릭으로 닫아도 잃는 것이 없는 쪽으로 처리한다 — 코치 제안을 그냥 버리면
-           사용자는 "가져오기" 를 눌렀는데 아무 일도 안 난 것처럼 보인다. */
-        onClose={applyCoachMerge}
-        title="코치 제안을 어떻게 넣을까요?"
-        description={
-          restored
-            ? `쓰던 초안 ${restored.filled}칸이 그대로 있습니다. 코치가 제안한 과제를 빈 칸에만 넣으면 쓴 내용은 하나도 지워지지 않아요.`
-            : undefined
-        }
-        size="sm"
-        footer={
-          <>
-            <Button variant="ghost" size="sm" onClick={replaceWithCoach}>
-              코치 제안으로 새로 시작
-            </Button>
-            <Button size="sm" onClick={applyCoachMerge}>
-              빈 칸에만 채우기
-            </Button>
-          </>
-        }
-      />
 
       {/* 취소 — 보관한 초안까지 지우므로 사이드바 이탈보다 강하게 묻는다 */}
       <Modal
