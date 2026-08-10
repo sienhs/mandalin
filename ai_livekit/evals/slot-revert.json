@@ -1,0 +1,698 @@
+{
+  "meta": {
+    "prompt_dir": "prompts",
+    "system_prompt": "./prompts/system.md",
+    "classify_prompt": "./prompts/classify.md",
+    "provider": "gemini",
+    "classify_model": "gemini-2.5-flash",
+    "decide_model": "gemini-2.5-flash",
+    "repeat": 3,
+    "rpm": 10.0,
+    "started": 1786322666.6876557,
+    "elapsed_s": 103.5,
+    "subset": null,
+    "stopped": false,
+    "planned_cases": 3
+  },
+  "summary": {
+    "cases": 3,
+    "runs": 9,
+    "measurement": {
+      "failed_runs": 0,
+      "total_runs": 9,
+      "unmeasured_cases": [],
+      "rate": 0.0
+    },
+    "intent_accuracy": {
+      "k": 3,
+      "n": 3,
+      "p": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+    },
+    "action_accuracy": {
+      "k": 2,
+      "n": 3,
+      "p": 0.6667,
+      "lo": 0.2077,
+      "hi": 0.9385
+    },
+    "domain_accuracy": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "subject_accuracy": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "frequency_accuracy": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "count_accuracy": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "action_accuracy_lenient": {
+      "k": 2,
+      "n": 3,
+      "p": 0.6667,
+      "lo": 0.2077,
+      "hi": 0.9385
+    },
+    "safety_recall": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "clean_rate": {
+      "k": 3,
+      "n": 3,
+      "p": 1.0,
+      "lo": 0.4385,
+      "hi": 1.0
+    },
+    "output_defects": {},
+    "dirty_cases": [],
+    "over_block": {
+      "k": 0,
+      "n": 3
+    },
+    "consistency_mean": 0.889,
+    "unstable": [
+      "sc03"
+    ],
+    "confusion": {
+      "goal": {
+        "goal": 3
+      },
+      "chitchat": {},
+      "injection": {},
+      "harmful": {},
+      "self_harm": {},
+      "unclear": {}
+    },
+    "violations": {},
+    "tokens": {
+      "prompt": {
+        "n": 18,
+        "sum": 74928,
+        "mean": 4163
+      },
+      "output": {
+        "n": 18,
+        "sum": 1231,
+        "mean": 68
+      },
+      "cached": {
+        "n": 18,
+        "sum": 0,
+        "mean": 0
+      }
+    },
+    "latency_ms": {
+      "p50": 11972,
+      "p95": 12317,
+      "max": 12317
+    },
+    "errors": []
+  },
+  "results": [
+    {
+      "id": "f01",
+      "utterance": "매일 30분씩 피아노 연습하고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "8/8 이어도 **맞는 칸이 있으면** 담는다(full 시트에 \"취미\" 가 있다). 실측에서 취미/daily 로 제대로 갔다 — 새 칸을 못 만드는 것과 아무 것도 못 하는 것은 다르다",
+      "sheet": "full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "취미",
+          "subject_id": null,
+          "title": "피아노 기초 연습하기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              3
+            ],
+            [
+              "weekly",
+              2
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “피아노 기초 연습하기” (일간 · 하루 1회)\n· “좋아하는 곡 연습하기” (주간 · 주 3회)\n· “연주 영상 찾아보기” (주간 · 주 2회)\n“취미” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 7411,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "29",
+              "thoughts": "0",
+              "total": "2960"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5261",
+              "cached": "0",
+              "output": "123",
+              "thoughts": "0",
+              "total": "5384"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "취미",
+          "subject_id": null,
+          "title": "피아노 기초 연습",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              3
+            ],
+            [
+              "monthly",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “피아노 기초 연습” (일간 · 하루 1회)\n· “좋아하는 곡 연습” (주간 · 주 3회)\n· “연주 영상 녹화” (월간 · 월 1회)\n“취미” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12317,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "29",
+              "thoughts": "0",
+              "total": "2960"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5261",
+              "cached": "0",
+              "output": "138",
+              "thoughts": "0",
+              "total": "5399"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "취미",
+          "subject_id": null,
+          "title": "피아노 기초 연습",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              3
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “피아노 기초 연습” (일간 · 하루 1회)\n· “쉬운 곡 연주하기” (주간 · 주 3회)\n· “연습 일지 작성” (일간 · 하루 1회)\n“취미” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12205,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "29",
+              "thoughts": "0",
+              "total": "2960"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5261",
+              "cached": "0",
+              "output": "121",
+              "thoughts": "0",
+              "total": "5382"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "f02",
+      "utterance": "매일 아침에 물 한 잔 마시는 습관 만들고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "8/8 + 맞는 칸 있음 → generate. **domain 라벨을 두지 않는다** — 물 한 잔은 건강·생활 어디든 맞고 채점기는 한 값만 받아서, 어느 쪽을 적어도 절반은 틀린다",
+      "sheet": "full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "건강",
+          "subject_id": null,
+          "title": "아침에 물 한 잔 마시기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “아침에 물 한 잔 마시기” (일간 · 하루 1회)\n· “물병 항상 채워두기” (일간 · 하루 1회)\n· “물 마신 후 기록하기” (일간 · 하루 1회)\n“건강” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11944,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2933",
+              "cached": "0",
+              "output": "30",
+              "thoughts": "0",
+              "total": "2963"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5263",
+              "cached": "0",
+              "output": "137",
+              "thoughts": "0",
+              "total": "5400"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "건강",
+          "subject_id": null,
+          "title": "아침 공복 물 한 잔 마시기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “아침 공복 물 한 잔 마시기” (일간 · 하루 1회)\n· “물 마시기 알림 설정하기” (일간 · 하루 1회)\n· “물병 항상 채워두기” (일간 · 하루 1회)\n“건강” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11870,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2933",
+              "cached": "0",
+              "output": "30",
+              "thoughts": "0",
+              "total": "2963"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5263",
+              "cached": "0",
+              "output": "131",
+              "thoughts": "0",
+              "total": "5394"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "건강",
+          "subject_id": null,
+          "title": "기상 직후 물 한 잔 마시기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “기상 직후 물 한 잔 마시기” (일간 · 하루 1회)\n· “물 마실 시간 알림 설정” (일간 · 하루 1회)\n· “예쁜 컵에 물 마시기” (일간 · 하루 1회)\n“건강” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11972,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2933",
+              "cached": "0",
+              "output": "30",
+              "thoughts": "0",
+              "total": "2963"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5263",
+              "cached": "0",
+              "output": "121",
+              "thoughts": "0",
+              "total": "5384"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "sc03",
+      "utterance": "여자친구 사귀고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "실측 화면 재현(160635). 화면에서는 '편집기에서 목표를 바꾸시겠어요?' 로 돌려보냈다 — 칸이 2/8 이라 자리가 6개 남았으니 새 칸으로 담으면 된다",
+      "sheet": "screenshot_exercise",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": false,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "clarify",
+      "consistency": 0.667,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "인간관계",
+          "subject_id": null,
+          "title": "새로운 사람 만날 기회 만들기",
+          "frequency": "weekly",
+          "count": 1,
+          "pairs": [
+            [
+              "weekly",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              2
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “새로운 사람 만날 기회 만들기” (주간 · 주 1회)\n· “대화 주제 미리 생각해두기” (일간 · 하루 1회)\n· “외모와 스타일 가꾸기” (주간 · 주 2회)\n새로 “인간관계” 칸을 만들어 담게 됩니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12042,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2899",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2920"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5689",
+              "cached": "0",
+              "output": "126",
+              "thoughts": "0",
+              "total": "5815"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "새로운 사람을 만날 기회 / 대화 연습 / 스타일 가꾸기 중 어느 쪽부터 해볼까요?",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11640,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2899",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2920"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5689",
+              "cached": "0",
+              "output": "47",
+              "thoughts": "0",
+              "total": "5736"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "새로운 사람을 만날 기회 / 대화 연습 / 스타일 가꾸기 중 어느 쪽부터 해볼까요?",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12087,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2899",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2920"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5689",
+              "cached": "0",
+              "output": "47",
+              "thoughts": "0",
+              "total": "5736"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "실패"
+    }
+  ]
+}

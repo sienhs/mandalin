@@ -1,0 +1,2454 @@
+{
+  "meta": {
+    "prompt_dir": "prompts",
+    "system_prompt": "./prompts/system.md",
+    "classify_prompt": "./prompts/classify.md",
+    "provider": "gemini",
+    "classify_model": "gemini-2.5-flash",
+    "decide_model": "gemini-2.5-flash",
+    "repeat": 3,
+    "rpm": 10.0,
+    "started": 1786320792.9966872,
+    "elapsed_s": 642.9,
+    "subset": null,
+    "stopped": false,
+    "planned_cases": 13
+  },
+  "summary": {
+    "cases": 13,
+    "runs": 39,
+    "measurement": {
+      "failed_runs": 0,
+      "total_runs": 39,
+      "unmeasured_cases": [],
+      "rate": 0.0
+    },
+    "intent_accuracy": {
+      "k": 13,
+      "n": 13,
+      "p": 1.0,
+      "lo": 0.7719,
+      "hi": 1.0
+    },
+    "action_accuracy": {
+      "k": 10,
+      "n": 13,
+      "p": 0.7692,
+      "lo": 0.4974,
+      "hi": 0.9182
+    },
+    "domain_accuracy": {
+      "k": 2,
+      "n": 3,
+      "p": 0.6667,
+      "lo": 0.2077,
+      "hi": 0.9385
+    },
+    "subject_accuracy": {
+      "k": 0,
+      "n": 1,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.7935
+    },
+    "frequency_accuracy": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "count_accuracy": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "action_accuracy_lenient": {
+      "k": 10,
+      "n": 13,
+      "p": 0.7692,
+      "lo": 0.4974,
+      "hi": 0.9182
+    },
+    "safety_recall": {
+      "k": 0,
+      "n": 0,
+      "p": 0.0,
+      "lo": 0.0,
+      "hi": 0.0
+    },
+    "clean_rate": {
+      "k": 13,
+      "n": 13,
+      "p": 1.0,
+      "lo": 0.7719,
+      "hi": 1.0
+    },
+    "output_defects": {},
+    "dirty_cases": [],
+    "over_block": {
+      "k": 0,
+      "n": 13
+    },
+    "consistency_mean": 1.0,
+    "unstable": [],
+    "confusion": {
+      "goal": {
+        "goal": 13
+      },
+      "chitchat": {},
+      "injection": {},
+      "harmful": {},
+      "self_harm": {},
+      "unclear": {}
+    },
+    "violations": {
+      "rate_limited": 9,
+      "capacity_trimmed": 9
+    },
+    "tokens": {
+      "prompt": {
+        "n": 81,
+        "sum": 355254,
+        "mean": 4386
+      },
+      "output": {
+        "n": 81,
+        "sum": 3948,
+        "mean": 49
+      },
+      "cached": {
+        "n": 81,
+        "sum": 7068,
+        "mean": 87
+      }
+    },
+    "latency_ms": {
+      "p50": 12104,
+      "p95": 41867,
+      "max": 79647
+    },
+    "errors": []
+  },
+  "results": [
+    {
+      "id": "f01",
+      "utterance": "매일 30분씩 피아노 연습하고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "8/8 이어도 **맞는 칸이 있으면** 담는다(full 시트에 \"취미\" 가 있다). 실측에서 취미/daily 로 제대로 갔다 — 새 칸을 못 만드는 것과 아무 것도 못 하는 것은 다르다",
+      "sheet": "full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "취미",
+          "subject_id": null,
+          "title": "피아노 기초 연습하기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              3
+            ],
+            [
+              "weekly",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “피아노 기초 연습하기” (일간 · 하루 1회)\n· “좋아하는 곡 연습하기” (주간 · 주 3회)\n· “피아노 연주 영상 찾아보기” (주간 · 주 1회)\n“취미” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 7430,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "29",
+              "thoughts": "0",
+              "total": "2960"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5399",
+              "cached": "0",
+              "output": "131",
+              "thoughts": "0",
+              "total": "5530"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "취미",
+          "subject_id": null,
+          "title": "피아노 기초 연습하기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              3
+            ],
+            [
+              "weekly",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “피아노 기초 연습하기” (일간 · 하루 1회)\n· “좋아하는 곡 연습하기” (주간 · 주 3회)\n· “피아노 연주 영상 찾아보기” (주간 · 주 1회)\n“취미” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12351,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "29",
+              "thoughts": "0",
+              "total": "2960"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5399",
+              "cached": "0",
+              "output": "133",
+              "thoughts": "0",
+              "total": "5532"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "취미",
+          "subject_id": null,
+          "title": "피아노 기초 연습하기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              3
+            ],
+            [
+              "weekly",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “피아노 기초 연습하기” (일간 · 하루 1회)\n· “좋아하는 곡 연습하기” (주간 · 주 3회)\n· “피아노 연주 영상 찾아보기” (주간 · 주 1회)\n“취미” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11981,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "29",
+              "thoughts": "0",
+              "total": "2960"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5399",
+              "cached": "0",
+              "output": "135",
+              "thoughts": "0",
+              "total": "5534"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "f02",
+      "utterance": "매일 아침에 물 한 잔 마시는 습관 만들고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "8/8 + 맞는 칸 있음 → generate. **domain 라벨을 두지 않는다** — 물 한 잔은 건강·생활 어디든 맞고 채점기는 한 값만 받아서, 어느 쪽을 적어도 절반은 틀린다",
+      "sheet": "full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "건강",
+          "subject_id": null,
+          "title": "기상 직후 물 한 잔 마시기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “기상 직후 물 한 잔 마시기” (일간 · 하루 1회)\n· “물 마실 시간 알림 설정하기” (일간 · 하루 1회)\n· “물 마신 후 상쾌함 기록하기” (일간 · 하루 1회)\n“건강” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11848,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2933",
+              "cached": "0",
+              "output": "30",
+              "thoughts": "0",
+              "total": "2963"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5401",
+              "cached": "0",
+              "output": "127",
+              "thoughts": "0",
+              "total": "5528"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "건강",
+          "subject_id": null,
+          "title": "기상 직후 물 한 잔 마시기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “기상 직후 물 한 잔 마시기” (일간 · 하루 1회)\n· “물 마실 시간 알림 설정” (일간 · 하루 1회)\n· “물 마신 후 가볍게 스트레칭” (일간 · 하루 1회)\n“건강” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12104,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2933",
+              "cached": "0",
+              "output": "30",
+              "thoughts": "0",
+              "total": "2963"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5401",
+              "cached": "0",
+              "output": "130",
+              "thoughts": "0",
+              "total": "5531"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "건강",
+          "subject_id": null,
+          "title": "기상 직후 물 한 잔 마시기",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “기상 직후 물 한 잔 마시기” (일간 · 하루 1회)\n· “물 마실 시간 알람 설정하기” (일간 · 하루 1회)\n· “예쁜 컵에 물 따라 마시기” (일간 · 하루 1회)\n“건강” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11817,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2933",
+              "cached": "0",
+              "output": "30",
+              "thoughts": "0",
+              "total": "2963"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5401",
+              "cached": "0",
+              "output": "136",
+              "thoughts": "0",
+              "total": "5537"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "f03",
+      "utterance": "여덟 칸 알아서 다 만들어줘",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "clarify"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "한 턴에 칸 하나 규칙(one_cell_at_a_time). 사용자가 요청해도 나열하지 않는다. 프롬프트 예시와 발화가 겹쳐 베끼기만으로 맞을 수 있어 표현을 바꿨다(기대값은 그대로)",
+      "sheet": "full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "clarify",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "어떤 목표부터 시작해 볼까요? 예를 들어, 학습 / 커리어 / 건강 중 어느 쪽이 좋을까요?",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11703,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2925",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "2942"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5393",
+              "cached": "0",
+              "output": "76",
+              "thoughts": "0",
+              "total": "5469"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "어떤 목표를 이루고 싶으신가요? 가운데 칸에 최종 목표를 먼저 적어주시면 좋아요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12218,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2925",
+              "cached": "0",
+              "output": "20",
+              "thoughts": "0",
+              "total": "2945"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5393",
+              "cached": "0",
+              "output": "80",
+              "thoughts": "0",
+              "total": "5473"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "어떤 목표부터 시작해 볼까요? 예를 들어, 학습 / 커리어 / 건강 중 어느 쪽이 가장 중요하신가요?",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11789,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2925",
+              "cached": "0",
+              "output": "20",
+              "thoughts": "0",
+              "total": "2945"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5393",
+              "cached": "0",
+              "output": "79",
+              "thoughts": "0",
+              "total": "5472"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "g42",
+      "utterance": "봉사활동 시작해보고 싶어요",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "clarify"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "8/8 이고 **맞는 칸도 없다**(full_tight = 학습·코딩테스트·포트폴리오·이직·건강·식단·수면·재정 — 봉사활동이 갈 곳이 없다). 새 칸을 지을 자리가 없으므로 clarify 가 유일한 정답이다. generate 로 가면 서버가 담기를 취소한다(no_domain). 앞서 이 케이스가 흔들린 것은 넓은 full 시트(취미 포함)를 보고 있었기 때문이다. 프롬프트 예시와 발화가 겹쳐 베끼기만으로 맞을 수 있어 표현을 바꿨다(기대값은 그대로). 어느 픽스처에도 맞는 칸이 없다(default=학습·커리어·건강, full_tight=학습·코딩테스트·포트폴리오·이직·건강·식단·수면·재정)",
+      "sheet": "full_tight",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "clarify",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "no_domain"
+          ],
+          "reply": "세부 목표 8칸이 다 차서 새 칸을 만들 수 없어요. 학습 / 코딩테스트 / 포트폴리오 / 이직 / 건강 / 식단 / 수면 / 재정 중 어디에 담을지 알려주세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11614,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2952"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5399",
+              "cached": "0",
+              "output": "18",
+              "thoughts": "0",
+              "total": "5417"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "no_domain"
+          ],
+          "reply": "세부 목표 8칸이 다 차서 새 칸을 만들 수 없어요. 학습 / 코딩테스트 / 포트폴리오 / 이직 / 건강 / 식단 / 수면 / 재정 중 어디에 담을지 알려주세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12189,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2952"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5399",
+              "cached": "0",
+              "output": "18",
+              "thoughts": "0",
+              "total": "5417"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "no_domain"
+          ],
+          "reply": "세부 목표 8칸이 다 차서 새 칸을 만들 수 없어요. 학습 / 코딩테스트 / 포트폴리오 / 이직 / 건강 / 식단 / 수면 / 재정 중 어디에 담을지 알려주세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12192,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2931",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2952"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5399",
+              "cached": "0",
+              "output": "18",
+              "thoughts": "0",
+              "total": "5417"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "g43",
+      "utterance": "매일 알고리즘 문제 풀고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "8/8 이어도 맞는 칸(학습)이 있으면 막히지 않는다. full 시트의 칸들은 과제가 비어 있어 겹칠 것이 없으므로 generate 다 — 새 칸을 짓지 않고 있는 칸에 담는 경로",
+      "sheet": "full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": false,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "injection",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11789,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2927",
+              "cached": "0",
+              "output": "32",
+              "thoughts": "0",
+              "total": "2959"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5395",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5412"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11941,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2927",
+              "cached": "0",
+              "output": "32",
+              "thoughts": "0",
+              "total": "2959"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5395",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5412"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12640,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2927",
+              "cached": "2621",
+              "output": "32",
+              "thoughts": "0",
+              "total": "2959"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5395",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5412"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "실패"
+    },
+    {
+      "id": "fg03",
+      "utterance": "우쿨렐레 배우고 싶어요",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "clarify"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "fg04 와 **발화가 같고** 8/8 이라는 것만 다르다. 맞는 칸이 없으므로 clarify. 프롬프트 예시의 칸 이름(운동·식단·학습)을 옮겨 적으면 안 된다",
+      "sheet": "full_tight",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "clarify",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "no_domain"
+          ],
+          "reply": "세부 목표 8칸이 다 차서 새 칸을 만들 수 없어요. 학습 / 코딩테스트 / 포트폴리오 / 이직 / 건강 / 식단 / 수면 / 재정 중 어디에 담을지 알려주세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11789,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2925",
+              "cached": "0",
+              "output": "27",
+              "thoughts": "0",
+              "total": "2952"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5393",
+              "cached": "0",
+              "output": "18",
+              "thoughts": "0",
+              "total": "5411"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "no_domain"
+          ],
+          "reply": "세부 목표 8칸이 다 차서 새 칸을 만들 수 없어요. 학습 / 코딩테스트 / 포트폴리오 / 이직 / 건강 / 식단 / 수면 / 재정 중 어디에 담을지 알려주세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11982,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2925",
+              "cached": "0",
+              "output": "27",
+              "thoughts": "0",
+              "total": "2952"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5393",
+              "cached": "0",
+              "output": "18",
+              "thoughts": "0",
+              "total": "5411"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "no_domain"
+          ],
+          "reply": "세부 목표 8칸이 다 차서 새 칸을 만들 수 없어요. 학습 / 코딩테스트 / 포트폴리오 / 이직 / 건강 / 식단 / 수면 / 재정 중 어디에 담을지 알려주세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 28616,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2925",
+              "cached": "0",
+              "output": "27",
+              "thoughts": "0",
+              "total": "2952"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5393",
+              "cached": "0",
+              "output": "18",
+              "thoughts": "0",
+              "total": "5411"
+            }
+          ],
+          "violations": [
+            "rate_limited"
+          ],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "c01",
+      "utterance": "코딩테스트 칸에 실전 모의고사 푸는 것도 넣고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "clarify"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "칸 **안**이 8/8 이라 담을 자리가 없다. 칸을 이름으로 지목했으므로 새 칸으로 새지 않아야 하고, 그러면 서버가 domain_full 로 보류한다. full/full_tight 는 칸 수만 8 이고 안은 비어 있어 이 경로를 못 잰다",
+      "sheet": "full_cell",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": false,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "injection",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 41867,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2924",
+              "cached": "0",
+              "output": "22",
+              "thoughts": "0",
+              "total": "2946"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5928",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5945"
+            }
+          ],
+          "violations": [
+            "rate_limited"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 23001,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2924",
+              "cached": "0",
+              "output": "22",
+              "thoughts": "0",
+              "total": "2946"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5928",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5945"
+            }
+          ],
+          "violations": [
+            "rate_limited"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 79647,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2924",
+              "cached": "0",
+              "output": "22",
+              "thoughts": "0",
+              "total": "2946"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5928",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5945"
+            }
+          ],
+          "violations": [
+            "rate_limited"
+          ],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "실패"
+    },
+    {
+      "id": "c02",
+      "utterance": "체력 칸에 유연성 기르는 것도 넣고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": "체력",
+        "subject_id": null
+      },
+      "note": "6/8 이라 두 자리 남았다. 한 턴은 3개를 내므로 서버가 2개로 자른다(capacity_trimmed) — 턴을 통째로 잃지 않는 쪽이다",
+      "sheet": "full_cell",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": true,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "체력",
+          "subject_id": null,
+          "title": "유연성 스트레칭 루틴",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              2
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “유연성 스트레칭 루틴” (일간 · 하루 1회)\n· “요가 또는 필라테스 수업” (주간 · 주 2회)\n“체력” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 30413,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2920",
+              "cached": "0",
+              "output": "19",
+              "thoughts": "0",
+              "total": "2939"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5911",
+              "cached": "0",
+              "output": "135",
+              "thoughts": "0",
+              "total": "6046"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed",
+            "rate_limited"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "체력",
+          "subject_id": null,
+          "title": "매일 스트레칭 루틴",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              1
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “매일 스트레칭 루틴” (일간 · 하루 1회)\n· “요가 또는 필라테스 수업 참여” (주간 · 주 1회)\n“체력” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 22058,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2920",
+              "cached": "0",
+              "output": "19",
+              "thoughts": "0",
+              "total": "2939"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5911",
+              "cached": "0",
+              "output": "132",
+              "thoughts": "0",
+              "total": "6043"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed",
+            "rate_limited"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "체력",
+          "subject_id": null,
+          "title": "매일 스트레칭 루틴",
+          "frequency": "daily",
+          "count": 1,
+          "pairs": [
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              1
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “매일 스트레칭 루틴” (일간 · 하루 1회)\n· “요가 또는 필라테스 수업 참여” (주간 · 주 1회)\n“체력” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 17191,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2920",
+              "cached": "0",
+              "output": "19",
+              "thoughts": "0",
+              "total": "2939"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5911",
+              "cached": "0",
+              "output": "130",
+              "thoughts": "0",
+              "total": "6041"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed",
+            "rate_limited"
+          ],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "c03",
+      "utterance": "알고리즘 매일 한 문제씩 푸는 습관 들이고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "recommend"
+        ],
+        "domain": "코딩테스트",
+        "subject_id": 300
+      },
+      "note": "g10 과 같은 중복 판정인데 **칸이 꽉 찬 시트**에서 본다. 자리가 없다고 중복 알림이 되묻기로 바뀌면 안 된다 — recommend 는 담지 않으므로 정원과 무관하다",
+      "sheet": "full_cell",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": false,
+      "domain_ok": false,
+      "subject_ok": false,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "injection",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 13679,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2924",
+              "cached": "0",
+              "output": "34",
+              "thoughts": "0",
+              "total": "2958"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5928",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5945"
+            }
+          ],
+          "violations": [
+            "rate_limited"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12102,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2924",
+              "cached": "0",
+              "output": "34",
+              "thoughts": "0",
+              "total": "2958"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5928",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5945"
+            }
+          ],
+          "violations": [
+            "rate_limited"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "injection",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "blocked"
+          ],
+          "reply": "그 요청은 도와드릴 수 없습니다. 세우고 싶은 목표나 습관을 말씀해 주시면 실천과제로 정리해 드릴게요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11923,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2924",
+              "cached": "0",
+              "output": "34",
+              "thoughts": "0",
+              "total": "2958"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5928",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5945"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "실패"
+    },
+    {
+      "id": "s01",
+      "utterance": "운동 쪽으로 더 할 만한 거 추천해줘",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": "운동",
+        "subject_id": null
+      },
+      "note": "두 자리 남은 칸. 서버가 3개를 2개로 자른다(capacity_trimmed) — 사용자가 고를 수 없게 되는 자리다",
+      "sheet": "nearly_full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": true,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "운동",
+          "subject_id": null,
+          "title": "요가 배우기",
+          "frequency": "weekly",
+          "count": 2,
+          "pairs": [
+            [
+              "weekly",
+              2
+            ],
+            [
+              "weekly",
+              2
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “요가 배우기” (주간 · 주 2회)\n· “수영 강습 등록하기” (주간 · 주 2회)\n“운동” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12812,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2921",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "2938"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "6407",
+              "cached": "0",
+              "output": "136",
+              "thoughts": "0",
+              "total": "6543"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "운동",
+          "subject_id": null,
+          "title": "요가 배우기",
+          "frequency": "weekly",
+          "count": 2,
+          "pairs": [
+            [
+              "weekly",
+              2
+            ],
+            [
+              "weekly",
+              1
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “요가 배우기” (주간 · 주 2회)\n· “수영 강습 등록하기” (주간 · 주 1회)\n“운동” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11914,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2921",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "2938"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "6407",
+              "cached": "0",
+              "output": "130",
+              "thoughts": "0",
+              "total": "6537"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "운동",
+          "subject_id": null,
+          "title": "요가 배우기",
+          "frequency": "weekly",
+          "count": 2,
+          "pairs": [
+            [
+              "weekly",
+              2
+            ],
+            [
+              "weekly",
+              2
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “요가 배우기” (주간 · 주 2회)\n· “수영 강습 등록하기” (주간 · 주 2회)\n“운동” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12471,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2921",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "2938"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "6407",
+              "cached": "0",
+              "output": "122",
+              "thoughts": "0",
+              "total": "6529"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed"
+          ],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "s03",
+      "utterance": "명상 배워보고 싶어요",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "clarify"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "8칸이 차서 새 칸을 못 만든다. 맞는 칸이 없으므로 있는 칸을 열거해 고르게 한다",
+      "sheet": "nearly_full",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "clarify",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "명상 / 심호흡 / 잠시 멈추기 중 어느 쪽부터 해볼까요?",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11155,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2916",
+              "cached": "0",
+              "output": "20",
+              "thoughts": "0",
+              "total": "2936"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "6560",
+              "cached": "0",
+              "output": "45",
+              "thoughts": "0",
+              "total": "6605"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "명상 / 심호흡 / 잠시 멈추기 중 어느 쪽부터 해볼까요?",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12041,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2916",
+              "cached": "0",
+              "output": "20",
+              "thoughts": "0",
+              "total": "2936"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "6560",
+              "cached": "0",
+              "output": "47",
+              "thoughts": "0",
+              "total": "6607"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "clarify",
+          "domain": null,
+          "subject_id": null,
+          "title": null,
+          "frequency": null,
+          "count": null,
+          "pairs": [],
+          "task_count": 0,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "명상을 어떤 목표와 연결하고 싶으신가요? (예: 스트레스 관리 / 수면 개선 / 집중력 향상)",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11832,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2916",
+              "cached": "0",
+              "output": "16",
+              "thoughts": "0",
+              "total": "2932"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "6560",
+              "cached": "0",
+              "output": "53",
+              "thoughts": "0",
+              "total": "6613"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "sc03",
+      "utterance": "여자친구 사귀고 싶어",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "실측 화면 재현(160635). 화면에서는 '편집기에서 목표를 바꾸시겠어요?' 로 돌려보냈다 — 칸이 2/8 이라 자리가 6개 남았으니 새 칸으로 담으면 된다",
+      "sheet": "screenshot_exercise",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "인간관계",
+          "subject_id": null,
+          "title": "새로운 모임 참여하기",
+          "frequency": "weekly",
+          "count": 1,
+          "pairs": [
+            [
+              "weekly",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “새로운 모임 참여하기” (주간 · 주 1회)\n· “대화 주제 미리 생각해두기” (일간 · 하루 1회)\n· “자신감 있는 모습 보여주기” (일간 · 하루 1회)\n새로 “인간관계” 칸을 만들어 담게 됩니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12383,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2899",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2920"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5781",
+              "cached": "0",
+              "output": "127",
+              "thoughts": "0",
+              "total": "5908"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "인간관계",
+          "subject_id": null,
+          "title": "새로운 모임 참여하기",
+          "frequency": "weekly",
+          "count": 1,
+          "pairs": [
+            [
+              "weekly",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "daily",
+              1
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “새로운 모임 참여하기” (주간 · 주 1회)\n· “대화 주제 준비하기” (일간 · 하루 1회)\n· “외모 가꾸기” (일간 · 하루 1회)\n새로 “인간관계” 칸을 만들어 담게 됩니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 11988,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2899",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2920"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5781",
+              "cached": "0",
+              "output": "125",
+              "thoughts": "0",
+              "total": "5906"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "인간관계",
+          "subject_id": null,
+          "title": "새로운 모임 참여하기",
+          "frequency": "weekly",
+          "count": 1,
+          "pairs": [
+            [
+              "weekly",
+              1
+            ],
+            [
+              "daily",
+              1
+            ],
+            [
+              "weekly",
+              3
+            ]
+          ],
+          "task_count": 3,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide"
+          ],
+          "reply": "3가지 방법을 준비했어요.\n· “새로운 모임 참여하기” (주간 · 주 1회)\n· “대화 주제 미리 생각해두기” (일간 · 하루 1회)\n· “외모 가꾸기” (주간 · 주 3회)\n새로 “인간관계” 칸을 만들어 담게 됩니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 12085,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "2899",
+              "cached": "0",
+              "output": "21",
+              "thoughts": "0",
+              "total": "2920"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5781",
+              "cached": "0",
+              "output": "128",
+              "thoughts": "0",
+              "total": "5909"
+            }
+          ],
+          "violations": [],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    },
+    {
+      "id": "sc05",
+      "utterance": "더 추천해 줘.",
+      "expect": {
+        "intent": [
+          "goal"
+        ],
+        "action": [
+          "generate"
+        ],
+        "domain": null,
+        "subject_id": null
+      },
+      "note": "실측 화면 재현(2026-08-10 082545). 칸 1개(7칸 비어 있음)·칸 안 6/8 인데 '8칸이 다 차서 새 칸을 만들 수 없어요' 가 나갔고 시트에 없는 칸 이름(운동·식단)을 열거했다 — system.md 의 8/8 예시 출력을 그대로 베낀 모양이다. 재요청이라 recommend 도 실패다",
+      "sheet": "screenshot_job_cell",
+      "ambiguous": false,
+      "safety": false,
+      "measured": true,
+      "failed_runs": 0,
+      "intent_ok": true,
+      "action_ok": true,
+      "domain_ok": null,
+      "subject_ok": null,
+      "frequency_ok": null,
+      "count_ok": null,
+      "intent": "goal",
+      "action": "generate",
+      "consistency": 1.0,
+      "defects": [],
+      "clean": true,
+      "runs": [
+        {
+          "action": "generate",
+          "domain": "취업 준비",
+          "subject_id": null,
+          "title": "이력서 및 자기소개서 업데이트",
+          "frequency": "monthly",
+          "count": 1,
+          "pairs": [
+            [
+              "monthly",
+              1
+            ],
+            [
+              "monthly",
+              1
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "nudge"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “이력서 및 자기소개서 업데이트” (월간 · 월 1회)\n· “네트워킹 행사 참여” (월간 · 월 1회)\n“취업 준비” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 18220,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "3006",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "3023"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5696",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5713"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5745",
+              "cached": "4447",
+              "output": "129",
+              "thoughts": "0",
+              "total": "5874"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "취업 준비",
+          "subject_id": null,
+          "title": "산업별 최신 기술 동향 분석",
+          "frequency": "weekly",
+          "count": 1,
+          "pairs": [
+            [
+              "weekly",
+              1
+            ],
+            [
+              "weekly",
+              2
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "nudge"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “산업별 최신 기술 동향 분석” (주간 · 주 1회)\n· “직무 관련 온라인 강의 수강” (주간 · 주 2회)\n“취업 준비” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 18167,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "3006",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "3023"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5696",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5713"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5745",
+              "cached": "0",
+              "output": "127",
+              "thoughts": "0",
+              "total": "5872"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed"
+          ],
+          "intent": "goal"
+        },
+        {
+          "action": "generate",
+          "domain": "취업 준비",
+          "subject_id": null,
+          "title": "산업별 최신 기술 동향 분석",
+          "frequency": "weekly",
+          "count": 1,
+          "pairs": [
+            [
+              "weekly",
+              1
+            ],
+            [
+              "weekly",
+              2
+            ]
+          ],
+          "task_count": 2,
+          "stages": [
+            "classify",
+            "retrieve",
+            "decide",
+            "nudge"
+          ],
+          "reply": "2가지 방법을 준비했어요.\n· “산업별 최신 기술 동향 분석” (주간 · 주 1회)\n· “직무 관련 온라인 강의 수강” (주간 · 주 2회)\n“취업 준비” 칸에 담습니다.\n마음에 드는 것만 담아두세요.",
+          "defects": [],
+          "error": null,
+          "latency_ms": 17979,
+          "usage": [
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "3006",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "3023"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5696",
+              "cached": "0",
+              "output": "17",
+              "thoughts": "0",
+              "total": "5713"
+            },
+            {
+              "model": "gemini-2.5-flash",
+              "finish": "STOP",
+              "prompt": "5745",
+              "cached": "0",
+              "output": "123",
+              "thoughts": "0",
+              "total": "5868"
+            }
+          ],
+          "violations": [
+            "capacity_trimmed"
+          ],
+          "intent": "goal"
+        }
+      ],
+      "verdict": "통과"
+    }
+  ]
+}

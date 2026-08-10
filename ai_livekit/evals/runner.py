@@ -219,6 +219,33 @@ SHEETS: dict[str, dict] = {
             }
         ]
     },
+    # 실측 화면(2026-08-10 082545). **자리가 넉넉히 남은 시트**입니다 — 칸 1개(7칸 비어
+    # 있음), 그 칸 안은 6/8. 어느 쪽도 꽉 차지 않았는데 "8칸이 다 차서 새 칸을 만들 수
+    # 없어요" 가 나갔고, 열거된 칸 이름 중 둘(운동·식단)은 시트에 없는 예시의 이름이었습니다.
+    #
+    # 관측된 것: 칸 이름·과제 6건과 그 주기, 최종목표. 채운 것은 `domainId`·`subjectId` 뿐입니다.
+    "screenshot_job_cell": {
+        "domains": [
+            {
+                "domainId": 421,
+                "title": "취업 준비",
+                "subjects": [
+                    {"subjectId": 4401, "title": "삼성전자 사업 분야 및 최신 기술 동향 파악",
+                     "period": "daily", "countPerPeriod": 1},
+                    {"subjectId": 4402, "title": "직무 관련 기술 스택 강화 및 프로젝트 경험 쌓기",
+                     "period": "weekly", "countPerPeriod": 3},
+                    {"subjectId": 4403, "title": "삼성전자 인재상 및 면접 기출 질문 분석",
+                     "period": "monthly", "countPerPeriod": 2},
+                    {"subjectId": 4404, "title": "삼성전자 최신 기술 트렌드 보고서 작성",
+                     "period": "weekly", "countPerPeriod": 1},
+                    {"subjectId": 4405, "title": "모의 면접 연습 및 피드백 받기",
+                     "period": "weekly", "countPerPeriod": 2},
+                    {"subjectId": 4406, "title": "지원 직무 관련 자격증 취득 준비",
+                     "period": "monthly", "countPerPeriod": 1},
+                ],
+            }
+        ]
+    },
     # 8/8 이면서 칸이 **좁게** 몰려 있음. 취미·여가 쪽 발화가 갈 곳이 없습니다.
     #
     # **`full` 만으로는 "새 칸을 못 만든다" 를 못 잽니다.** 도메인은 사용자가 짓는

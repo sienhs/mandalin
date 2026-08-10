@@ -1261,6 +1261,18 @@ class GoalPipeline:
                 history_text=DOMAIN_FULL_NOTE,
             )
 
+        if self._clarify_needs_sheet(decided):
+            # 어느 칸에 담을지 묻는 되묻기. **문장을 모델이 쓰면 예시의 칸 이름이 그대로
+            # 나갑니다**(실측 2026-08-10) — 칸 목록은 서버가 아는 값이라 서버가 씁니다.
+            stages.append("no_domain")
+            return GoalResult(
+                text=domain_unknown_reply(domains),
+                data={"action": "clarify"},
+                transcript=transcript,
+                stages=stages,
+                history_text=DOMAIN_UNKNOWN_REPLY,
+            )
+
         text = render(decided)
         if not text:
             # 3단계가 out_of_scope 로 뒤집은 경우. 1단계가 걸러내지 못한 것이므로
@@ -1647,6 +1659,19 @@ class GoalPipeline:
         if match is None or subject_count(match) < MAX_SUBJECTS_PER_DOMAIN:
             return None
         return title
+
+    @staticmethod
+    def _clarify_needs_sheet(decided: dict) -> bool:
+        """칸을 고르라는 되묻기인데 질문이 비었는가 (`prompts/system.md` 규칙 5의 예외).
+
+        칸이 정해진 되묻기는 해당하지 않습니다 — 그쪽은 무엇을 할지를 묻는 것이라
+        시트로 문장을 만들 수 없습니다(`render()` 가 처리).
+        """
+        return (
+            decided.get("action") == "clarify"
+            and not (decided.get("clarify_question") or "").strip()
+            and not (decided.get("domain") or "").strip()
+        )
 
     @classmethod
     def _settle_capacity(
